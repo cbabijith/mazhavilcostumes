@@ -51,7 +51,7 @@ export default function LoginPage() {
         {/* Top Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl p-2.5 border border-white/20 flex items-center justify-center">
-             <img src="/logo.svg" alt="Mazhavil Costumes Logo" className="w-full h-full object-contain brightness-0 invert" />
+             <img src="/logo.jpeg" alt="Mazhavil Costumes Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-white uppercase tracking-widest">
             Mazhavil Costumes
@@ -80,7 +80,7 @@ export default function LoginPage() {
           {/* Mobile Header (Only visible on small screens) */}
           <div className="lg:hidden text-center space-y-4 mb-8">
              <div className="w-16 h-16 mx-auto bg-slate-950 rounded-2xl p-3 shadow-xl">
-               <img src="/logo.svg" alt="Mazhavil Costumes" className="w-full h-full brightness-0 invert" />
+               <img src="/logo.jpeg" alt="Mazhavil Costumes" className="w-full h-full object-contain" />
              </div>
              <div>
                <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase">Mazhavil Costumes</h1>

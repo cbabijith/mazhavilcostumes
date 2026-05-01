@@ -61,7 +61,7 @@ export default function Header({ store, categories }: HeaderProps) {
   const compactCategories = isScrolled && isDesktop;
 
   const storeName = store?.name || "Mazhavil Costumes";
-  const logoUrl = store?.logo_url || "/logo_mazhavil.svg";
+  const logoUrl = store?.logo_url || "/logo_mazhavil.jpeg";
 
   const displayCategories = categories || [];
 

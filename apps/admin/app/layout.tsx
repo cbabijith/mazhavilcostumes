@@ -10,6 +10,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Mazhavil Costumes Admin",
   description: "Admin dashboard for Mazhavil Costumes costumes rental system",
+  icons: {
+    icon: "/logo.jpeg",
+    apple: "/logo.jpeg",
+  },
 };
 
 import AuthProvider from "@/components/providers/AuthProvider";

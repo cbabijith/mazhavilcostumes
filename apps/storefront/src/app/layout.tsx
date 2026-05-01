@@ -28,6 +28,10 @@ export const metadata: Metadata = {
     "Mazhavil Costumes",
     "premium costumes",
   ],
+  icons: {
+    icon: "/logo_mazhavil.jpeg",
+    apple: "/logo_mazhavil.jpeg",
+  },
 };
 
 import MobileBottomNav from "@/components/home/MobileBottomNav";
