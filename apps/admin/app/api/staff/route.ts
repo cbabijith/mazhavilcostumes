@@ -5,7 +5,7 @@
  * POST /api/staff         — create staff with Supabase Auth user (admin + manager)
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { staffService } from '@/services/staffService';
 import { apiGuard } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
@@ -61,6 +61,15 @@ export async function POST(request: NextRequest) {
     );
 
     const body = await request.json();
+
+    // Managers can only create 'staff' role — prevent role escalation
+    if (guard.user.role === 'manager' && body.role && body.role !== 'staff') {
+      return NextResponse.json(
+        { success: false, error: { message: 'Managers can only create staff accounts.', code: 'FORBIDDEN' } },
+        { status: 403 }
+      );
+    }
+
     const result = await staffService.createStaff(body);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to create staff');

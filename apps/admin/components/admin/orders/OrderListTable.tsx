@@ -30,10 +30,8 @@ interface OrderListTableProps {
   isLoading: boolean;
   searchQuery: string;
   selectedOrders: string[];
-  canDelete: boolean;
   onSelectAll: () => void;
   onToggleSelect: (id: string) => void;
-  onDelete: (order: OrderWithRelations) => void;
   onCancel: (order: OrderWithRelations) => void;
 }
 
@@ -101,10 +99,8 @@ function OrderListTableInner({
   isLoading,
   searchQuery,
   selectedOrders,
-  canDelete,
   onSelectAll,
   onToggleSelect,
-  onDelete,
   onCancel,
 }: OrderListTableProps) {
   const isSelected = useCallback(
@@ -158,9 +154,7 @@ function OrderListTableInner({
                 key={order.id}
                 order={order}
                 selected={isSelected(order.id)}
-                canDelete={canDelete}
                 onToggleSelect={onToggleSelect}
-                onDelete={onDelete}
                 onCancel={onCancel}
               />
             ))}

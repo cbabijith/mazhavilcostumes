@@ -125,7 +125,7 @@ export class BannerService {
         return {
           data: null,
           error: {
-            message: 'Redirect URL is required when redirect type is URL',
+            message: 'Please enter a redirect URL, or change the redirect type to "None".',
             code: 'VALIDATION_ERROR'
           } as any,
           success: false,
@@ -133,10 +133,11 @@ export class BannerService {
       }
     } else if (['category', 'subcategory', 'subvariant', 'product'].includes(data.redirect_type)) {
       if (!data.redirect_target_id) {
+        const typeLabel = data.redirect_type === 'subvariant' ? 'variant' : data.redirect_type;
         return {
           data: null,
           error: {
-            message: 'Redirect target ID is required for this redirect type',
+            message: `Please select a ${typeLabel} for the banner to link to, or change the redirect type to "None".`,
             code: 'VALIDATION_ERROR'
           } as any,
           success: false,
@@ -243,10 +244,11 @@ export class BannerService {
       }
     } else if (data.redirect_type && ['category', 'subcategory', 'subvariant', 'product'].includes(data.redirect_type)) {
       if (!data.redirect_target_id) {
+        const typeLabel = data.redirect_type === 'subvariant' ? 'variant' : data.redirect_type;
         return {
           data: null,
           error: {
-            message: 'Redirect target ID is required for this redirect type',
+            message: `Please select a ${typeLabel} for the banner to link to, or change the redirect type to "None".`,
             code: 'VALIDATION_ERROR'
           } as any,
           success: false,

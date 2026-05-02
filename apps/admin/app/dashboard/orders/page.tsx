@@ -29,7 +29,6 @@ import { Plus, Store, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useOrders,
-  useDeleteOrder,
   useUpdateOrder,
 } from "@/hooks";
 import { useAppStore } from "@/stores";
@@ -38,7 +37,6 @@ import {
   OrderFilters,
   OrderListTable,
   OrderPagination,
-  OrderDeleteModal,
   OrderCancelModal,
 } from "@/components/admin/orders";
 
@@ -63,10 +61,6 @@ function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const user = useAppStore((state) => state.user);
-  const canDelete = ["admin", "super_admin", "owner"].includes(
-    user?.role || ""
-  );
   const selectedBranchId = useAppStore((s) => s.selectedBranchId);
 
   // ── URL-driven state (single source of truth) ──────────────────────────
@@ -122,7 +116,6 @@ function OrdersContent() {
     date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
   });
 
-  const deleteOrder = useDeleteOrder();
   const { updateOrder } = useUpdateOrder();
 
   // ── Derived data (memoized) ────────────────────────────────────────────
@@ -155,19 +148,9 @@ function OrdersContent() {
 
   const clearSelection = useCallback(() => setSelectedOrders([]), []);
 
-  // ── Modal state ────────────────────────────────────────────────────────
-  const [deleteTarget, setDeleteTarget] = useState<OrderWithRelations | null>(
-    null
-  );
   const [cancelTarget, setCancelTarget] = useState<OrderWithRelations | null>(
     null
   );
-
-  const openDeleteModal = useCallback(
-    (order: OrderWithRelations) => setDeleteTarget(order),
-    []
-  );
-  const closeDeleteModal = useCallback(() => setDeleteTarget(null), []);
 
   const openCancelModal = useCallback(
     (order: OrderWithRelations) => setCancelTarget(order),
@@ -175,15 +158,7 @@ function OrdersContent() {
   );
   const closeCancelModal = useCallback(() => setCancelTarget(null), []);
 
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    try {
-      await deleteOrder.mutateAsync(deleteTarget.id);
-      closeDeleteModal();
-    } catch {
-      // Handled in hook
-    }
-  }, [deleteTarget, deleteOrder, closeDeleteModal]);
+
 
   const handleConfirmCancel = useCallback((reason: string) => {
     if (!cancelTarget) return;
@@ -286,10 +261,8 @@ function OrdersContent() {
         isLoading={isLoading}
         searchQuery={urlQuery}
         selectedOrders={selectedOrders}
-        canDelete={canDelete}
         onSelectAll={handleSelectAll}
         onToggleSelect={handleToggleSelect}
-        onDelete={openDeleteModal}
         onCancel={openCancelModal}
       />
 
@@ -307,14 +280,7 @@ function OrdersContent() {
         />
       )}
 
-      {/* Modals */}
-      <OrderDeleteModal
-        open={deleteTarget !== null}
-        order={deleteTarget}
-        isPending={deleteOrder.isPending}
-        onClose={closeDeleteModal}
-        onConfirm={handleConfirmDelete}
-      />
+
 
       <OrderCancelModal
         open={cancelTarget !== null}

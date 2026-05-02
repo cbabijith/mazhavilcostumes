@@ -76,6 +76,9 @@ export class ProductRepository extends BaseRepository {
     if (query) {
       selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
     }
+
+    // Exclude soft-deleted
+    selectQuery = (selectQuery as any).is('deleted_at', null);
     
     if (branch_id) {
       selectQuery = (selectQuery as any).or(`branch_id.eq.${branch_id},branch_id.is.null`);
@@ -107,6 +110,9 @@ export class ProductRepository extends BaseRepository {
     if (branch_id) {
       countQuery = (countQuery as any).or(`branch_id.eq.${branch_id},branch_id.is.null`);
     }
+
+    // Exclude soft-deleted from count
+    countQuery = (countQuery as any).is('deleted_at', null);
 
     const { count: totalCount } = await countQuery;
 
@@ -156,6 +162,7 @@ export class ProductRepository extends BaseRepository {
         product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at, branches:branch_id(id, name))
       `)
       .eq('id', id)
+      .is('deleted_at', null)
       .single();
 
     return this.handleResponse<ProductWithRelations>(response);
@@ -169,6 +176,7 @@ export class ProductRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .eq('category_id', categoryId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     return this.handleResponse<Product[]>(response);
@@ -182,6 +190,7 @@ export class ProductRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .eq('store_id', storeId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     return this.handleResponse<Product[]>(response);
@@ -195,6 +204,7 @@ export class ProductRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%`)
+      .is('deleted_at', null)
       .limit(limit)
       .order('created_at', { ascending: false });
 
@@ -211,6 +221,7 @@ export class ProductRepository extends BaseRepository {
       .select('*')
       .ilike('barcode', barcode)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .limit(1);
 
     if (response.error) {
@@ -239,7 +250,8 @@ export class ProductRepository extends BaseRepository {
     let query = this.client
       .from(this.tableName)
       .select('id, name')
-      .ilike('barcode', barcode);
+      .ilike('barcode', barcode)
+      .is('deleted_at', null);
 
     if (excludeProductId) {
       query = query.neq('id', excludeProductId);
@@ -289,12 +301,12 @@ export class ProductRepository extends BaseRepository {
   }
 
   /**
-   * Delete a product
+   * Soft-delete a product (sets deleted_at timestamp)
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
     const response = await this.client
       .from(this.tableName)
-      .delete()
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
       .eq('id', id);
 
     return this.handleResponse<void>(response);
@@ -501,6 +513,7 @@ export class ProductRepository extends BaseRepository {
       .select('*')
       .eq('is_featured', true)
       .eq('is_active', true)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -515,6 +528,7 @@ export class ProductRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .eq('track_inventory', true)
+      .is('deleted_at', null)
       .lt('available_quantity', 'low_stock_threshold')
       .gt('available_quantity', 0)
       .order('available_quantity', { ascending: true });
