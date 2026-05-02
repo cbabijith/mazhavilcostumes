@@ -22,6 +22,7 @@ export type Permission =
   | 'banners'
   | 'orders'
   | 'customers'
+  | 'reports'
   | 'settings'
   | 'switch_branches'
   | 'create_admin';
@@ -29,19 +30,19 @@ export type Permission =
 const rolePermissions: Record<StaffRole, Permission[]> = {
   super_admin: [
     'dashboard', 'products', 'categories', 'branches', 'staff',
-    'banners', 'orders', 'customers', 'settings', 'switch_branches', 'create_admin',
+    'banners', 'orders', 'customers', 'reports', 'settings', 'switch_branches', 'create_admin',
   ],
   admin: [
     'dashboard', 'products', 'categories', 'branches', 'staff',
-    'banners', 'orders', 'customers', 'settings', 'switch_branches',
+    'banners', 'orders', 'customers', 'reports', 'settings', 'switch_branches',
   ],
   manager: [
     'dashboard', 'products', 'categories', 'staff',
-    'banners', 'orders', 'customers',
+    'banners', 'orders', 'customers', 'reports',
   ],
   staff: [
     'dashboard', 'products', 'categories',
-    'banners', 'orders', 'customers',
+    'banners', 'orders', 'customers', 'reports',
   ],
 };
 
@@ -72,5 +73,6 @@ export const routePermissionMap: Record<string, Permission> = {
   '/dashboard/orders': 'orders',
   '/dashboard/calendar': 'orders',
   '/dashboard/customers': 'customers',
+  '/dashboard/reports': 'reports',
   '/dashboard/settings': 'settings',
 };

@@ -17,7 +17,8 @@ import {
   CalendarDays,
   FolderTree,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  FileBarChart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Products", href: "/dashboard/products", icon: Package },
   { name: "Categories", href: "/dashboard/categories", icon: FolderTree },
   { name: "Customers", href: "/dashboard/customers", icon: Users },
+  { name: "Reports", href: "/dashboard/reports", icon: FileBarChart },
   { name: "Banners", href: "/dashboard/banners", icon: ImageIcon },
   { name: "Staff", href: "/dashboard/staff", icon: UserCircle },
   { name: "Branches", href: "/dashboard/branches", icon: Building2 },
