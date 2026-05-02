@@ -32,6 +32,8 @@ interface User {
   store_id: string | null;
   branch_id: string | null;
   staff_id: string | null;
+  can_give_product_discount?: boolean;
+  can_give_order_discount?: boolean;
 }
 
 interface AppUIState {

@@ -71,6 +71,7 @@ export {
 
 // Permission hooks
 export { usePermissions } from './usePermissions';
+export { useProductDiscountPermission, useOrderDiscountPermission } from './useDiscountPermission';
 
 // Banner hooks
 export {
@@ -103,7 +104,6 @@ export {
   useUpdateOrder,
   useDeleteOrder,
   useProcessOrderReturn,
-  useMarkDepositReturned,
 } from './useOrders';
 
 // Settings hooks

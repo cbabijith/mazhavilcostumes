@@ -61,6 +61,8 @@ export interface OrderItem {
   price_per_day: number;
   total_price: number;
   subtotal: number;
+  discount: number;
+  discount_type: 'flat' | 'percent';
   condition_rating?: ConditionRating;
   damage_description?: string;
   damage_charges?: number;
@@ -83,7 +85,6 @@ export interface Order {
   total_amount: number;
   subtotal: number;
   gst_amount: number;
-  security_deposit: number;
   advance_amount: number;
   advance_collected?: boolean;
   advance_payment_method?: PaymentMethod;
@@ -91,17 +92,16 @@ export interface Order {
   amount_paid: number;
   payment_status: PaymentStatus;
   notes: string | null;
-  deposit_collected?: boolean;
-  deposit_collected_at?: string;
-  deposit_payment_method?: PaymentMethod;
-  deposit_returned: boolean;
-  deposit_returned_at?: string;
   delivery_method?: DeliveryMethod;
   delivery_address?: string;
   pickup_address?: string;
   late_fee: number;
   discount: number;
+  discount_type: 'flat' | 'percent';
   damage_charges_total: number;
+  cancellation_reason?: string;
+  cancelled_by?: string;
+  cancelled_at?: string;
   readonly created_at: string;
   readonly updated_at?: string;
 }
@@ -172,20 +172,18 @@ export interface UpdateOrderDTO {
   delivery_address?: string;
   pickup_address?: string;
   event_date?: string;
-  deposit_collected?: boolean;
-  deposit_collected_at?: string;
-  deposit_payment_method?: PaymentMethod;
-  deposit_returned?: boolean;
-  deposit_returned_at?: string;
   amount_paid?: number;
   payment_status?: PaymentStatus | string;
-  security_deposit?: number;
   advance_amount?: number;
   advance_collected?: boolean;
   late_fee?: number;
   discount?: number;
+  discount_type?: 'flat' | 'percent';
   damage_charges_total?: number;
   total_amount?: number;
+  cancellation_reason?: string;
+  cancelled_by?: string;
+  cancelled_at?: string;
 }
 
 // Return Order DTO

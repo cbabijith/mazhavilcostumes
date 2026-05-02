@@ -36,11 +36,12 @@ const rolePermissions: Record<StaffRole, Permission[]> = {
     'banners', 'orders', 'customers', 'settings', 'switch_branches',
   ],
   manager: [
-    'dashboard', 'products', 'categories',
+    'dashboard', 'products', 'categories', 'staff',
     'banners', 'orders', 'customers',
   ],
   staff: [
-    'dashboard', 'orders',
+    'dashboard', 'products', 'categories',
+    'banners', 'orders', 'customers',
   ],
 };
 

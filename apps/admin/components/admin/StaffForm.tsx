@@ -40,8 +40,8 @@ interface StaffFormProps {
 
 const roleOptions: { value: StaffRole; label: string; description: string }[] = [
   { value: "admin", label: "Admin", description: "Full access to all features" },
-  { value: "manager", label: "Manager", description: "Can manage products, orders & staff" },
-  { value: "staff", label: "Staff", description: "View-only access + order operations" },
+  { value: "manager", label: "Manager", description: "Staff access + Staff management" },
+  { value: "staff", label: "Staff", description: "Dashboard, orders, products, categories, customers, banners" },
 ];
 
 const roleColors: Record<StaffRole, string> = {
@@ -106,6 +106,8 @@ export default function StaffForm({ staff }: StaffFormProps) {
     role: (staff?.role || "staff") as StaffRole,
     branch_id: staff?.branch_id || "",
     is_active: staff?.is_active ?? true,
+    can_give_product_discount: staff?.can_give_product_discount ?? false,
+    can_give_order_discount: staff?.can_give_order_discount ?? false,
   });
 
   // Set default branch when branches load (create mode only)
@@ -212,6 +214,8 @@ export default function StaffForm({ staff }: StaffFormProps) {
             role: formData.role,
             branch_id: formData.branch_id,
             is_active: formData.is_active,
+            can_give_product_discount: formData.can_give_product_discount,
+            can_give_order_discount: formData.can_give_order_discount,
           },
         });
       } else {
@@ -559,6 +563,52 @@ export default function StaffForm({ staff }: StaffFormProps) {
               </Select>
             )}
           </div>
+
+          {/* Discount Permissions — only for manager/staff roles */}
+          {(formData.role === 'manager' || formData.role === 'staff') && (
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Discount Permissions</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Control what discounts this staff member can apply</p>
+              </div>
+
+              {/* Product Discount Toggle */}
+              <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">Product Discount</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Allow editing rent price and applying item-level discounts in orders.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.can_give_product_discount}
+                  onCheckedChange={(checked) => updateField("can_give_product_discount", checked)}
+                  className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-200 shrink-0 mt-0.5"
+                />
+              </div>
+
+              {/* Order Discount Toggle */}
+              <div className="flex items-start justify-between gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">Order Discount</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                    Allow applying overall order-level discounts on the total amount.
+                  </p>
+                </div>
+                <Switch
+                  checked={formData.can_give_order_discount}
+                  onCheckedChange={(checked) => updateField("can_give_order_discount", checked)}
+                  className="data-[state=checked]:bg-emerald-500 data-[state=unchecked]:bg-slate-200 shrink-0 mt-0.5"
+                />
+              </div>
+            </div>
+          )}
+
+          {formData.role === 'admin' && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+              <p className="text-xs font-medium text-emerald-800">Admin users have full discount permissions by default.</p>
+            </div>
+          )}
         </div>
       </div>
 

@@ -166,7 +166,7 @@ export class InvoiceService {
       discount: Number(order.discount) || 0,
       lateFee: Number(order.late_fee) || 0,
       damageCharges: Number(order.damage_charges_total) || 0,
-      securityDeposit: Number(order.security_deposit) || 0,
+      securityDeposit: 0,
       totalAmount: Number(order.total_amount) || 0,
       totalPaid,
       balanceDue,

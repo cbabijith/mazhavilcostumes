@@ -242,27 +242,3 @@ export function useProcessOrderReturn() {
   };
 }
 
-/**
- * Mark deposit as returned
- */
-export function useMarkDepositReturned() {
-  const queryClient = useQueryClient();
-  const { showSuccess, showError } = useAppStore();
-
-  const mutation = useMutation({
-    mutationFn: (orderId: string) => apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${orderId}/deposit`, { method: 'PATCH' }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: orderKeys.all });
-      showSuccess('Deposit marked as returned');
-    },
-    onError: (error) => {
-      showError('Failed to mark deposit as returned', error.message);
-    },
-  });
-
-  return {
-    ...mutation,
-    markDepositReturned: mutation.mutate,
-    isLoading: mutation.isPending,
-  };
-}

@@ -16,11 +16,13 @@ import {
   UserCircle,
   CalendarDays,
   FolderTree,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { usePermissions } from "@/hooks";
+import { useAppStore } from "@/stores";
 import { routePermissionMap, type Permission } from "@/lib/permissions";
 
 const navigation = [
@@ -41,7 +43,9 @@ export default function Sidebar() {
   const router = useRouter();
   const supabase = createClient();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { role, can } = usePermissions();
+  const user = useAppStore((s) => s.user);
   const [isPending, startTransition] = useTransition();
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
 
@@ -123,11 +127,11 @@ export default function Sidebar() {
             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 transition-all duration-200 w-full"
           >
             <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-semibold", roleColor[role] || roleColor.admin)}>
-              {role.charAt(0).toUpperCase()}
+              {(user?.name || role).charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-white truncate">{roleLabel[role] || "User"}</p>
-              <p className="text-xs text-slate-400 truncate">{role === "admin" ? "admin@mazhavilcostumes.com" : `${role}@mazhavilcostumes.com`}</p>
+              <p className="text-sm font-medium text-white truncate">{user?.name || roleLabel[role] || "User"}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.email || "No email"}</p>
             </div>
             <ChevronDown className={cn("w-4 h-4 text-slate-400 transition-transform", showUserMenu && "rotate-180")} />
           </button>
@@ -136,7 +140,10 @@ export default function Sidebar() {
           {showUserMenu && (
             <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
               <button
-                onClick={handleLogout}
+                onClick={() => {
+                  setShowUserMenu(false);
+                  setShowLogoutConfirm(true);
+                }}
                 className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white w-full transition-colors"
               >
                 <LogOut className="w-4 h-4" />
@@ -146,6 +153,35 @@ export default function Sidebar() {
           )}
         </div>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-7 h-7 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Logout</h3>
+              <p className="text-sm text-slate-500">Are you sure you want to log out? You will need to sign in again to access the dashboard.</p>
+            </div>
+            <div className="flex border-t border-slate-100">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors border-r border-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex-1 py-3.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

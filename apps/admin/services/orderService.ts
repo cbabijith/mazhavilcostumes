@@ -273,8 +273,8 @@ export class OrderService {
 
     const result = await orderRepository.update(id, data);
 
-    // After any update that changes payment_status or deposit_returned, check auto-complete
-    if (result.success && (data.payment_status || data.deposit_returned || data.status)) {
+    // After any update that changes payment_status or status, check auto-complete
+    if (result.success && (data.payment_status || data.status)) {
       await this.checkAndAutoComplete(id);
     }
 
@@ -402,61 +402,14 @@ export class OrderService {
   }
 
   /**
-   * Mark deposit as returned
-   */
-  async markDepositReturned(orderId: string): Promise<RepositoryResult<OrderWithRelations>> {
-    // Check if order exists
-    const existingOrder = await orderRepository.findById(orderId);
-    if (!existingOrder.success || !existingOrder.data) {
-      return {
-        data: null,
-        error: {
-          message: 'Order not found',
-          code: 'ORDER_NOT_FOUND'
-        } as any,
-        success: false,
-      };
-    }
-
-    // Validate order is in correct status
-    const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.RETURNED && currentStatus !== OrderStatus.LATE_RETURN && currentStatus !== OrderStatus.COMPLETED) {
-      return {
-        data: null,
-        error: {
-          message: 'Order must be returned or completed to mark deposit as returned',
-          code: 'INVALID_STATUS'
-        } as any,
-        success: false,
-      };
-    }
-
-    // Check if deposit already returned
-    if (existingOrder.data.deposit_returned) {
-      return {
-        data: null,
-        error: {
-          message: 'Deposit has already been returned',
-          code: 'ALREADY_RETURNED'
-        } as any,
-        success: false,
-      };
-    }
-
-    return await orderRepository.markDepositReturned(orderId);
-  }
-
-  /**
    * Check if both item and payment tracks are complete, and auto-transition to 'completed'.
    * Called server-side after:
    *   1. processReturn() sets status to 'returned'
    *   2. A payment is recorded that makes payment_status = 'paid'
-   *   3. Deposit is refunded
    *
    * Conditions for auto-complete:
    *   - status === 'returned'
    *   - payment_status === 'paid'
-   *   - deposit_returned === true OR security_deposit === 0
    */
   async checkAndAutoComplete(orderId: string): Promise<void> {
     const orderResult = await orderRepository.findById(orderId);
@@ -466,9 +419,8 @@ export class OrderService {
 
     const itemsDone = order.status === OrderStatus.RETURNED;
     const paymentDone = order.payment_status === PaymentStatus.PAID;
-    const depositDone = order.deposit_returned || (order.security_deposit || 0) === 0;
 
-    if (itemsDone && paymentDone && depositDone) {
+    if (itemsDone && paymentDone) {
       await orderRepository.update(orderId, { status: OrderStatus.COMPLETED } as any);
       // Add status history entry
       await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned + payment settled');

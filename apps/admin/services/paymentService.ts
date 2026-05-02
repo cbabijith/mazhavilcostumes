@@ -118,11 +118,8 @@ export class PaymentService {
         };
       }
       const order = orderResult.data;
-      // Total refundable = rental payments + unreturned deposit
-      const refundableDeposit = (order.deposit_collected && !order.deposit_returned && (order.security_deposit || 0) > 0)
-        ? order.security_deposit
-        : 0;
-      const totalRefundable = (order.amount_paid || 0) + refundableDeposit;
+      // Total refundable = amount already paid
+      const totalRefundable = order.amount_paid || 0;
       if (data.amount > totalRefundable) {
         return {
           data: null,
@@ -141,23 +138,13 @@ export class PaymentService {
       const orderResult = await orderRepository.findById(data.order_id);
       if (orderResult.success && orderResult.data) {
         const order = orderResult.data;
-        const isDepositRefund = data.notes?.toLowerCase().includes('deposit');
-
-        if (isDepositRefund) {
-          // If it's a deposit refund, update the deposit status but don't touch amount_paid
-          await orderRepository.update(data.order_id, {
-            deposit_returned: true,
-            deposit_returned_at: new Date().toISOString(),
-          } as any);
-        } else {
-          // If it's a rental refund, update amount_paid
-          const newAmountPaid = Math.max(0, (order.amount_paid || 0) - data.amount);
-          const newPaymentStatus = newAmountPaid >= order.total_amount ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
-          await orderRepository.update(data.order_id, {
-            amount_paid: newAmountPaid,
-            payment_status: newPaymentStatus,
-          } as any);
-        }
+        // Update amount_paid for refund
+        const newAmountPaid = Math.max(0, (order.amount_paid || 0) - data.amount);
+        const newPaymentStatus = newAmountPaid >= order.total_amount ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+        await orderRepository.update(data.order_id, {
+          amount_paid: newAmountPaid,
+          payment_status: newPaymentStatus,
+        } as any);
       }
     }
 

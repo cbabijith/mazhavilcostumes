@@ -73,7 +73,7 @@ function orderToCalendarEvent(order: OrderWithRelations): CalendarEvent {
     itemCount: items.length,
     itemNames: items.slice(0, 3).map((i: any) => i.product?.name || 'Unknown'),
     branchName: order.branch?.name || '',
-    depositCollected: !!order.deposit_collected,
+    depositCollected: false,
   };
 }
 
