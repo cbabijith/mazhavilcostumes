@@ -49,6 +49,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     amount: "0",
   });
   const [isCancellationRefund, setIsCancellationRefund] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -210,7 +211,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const handleCollectPayment = async () => {
     const amountVal = parseFloat(paymentForm.amount) || 0;
-    const maxAmount = paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due;
+    const maxAmount = amount_due;
 
     if (!order || amountVal <= 0) {
       showError("Validation Error", "Amount must be greater than 0");
@@ -233,26 +234,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         },
         {
           onSuccess: () => {
-            if (paymentForm.paymentType === PaymentType.DEPOSIT) {
-              updateOrder({
-                id: order.id,
-                data: {
-                  deposit_collected: true,
-                  deposit_payment_method: paymentForm.paymentMode as any,
-                  deposit_collected_at: new Date().toISOString(),
-                },
-              });
-            } else {
-              const newAmountPaid = (order.amount_paid || 0) + amountVal;
-              const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
-              updateOrder({
-                id: order.id,
-                data: {
-                  amount_paid: newAmountPaid,
-                  payment_status: newStatus,
-                },
-              });
-            }
+            const newAmountPaid = (order.amount_paid || 0) + amountVal;
+            const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+            updateOrder({
+              id: order.id,
+              data: {
+                amount_paid: newAmountPaid,
+                payment_status: newStatus,
+              },
+            });
             setIsPaymentModalOpen(false);
             setPaymentForm({ amount: "0", paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
             showSuccess("Payment Recorded", "Payment was successfully processed.");
@@ -265,36 +255,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleRefundDeposit = async () => {
-    if (!order || order.deposit_returned) return;
-
-    try {
-      createPayment(
-        {
-          order_id: order.id,
-          payment_type: PaymentType.REFUND,
-          amount: order.security_deposit,
-          payment_mode: refundForm.paymentMode,
-          notes: refundForm.notes || "Security Deposit Refund",
-        },
-        {
-          onSuccess: () => {
-            updateOrder({
-              id: order.id,
-              data: {
-                deposit_returned: true,
-                deposit_returned_at: new Date().toISOString(),
-              },
-            });
-            setIsRefundModalOpen(false);
-            setIsCancellationRefund(false);
-            setRefundForm({ paymentMode: PaymentMode.CASH, notes: "", amount: "0" });
-            showSuccess("Deposit Refunded", "The security deposit was successfully refunded.");
-          },
-        }
-      );
-    } catch (e) {
-      console.error(e);
-    }
+    // Deposit refund is no longer applicable — security deposit has been removed.
+    // This function is kept as a stub for backwards compatibility.
+    return;
   };
 
   const submitReturn = () => {
@@ -674,33 +637,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <span>{formatCurrency(order.gst_amount)}</span>
                 </div>
               )}
-              {/* Security Deposit - editable */}
-              <div className="flex justify-between items-center text-slate-600 font-medium text-sm">
-                <div className="flex flex-col">
-                  <span>Security Deposit</span>
-                  {order.deposit_payment_method && (
-                    <span className="text-[10px] uppercase text-slate-400 font-bold tracking-wider">{order.deposit_payment_method}</span>
-                  )}
-                </div>
-                {isEditingDeposit ? (
-                  <div className="flex items-center gap-1">
-                    <Input type="number" value={editDepositValue} onChange={e => setEditDepositValue(e.target.value)} className="w-24 h-7 text-sm text-right" />
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-emerald-600" onClick={() => {
-                      const val = parseFloat(editDepositValue) || 0;
-                      updateOrder({ id: order.id, data: { security_deposit: val } });
-                      setIsEditingDeposit(false);
-                      showSuccess('Deposit Updated');
-                    }}>✓</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500" onClick={() => setIsEditingDeposit(false)}>✕</Button>
-                  </div>
-                ) : isFinalized ? (
-                  <span>{formatCurrency(order.security_deposit)}</span>
-                ) : (
-                  <button className="flex items-center gap-1 hover:text-primary" onClick={() => { setEditDepositValue(String(order.security_deposit)); setIsEditingDeposit(true); }}>
-                    {formatCurrency(order.security_deposit)} <Edit3 className="w-3 h-3 text-slate-400" />
-                  </button>
-                )}
-              </div>
+
+
 
               {/* Late Fee */}
               {(order.late_fee || 0) > 0 && (
@@ -734,17 +672,25 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </div>
               <div className="flex justify-between items-center pt-2">
                 {order.status === OrderStatus.CANCELLED ? (
-                  <>
-                    <span className="text-lg font-black text-slate-400">Order Cancelled</span>
-                    {(() => {
-                      const refundableRental = order.amount_paid || 0;
-                      const refundableDeposit = (order.deposit_collected && !order.deposit_returned && order.security_deposit > 0) ? order.security_deposit : 0;
-                      const totalRefundable = refundableRental + refundableDeposit;
-                      return totalRefundable > 0 ? (
-                        <span className="text-sm font-bold text-amber-600">Refundable: {formatCurrency(totalRefundable)}</span>
-                      ) : null;
-                    })()}
-                  </>
+                  <div className="w-full space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-black text-slate-400">Order Cancelled</span>
+                      {(order.amount_paid || 0) > 0 && (
+                        <span className="text-sm font-bold text-amber-600">Refundable: {formatCurrency(order.amount_paid)}</span>
+                      )}
+                    </div>
+                    {order.cancellation_reason && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
+                        <p className="text-sm text-red-600">{order.cancellation_reason}</p>
+                        {order.cancelled_at && (
+                          <p className="text-[10px] text-red-400 mt-1">
+                            Cancelled on {new Date(order.cancelled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : order.status === OrderStatus.COMPLETED ? (
                   <>
                     <span className="text-lg font-black text-emerald-700">Settled</span>
@@ -774,27 +720,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </Button>
             )}
 
-            {/* Deposit refund — for returned/partial/flagged/completed (NOT cancelled) */}
-            {order.status !== OrderStatus.CANCELLED && (
-              <>
-                {(order.status === OrderStatus.RETURNED || order.status === OrderStatus.PARTIAL || order.status === OrderStatus.FLAGGED || order.status === OrderStatus.COMPLETED) && !order.deposit_returned && order.security_deposit > 0 && (
-                  <Button 
-                    onClick={() => {
-                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Security Deposit Refund", amount: "0" });
-                      setIsRefundModalOpen(true);
-                    }} 
-                    className="w-full mt-3 h-12 bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
-                  >
-                    Refund Security Deposit ({formatCurrency(order.security_deposit)})
-                  </Button>
-                )}
-                {order.deposit_returned && (
-                  <div className="w-full mt-3 h-10 flex items-center justify-center bg-slate-50 border border-slate-200 text-slate-500 font-semibold text-xs rounded-xl">
-                    Security Deposit Refunded
-                  </div>
-                )}
-              </>
-            )}
+
 
             {/* Cancellation Refund — for cancelled orders */}
             {order.status === OrderStatus.CANCELLED && (
@@ -812,23 +738,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     Refund Payment ({formatCurrency(order.amount_paid)})
                   </Button>
                 )}
-                {/* Deposit refund for cancelled orders */}
-                {order.deposit_collected && !order.deposit_returned && order.security_deposit > 0 && (
-                  <Button 
-                    onClick={() => {
-                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Security Deposit Refund (Cancelled Order)", amount: "0" });
-                      setIsRefundModalOpen(true);
-                    }} 
-                    className="w-full h-12 bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
-                  >
-                    Refund Security Deposit ({formatCurrency(order.security_deposit)})
-                  </Button>
-                )}
-                {order.deposit_returned && (
-                  <div className="w-full h-10 flex items-center justify-center bg-slate-50 border border-slate-200 text-slate-500 font-semibold text-xs rounded-xl">
-                    Security Deposit Refunded
-                  </div>
-                )}
+                {/* Deposit refund removed - no longer applicable */}
               </div>
             )}
           </div>
@@ -847,15 +757,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
-                {paymentForm.paymentType === PaymentType.DEPOSIT ? 'Security Deposit' : 'Remaining Due'}
+                {'Remaining Due'}
               </p>
               <p className="text-2xl font-black text-slate-900">
-                {formatCurrency(paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due)}
+                {formatCurrency(amount_due)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Paying</p>
-              <p className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due) ? 'text-red-600' : 'text-emerald-600'}`}>
+              <p className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (amount_due) ? 'text-red-600' : 'text-emerald-600'}`}>
                 {formatCurrency(parseFloat(paymentForm.amount) || 0)}
               </p>
             </div>
@@ -896,7 +806,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <span>Amount (₹)</span>
               <button 
                 type="button" 
-                onClick={() => setPaymentForm({ ...paymentForm, amount: (paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due).toString() })}
+                onClick={() => setPaymentForm({ ...paymentForm, amount: (amount_due).toString() })}
                 className="text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full text-[10px]"
               >
                 PAY FULL AMOUNT
@@ -907,7 +817,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               value={paymentForm.amount}
               onChange={(e) => {
                  const val = e.target.value;
-                 const maxPayable = paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due;
+                 const maxPayable = amount_due;
                  if (parseFloat(val) > maxPayable) {
                     setPaymentForm({ ...paymentForm, amount: maxPayable.toString() });
                  } else {
@@ -970,7 +880,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 flex justify-between items-center shadow-sm">
                 <div>
                   <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Refund Amount</p>
-                  <p className="text-2xl font-black text-orange-900">{formatCurrency(order?.security_deposit || 0)}</p>
+                  <p className="text-2xl font-black text-orange-900">{formatCurrency(0 || 0)}</p>
                 </div>
               </div>
             )}
@@ -1129,40 +1039,84 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
         </Modal>
 
-        {/* Cancel Order Modal */}
-        <Modal
-          open={isCancelModalOpen}
-          onClose={() => setIsCancelModalOpen(false)}
-          title="Cancel Order"
-          maxWidth="max-w-md"
-        >
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                <XCircle className="w-5 h-5 text-red-600" />
+        {/* Cancel Order Modal — with mandatory reason */}
+        {(() => {
+          const hasPaid = (order.amount_paid || 0) > 0;
+          return (
+            <Modal
+              open={isCancelModalOpen}
+              onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
+              title="Cancel Order"
+              maxWidth="max-w-lg"
+            >
+              <div className="p-6 space-y-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Refund Warning */}
+                {hasPaid && (
+                  <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <Banknote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        Payment Collected: {formatCurrency(order.amount_paid)}
+                      </p>
+                      <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                        After cancellation, you can process a refund from the order detail page.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mandatory Reason */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-900">
+                    Reason for Cancellation <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Enter the reason for cancelling this order..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-y min-h-[80px]"
+                    rows={3}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
+                  <Button
+                    onClick={() => {
+                      updateOrder({
+                        id: order.id,
+                        data: {
+                          status: OrderStatus.CANCELLED,
+                          cancellation_reason: cancelReason.trim(),
+                          cancelled_at: new Date().toISOString(),
+                        } as any,
+                      });
+                      setIsCancelModalOpen(false);
+                      setCancelReason("");
+                    }}
+                    disabled={isUpdating || !cancelReason.trim()}
+                    className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                  >
+                    {isUpdating ? "Cancelling..." : "Cancel Order"}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsCancelModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
-              <Button
-                onClick={() => {
-                  updateOrder({ id: order.id, data: { status: OrderStatus.CANCELLED } });
-                  setIsCancelModalOpen(false);
-                }}
-                disabled={isUpdating}
-                className="h-12 px-8 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md"
-              >
-                {isUpdating ? "Cancelling..." : "Cancel Order"}
-              </Button>
-            </div>
-          </div>
-        </Modal>
+            </Modal>
+          );
+        })()}
 
         {/* Stock Insufficient Modal */}
         <Modal

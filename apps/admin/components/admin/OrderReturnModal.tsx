@@ -15,8 +15,6 @@ interface OrderReturnModalProps {
   orderItems: Array<{ id: string; product_id: string; product_name?: string }>;
   orderDetails?: {
     total_amount: number;
-    security_deposit_total: number;
-    deposit_paid: number;
   };
   onClose: () => void;
   onSuccess: () => void;
@@ -183,7 +181,7 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                 <span className="font-bold text-amber-900">₹{totalDamageCharges.toFixed(2)}</span>
               </div>
               <p className="text-xs text-amber-700 mt-1">
-                This amount will be deducted from the security deposit.
+              This amount will be charged to the customer.
               </p>
             </div>
           )}
@@ -194,16 +192,12 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
               <h3 className="text-lg font-semibold text-slate-900">Final Payment</h3>
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-700">Security Deposit Total:</span>
-                  <span className="font-medium text-slate-900">₹{orderDetails.security_deposit_total?.toFixed(2) || '0.00'}</span>
+                  <span className="text-slate-700">Total Order Amount:</span>
+                  <span className="font-medium text-slate-900">₹{orderDetails.total_amount?.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Damage Charges:</span>
-                  <span className="font-medium text-slate-900">-₹{totalDamageCharges.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center pt-2 border-t border-slate-300">
-                  <span className="text-slate-700 font-medium">Refundable Amount:</span>
-                  <span className="font-bold text-slate-900">₹{((orderDetails.security_deposit_total || 0) - totalDamageCharges).toFixed(2)}</span>
+                  <span className="font-medium text-amber-700">₹{totalDamageCharges.toFixed(2)}</span>
                 </div>
               </div>
               

@@ -17,7 +17,7 @@ export interface MobileDashboardMetrics {
   upcomingPickupsTomorrow: number;
   activeRentals: number;
   totalCustomers: number;
-  depositsHeld: number;
+  depositsHeld: number; // Deprecated: always 0 (deposits removed in Phase 1)
   lowStockCount: number;
   damagedItemsCount: number;
   revenueChangeToday: number;
@@ -223,17 +223,9 @@ async function countCustomers(supabase: any, branchId?: string, storeId?: string
   return count || 0;
 }
 
-async function sumDepositsHeld(supabase: any, branchId?: string, storeId?: string) {
-  let query = supabase
-    .from('orders')
-    .select('security_deposit')
-    .in('status', activeRentalStatuses);
-
-  query = scopeOrderQuery(query, branchId, storeId);
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return (data || []).reduce((sum: number, order: any) => sum + Number(order.security_deposit || 0), 0);
+async function sumDepositsHeld(_supabase: any, _branchId?: string, _storeId?: string) {
+  // Deprecated: security_deposit column was dropped in Phase 1 (006_foundation.sql)
+  return 0;
 }
 
 async function getProductStats(supabase: any, branchId?: string, storeId?: string) {

@@ -185,12 +185,16 @@ function OrdersContent() {
     }
   }, [deleteTarget, deleteOrder, closeDeleteModal]);
 
-  const handleConfirmCancel = useCallback(() => {
+  const handleConfirmCancel = useCallback((reason: string) => {
     if (!cancelTarget) return;
     try {
       updateOrder({
         id: cancelTarget.id,
-        data: { status: OrderStatus.CANCELLED },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+        } as any,
       });
       closeCancelModal();
     } catch {
@@ -317,6 +321,7 @@ function OrdersContent() {
         order={cancelTarget}
         onClose={closeCancelModal}
         onConfirm={handleConfirmCancel}
+        isPending={false}
       />
     </div>
   );

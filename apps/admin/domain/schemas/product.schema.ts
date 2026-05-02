@@ -55,7 +55,7 @@ export const ClientCreateProductSchema = z.object({
   subvariant_id: z.string().optional().nullable(),
   description: z.string().max(1000, 'Description must be less than 1000 characters').optional(),
   price_per_day: positiveNumber.max(999999, 'Price must be less than 999,999'),
-  security_deposit: z.number().max(999999, 'Security deposit must be less than 999,999').optional().default(0),
+  purchase_price: z.number().min(0, 'Purchase price must be non-negative').max(9999999, 'Purchase price must be less than 99,99,999').optional().default(0),
   quantity: z.number().int().min(0).optional().default(0),
   available_quantity: z.number().int().min(0, 'Available quantity must be a non-negative integer').optional(),
   images: z.array(CreateProductImageSchema).optional(),
@@ -93,7 +93,7 @@ export const UpdateProductSchema = z.object({
   subvariant_id: z.string().optional().nullable(),
   description: z.string().max(1000, 'Description must be less than 1000 characters').optional(),
   price_per_day: positiveNumber.max(999999, 'Price must be less than 999,999').optional(),
-  security_deposit: z.number().max(999999, 'Security deposit must be less than 999,999').optional(),
+  purchase_price: z.number().min(0, 'Purchase price must be non-negative').max(9999999, 'Purchase price must be less than 99,99,999').optional(),
   quantity: z.number().int().min(0, 'Quantity must be a non-negative integer').optional(),
   available_quantity: z.number().int().min(0, 'Available quantity must be a non-negative integer').optional(),
   images: z.array(CreateProductImageSchema).optional(),
@@ -170,9 +170,9 @@ export const generateProductSlug = (name: string): string => {
     .trim();
 };
 
-export const validateProductPricing = (pricePerDay: number, securityDeposit?: number): boolean => {
+export const validateProductPricing = (pricePerDay: number, purchasePrice?: number): boolean => {
   if (pricePerDay <= 0) return false;
-  if (securityDeposit !== undefined && securityDeposit < 0) return false;
+  if (purchasePrice !== undefined && purchasePrice < 0) return false;
   return true;
 };
 

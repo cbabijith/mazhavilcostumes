@@ -1,13 +1,13 @@
 /**
  * Staff Detail API Route
- * GET    /api/staff/[id] — get single staff member (admin only)
- * PATCH  /api/staff/[id] — update staff (admin only)
- * DELETE /api/staff/[id] — delete staff + auth user (admin only)
+ * GET    /api/staff/[id] — get single staff member (admin + manager)
+ * PATCH  /api/staff/[id] — update staff (admin + manager)
+ * DELETE /api/staff/[id] — delete staff + auth user (admin + manager)
  */
 
 import { NextRequest } from 'next/server';
 import { staffService } from '@/services/staffService';
-import { adminOnly } from '@/lib/apiGuard';
+import { apiGuard } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
 import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
@@ -18,7 +18,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await adminOnly(request);
+    const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
     staffService.setUserContext(
@@ -44,7 +44,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await adminOnly(request);
+    const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
     staffService.setUserContext(
@@ -57,7 +57,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Field whitelisting — prevent mass-assignment
-    const allowedFields = ['name', 'email', 'phone', 'role', 'branch_id', 'is_active'];
+    const allowedFields = ['name', 'email', 'phone', 'role', 'branch_id', 'is_active', 'can_give_product_discount', 'can_give_order_discount'];
     const sanitized: Record<string, any> = {};
     for (const key of allowedFields) {
       if (key in body) sanitized[key] = body[key];
@@ -79,7 +79,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await adminOnly(request);
+    const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
     staffService.setUserContext(

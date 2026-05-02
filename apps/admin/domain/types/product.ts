@@ -21,7 +21,7 @@ export interface Product {
   sku: string | null;
   barcode: string | null;
   price_per_day: number;
-  security_deposit: number;
+  purchase_price: number;
   quantity: number;
   available_quantity: number;
   images: ProductImage[];
@@ -86,7 +86,7 @@ export interface CreateProductDTO {
   store_id?: string;
   description?: string;
   price_per_day: number;
-  security_deposit?: number;
+  purchase_price?: number;
   quantity?: number;
   available_quantity?: number;
   images?: Omit<ProductImage, 'id'>[];
@@ -110,7 +110,7 @@ export interface UpdateProductDTO {
   subvariant_id?: string | null;
   description?: string;
   price_per_day?: number;
-  security_deposit?: number;
+  purchase_price?: number;
   quantity?: number;
   available_quantity?: number;
   images?: Omit<ProductImage, 'id'>[];
@@ -181,7 +181,7 @@ export interface ProductInventory {
 export interface ProductPricing {
   product_id: string;
   price_per_day: number;
-  security_deposit: number;
+  purchase_price: number;
   currency: string;
   discount_percentage?: number;
   valid_from?: string;

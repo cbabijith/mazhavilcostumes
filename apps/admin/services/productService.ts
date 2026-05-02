@@ -512,7 +512,7 @@ export class ProductService {
       store_id: originalProduct.data.store_id,
       description: originalProduct.data.description || undefined,
       price_per_day: originalProduct.data.price_per_day,
-      security_deposit: originalProduct.data.security_deposit,
+      purchase_price: (originalProduct.data as any).purchase_price || 0,
       quantity: originalProduct.data.quantity,
       available_quantity: originalProduct.data.available_quantity,
       images: originalProduct.data.images,
@@ -571,14 +571,7 @@ export class ProductService {
       }
     }
 
-    // Warnings
-    if ('security_deposit' in data && !data.security_deposit) {
-      warnings.push({
-        field: 'security_deposit',
-        message: 'No security deposit set - this may be risky',
-        code: 'NO_SECURITY_DEPOSIT',
-      });
-    }
+
 
     if ('description' in data && !data.description) {
       warnings.push({

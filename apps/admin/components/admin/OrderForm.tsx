@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { format, addDays, startOfDay } from "date-fns";
 import {
   Search, Plus, Minus, Trash2, Calendar, User, Package,
-  ArrowLeft, ArrowRight, ShieldCheck, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote
+  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Edit3
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useGSTPercentage, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode } from "@/hooks";
+import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useGSTPercentage, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode, useProductDiscountPermission, useOrderDiscountPermission } from "@/hooks";
 import { useAppStore } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { PaymentMethod } from "@/domain/types/order";
@@ -33,6 +33,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const { updateOrder, isPending: isUpdating } = useUpdateOrder();
   const { createCustomer, isPending: isCreatingCustomer } = useCreateCustomer();
   const { lookupByBarcode, isLooking: isScanningBarcode } = useLookupProductByBarcode();
+  const canGiveProductDiscount = useProductDiscountPermission();
+  const canGiveOrderDiscount = useOrderDiscountPermission();
   
   // Settings
   const { data: gstResult } = useGSTPercentage();
@@ -69,7 +71,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     initialData?.items?.map((item: any) => ({
       product: item.product || { id: item.product_id, name: "Product", price_per_day: item.price_per_day },
       quantity: item.quantity,
-      price_per_day: item.price_per_day
+      price_per_day: item.price_per_day,
+      discount: item.discount || 0,
+      discount_type: item.discount_type || 'flat' as 'flat' | 'percent',
     })) || []
   );
 
@@ -80,10 +84,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || "");
 
-  // Deposit State
-  const [depositCollected, setDepositCollected] = useState(initialData?.deposit_collected || false);
-  const [depositAmount, setDepositAmount] = useState<number>(initialData?.security_deposit || 0);
-  const [depositPaymentMethod, setDepositPaymentMethod] = useState<string>(initialData?.deposit_payment_method || PaymentMethod.CASH);
+  // Order-Level Discount State
+  const [orderDiscount, setOrderDiscount] = useState<number>(initialData?.discount || 0);
+  const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>(initialData?.discount_type || 'flat');
 
   // Advance Payment State
   const [advanceCollected, setAdvanceCollected] = useState(initialData?.advance_collected || false);
@@ -132,22 +135,33 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     return end <= start;
   }, [startDate, endDate]);
 
-  // Cart Calculations — flat rent price, NOT per-day
+  // Cart Calculations — with per-item discounts + order discount
   const cartTotals = useMemo(() => {
     let subtotal = 0;
+    let itemDiscountTotal = 0;
     cartItems.forEach((item) => {
-      subtotal += item.price_per_day * item.quantity;
+      const lineTotal = item.price_per_day * item.quantity;
+      const itemDisc = item.discount_type === 'percent'
+        ? lineTotal * (item.discount / 100)
+        : (item.discount || 0);
+      subtotal += lineTotal;
+      itemDiscountTotal += Math.min(itemDisc, lineTotal); // discount can't exceed line total
     });
-    const gstAmount = isGstEnabled ? subtotal * (gstPercentage / 100) : 0;
-    const grandTotal = subtotal + gstAmount;
-    return { subtotal, gstAmount, grandTotal };
-  }, [cartItems, isGstEnabled, gstPercentage]);
+    const afterItemDiscount = subtotal - itemDiscountTotal;
+    const orderDiscAmt = orderDiscountType === 'percent'
+      ? afterItemDiscount * (orderDiscount / 100)
+      : (orderDiscount || 0);
+    const effectiveOrderDiscount = Math.min(orderDiscAmt, afterItemDiscount); // can't exceed
+    const afterAllDiscounts = afterItemDiscount - effectiveOrderDiscount;
+    const gstAmount = isGstEnabled ? afterAllDiscounts * (gstPercentage / 100) : 0;
+    const grandTotal = afterAllDiscounts + gstAmount;
+    return { subtotal, itemDiscountTotal, effectiveOrderDiscount, afterItemDiscount, gstAmount, grandTotal };
+  }, [cartItems, isGstEnabled, gstPercentage, orderDiscount, orderDiscountType]);
 
   // Payment validation
   const advanceExceedsTotal = advanceCollected && advanceAmount > cartTotals.grandTotal;
-  const depositExceedsTotal = depositCollected && depositAmount > cartTotals.grandTotal;
   const isFullAdvancePayment = advanceCollected && advanceAmount > 0 && advanceAmount === cartTotals.grandTotal;
-  const isPaymentInvalid = advanceExceedsTotal || depositExceedsTotal;
+  const isPaymentInvalid = advanceExceedsTotal;
 
   // ─── Live Availability Check (Search Dropdown) ──────────────────
   const availableProducts = useMemo(() => {
@@ -251,7 +265,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       if (ex) {
         return prev.map(p => p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
-      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day }];
+      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
     });
     setProductSearch("");
     setIsProductDropdownOpen(false);
@@ -307,7 +321,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
           );
         }
-        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day }];
+        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
       });
       showSuccess(wasExisting ? `${product.name} — quantity increased` : `${product.name} added to cart`);
     } catch {
@@ -382,10 +396,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     const basePayload = {
       notes: notes || undefined,
       delivery_address: deliveryAddress || undefined,
-      deposit_collected: depositCollected,
-      security_deposit: depositCollected ? depositAmount : 0,
-      deposit_payment_method: depositCollected ? depositPaymentMethod : undefined,
-      deposit_collected_at: depositCollected ? new Date().toISOString() : undefined,
+      discount: orderDiscount || 0,
+      discount_type: orderDiscountType,
       advance_amount: advanceCollected ? advanceAmount : 0,
       advance_collected: advanceCollected,
       advance_payment_method: advanceCollected ? advancePaymentMethod : undefined,
@@ -407,7 +419,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         items: cartItems.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
-          price_per_day: item.price_per_day
+          price_per_day: item.price_per_day,
+          discount: item.discount || 0,
+          discount_type: item.discount_type || 'flat',
         }))
       } as any, {
         onSuccess: () => {
@@ -794,7 +808,26 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="font-medium text-slate-900 text-sm truncate">{item.product.name}</h5>
-                            <span className="text-xs text-slate-500">{formatCurrency(item.price_per_day)}</span>
+                            {canGiveProductDiscount ? (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                <span className="text-[10px] text-slate-400">₹</span>
+                                <input
+                                  type="number"
+                                  value={item.price_per_day || ""}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, price_per_day: val } : p
+                                    ));
+                                  }}
+                                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                                  className="w-16 text-xs font-semibold text-slate-700 bg-transparent border-b border-dashed border-slate-300 outline-none focus:border-slate-900 py-0"
+                                />
+                                <Edit3 className="w-2.5 h-2.5 text-slate-300" />
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">{formatCurrency(item.price_per_day)}</span>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -848,7 +881,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/[^0-9]/g, '');
                                 e.target.value = raw;
-                                if (raw === '') return; // allow empty while typing
+                                if (raw === '') return;
                                 const val = Math.max(1, parseInt(raw));
                                 setCartItems(prev => prev.map(p =>
                                   p.product.id === item.product.id ? { ...p, quantity: val } : p
@@ -868,10 +901,59 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
-                          <div className="text-sm font-bold text-slate-900">
-                            {formatCurrency(item.price_per_day * item.quantity)}
+                          <div className="text-right">
+                            {(() => {
+                              const lineTotal = item.price_per_day * item.quantity;
+                              const discAmt = item.discount_type === 'percent'
+                                ? lineTotal * ((item.discount || 0) / 100)
+                                : (item.discount || 0);
+                              const effectiveDisc = Math.min(discAmt, lineTotal);
+                              return (
+                                <>
+                                  {effectiveDisc > 0 && (
+                                    <span className="text-[10px] text-red-500 line-through mr-1">{formatCurrency(lineTotal)}</span>
+                                  )}
+                                  <span className="text-sm font-bold text-slate-900">{formatCurrency(lineTotal - effectiveDisc)}</span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
+
+                        {/* Per-Item Discount — permission gated */}
+                        {canGiveProductDiscount && (
+                          <div className="mt-2 pt-2 border-t border-dashed border-slate-100">
+                            <div className="flex items-center gap-2">
+                              <Tag className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                              <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Discount</span>
+                              <div className="flex items-center gap-1 ml-auto">
+                                <input
+                                  type="number"
+                                  value={item.discount || ""}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, discount: val } : p
+                                    ));
+                                  }}
+                                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                                  className="w-16 h-6 text-xs text-right font-semibold border border-slate-200 rounded px-1.5 outline-none focus:border-orange-400 bg-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setCartItems(prev => prev.map(p =>
+                                    p.product.id === item.product.id ? { ...p, discount_type: p.discount_type === 'flat' ? 'percent' : 'flat' } : p
+                                  ))}
+                                  className={`h-6 w-6 flex items-center justify-center rounded text-[10px] font-bold border transition-colors ${item.discount_type === 'percent' ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
+                                  title={item.discount_type === 'percent' ? 'Percentage discount' : 'Flat discount'}
+                                >
+                                  {item.discount_type === 'percent' ? '%' : '₹'}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
@@ -885,6 +967,18 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                 <span>Subtotal</span>
                 <span className="font-medium">{formatCurrency(cartTotals.subtotal)}</span>
               </div>
+              {cartTotals.itemDiscountTotal > 0 && (
+                <div className="flex justify-between text-sm text-orange-600">
+                  <span className="flex items-center gap-1"><Tag className="w-3 h-3" /> Item Discounts</span>
+                  <span className="font-medium">−{formatCurrency(cartTotals.itemDiscountTotal)}</span>
+                </div>
+              )}
+              {cartTotals.effectiveOrderDiscount > 0 && (
+                <div className="flex justify-between text-sm text-purple-600">
+                  <span className="flex items-center gap-1"><Percent className="w-3 h-3" /> Order Discount</span>
+                  <span className="font-medium">−{formatCurrency(cartTotals.effectiveOrderDiscount)}</span>
+                </div>
+              )}
               {isGstEnabled && (
                 <div className="flex justify-between text-sm text-slate-600">
                   <span>GST ({gstPercentage}%)</span>
@@ -899,62 +993,46 @@ export default function OrderForm({ initialData }: OrderFormProps) {
               </div>
             </div>
 
-            {/* Security Deposit & Advance — below totals */}
+            {/* Order-Level Discount + Advance — below totals */}
             {cartItems.length > 0 && (
               <div className="border-t border-slate-200 p-5 space-y-4">
-                {/* Security Deposit */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-                      Security Deposit
-                    </span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={depositCollected} onChange={(e) => setDepositCollected(e.target.checked)} className="sr-only peer" />
-                      <div className="w-8 h-[18px] bg-slate-200 peer-focus:ring-2 peer-focus:ring-slate-900/20 rounded-full peer peer-checked:bg-slate-900 transition-colors"></div>
-                      <div className={`absolute left-0.5 top-[1px] w-4 h-4 bg-white rounded-full transition-transform ${depositCollected ? 'translate-x-3.5' : 'translate-x-0'}`}></div>
-                    </label>
-                  </div>
-                  {depositCollected && (
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">₹</span>
-                          <Input
-                            type="number"
-                            value={depositAmount || ""}
-                            onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            placeholder="0"
-                            className={`h-10 pl-7 font-bold text-base ${depositExceedsTotal ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-slate-900'}`}
-                          />
-                        </div>
-                        <Select value={depositPaymentMethod} onValueChange={setDepositPaymentMethod}>
-                          <SelectTrigger className="h-10 w-[110px] border-slate-200 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
-                            <SelectItem value={PaymentMethod.UPI}>UPI</SelectItem>
-                            <SelectItem value={PaymentMethod.CARD}>Card</SelectItem>
-                            <SelectItem value={PaymentMethod.BANK_TRANSFER}>Bank</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {depositExceedsTotal && (
-                        <p className="text-xs text-red-600 font-medium flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" /> Deposit cannot exceed grand total ({formatCurrency(cartTotals.grandTotal)})
-                        </p>
-                      )}
-                      {!depositExceedsTotal && depositAmount > 0 && (
-                        <p className="text-xs text-slate-500">Refundable deposit of {formatCurrency(depositAmount)}</p>
-                      )}
+                {/* Order-Level Discount — permission gated */}
+                {canGiveOrderDiscount && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5 text-purple-400" />
+                        Order Discount
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setOrderDiscountType(t => t === 'flat' ? 'percent' : 'flat')}
+                        className={`h-7 px-2.5 flex items-center gap-1 rounded-md text-xs font-bold border transition-colors ${orderDiscountType === 'percent' ? 'bg-purple-50 border-purple-300 text-purple-600' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                      >
+                        {orderDiscountType === 'percent' ? '% Percent' : '₹ Flat'}
+                      </button>
                     </div>
-                  )}
-                </div>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">{orderDiscountType === 'percent' ? '%' : '₹'}</span>
+                      <Input
+                        type="number"
+                        value={orderDiscount || ""}
+                        onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        placeholder="0"
+                        className="h-10 pl-7 font-bold text-base border-slate-200 focus:border-purple-500"
+                      />
+                    </div>
+                    {cartTotals.effectiveOrderDiscount > 0 && (
+                      <p className="text-xs text-purple-600 font-medium">
+                        Saving {formatCurrency(cartTotals.effectiveOrderDiscount)} on this order
+                      </p>
+                    )}
+                  </div>
+                )}
 
-                {/* Divider */}
-                <div className="border-t border-slate-100"></div>
+                {/* Divider — only if both discount and advance are visible */}
+                {canGiveOrderDiscount && <div className="border-t border-slate-100"></div>}
 
                 {/* Advance Payment */}
                 <div className="space-y-3">
@@ -1031,12 +1109,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   </div>
                 </>
               )}
-              {depositCollected && depositAmount > 0 && !depositExceedsTotal && (
-                <div className="flex justify-between text-sm text-slate-600 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
-                  <span className="font-medium">Security Deposit (refundable)</span>
-                  <span className="font-bold">{formatCurrency(depositAmount)}</span>
-                </div>
-              )}
+
               {hasUnavailableItems && (
                 <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />

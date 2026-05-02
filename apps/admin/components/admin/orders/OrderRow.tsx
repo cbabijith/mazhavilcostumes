@@ -131,9 +131,9 @@ function OrderRowInner({
           <span className="font-bold text-slate-900">
             {formatCurrency(order.total_amount)}
           </span>
-          {order.deposit_collected && (
+          {(order.amount_paid || 0) > 0 && (
             <span className="text-[10px] text-emerald-600 font-medium">
-              Deposit Paid
+              Paid: {formatCurrency(order.amount_paid)}
             </span>
           )}
         </div>
