@@ -167,6 +167,7 @@ export default function StaffDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {staff.role !== 'super_admin' && (
           <Button
             size="sm"
             onClick={() => router.push(`/dashboard/staff/${staff.id}/edit`)}
@@ -175,6 +176,8 @@ export default function StaffDetailPage() {
             <Edit className="h-4 w-4" />
             Edit
           </Button>
+          )}
+          {staff.role !== 'super_admin' && (
           <Button
             variant="outline"
             size="sm"
@@ -190,6 +193,7 @@ export default function StaffDetailPage() {
               <><UserCheck className="h-4 w-4" /> Activate</>
             )}
           </Button>
+          )}
         </div>
       </div>
 

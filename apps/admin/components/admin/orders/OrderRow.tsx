@@ -21,7 +21,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Edit,
-  Trash2,
   FileText,
   XCircle,
   Calendar,
@@ -37,18 +36,14 @@ import OrderStatusBadge from "./OrderStatusBadge";
 interface OrderRowProps {
   order: OrderWithRelations;
   selected: boolean;
-  canDelete: boolean;
   onToggleSelect: (id: string) => void;
-  onDelete: (order: OrderWithRelations) => void;
   onCancel: (order: OrderWithRelations) => void;
 }
 
 function OrderRowInner({
   order,
   selected,
-  canDelete,
   onToggleSelect,
-  onDelete,
   onCancel,
 }: OrderRowProps) {
   const router = useRouter();
@@ -244,25 +239,7 @@ function OrderRowInner({
             );
           })()}
 
-          {canDelete &&
-            [
-              OrderStatus.PENDING,
-              OrderStatus.CONFIRMED,
-              OrderStatus.SCHEDULED,
-              OrderStatus.CANCELLED,
-            ].includes(order.status) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="w-8 h-8 text-red-400 hover:text-red-700 hover:bg-red-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(order);
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
+
         </div>
       </td>
     </tr>
@@ -275,8 +252,7 @@ const OrderRow = React.memo(OrderRowInner, (prev, next) => {
     prev.order.status === next.order.status &&
     prev.order.total_amount === next.order.total_amount &&
     prev.order.amount_paid === next.order.amount_paid &&
-    prev.selected === next.selected &&
-    prev.canDelete === next.canDelete
+    prev.selected === next.selected
   );
 });
 

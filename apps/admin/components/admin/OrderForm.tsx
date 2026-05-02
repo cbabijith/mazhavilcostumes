@@ -61,6 +61,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const [isQuickAddMode, setIsQuickAddMode] = useState(false);
   const [quickAddName, setQuickAddName] = useState("");
   const [quickAddPhone, setQuickAddPhone] = useState("");
+  const [quickAddAltPhone, setQuickAddAltPhone] = useState("");
   const [quickAddAddress, setQuickAddAddress] = useState("");
 
   // Delivery / Customer Address
@@ -359,15 +360,17 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       showError("Validation Error", "Name and Phone are required.");
       return;
     }
-    createCustomer({ name: quickAddName, phone: quickAddPhone, address: quickAddAddress || undefined }, {
+    createCustomer({ name: quickAddName, phone: quickAddPhone, alt_phone: quickAddAltPhone || undefined, address: quickAddAddress || undefined }, {
       onSuccess: (res: any) => {
-        const newCustomer = res.customer;
+        const newCustomer = res.data;
+        if (!newCustomer) return;
         setSelectedCustomer(newCustomer);
         setIsCustomerDropdownOpen(false);
         setIsQuickAddMode(false);
         setCustomerSearch("");
         setQuickAddName("");
         setQuickAddPhone("");
+        setQuickAddAltPhone("");
         setQuickAddAddress("");
       }
     });
@@ -504,6 +507,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               value={quickAddPhone}
                               onChange={e => setQuickAddPhone(e.target.value)}
                               placeholder="9876543210"
+                              className="h-9 border-slate-200 focus:border-slate-900"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Alternate Phone <span className="text-slate-400 normal-case">(Optional)</span></label>
+                            <Input
+                              value={quickAddAltPhone}
+                              onChange={e => setQuickAddAltPhone(e.target.value)}
+                              placeholder="2nd number"
                               className="h-9 border-slate-200 focus:border-slate-900"
                             />
                           </div>
@@ -940,16 +952,26 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
                                   className="w-16 h-6 text-xs text-right font-semibold border border-slate-200 rounded px-1.5 outline-none focus:border-orange-400 bg-white"
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => setCartItems(prev => prev.map(p =>
-                                    p.product.id === item.product.id ? { ...p, discount_type: p.discount_type === 'flat' ? 'percent' : 'flat' } : p
-                                  ))}
-                                  className={`h-6 w-6 flex items-center justify-center rounded text-[10px] font-bold border transition-colors ${item.discount_type === 'percent' ? 'bg-orange-50 border-orange-300 text-orange-600' : 'bg-slate-50 border-slate-200 text-slate-500'}`}
-                                  title={item.discount_type === 'percent' ? 'Percentage discount' : 'Flat discount'}
-                                >
-                                  {item.discount_type === 'percent' ? '%' : '₹'}
-                                </button>
+                                <div className="flex h-6 rounded-md border border-slate-200 overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, discount_type: 'flat' } : p
+                                    ))}
+                                    className={`w-6 flex items-center justify-center text-[10px] font-bold transition-colors ${item.discount_type === 'flat' ? 'bg-orange-500 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+                                  >
+                                    ₹
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, discount_type: 'percent' } : p
+                                    ))}
+                                    className={`w-6 flex items-center justify-center text-[10px] font-bold transition-colors ${item.discount_type === 'percent' ? 'bg-orange-500 text-white' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+                                  >
+                                    %
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1004,13 +1026,22 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                         <Percent className="w-3.5 h-3.5 text-purple-400" />
                         Order Discount
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setOrderDiscountType(t => t === 'flat' ? 'percent' : 'flat')}
-                        className={`h-7 px-2.5 flex items-center gap-1 rounded-md text-xs font-bold border transition-colors ${orderDiscountType === 'percent' ? 'bg-purple-50 border-purple-300 text-purple-600' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                      >
-                        {orderDiscountType === 'percent' ? '% Percent' : '₹ Flat'}
-                      </button>
+                      <div className="flex h-7 rounded-lg border border-slate-200 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setOrderDiscountType('flat')}
+                          className={`px-3 flex items-center gap-1 text-xs font-bold transition-colors ${orderDiscountType === 'flat' ? 'bg-purple-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                        >
+                          ₹ Flat
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setOrderDiscountType('percent')}
+                          className={`px-3 flex items-center gap-1 text-xs font-bold transition-colors ${orderDiscountType === 'percent' ? 'bg-purple-500 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                        >
+                          % Percent
+                        </button>
+                      </div>
                     </div>
                     <div className="relative">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">{orderDiscountType === 'percent' ? '%' : '₹'}</span>

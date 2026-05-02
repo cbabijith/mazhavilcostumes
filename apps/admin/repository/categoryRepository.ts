@@ -26,6 +26,7 @@ export class CategoryRepository extends BaseRepository {
     const response = await this.client
       .from(this.tableName)
       .select('*')
+      .is('deleted_at', null)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
@@ -43,6 +44,7 @@ export class CategoryRepository extends BaseRepository {
         parent:parent_id(id, name, slug)
       `)
       .eq('id', id)
+      .is('deleted_at', null)
       .single();
 
     const result = this.handleResponse<Category & { parent?: Category | null }>(response);
@@ -88,6 +90,7 @@ export class CategoryRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .eq('parent_id', parentId)
+      .is('deleted_at', null)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true });
 
@@ -152,12 +155,12 @@ export class CategoryRepository extends BaseRepository {
   }
 
   /**
-   * Delete a category
+   * Soft-delete a category (sets deleted_at timestamp)
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
     const response = await this.client
       .from(this.tableName)
-      .delete()
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
       .eq('id', id);
 
     return this.handleResponse<void>(response);
@@ -179,11 +182,12 @@ export class CategoryRepository extends BaseRepository {
       const childrenResult = await this.findChildren(id);
       const childCount = childrenResult.success ? childrenResult.data?.length || 0 : 0;
 
-      // Check for products
+      // Check for products (exclude soft-deleted)
       const { count: productCount } = await this.client
         .from('products')
         .select('*', { count: 'exact', head: true })
-        .eq('category_id', id);
+        .eq('category_id', id)
+        .is('deleted_at', null);
 
       const canDelete = childCount === 0 && (productCount || 0) === 0;
       let reason: string | undefined;
@@ -227,7 +231,8 @@ export class CategoryRepository extends BaseRepository {
       const { count } = await this.client
         .from('products')
         .select('*', { count: 'exact', head: true })
-        .eq('category_id', id);
+        .eq('category_id', id)
+        .is('deleted_at', null);
 
       return {
         data: count || 0,
@@ -250,7 +255,8 @@ export class CategoryRepository extends BaseRepository {
     let query = this.client
       .from(this.tableName)
       .select('id')
-      .eq('slug', slug);
+      .eq('slug', slug)
+      .is('deleted_at', null);
 
     if (excludeId) {
       query = query.neq('id', excludeId);

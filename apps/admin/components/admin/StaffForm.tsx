@@ -38,7 +38,7 @@ interface StaffFormProps {
   staff?: StaffWithBranch;
 }
 
-const roleOptions: { value: StaffRole; label: string; description: string }[] = [
+const allRoleOptions: { value: StaffRole; label: string; description: string }[] = [
   { value: "admin", label: "Admin", description: "Full access to all features" },
   { value: "manager", label: "Manager", description: "Staff access + Staff management" },
   { value: "staff", label: "Staff", description: "Dashboard, orders, products, categories, customers, banners" },
@@ -83,9 +83,18 @@ export default function StaffForm({ staff }: StaffFormProps) {
   const router = useRouter();
   const isEdit = !!staff;
   const { showError } = useAppStore();
+  const currentUser = useAppStore((s) => s.user);
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const { branches, isLoading: isBranchesLoading } = useBranches();
+
+  // Managers can only assign the "staff" role; admins/super_admins can assign all roles
+  const roleOptions = useMemo(() => {
+    if (currentUser?.role === 'manager') {
+      return allRoleOptions.filter((r) => r.value === 'staff');
+    }
+    return allRoleOptions;
+  }, [currentUser?.role]);
 
   const activeBranches = useMemo(
     () => branches.filter((b: any) => b.is_active !== false),

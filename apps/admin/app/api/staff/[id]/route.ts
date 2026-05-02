@@ -5,7 +5,7 @@
  * DELETE /api/staff/[id] — delete staff + auth user (admin + manager)
  */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { staffService } from '@/services/staffService';
 import { apiGuard } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
@@ -63,6 +63,25 @@ export async function PATCH(
       if (key in body) sanitized[key] = body[key];
     }
 
+    // Managers cannot escalate role to admin/manager
+    if (guard.user.role === 'manager' && sanitized.role && sanitized.role !== 'staff') {
+      return NextResponse.json(
+        { success: false, error: { message: 'Managers can only assign the staff role.', code: 'FORBIDDEN' } },
+        { status: 403 }
+      );
+    }
+
+    // Prevent deactivating a super_admin
+    if (sanitized.is_active === false) {
+      const target = await staffService.getStaffById(id);
+      if (target.success && target.data && target.data.role === 'super_admin') {
+        return NextResponse.json(
+          { success: false, error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' } },
+          { status: 403 }
+        );
+      }
+    }
+
     const result = await staffService.updateStaff(id, sanitized);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to update staff');
@@ -89,6 +108,16 @@ export async function DELETE(
     );
 
     const { id } = await params;
+
+    // Prevent deactivating a super_admin
+    const target = await staffService.getStaffById(id);
+    if (target.success && target.data && target.data.role === 'super_admin') {
+      return NextResponse.json(
+        { success: false, error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' } },
+        { status: 403 }
+      );
+    }
+
     const result = await staffService.deactivateStaff(id);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to deactivate staff');

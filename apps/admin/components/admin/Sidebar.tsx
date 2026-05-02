@@ -108,10 +108,10 @@ export default function Sidebar() {
                 });
               }}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
                 isActive
-                  ? "bg-primary text-white shadow-lg shadow-primary/25"
-                  : "text-slate-300 hover:bg-slate-700/50 hover:text-white"
+                  ? "bg-white/15 text-white ring-1 ring-white/20 shadow-lg"
+                  : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
               )}
             >
               <item.icon className={cn("w-5 h-5", isNavigating && "animate-pulse")} />

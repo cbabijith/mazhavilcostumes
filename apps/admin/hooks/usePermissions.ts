@@ -21,7 +21,7 @@ export function usePermissions() {
     role,
     can: (permission: Permission) => hasPermission(role, permission),
     permissions: getPermissions(role),
-    isAdmin: role === 'admin',
+    isAdmin: role === 'admin' || role === 'super_admin',
     isManager: role === 'manager',
     isStaff: role === 'staff',
   };

@@ -349,6 +349,7 @@ export default function StaffPage() {
                             <Eye className="w-4 h-4" />
                           </Link>
                         </Button>
+                        {s.role !== 'super_admin' && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -359,6 +360,8 @@ export default function StaffPage() {
                             <Edit className="w-4 h-4" />
                           </Link>
                         </Button>
+                        )}
+                        {s.role !== 'super_admin' && (
                         <Button
                           variant="ghost"
                           size="icon"
@@ -372,6 +375,7 @@ export default function StaffPage() {
                             <UserCheck className="w-4 h-4" />
                           )}
                         </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
