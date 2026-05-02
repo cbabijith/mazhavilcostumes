@@ -51,7 +51,6 @@ export function useBanners(params?: BannerSearchParams) {
       const response = await apiFetch<ApiSuccessResponse<Banner[]>>(url);
       return response.data || [];
     },
-    staleTime: 0, // Always consider data stale
     refetchOnWindowFocus: false,
     refetchOnMount: true, // Refetch when component mounts
   });
@@ -68,8 +67,6 @@ export function useBanner(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }
@@ -212,8 +209,6 @@ export function useBannerCounts() {
       const response = await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>('/api/banners/counts');
       return response.data || { hero: 0, editorial: 0, split: 0 };
     },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }
@@ -228,8 +223,6 @@ export function useRemainingSlots() {
       const response = await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>('/api/banners/remaining-slots');
       return response.data || { hero: 10, editorial: 1, split: 2 };
     },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 }

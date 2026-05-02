@@ -90,9 +90,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       };
     },
     placeholderData: keepPreviousData,
-    staleTime: 0, // Always treat as stale so navigating back from create/edit refetches
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnMount: 'always',
+    refetchOnMount: 'always', // Always refetch when navigating back from create/edit
   });
 }
 
@@ -107,7 +105,7 @@ export function useOrder(id: string) {
       return { success: true, data: res.data };
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
+
   });
 }
 
@@ -122,7 +120,7 @@ export function useOrderStatusHistory(id: string, enabled: boolean = true) {
       return { success: true, data: res.data };
     },
     enabled: enabled && !!id,
-    staleTime: 5 * 60 * 1000,
+
   });
 }
 

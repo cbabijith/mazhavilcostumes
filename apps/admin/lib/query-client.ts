@@ -25,11 +25,11 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        // Data is considered fresh for 5 minutes
-        staleTime: 5 * 60 * 1000,
+        // Data is considered fresh for 2 minutes
+        staleTime: 2 * 60 * 1000,
         
-        // Data is considered fresh for 10 minutes in cache
-        gcTime: 10 * 60 * 1000,
+        // Data stays in cache for 5 minutes
+        gcTime: 5 * 60 * 1000,
         
         // Retry failed requests 3 times with exponential backoff
         retry: (failureCount, error) => {
@@ -48,14 +48,14 @@ export function createQueryClient(): QueryClient {
         // Exponential backoff for retries
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
         
-        // Refetch on window focus (optional, can be disabled)
+        // Don't refetch on window focus (avoids surprise reloads)
         refetchOnWindowFocus: false,
         
         // Refetch on reconnect
         refetchOnReconnect: true,
         
-        // Don't refetch on mount if data is fresh
-        refetchOnMount: false,
+        // Refetch on mount if data is stale (critical for post-mutation freshness)
+        refetchOnMount: true,
       },
       
       mutations: {
