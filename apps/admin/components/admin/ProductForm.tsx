@@ -57,6 +57,7 @@ function emptyFormData() {
     subcategory_id: "",
     subvariant_id: "",
     price_per_day: 0,
+    purchase_price: 0,
     is_active: true,
   };
 }
@@ -105,6 +106,7 @@ export default function ProductForm({
           subcategory_id: product.subcategory_id ?? "",
           subvariant_id: product.subvariant_id ?? "",
           price_per_day: product.price_per_day ?? 0,
+          purchase_price: (product as any).purchase_price ?? 0,
           is_active: product.is_active ?? true,
         }
       : emptyFormData()
@@ -309,7 +311,7 @@ export default function ProductForm({
           category_id: formData.category_id || undefined,
           subcategory_id: formData.subcategory_id || undefined,
           subvariant_id: formData.subvariant_id || undefined,
-          security_deposit: 0,
+          purchase_price: formData.purchase_price || 0,
           is_featured: false,
           track_inventory: true,
           low_stock_threshold: 0,
@@ -494,6 +496,34 @@ export default function ProductForm({
               </div>
               <p className="text-xs text-slate-400">
                 Same price across all branches
+              </p>
+            </div>
+
+            {/* Purchase Price */}
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Purchase Price
+              </h3>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-base">
+                  ₹
+                </span>
+                <Input
+                  type="number"
+                  value={formData.purchase_price}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      purchase_price: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  onFocus={clearZeroOnFocus}
+                  placeholder="0"
+                  className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
+                />
+              </div>
+              <p className="text-xs text-slate-400">
+                Original cost — used for ROI calculation
               </p>
             </div>
 
