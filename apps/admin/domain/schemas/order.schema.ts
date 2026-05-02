@@ -5,6 +5,8 @@ const orderItemSchema = z.object({
   product_id: z.string().uuid("Invalid product ID"),
   quantity: z.number().int().positive("Quantity must be a positive integer"),
   price_per_day: z.number().nonnegative("Rent price cannot be negative"),
+  discount: z.number().nonnegative().optional().default(0),
+  discount_type: z.enum(['flat', 'percent']).optional().default('flat'),
 });
 
 export const CreateOrderSchema = z.object({
@@ -21,12 +23,10 @@ export const CreateOrderSchema = z.object({
   delivery_address: z.string().max(1000).optional(),
   pickup_address: z.string().max(1000).optional(),
   notes: z.string().max(2000).optional(),
-  deposit_collected: z.boolean().optional(),
-  security_deposit: z.number().nonnegative().optional(),
-  deposit_collected_at: z.string().datetime().optional(),
-  deposit_payment_method: z.nativeEnum(PaymentMethod).optional(),
   amount_paid: z.number().nonnegative().optional(),
   payment_status: z.nativeEnum(PaymentStatus).optional(),
+  discount: z.number().nonnegative().optional().default(0),
+  discount_type: z.enum(['flat', 'percent']).optional().default('flat'),
   advance_amount: z.number().nonnegative().optional(),
   advance_collected: z.boolean().optional(),
   advance_payment_method: z.nativeEnum(PaymentMethod).optional(),
@@ -48,20 +48,17 @@ export const UpdateOrderSchema = z.object({
   delivery_address: z.string().max(1000).optional(),
   pickup_address: z.string().max(1000).optional(),
   event_date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
-  deposit_collected: z.boolean().optional(),
-  deposit_collected_at: z.string().datetime().optional(),
-  deposit_payment_method: z.nativeEnum(PaymentMethod).optional(),
-  deposit_returned: z.boolean().optional(),
-  deposit_returned_at: z.string().datetime().optional(),
   amount_paid: z.number().nonnegative().optional(),
   payment_status: z.nativeEnum(PaymentStatus).optional(),
-  security_deposit: z.number().nonnegative().optional(),
   advance_amount: z.number().nonnegative().optional(),
   advance_collected: z.boolean().optional(),
   late_fee: z.number().nonnegative().optional(),
   discount: z.number().nonnegative().optional(),
+  discount_type: z.enum(['flat', 'percent']).optional(),
   damage_charges_total: z.number().nonnegative().optional(),
   total_amount: z.number().nonnegative().optional(),
+  cancellation_reason: z.string().max(2000).optional(),
+  cancelled_at: z.string().datetime().optional(),
 }).refine((data) => {
   if (data.start_date && data.end_date) {
     const start = new Date(data.start_date);

@@ -257,7 +257,7 @@ export class OrderService {
     // Block financial adjustments on finalized orders
     const currentStatus = existingOrder.data.status;
     if (currentStatus === OrderStatus.COMPLETED || currentStatus === OrderStatus.CANCELLED) {
-      const financialFields = ['security_deposit', 'discount', 'late_fee', 'damage_charges_total', 'total_amount', 'subtotal'];
+      const financialFields = ['discount', 'discount_type', 'late_fee', 'damage_charges_total', 'total_amount', 'subtotal'];
       const attemptedFinancialChange = financialFields.some(field => (data as any)[field] !== undefined);
       if (attemptedFinancialChange) {
         return {

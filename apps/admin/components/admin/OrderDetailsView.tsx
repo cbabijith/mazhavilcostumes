@@ -49,6 +49,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     amount: "0",
   });
   const [isCancellationRefund, setIsCancellationRefund] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -671,12 +672,25 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </div>
               <div className="flex justify-between items-center pt-2">
                 {order.status === OrderStatus.CANCELLED ? (
-                  <>
-                    <span className="text-lg font-black text-slate-400">Order Cancelled</span>
-                    {(order.amount_paid || 0) > 0 && (
-                      <span className="text-sm font-bold text-amber-600">Refundable: {formatCurrency(order.amount_paid)}</span>
+                  <div className="w-full space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-black text-slate-400">Order Cancelled</span>
+                      {(order.amount_paid || 0) > 0 && (
+                        <span className="text-sm font-bold text-amber-600">Refundable: {formatCurrency(order.amount_paid)}</span>
+                      )}
+                    </div>
+                    {order.cancellation_reason && (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
+                        <p className="text-sm text-red-600">{order.cancellation_reason}</p>
+                        {order.cancelled_at && (
+                          <p className="text-[10px] text-red-400 mt-1">
+                            Cancelled on {new Date(order.cancelled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
+                      </div>
                     )}
-                  </>
+                  </div>
                 ) : order.status === OrderStatus.COMPLETED ? (
                   <>
                     <span className="text-lg font-black text-emerald-700">Settled</span>
@@ -1025,40 +1039,84 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
         </Modal>
 
-        {/* Cancel Order Modal */}
-        <Modal
-          open={isCancelModalOpen}
-          onClose={() => setIsCancelModalOpen(false)}
-          title="Cancel Order"
-          maxWidth="max-w-md"
-        >
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                <XCircle className="w-5 h-5 text-red-600" />
+        {/* Cancel Order Modal — with mandatory reason */}
+        {(() => {
+          const hasPaid = (order.amount_paid || 0) > 0;
+          return (
+            <Modal
+              open={isCancelModalOpen}
+              onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
+              title="Cancel Order"
+              maxWidth="max-w-lg"
+            >
+              <div className="p-6 space-y-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Refund Warning */}
+                {hasPaid && (
+                  <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <Banknote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">
+                        Payment Collected: {formatCurrency(order.amount_paid)}
+                      </p>
+                      <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                        After cancellation, you can process a refund from the order detail page.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mandatory Reason */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-900">
+                    Reason for Cancellation <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Enter the reason for cancelling this order..."
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-y min-h-[80px]"
+                    rows={3}
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
+                  <Button
+                    onClick={() => {
+                      updateOrder({
+                        id: order.id,
+                        data: {
+                          status: OrderStatus.CANCELLED,
+                          cancellation_reason: cancelReason.trim(),
+                          cancelled_at: new Date().toISOString(),
+                        } as any,
+                      });
+                      setIsCancelModalOpen(false);
+                      setCancelReason("");
+                    }}
+                    disabled={isUpdating || !cancelReason.trim()}
+                    className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                  >
+                    {isUpdating ? "Cancelling..." : "Cancel Order"}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsCancelModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
-              <Button
-                onClick={() => {
-                  updateOrder({ id: order.id, data: { status: OrderStatus.CANCELLED } });
-                  setIsCancelModalOpen(false);
-                }}
-                disabled={isUpdating}
-                className="h-12 px-8 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-md"
-              >
-                {isUpdating ? "Cancelling..." : "Cancel Order"}
-              </Button>
-            </div>
-          </div>
-        </Modal>
+            </Modal>
+          );
+        })()}
 
         {/* Stock Insufficient Modal */}
         <Modal

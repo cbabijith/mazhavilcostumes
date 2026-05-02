@@ -415,10 +415,29 @@ export class OrderRepository extends BaseRepository {
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
 
-    // Calculate subtotal — flat rent price × quantity (no per-day multiplication)
-    const subtotal = data.items.reduce((sum, item) => sum + (item.price_per_day * item.quantity), 0);
-    
-    // Calculate GST amount
+    // Calculate subtotal — flat rent price × quantity with per-item discounts
+    let rawSubtotal = 0;
+    let itemDiscountTotal = 0;
+    data.items.forEach((item: any) => {
+      const lineTotal = item.price_per_day * item.quantity;
+      const itemDisc = item.discount_type === 'percent'
+        ? lineTotal * ((item.discount || 0) / 100)
+        : (item.discount || 0);
+      rawSubtotal += lineTotal;
+      itemDiscountTotal += Math.min(itemDisc, lineTotal);
+    });
+    const afterItemDiscount = rawSubtotal - itemDiscountTotal;
+
+    // Order-level discount
+    const orderDiscountVal = (data as any).discount || 0;
+    const orderDiscountType = (data as any).discount_type || 'flat';
+    const orderDiscAmt = orderDiscountType === 'percent'
+      ? afterItemDiscount * (orderDiscountVal / 100)
+      : orderDiscountVal;
+    const effectiveOrderDiscount = Math.min(orderDiscAmt, afterItemDiscount);
+    const subtotal = afterItemDiscount - effectiveOrderDiscount;
+
+    // Calculate GST amount (on discounted subtotal)
     const gstAmount = subtotal * (gstPercentage / 100);
     
     // Total amount
@@ -460,17 +479,15 @@ export class OrderRepository extends BaseRepository {
         delivery_method: data.delivery_method || 'pickup',
         delivery_address: data.delivery_address || null,
         pickup_address: data.pickup_address || null,
-        subtotal,
+        subtotal: rawSubtotal,
         gst_amount: gstAmount,
-        security_deposit: (data as any).security_deposit || 0,
+        discount: effectiveOrderDiscount,
+        discount_type: orderDiscountType,
         advance_amount: data.advance_amount || 0,
         advance_collected: data.advance_collected || false,
         advance_payment_method: data.advance_payment_method || null,
         advance_collected_at: data.advance_collected ? new Date().toISOString() : null,
         total_amount: totalAmount,
-        deposit_collected: (data as any).deposit_collected || false,
-        deposit_payment_method: (data as any).deposit_payment_method || null,
-        deposit_collected_at: (data as any).deposit_collected_at || null,
         amount_paid: data.advance_collected && data.advance_amount ? data.advance_amount : 0,
         payment_status: data.advance_collected && data.advance_amount
           ? (data.advance_amount >= totalAmount ? 'paid' : 'partial')
@@ -486,7 +503,7 @@ export class OrderRepository extends BaseRepository {
 
     const order = orderResponse.data;
 
-    // Create order items — flat rent price, no per-day multiplication
+    // Create order items — flat rent price, with per-item discounts
     const itemsResponse = await this.client
       .from(this.orderItemsTable)
       .insert(
@@ -495,6 +512,8 @@ export class OrderRepository extends BaseRepository {
           product_id: item.product_id,
           quantity: item.quantity,
           price_per_day: item.price_per_day,
+          discount: item.discount || 0,
+          discount_type: item.discount_type || 'flat',
           subtotal: item.price_per_day * item.quantity,
         }))
       )
@@ -525,20 +544,6 @@ export class OrderRepository extends BaseRepository {
         });
     }
 
-    // Create deposit payment record if deposit was collected
-    if ((data as any).deposit_collected && (data as any).security_deposit && (data as any).security_deposit > 0) {
-      await this.client
-        .from('payments')
-        .insert({
-          order_id: order.id,
-          payment_type: 'deposit',
-          amount: (data as any).security_deposit,
-          payment_mode: (data as any).deposit_payment_method || 'cash',
-          notes: 'Security deposit collected at order creation',
-          payment_date: new Date().toISOString(),
-          ...this.getCreateAuditFields(),
-        });
-    }
 
     // Create initial status history
     await this.client
