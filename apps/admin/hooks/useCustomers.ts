@@ -61,8 +61,6 @@ export function useCustomers(params?: CustomerSearchParams) {
       const response = await apiFetch<ApiSuccessResponse<CustomerSearchResult>>(`/api/customers?${qs.toString()}`);
       return response.data;
     },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
     placeholderData: keepPreviousData, // Prevents blank screen on pagination/search
   });
 
@@ -85,7 +83,6 @@ export function useCustomer(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -99,7 +96,6 @@ export function useCustomerByPhone(phone: string, enabled: boolean = true) {
       return match || null;
     },
     enabled: enabled && phone.length >= 10,
-    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -55,7 +55,6 @@ export function usePayments(params: PaymentSearchParams = {}) {
       const response = await apiFetch<ApiSuccessResponse<Payment[]>>(`/api/payments?${qs.toString()}`);
       return response.data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 
@@ -70,7 +69,6 @@ export function usePayment(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -85,7 +83,6 @@ export function useOrderPayments(orderId: string) {
       return response.data;
     },
     enabled: !!orderId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

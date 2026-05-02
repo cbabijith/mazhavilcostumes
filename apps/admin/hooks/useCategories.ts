@@ -47,7 +47,6 @@ export function useCategories() {
       const response = await apiFetch<ApiSuccessResponse<Category[]>>('/api/categories');
       return response.data;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
   return {
@@ -69,7 +68,6 @@ export function useCategory(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {
@@ -91,7 +89,6 @@ export function useCategoryChildren(parentId: string) {
       return response.data.children;
     },
     enabled: !!parentId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {

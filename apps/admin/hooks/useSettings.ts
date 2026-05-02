@@ -42,7 +42,6 @@ export function useGSTPercentage() {
   return useQuery({
     queryKey: queryKeys.gst,
     queryFn: () => settingsService.getGSTPercentage(),
-    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -82,7 +81,7 @@ export function useIsGSTEnabled() {
   return useQuery({
     queryKey: [...queryKeys.settings, 'is_gst_enabled'],
     queryFn: () => settingsService.getIsGSTEnabled(),
-    staleTime: 10 * 60 * 1000,
+
   });
 }
 
@@ -122,7 +121,7 @@ export function useInvoicePrefix() {
   return useQuery({
     queryKey: queryKeys.invoicePrefix,
     queryFn: () => settingsService.findByKey('invoice_prefix'),
-    staleTime: 10 * 60 * 1000,
+
   });
 }
 
@@ -133,7 +132,7 @@ export function usePaymentTerms() {
   return useQuery({
     queryKey: queryKeys.paymentTerms,
     queryFn: () => settingsService.findByKey('payment_terms'),
-    staleTime: 10 * 60 * 1000,
+
   });
 }
 
@@ -144,7 +143,7 @@ export function useAuthorizedSignature() {
   return useQuery({
     queryKey: queryKeys.authorizedSignature,
     queryFn: () => settingsService.findByKey('authorized_signature'),
-    staleTime: 10 * 60 * 1000,
+
   });
 }
 

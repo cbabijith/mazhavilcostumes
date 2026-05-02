@@ -10,6 +10,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query-client";
 import {
   AlertCircle,
   ArrowLeft,
@@ -48,6 +50,7 @@ export default function CategoryForm({
   defaultParentId = null,
 }: CategoryFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAppStore((s) => s.user);
   const isEdit = Boolean(category);
 
@@ -150,6 +153,9 @@ export default function CategoryForm({
         throw new Error(payload.error?.message || payload.error || `Request failed (${res.status})`);
       }
 
+      // Clear TanStack cache so list page fetches fresh data
+      queryClient.removeQueries({ queryKey: queryKeys.categories });
+
       const redirectTo =
         isEdit && category
           ? `/dashboard/categories/${category.id}`
@@ -158,7 +164,6 @@ export default function CategoryForm({
           : "/dashboard/categories";
 
       router.push(redirectTo);
-      router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred";
       console.error("Error saving category:", err);

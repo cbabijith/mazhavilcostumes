@@ -60,7 +60,6 @@ export function useProducts(params: ProductSearchParams = {}) {
       const response = await apiFetch<ApiSuccessResponse<ProductSearchResult>>(url);
       return response.data;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
     placeholderData: (prev) => prev, // Keep old data visible while loading new results
   });
 
@@ -93,7 +92,6 @@ export function useProduct(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   return {

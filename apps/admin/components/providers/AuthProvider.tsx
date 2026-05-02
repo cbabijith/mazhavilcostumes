@@ -33,16 +33,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // 2. Fetch full user profile from our API (which includes store_id)
         const response = await fetch('/api/auth/me');
         if (response.ok) {
-          const { user } = await response.json();
-          setUser(user);
-          setAuthenticated(true);
+          const json = await response.json();
+          const authUser = json.data?.user || json.user; // Handle apiSuccess envelope
+          console.log('[AuthProvider] authUser from /api/auth/me:', authUser);
+          if (authUser) {
+            setUser({
+              ...authUser,
+              name: authUser.name || authUser.email?.split('@')[0] || 'User',
+            });
+            setAuthenticated(true);
+          }
         } else {
           // If profile fetch fails, user might not be in staff table
           // but we still have an auth session.
           setUser({
             id: session.user.id,
             email: session.user.email || '',
-            name: session.user.user_metadata?.name || 'User',
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
             role: (session.user.user_metadata?.role as any) || 'admin',
             store_id: session.user.user_metadata?.store_id || null,
             branch_id: null,
