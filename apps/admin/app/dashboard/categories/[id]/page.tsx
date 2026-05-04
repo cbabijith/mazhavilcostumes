@@ -536,6 +536,26 @@ export default function CategoryDetailPage() {
             </CardContent>
           </Card>
 
+          {/* GST Information */}
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardHeader className="border-b border-slate-200 py-4 px-5">
+              <CardTitle className="text-sm font-semibold text-slate-900">
+                GST Rate
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-500 font-medium">Tax Rate</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {category.gst_percentage != null ? `${category.gst_percentage}%` : '5%'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-2">
+                Products under this category will use this GST rate when GST is enabled.
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Parent Info */}
           {parent && (
             <Card className="shadow-sm border-slate-200 bg-white">

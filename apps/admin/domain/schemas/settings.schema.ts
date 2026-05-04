@@ -9,7 +9,6 @@
 import { z } from 'zod';
 
 const SettingKeyEnum = z.enum([
-  'gst_percentage',
   'is_gst_enabled',
   'invoice_prefix',
   'payment_terms',
@@ -35,15 +34,5 @@ export const UpdateSettingSchema = z.object({
   updated_by: z.string().uuid().optional(),
 });
 
-/**
- * Schema for GST percentage specifically
- */
-export const GSTPercentageSchema = z.object({
-  percentage: z.number()
-    .min(0, 'GST percentage cannot be negative')
-    .max(100, 'GST percentage cannot exceed 100'),
-});
-
 export type CreateSettingInput = z.infer<typeof CreateSettingSchema>;
 export type UpdateSettingInput = z.infer<typeof UpdateSettingSchema>;
-export type GSTPercentageInput = z.infer<typeof GSTPercentageSchema>;

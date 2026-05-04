@@ -50,7 +50,8 @@ export async function POST(request: NextRequest) {
         start_date,
         end_date,
         branch_id,
-        exclude_order_id
+        exclude_order_id,
+        !!item.buffer_override
       );
 
       if (!availResult.success || !availResult.data) {
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
         isAvailable,
         peakReserved: availResult.data.peakReserved,
         overlappingOrders: availResult.data.overlappingOrders,
+        adjacentOrders: availResult.data.adjacentOrders || [],
       });
     }
 

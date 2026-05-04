@@ -22,8 +22,6 @@ export interface AuthUser {
   store_id: string | null;
   branch_id: string | null;
   staff_id: string | null;
-  can_give_product_discount?: boolean;
-  can_give_order_discount?: boolean;
 }
 
 /**
@@ -42,7 +40,7 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
         // Look up the staff record to get role + branch + store
         const { data: staff } = await adminClient
           .from('staff')
-          .select('id, role, branch_id, store_id, can_give_product_discount, can_give_order_discount')
+          .select('id, role, branch_id, store_id')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .maybeSingle();
@@ -59,8 +57,6 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
           store_id: storeId,
           branch_id: branchId,
           staff_id: staffId,
-          can_give_product_discount: staff?.can_give_product_discount ?? false,
-          can_give_order_discount: staff?.can_give_order_discount ?? false,
         };
       }
     }
@@ -88,7 +84,7 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
     const adminClient = createAdminClient();
     const { data: staff } = await adminClient
       .from('staff')
-      .select('id, role, branch_id, store_id, can_give_product_discount, can_give_order_discount')
+      .select('id, role, branch_id, store_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
@@ -102,8 +98,6 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
         store_id: staff.store_id,
         branch_id: staff.branch_id,
         staff_id: staff.id,
-        can_give_product_discount: staff.can_give_product_discount ?? false,
-        can_give_order_discount: staff.can_give_order_discount ?? false,
       };
     }
  

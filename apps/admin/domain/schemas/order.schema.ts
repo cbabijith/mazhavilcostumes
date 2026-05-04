@@ -30,6 +30,7 @@ export const CreateOrderSchema = z.object({
   advance_amount: z.number().nonnegative().optional(),
   advance_collected: z.boolean().optional(),
   advance_payment_method: z.nativeEnum(PaymentMethod).optional(),
+  buffer_override: z.boolean().optional().default(false),
 }).refine((data) => {
   const start = new Date(data.rental_start_date);
   const end = new Date(data.rental_end_date);
@@ -52,13 +53,18 @@ export const UpdateOrderSchema = z.object({
   payment_status: z.nativeEnum(PaymentStatus).optional(),
   advance_amount: z.number().nonnegative().optional(),
   advance_collected: z.boolean().optional(),
+  advance_payment_method: z.nativeEnum(PaymentMethod).optional(),
   late_fee: z.number().nonnegative().optional(),
   discount: z.number().nonnegative().optional(),
   discount_type: z.enum(['flat', 'percent']).optional(),
   damage_charges_total: z.number().nonnegative().optional(),
+  subtotal: z.number().nonnegative().optional(),
+  gst_amount: z.number().nonnegative().optional(),
   total_amount: z.number().nonnegative().optional(),
   cancellation_reason: z.string().max(2000).optional(),
   cancelled_at: z.string().datetime().optional(),
+  buffer_override: z.boolean().optional(),
+  items: z.array(orderItemSchema).optional(),
 }).refine((data) => {
   if (data.start_date && data.end_date) {
     const start = new Date(data.start_date);

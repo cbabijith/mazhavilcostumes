@@ -25,6 +25,7 @@ import {
   XCircle,
   Calendar,
   Package,
+  Zap,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,13 @@ function OrderRowInner({
       <td className="px-4 py-4">
         <div className="flex flex-col items-start gap-1">
           <OrderStatusBadge status={order.status} />
+
+          {/* Buffer override indicator */}
+          {order.buffer_override && (
+            <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5 flex items-center gap-0.5">
+              <Zap className="w-2.5 h-2.5" /> Quick Booking
+            </Badge>
+          )}
           
           {/* Show payment badge for active (non-terminal) orders */}
           {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (

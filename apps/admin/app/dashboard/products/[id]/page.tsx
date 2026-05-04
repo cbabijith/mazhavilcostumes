@@ -69,7 +69,8 @@ export default function ProductDetailPage() {
   const productId = params.id as string;
   const { product, isLoading } = useProduct(productId);
   const deleteProduct = useDeleteProduct();
-  const { showSuccess } = useAppStore();
+  const { showSuccess, user } = useAppStore();
+  const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
 
   const [branchInventory, setBranchInventory] = useState<BranchInventoryRow[]>([]);
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
@@ -206,14 +207,16 @@ export default function ProductDetailPage() {
               <span className="hidden sm:inline">Print Barcode</span>
             </Button>
           )}
-          <Button 
-            size="sm" 
-            onClick={() => router.push(`/dashboard/products/${product.id}/edit`)} 
-            className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
-          >
-            <Edit className="h-4 w-4" />
-            Edit Product
-          </Button>
+          {canEdit && (
+            <Button 
+              size="sm" 
+              onClick={() => router.push(`/dashboard/products/${product.id}/edit`)} 
+              className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
+            >
+              <Edit className="h-4 w-4" />
+              Edit Product
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"

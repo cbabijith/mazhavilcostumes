@@ -68,7 +68,7 @@ function OrdersContent() {
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
   const statusFilter =
-    (searchParams.get("status") || "ALL") as OrderStatus | "ALL";
+    (searchParams.get("status") || "ALL") as OrderStatus | "ALL" | "BUFFER_OVERRIDE";
   const dateFilter = searchParams.get("date_filter") || "ALL";
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
@@ -107,7 +107,7 @@ function OrdersContent() {
     limit: pageSize,
     page,
     branch_id: selectedBranchId || undefined,
-    status: statusFilter === "ALL" ? undefined : statusFilter,
+    status: statusFilter === "ALL" || statusFilter === "BUFFER_OVERRIDE" ? undefined : statusFilter,
     date_filter:
       dateFilter === "ALL"
         ? undefined
@@ -119,10 +119,13 @@ function OrdersContent() {
   const { updateOrder } = useUpdateOrder();
 
   // ── Derived data (memoized) ────────────────────────────────────────────
-  const visibleOrders = useMemo(
-    () => ordersResult?.data || [],
-    [ordersResult?.data]
-  );
+  const visibleOrders = useMemo(() => {
+    const orders = ordersResult?.data || [];
+    if (statusFilter === 'BUFFER_OVERRIDE') {
+      return orders.filter((o: any) => o.buffer_override === true);
+    }
+    return orders;
+  }, [ordersResult?.data, statusFilter]);
   const total = ordersResult?.total || 0;
   const totalPages = ordersResult?.totalPages || 1;
   const hasNext = ordersResult?.hasNext || false;

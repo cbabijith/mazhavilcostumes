@@ -1,33 +1,25 @@
 /**
- * Discount Permission Hooks
+ * Discount Permission Hooks (DEPRECATED)
  *
- * Checks whether the current user can apply product-level
- * or order-level discounts based on their role and staff toggles.
- *
- * Admin always has full discount access.
- * Manager/Staff need explicit toggles enabled.
+ * All staff roles can now apply discounts.
+ * These hooks are kept for backward compatibility
+ * but always return true.
  *
  * @module hooks/useDiscountPermission
  */
 
-import { useAppStore } from '@/stores';
-import { usePermissions } from './usePermissions';
-
 /**
- * Check if current user can apply product-level discounts
- * (edit rent amount + per-item discount)
+ * Check if current user can apply product-level discounts.
+ * Always returns true — all staff can give discounts.
  */
 export function useProductDiscountPermission(): boolean {
-  const { isAdmin } = usePermissions();
-  const user = useAppStore((s) => s.user);
-  return isAdmin || user?.can_give_product_discount === true;
+  return true;
 }
 
 /**
- * Check if current user can apply order-level discounts
+ * Check if current user can apply order-level discounts.
+ * Always returns true — all staff can give discounts.
  */
 export function useOrderDiscountPermission(): boolean {
-  const { isAdmin } = usePermissions();
-  const user = useAppStore((s) => s.user);
-  return isAdmin || user?.can_give_order_discount === true;
+  return true;
 }

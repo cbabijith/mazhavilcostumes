@@ -1,64 +1,27 @@
 /**
- * Settings REST API — GST Configuration
+ * Settings REST API — GST Configuration (DEPRECATED)
  *
- * Routes:
- *   GET    /api/settings/gst   Get current GST percentage
- *   PATCH  /api/settings/gst   Update GST percentage (superadmin only)
+ * GST percentage is now set per-category, not as a global setting.
+ * This route is kept as a stub to prevent 404s from legacy clients.
+ * Only the GST enabled/disabled toggle remains in the settings table.
  *
  * @module app/api/settings/gst/route
  */
 
-import { NextRequest } from "next/server";
-import { settingsService } from "@/services/settingsService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiBadRequest, apiForbidden, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest, NextResponse } from "next/server";
 
-/** GET /api/settings/gst — get current GST percentage */
+/** GET /api/settings/gst — deprecated, returns message */
 export async function GET(request: NextRequest) {
-  try {
-    const guard = await apiGuard(request, 'settings');
-    if (guard.error) return guard.error;
-
-    const result = await settingsService.getGSTPercentage();
-    if (!result.success) {
-      return apiRepositoryError(result.error, 'Failed to fetch GST percentage');
-    }
-    return apiSuccess({ percentage: result.data });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return apiInternalError(message);
-  }
+  return NextResponse.json(
+    { success: false, error: { message: 'GST percentage is now set per-category. Use the category API to manage GST rates.', code: 'DEPRECATED' } },
+    { status: 410 }
+  );
 }
 
-/** PATCH /api/settings/gst — update GST percentage */
+/** PATCH /api/settings/gst — deprecated */
 export async function PATCH(request: NextRequest) {
-  try {
-    const guard = await apiGuard(request, 'settings');
-    if (guard.error) return guard.error;
-
-    // Check if user is superadmin
-    const authUser = await getAuthUser(request);
-    if (!authUser || authUser.role !== 'admin') {
-      return apiForbidden('Only superadmin can update GST settings');
-    }
-
-    const body = await request.json();
-    const { percentage } = body;
-
-    if (typeof percentage !== 'number') {
-      return apiBadRequest('Percentage must be a number');
-    }
-
-    settingsService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
-    const result = await settingsService.setGSTPercentage(percentage);
-    
-    if (!result.success || !result.data) {
-      return apiRepositoryError(result.error, 'Failed to update GST percentage');
-    }
-    return apiSuccess({ percentage: parseFloat(result.data.value) }, { message: 'GST percentage updated' });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return apiInternalError(message);
-  }
+  return NextResponse.json(
+    { success: false, error: { message: 'GST percentage is now set per-category. Use the category API to manage GST rates.', code: 'DEPRECATED' } },
+    { status: 410 }
+  );
 }

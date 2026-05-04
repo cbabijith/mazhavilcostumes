@@ -2,16 +2,17 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfDay } from "date-fns";
 import {
   Search, Plus, Minus, Trash2, Calendar, User, Package,
-  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Edit3
+  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, CalendarDays
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useGSTPercentage, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode, useProductDiscountPermission, useOrderDiscountPermission } from "@/hooks";
+import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode } from "@/hooks";
 import { useAppStore } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { PaymentMethod } from "@/domain/types/order";
@@ -25,6 +26,7 @@ interface OrderFormProps {
 
 export default function OrderForm({ initialData }: OrderFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { showSuccess, showError } = useAppStore();
   const selectedBranchId = useAppStore((s: any) => s.selectedBranchId);
   const isEditing = !!initialData;
@@ -33,14 +35,10 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const { updateOrder, isPending: isUpdating } = useUpdateOrder();
   const { createCustomer, isPending: isCreatingCustomer } = useCreateCustomer();
   const { lookupByBarcode, isLooking: isScanningBarcode } = useLookupProductByBarcode();
-  const canGiveProductDiscount = useProductDiscountPermission();
-  const canGiveOrderDiscount = useOrderDiscountPermission();
   
   // Settings
-  const { data: gstResult } = useGSTPercentage();
   const { data: isGstEnabledResult } = useIsGSTEnabled();
   
-  const gstPercentage = (gstResult?.success && gstResult.data !== null) ? gstResult.data : 18;
   const isGstEnabled = (isGstEnabledResult?.success && isGstEnabledResult.data !== null) ? isGstEnabledResult.data : false;
 
   // Data Fetching for comboboxes
@@ -75,12 +73,19 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       price_per_day: item.price_per_day,
       discount: item.discount || 0,
       discount_type: item.discount_type || 'flat' as 'flat' | 'percent',
+      buffer_override: initialData?.buffer_override || false,
     })) || []
   );
 
-  // Date State
-  const [startDate, setStartDate] = useState<Date>(initialData ? new Date(initialData.start_date || initialData.rental_start_date) : new Date());
-  const [endDate, setEndDate] = useState<Date>(initialData ? new Date(initialData.end_date || initialData.rental_end_date) : addDays(new Date(), 1));
+  // Date State — parse bare "YYYY-MM-DD" strings as local time to avoid UTC→local day shift
+  const parseDateLocal = (dateStr: string) => {
+    // "2026-05-04" → parsed as local midnight, not UTC midnight
+    const s = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? new Date() : d;
+  };
+  const [startDate, setStartDate] = useState<Date>(initialData ? parseDateLocal(initialData.start_date || initialData.rental_start_date) : new Date());
+  const [endDate, setEndDate] = useState<Date>(initialData ? parseDateLocal(initialData.end_date || initialData.rental_end_date) : addDays(new Date(), 2));
 
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || "");
@@ -90,7 +95,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const [orderDiscountType, setOrderDiscountType] = useState<'flat' | 'percent'>(initialData?.discount_type || 'flat');
 
   // Advance Payment State
-  const [advanceCollected, setAdvanceCollected] = useState(initialData?.advance_collected || false);
   const [advanceAmount, setAdvanceAmount] = useState<number>(initialData?.advance_amount || 0);
   const [advancePaymentMethod, setAdvancePaymentMethod] = useState<string>(initialData?.advance_payment_method || PaymentMethod.CASH);
 
@@ -125,8 +129,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const rentalDays = useMemo(() => {
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(1, diffDays);
+    return Math.max(1, diffDays + 1); // +1 for inclusive counting (pickup day + return day)
   }, [startDate, endDate]);
+
+  // Pricing multiplier: base price covers first 3 days, each extra day adds 1×
+  const pricingMultiplier = useMemo(() => Math.max(1, rentalDays - 2), [rentalDays]);
 
   // Date validation: return date must be strictly after pickup date
   const isDateInvalid = useMemo(() => {
@@ -136,32 +143,91 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     return end <= start;
   }, [startDate, endDate]);
 
-  // Cart Calculations — with per-item discounts + order discount
+  // Cart Calculations — with per-item discounts + order discount + GST-inclusive breakdown
   const cartTotals = useMemo(() => {
     let subtotal = 0;
     let itemDiscountTotal = 0;
+    let totalGstAmount = 0;
+    let totalBaseAmount = 0;
+
+    // Per-item GST breakdown for display
+    const itemGstBreakdown: { productId: string; gstRate: number; baseAmount: number; gstAmount: number; lineAfterDiscount: number }[] = [];
+
     cartItems.forEach((item) => {
-      const lineTotal = item.price_per_day * item.quantity;
+      const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
       const itemDisc = item.discount_type === 'percent'
         ? lineTotal * (item.discount / 100)
-        : (item.discount || 0);
+        : (item.discount || 0) * item.quantity;
+      const effectiveDisc = Math.min(itemDisc, lineTotal);
       subtotal += lineTotal;
-      itemDiscountTotal += Math.min(itemDisc, lineTotal); // discount can't exceed line total
+      itemDiscountTotal += effectiveDisc;
+
+      const lineAfterDiscount = lineTotal - effectiveDisc;
+
+      // GST-inclusive: the rent amount ALREADY includes GST
+      // Formula: base = amount / (1 + rate/100), gst = amount - base
+      const gstRate = item.product?.category?.gst_percentage ?? 0;
+      if (isGstEnabled && gstRate > 0) {
+        const base = lineAfterDiscount / (1 + gstRate / 100);
+        const gst = lineAfterDiscount - base;
+        totalBaseAmount += base;
+        totalGstAmount += gst;
+        itemGstBreakdown.push({
+          productId: item.product.id,
+          gstRate,
+          baseAmount: Math.round(base * 100) / 100,
+          gstAmount: Math.round(gst * 100) / 100,
+          lineAfterDiscount,
+        });
+      } else {
+        totalBaseAmount += lineAfterDiscount;
+        itemGstBreakdown.push({
+          productId: item.product.id,
+          gstRate: 0,
+          baseAmount: lineAfterDiscount,
+          gstAmount: 0,
+          lineAfterDiscount,
+        });
+      }
     });
+
     const afterItemDiscount = subtotal - itemDiscountTotal;
+
+    // Order-level discount applied AFTER item discounts
     const orderDiscAmt = orderDiscountType === 'percent'
       ? afterItemDiscount * (orderDiscount / 100)
       : (orderDiscount || 0);
     const effectiveOrderDiscount = Math.min(orderDiscAmt, afterItemDiscount); // can't exceed
+
+    // When there's an order-level discount, proportionally reduce GST
     const afterAllDiscounts = afterItemDiscount - effectiveOrderDiscount;
-    const gstAmount = isGstEnabled ? afterAllDiscounts * (gstPercentage / 100) : 0;
-    const grandTotal = afterAllDiscounts + gstAmount;
-    return { subtotal, itemDiscountTotal, effectiveOrderDiscount, afterItemDiscount, gstAmount, grandTotal };
-  }, [cartItems, isGstEnabled, gstPercentage, orderDiscount, orderDiscountType]);
+    let gstAmount = totalGstAmount;
+    let baseAmount = totalBaseAmount;
+    if (effectiveOrderDiscount > 0 && afterItemDiscount > 0) {
+      // Proportional reduction: if 10% order discount applied, reduce GST by 10% too
+      const ratio = afterAllDiscounts / afterItemDiscount;
+      gstAmount = totalGstAmount * ratio;
+      baseAmount = afterAllDiscounts - gstAmount;
+    }
+
+    // Grand total = afterAllDiscounts (GST is WITHIN, not added on top)
+    const grandTotal = afterAllDiscounts;
+
+    return {
+      subtotal,
+      itemDiscountTotal,
+      effectiveOrderDiscount,
+      afterItemDiscount,
+      gstAmount: Math.round(gstAmount * 100) / 100,
+      baseAmount: Math.round(baseAmount * 100) / 100,
+      grandTotal,
+      itemGstBreakdown,
+    };
+  }, [cartItems, isGstEnabled, orderDiscount, orderDiscountType, pricingMultiplier]);
 
   // Payment validation
-  const advanceExceedsTotal = advanceCollected && advanceAmount > cartTotals.grandTotal;
-  const isFullAdvancePayment = advanceCollected && advanceAmount > 0 && advanceAmount === cartTotals.grandTotal;
+  const advanceExceedsTotal = advanceAmount > 0 && advanceAmount > cartTotals.grandTotal;
+  const isFullAdvancePayment = advanceAmount > 0 && advanceAmount === cartTotals.grandTotal;
   const isPaymentInvalid = advanceExceedsTotal;
 
   // ─── Live Availability Check (Search Dropdown) ──────────────────
@@ -184,7 +250,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     format(endDate, "yyyy-MM-dd"),
     selectedBranchId || undefined,
     initialData?.id,
-    searchItems.length > 0 && isProductDropdownOpen
+    searchItems.length > 0 && isProductDropdownOpen,
   );
 
   const searchAvailabilityMap = useMemo(() => {
@@ -204,6 +270,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       product_id: item.product.id,
       quantity: item.quantity,
       product_name: item.product.name,
+      buffer_override: item.buffer_override || false,
     }));
   }, [cartItems]);
 
@@ -266,7 +333,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       if (ex) {
         return prev.map(p => p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
-      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
+      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const, buffer_override: false }];
     });
     setProductSearch("");
     setIsProductDropdownOpen(false);
@@ -322,7 +389,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
           );
         }
-        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
+        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const, buffer_override: false }];
       });
       showSuccess(wasExisting ? `${product.name} — quantity increased` : `${product.name} added to cart`);
     } catch {
@@ -401,14 +468,30 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       delivery_address: deliveryAddress || undefined,
       discount: orderDiscount || 0,
       discount_type: orderDiscountType,
-      advance_amount: advanceCollected ? advanceAmount : 0,
-      advance_collected: advanceCollected,
-      advance_payment_method: advanceCollected ? advancePaymentMethod : undefined,
+      advance_amount: advanceAmount > 0 ? advanceAmount : 0,
+      advance_collected: advanceAmount > 0,
+      advance_payment_method: advanceAmount > 0 ? advancePaymentMethod : undefined,
+      buffer_override: cartItems.some(item => item.buffer_override),
+      subtotal: cartTotals.subtotal,
+      gst_amount: cartTotals.gstAmount,
+      total_amount: cartTotals.grandTotal,
+      amount_paid: advanceAmount > 0 ? advanceAmount : 0,
+      payment_status: advanceAmount > 0 
+        ? (advanceAmount >= cartTotals.grandTotal ? 'paid' : 'partial')
+        : 'pending',
+      items: cartItems.map(item => ({
+        product_id: item.product.id,
+        quantity: item.quantity,
+        price_per_day: item.price_per_day,
+        discount: item.discount || 0,
+        discount_type: item.discount_type || 'flat',
+      }))
     };
 
     if (isEditing) {
-      updateOrder({ id: initialData.id, data: { ...basePayload, start_date: startDate.toISOString(), end_date: endDate.toISOString() } as any }, {
-        onSuccess: () => {
+      updateOrder({ id: initialData.id, data: { ...basePayload, start_date: format(startDate, "yyyy-MM-dd"), end_date: format(endDate, "yyyy-MM-dd") } as any }, {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: ['orders'] });
           router.push("/dashboard/orders");
         }
       });
@@ -427,7 +510,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
           discount_type: item.discount_type || 'flat',
         }))
       } as any, {
-        onSuccess: () => {
+        onSuccess: async () => {
+          await queryClient.invalidateQueries({ queryKey: ['orders'] });
           router.push("/dashboard/orders");
         }
       });
@@ -598,16 +682,16 @@ export default function OrderForm({ initialData }: OrderFormProps) {
               Rental Period
             </h3>
             <div className="flex flex-wrap gap-1.5">
-              {[1, 2, 3, 4, 5, 7].map(days => (
+              {[1, 2].map(extraDays => (
                 <Button
-                  key={days}
+                  key={extraDays}
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => handleQuickDate(days)}
-                  className={`h-8 text-xs border-slate-200 ${rentalDays === days ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                  onClick={() => handleQuickDate(extraDays)}
+                  className={`h-8 text-xs border-slate-200 ${rentalDays === extraDays + 1 ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                 >
-                  {days} {days === 1 ? 'Day' : 'Days'}
+                  +{extraDays} {extraDays === 1 ? 'Day' : 'Days'}
                 </Button>
               ))}
             </div>
@@ -661,7 +745,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             {/* Buffer days info */}
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
               <Info className="w-4 h-4 flex-shrink-0 text-blue-500" />
-              <span>Products are blocked <strong>1 day before pickup</strong> and <strong>1 day after return</strong> for cleaning &amp; preparation.</span>
+              <span className="flex-1">Products are blocked <strong>1 day before pickup</strong> and <strong>1 day after return</strong> for preparation. You can skip this per product in the cart using <Zap className="w-3 h-3 inline text-amber-500" /> Skip Gap.</span>
             </div>
           </div>
 
@@ -820,26 +904,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="font-medium text-slate-900 text-sm truncate">{item.product.name}</h5>
-                            {canGiveProductDiscount ? (
-                              <div className="flex items-center gap-1 mt-0.5">
-                                <span className="text-[10px] text-slate-400">₹</span>
-                                <input
-                                  type="number"
-                                  value={item.price_per_day || ""}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    setCartItems(prev => prev.map(p =>
-                                      p.product.id === item.product.id ? { ...p, price_per_day: val } : p
-                                    ));
-                                  }}
-                                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                                  className="w-16 text-xs font-semibold text-slate-700 bg-transparent border-b border-dashed border-slate-300 outline-none focus:border-slate-900 py-0"
-                                />
-                                <Edit3 className="w-2.5 h-2.5 text-slate-300" />
-                              </div>
-                            ) : (
-                              <span className="text-xs text-slate-500">{formatCurrency(item.price_per_day)}</span>
-                            )}
+                            <p className="text-xs text-slate-500 mt-0.5">{formatCurrency(item.price_per_day)}/day</p>
                           </div>
                           <button
                             type="button"
@@ -864,19 +929,153 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                             )}
                           </div>
                         )}
-                        {avail && avail.overlappingOrders.length > 0 && (
-                          <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
-                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Overlapping bookings <span className="normal-case font-normal text-slate-400">(±1 day buffer for cleaning)</span></p>
-                            {avail.overlappingOrders.slice(0, 3).map((o: any, idx: number) => (
-                              <div key={idx} className="text-[10px] text-slate-500">
-                                {o.customerName} — {o.quantity} unit{o.quantity > 1 ? 's' : ''} ({new Date(o.startDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – {new Date(o.endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})
-                              </div>
-                            ))}
-                            {avail.overlappingOrders.length > 3 && (
-                              <div className="text-[10px] text-slate-400">+{avail.overlappingOrders.length - 3} more</div>
-                            )}
+                        {avail && (() => {
+                          const actualConflicts = avail.overlappingOrders.filter((o: any) => !o.bufferOnly);
+                          const nearbyBookings = avail.overlappingOrders.filter((o: any) => o.bufferOnly);
+                          const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                          return (
+                            <>
+                              {/* Actual overlapping bookings */}
+                              {actualConflicts.length > 0 && (
+                                <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
+                                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                                    Overlapping bookings
+                                  </p>
+                                  {actualConflicts.slice(0, 3).map((o: any, idx: number) => (
+                                    <div key={idx} className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-1.5">
+                                      <span>{o.customerName} — {o.quantity} unit{o.quantity > 1 ? 's' : ''}</span>
+                                      <span className="text-slate-600 font-medium">({fmtShort(o.startDate)} – {fmtShort(o.endDate)})</span>
+                                    </div>
+                                  ))}
+                                  {actualConflicts.length > 3 && (
+                                    <div className="text-[10px] text-slate-400">+{actualConflicts.length - 3} more</div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Buffer-only nearby bookings — auto-allowed, informational */}
+                              {nearbyBookings.length > 0 && (
+                                <div className="mt-1 px-2 py-1.5 rounded-md bg-amber-50/70 border border-amber-200/60">
+                                  <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                    <Info className="w-3 h-3" /> Nearby bookings <span className="normal-case font-normal text-amber-500">(within gap period — auto-allowed)</span>
+                                  </p>
+                                  {nearbyBookings.slice(0, 3).map((o: any, idx: number) => (
+                                    <div key={idx} className="text-[10px] text-amber-600 flex flex-wrap items-center gap-x-1.5">
+                                      <span>{o.customerName} — {o.quantity} unit{o.quantity > 1 ? 's' : ''}</span>
+                                      <span className="text-amber-700 font-medium">({fmtShort(o.startDate)} – {fmtShort(o.endDate)})</span>
+                                      {o.bufferStartDate && o.bufferEndDate && (
+                                        <span className="text-[9px] text-amber-500 font-medium">
+                                          Gap: {fmtShort(o.bufferStartDate)} – {fmtShort(o.bufferEndDate)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                  <p className="text-[9px] text-amber-500 mt-1">Product will be returned before this rental starts. Ensure it&apos;s prepared in time.</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+
+                        {/* Buffer Override — Adjacent Order Warnings (per-product) */}
+                        {item.buffer_override && avail && (avail as any).adjacentOrders?.length > 0 && (
+                          <div className="mt-1.5 space-y-1">
+                            {(avail as any).adjacentOrders.map((adj: any, idx: number) => {
+                              const adjStart = new Date(adj.startDate);
+                              const adjEnd = new Date(adj.endDate);
+                              const fmtDate = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                              const isBefore = adj.position === 'before';
+                              return (
+                                <div key={idx} className={`px-2.5 py-2 rounded-lg text-[11px] border ${isBefore ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                  <div className="flex items-start gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                      {isBefore ? (
+                                        <p><strong>{item.product.name}</strong> was rented until <strong>{fmtDate(adjEnd)}</strong> ({adj.quantity} qty, {adj.customerName}). Confirm product is cleaned and ready.</p>
+                                      ) : (
+                                        <p><strong>{item.product.name}</strong> has a booking starting <strong>{fmtDate(adjStart)}</strong> ({adj.quantity} qty, {adj.customerName}). <strong className="text-red-700">Must return by {fmtDate(endDate)}!</strong></p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
+
+                        {/* Per-product Buffer Override Toggle — contextual */}
+                        {avail && (() => {
+                          const actualConflicts = avail.overlappingOrders?.filter((o: any) => !o.bufferOnly) || [];
+                          const bufferOnlyList = avail.overlappingOrders?.filter((o: any) => o.bufferOnly) || [];
+                          const hasActualOverlaps = actualConflicts.length > 0;
+                          const hasBufferOnly = bufferOnlyList.length > 0;
+                          const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+                          // No overlaps at all AND not already toggled on — don't show
+                          if (!hasActualOverlaps && !hasBufferOnly && !item.buffer_override) return null;
+
+                          // Has actual date overlaps — disabled toggle with explanation
+                          if (hasActualOverlaps) {
+                            return (
+                              <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg border bg-slate-50/30 border-slate-100 opacity-50">
+                                <div className="relative inline-flex items-center">
+                                  <div className="w-7 h-[16px] bg-slate-200 rounded-full"></div>
+                                  <div className="absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow"></div>
+                                </div>
+                                <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                                  <Zap className="w-3 h-3" /> Skip Gap
+                                </span>
+                                <span className="text-[10px] text-slate-400 ml-auto">Dates overlap directly</span>
+                              </div>
+                            );
+                          }
+
+                          // Buffer-only overlaps — enabled toggle with context
+                          return (
+                            <div className={`mt-2 rounded-lg border overflow-hidden ${item.buffer_override ? 'border-amber-200' : 'border-slate-100'}`}>
+                              <label className={`flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none ${item.buffer_override ? 'bg-amber-50' : 'bg-slate-50/50'}`}>
+                                <div className="relative inline-flex items-center flex-shrink-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={item.buffer_override || false}
+                                    onChange={(e) => {
+                                      setCartItems(prev => prev.map(p =>
+                                        p.product.id === item.product.id ? { ...p, buffer_override: e.target.checked } : p
+                                      ));
+                                    }}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-7 h-[16px] bg-slate-200 peer-focus:ring-2 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:bg-amber-500 transition-colors"></div>
+                                  <div className={`absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${item.buffer_override ? 'translate-x-3' : 'translate-x-0'}`}></div>
+                                </div>
+                                <span className={`text-[11px] font-medium flex items-center gap-1 ${item.buffer_override ? 'text-amber-700' : 'text-slate-500'}`}>
+                                  <Zap className="w-3 h-3" />
+                                  {item.buffer_override ? 'Skip Gap ON' : 'Skip Gap'}
+                                </span>
+                                {item.buffer_override && (
+                                  <span className="text-[10px] text-amber-600 font-medium ml-auto">1-day gap skipped</span>
+                                )}
+                              </label>
+                              {/* Contextual details: which booking's gap is being skipped */}
+                              {bufferOnlyList.length > 0 ? (
+                                <div className={`px-2.5 py-1.5 text-[10px] border-t ${item.buffer_override ? 'bg-amber-50/50 border-amber-100 text-amber-700' : 'bg-slate-50/30 border-slate-100 text-slate-500'}`}>
+                                  {bufferOnlyList.slice(0, 2).map((o: any, idx: number) => (
+                                    <div key={idx} className="flex items-center gap-1">
+                                      <span>📋</span>
+                                      <span>
+                                        <strong>{o.customerName}</strong>&apos;s order ({fmtShort(o.startDate)} – {fmtShort(o.endDate)}) has a gap until <strong>{o.bufferEndDate ? fmtShort(o.bufferEndDate) : 'next day'}</strong>
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : item.buffer_override ? (
+                                <div className="px-2.5 py-1.5 text-[10px] border-t bg-amber-50/50 border-amber-100 text-amber-600">
+                                  Preparation gap skipped — product may need to be prepared before handover.
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
                           <div className="flex items-center border border-slate-200 rounded-md bg-white overflow-hidden">
@@ -915,10 +1114,10 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                           <div className="text-right">
                             {(() => {
-                              const lineTotal = item.price_per_day * item.quantity;
+                              const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
                               const discAmt = item.discount_type === 'percent'
                                 ? lineTotal * ((item.discount || 0) / 100)
-                                : (item.discount || 0);
+                                : (item.discount || 0) * item.quantity;
                               const effectiveDisc = Math.min(discAmt, lineTotal);
                               return (
                                 <>
@@ -932,9 +1131,41 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                         </div>
 
-                        {/* Per-Item Discount — permission gated */}
-                        {canGiveProductDiscount && (
-                          <div className="mt-2 pt-2 border-t border-dashed border-slate-100">
+                        {/* Price calculation breakdown */}
+                        <div className="mt-1.5 px-2 py-1.5 bg-slate-50/80 rounded border border-slate-100">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="font-medium">
+                              {formatCurrency(item.price_per_day)} × {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} × {pricingMultiplier === 1 ? `base (${rentalDays} days)` : `${pricingMultiplier} (${rentalDays} days − 2 free)`}
+                            </span>
+                            <span className="font-semibold text-slate-600">
+                              = {formatCurrency(item.price_per_day * item.quantity * pricingMultiplier)}
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <CalendarDays className="w-2.5 h-2.5" />
+                            {format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')}
+                          </div>
+                        </div>
+
+                        {/* Per-item GST split (if GST enabled and category has rate) */}
+                        {isGstEnabled && (() => {
+                          const gstInfo = cartTotals.itemGstBreakdown.find(g => g.productId === item.product.id);
+                          if (!gstInfo || gstInfo.gstRate === 0) return null;
+                          return (
+                            <div className="flex items-center justify-between mt-1.5 px-1 py-1 bg-blue-50/50 rounded text-[10px]">
+                              <span className="text-blue-600 font-medium flex items-center gap-1">
+                                <Info className="w-2.5 h-2.5" />
+                                GST {gstInfo.gstRate}% (incl.)
+                              </span>
+                              <span className="text-blue-600 font-semibold">
+                                ₹{gstInfo.baseAmount.toFixed(2)} + ₹{gstInfo.gstAmount.toFixed(2)}
+                              </span>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Per-Item Discount — available to all staff */}
+                        <div className="mt-2 pt-2 border-t border-dashed border-slate-100">
                             <div className="flex items-center gap-2">
                               <Tag className="w-3 h-3 text-orange-400 flex-shrink-0" />
                               <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Discount</span>
@@ -975,7 +1206,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               </div>
                             </div>
                           </div>
-                        )}
                       </li>
                     );
                   })}
@@ -985,9 +1215,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
 
             {/* Totals */}
             <div className="bg-slate-50 border-t border-slate-200 p-5 space-y-3">
-              <div className="flex justify-between text-sm text-slate-600">
-                <span>Subtotal</span>
-                <span className="font-medium">{formatCurrency(cartTotals.subtotal)}</span>
+              <div>
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>Subtotal</span>
+                  <span className="font-medium">{formatCurrency(cartTotals.subtotal)}</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                  <CalendarDays className="w-3 h-3" />
+                  {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} · {rentalDays} days ({format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')}) · Rate: ×{pricingMultiplier}
+                </div>
               </div>
               {cartTotals.itemDiscountTotal > 0 && (
                 <div className="flex justify-between text-sm text-orange-600">
@@ -1001,14 +1237,32 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   <span className="font-medium">−{formatCurrency(cartTotals.effectiveOrderDiscount)}</span>
                 </div>
               )}
-              {isGstEnabled && (
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>GST ({gstPercentage}%)</span>
-                  <span className="font-medium">{formatCurrency(cartTotals.gstAmount)}</span>
+
+              {/* GST-inclusive breakdown */}
+              {isGstEnabled && cartTotals.gstAmount > 0 && (
+                <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Base Amount (excl. GST)</span>
+                    <span className="font-medium">{formatCurrency(cartTotals.baseAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-blue-600">
+                    <span className="flex items-center gap-1">
+                      <Info className="w-3 h-3" /> GST (included)
+                    </span>
+                    <span className="font-semibold">{formatCurrency(cartTotals.gstAmount)}</span>
+                  </div>
                 </div>
               )}
+
               <div className="flex justify-between items-end pt-3 border-t border-slate-200">
-                <div className="text-base font-semibold text-slate-900">Grand Total</div>
+                <div>
+                  <div className="text-base font-semibold text-slate-900">Grand Total</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
+                    <CalendarDays className="w-3 h-3" />
+                    {rentalDays} days · {format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')} · Rate: ×{pricingMultiplier}
+                    {isGstEnabled && cartTotals.gstAmount > 0 && <span> · Incl. GST</span>}
+                  </div>
+                </div>
                 <div className="text-3xl font-bold text-slate-900 tracking-tight">
                   {formatCurrency(cartTotals.grandTotal)}
                 </div>
@@ -1018,8 +1272,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             {/* Order-Level Discount + Advance — below totals */}
             {cartItems.length > 0 && (
               <div className="border-t border-slate-200 p-5 space-y-4">
-                {/* Order-Level Discount — permission gated */}
-                {canGiveOrderDiscount && (
+                {/* Order-Level Discount — available to all staff */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
@@ -1060,75 +1313,66 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                       </p>
                     )}
                   </div>
-                )}
 
                 {/* Divider — only if both discount and advance are visible */}
-                {canGiveOrderDiscount && <div className="border-t border-slate-100"></div>}
+                <div className="border-t border-slate-100"></div>
 
                 {/* Advance Payment */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                      <Banknote className="w-3.5 h-3.5 text-slate-400" />
-                      Advance Payment
-                    </span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={advanceCollected} onChange={(e) => setAdvanceCollected(e.target.checked)} className="sr-only peer" />
-                      <div className="w-8 h-[18px] bg-slate-200 peer-focus:ring-2 peer-focus:ring-slate-900/20 rounded-full peer peer-checked:bg-slate-900 transition-colors"></div>
-                      <div className={`absolute left-0.5 top-[1px] w-4 h-4 bg-white rounded-full transition-transform ${advanceCollected ? 'translate-x-3.5' : 'translate-x-0'}`}></div>
-                    </label>
-                  </div>
-                  {advanceCollected && (
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">₹</span>
-                          <Input
-                            type="number"
-                            value={advanceAmount || ""}
-                            onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            placeholder="0"
-                            className={`h-10 pl-7 font-bold text-base ${advanceExceedsTotal ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-slate-900'}`}
-                          />
-                        </div>
-                        <Select value={advancePaymentMethod} onValueChange={setAdvancePaymentMethod}>
-                          <SelectTrigger className="h-10 w-[110px] border-slate-200 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
-                            <SelectItem value={PaymentMethod.UPI}>UPI</SelectItem>
-                            <SelectItem value={PaymentMethod.CARD}>Card</SelectItem>
-                            <SelectItem value={PaymentMethod.BANK_TRANSFER}>Bank</SelectItem>
-                          </SelectContent>
-                        </Select>
+                  <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5 text-slate-400" />
+                    Advance Payment
+                    <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                  </span>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">₹</span>
+                        <Input
+                          type="number"
+                          value={advanceAmount || ""}
+                          onChange={(e) => setAdvanceAmount(parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          placeholder="0"
+                          className={`h-10 pl-7 font-bold text-base ${advanceExceedsTotal ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-slate-900'}`}
+                        />
                       </div>
-                      {advanceExceedsTotal && (
-                        <p className="text-xs text-red-600 font-medium flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" /> Advance cannot exceed grand total ({formatCurrency(cartTotals.grandTotal)})
-                        </p>
-                      )}
-                      {isFullAdvancePayment && (
-                        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Full payment collected — no balance due at return
-                        </div>
-                      )}
-                      {!advanceExceedsTotal && !isFullAdvancePayment && advanceAmount > 0 && (
-                        <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center gap-1.5">
-                          <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                          Balance due at return: {formatCurrency(cartTotals.grandTotal - advanceAmount)}
-                        </div>
-                      )}
+                      <Select value={advancePaymentMethod} onValueChange={setAdvancePaymentMethod}>
+                        <SelectTrigger className="h-10 w-[110px] border-slate-200 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
+                          <SelectItem value={PaymentMethod.UPI}>UPI</SelectItem>
+                          <SelectItem value={PaymentMethod.CARD}>Card</SelectItem>
+                          <SelectItem value={PaymentMethod.BANK_TRANSFER}>Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+                    {advanceExceedsTotal && (
+                      <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Advance cannot exceed grand total ({formatCurrency(cartTotals.grandTotal)})
+                      </p>
+                    )}
+                    {isFullAdvancePayment && (
+                      <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700 font-medium flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Full payment collected — no balance due at return
+                      </div>
+                    )}
+                    {!advanceExceedsTotal && !isFullAdvancePayment && advanceAmount > 0 && (
+                      <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                        Balance due at return: {formatCurrency(cartTotals.grandTotal - advanceAmount)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             {/* Final Summary & Confirm */}
             <div className="border-t border-slate-200 p-5 space-y-3">
-              {advanceCollected && advanceAmount > 0 && !advanceExceedsTotal && (
+              {advanceAmount > 0 && !advanceExceedsTotal && (
                 <>
                   <div className="flex justify-between text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
                     <span className="font-medium">Less: Advance Paid</span>

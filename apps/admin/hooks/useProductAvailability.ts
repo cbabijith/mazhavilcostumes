@@ -61,7 +61,7 @@ export function useProductAvailabilityCalendar(
  * Calls POST /api/orders/check-availability
  */
 export function useCheckOrderAvailability(
-  items: { product_id: string; quantity: number; product_name?: string }[],
+  items: { product_id: string; quantity: number; product_name?: string; buffer_override?: boolean }[],
   startDate: string,
   endDate: string,
   branchId?: string,

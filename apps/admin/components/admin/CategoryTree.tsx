@@ -341,6 +341,11 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                 >
                                   {main.is_active ? "Active" : "Inactive"}
                                 </Badge>
+                                {main.gst_percentage != null && (
+                                  <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
+                                    {main.gst_percentage}% GST
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-sm text-slate-500 mt-0.5">
                                 {main.description || main.slug}
@@ -436,6 +441,11 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                                     ? "Active"
                                                     : "Inactive"}
                                                 </Badge>
+                                                {sub.gst_percentage != null && (
+                                                  <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
+                                                    {sub.gst_percentage}% GST
+                                                  </Badge>
+                                                )}
                                               </div>
                                               <p className="text-sm text-slate-500">
                                                 {sub.description || sub.slug}
@@ -526,6 +536,11 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                                                       ? "Active"
                                                                       : "Inactive"}
                                                                   </Badge>
+                                                                  {variant.gst_percentage != null && (
+                                                                    <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
+                                                                      {variant.gst_percentage}% GST
+                                                                    </Badge>
+                                                                  )}
                                                                 </div>
                                                                 <p className="text-sm text-slate-500">
                                                                   {variant.description ||

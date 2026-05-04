@@ -1,18 +1,18 @@
 /**
  * ProductForm Component — Redesigned for Speed
  *
- * Two-column layout (65/35 split). All branches shown inline with quantity
- * inputs — no dropdown/add cycle. "Save & Add Another" for batch entry.
- * Sticky action bar always visible.
+ * Two-column layout (65/35 split). Single global stock field (no branch inventory).
+ * Shows inherited GST rate when category is selected.
+ * "Save & Add Another" for batch entry. Sticky action bar always visible.
  *
  * @component
  */
 
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, RefreshCw, Store, Wand2, ArrowLeft } from "lucide-react";
+import { AlertCircle, RefreshCw, Wand2, ArrowLeft, Package, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,22 +24,8 @@ import { useAppStore } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
-import { useBranches } from "@/hooks";
 
 const MAX_IMAGES = 5;
-
-interface Branch {
-  id: string;
-  name: string;
-  address?: string;
-  is_active?: boolean;
-}
-
-interface BranchStockEntry {
-  id?: string;
-  branch_id: string;
-  quantity: number;
-}
 
 interface ProductFormProps {
   product?: Product;
@@ -58,6 +44,7 @@ function emptyFormData() {
     subvariant_id: "",
     price_per_day: 0,
     purchase_price: 0,
+    quantity: 0,
     is_active: true,
   };
 }
@@ -72,13 +59,17 @@ export default function ProductForm({
   const { createProduct } = useCreateProduct();
   const { updateProduct } = useUpdateProduct();
   const { categories, isLoading: isCategoriesLoading } = useCategories();
-  const { branches, isLoading: isBranchesLoading } = useBranches();
+
+  // ── RBAC Guard: only admin/super_admin can edit products ────────
+  useEffect(() => {
+    if (isEdit && user?.role && user.role !== 'admin' && user.role !== 'super_admin') {
+      router.push(`/dashboard/products/${product?.id}`);
+    }
+  }, [isEdit, user?.role, product?.id, router]);
 
   // ── Async-Resilience Guard ──────────────────────────────────────
   // Block submission until all async dependencies are resolved.
-  // This prevents the "impedance mismatch" where the form tries
-  // to use data that hasn't arrived from the network yet.
-  const isFormReady = !isCategoriesLoading && !isBranchesLoading;
+  const isFormReady = !isCategoriesLoading;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -107,62 +98,11 @@ export default function ProductForm({
           subvariant_id: product.subvariant_id ?? "",
           price_per_day: product.price_per_day ?? 0,
           purchase_price: (product as any).purchase_price ?? 0,
+          quantity: (product as any).quantity ?? (product as any).total_quantity ?? 0,
           is_active: product.is_active ?? true,
         }
       : emptyFormData()
   );
-
-  // ── Branch inventory — flat map ───────────────────────────────────
-  const activeBranches = branches.filter((b) => b.is_active !== false);
-
-  // branchStocks holds quantities keyed by branch_id.
-  // For create mode: pre-populate all active branches at qty 0.
-  // For edit mode: starts empty, populated by API fetch below.
-  const [branchStocks, setBranchStocks] = useState<BranchStockEntry[]>([]);
-  
-  // Pre-fill active branches for create mode once branches are loaded
-  useEffect(() => {
-    if (!isEdit && activeBranches.length > 0 && branchStocks.length === 0) {
-      setBranchStocks(activeBranches.map((b: any) => ({ branch_id: b.id, quantity: 0 })));
-    }
-  }, [activeBranches, isEdit, branchStocks.length]);
-  const [removedInventoryIds] = useState<string[]>([]);
-  const [isLoadingInventory, setIsLoadingInventory] = useState(false);
-
-  // Edit mode: load existing inventory
-  useEffect(() => {
-    if (!product?.id) return;
-    const load = async () => {
-      setIsLoadingInventory(true);
-      try {
-        const res = await fetch(`/api/branch-inventory?product_id=${product.id}`);
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const existing = json.data.map(
-            (inv: { id: string; branch_id: string; quantity: number }) => ({
-              id: inv.id,
-              branch_id: inv.branch_id,
-              quantity: inv.quantity ?? 0,
-            })
-          );
-          // Merge: show all active branches, pre-filling qty from API
-          const merged = activeBranches.map((b) => {
-            const found = existing.find(
-              (e: BranchStockEntry) => e.branch_id === b.id
-            );
-            return found || { branch_id: b.id, quantity: 0 };
-          });
-          setBranchStocks(merged);
-        }
-      } catch (err) {
-        console.error("Failed to load branch inventory:", err);
-      } finally {
-        setIsLoadingInventory(false);
-      }
-    };
-    load();
-     
-  }, [product?.id]);
 
   // ── Helpers ────────────────────────────────────────────────────────
   const generateSlug = (name: string): string =>
@@ -253,19 +193,19 @@ export default function ProductForm({
   const handleSubCategoryChange = (value: string) =>
     setFormData((prev) => ({ ...prev, subcategory_id: value, subvariant_id: "" }));
 
-  const totalBranchQuantity = branchStocks.reduce(
-    (sum, s) => sum + (s.quantity || 0),
-    0
-  );
-
-  const handleStockChange = (branchId: string, qty: number) => {
-    setBranchStocks((prev) =>
-      prev.map((s) => (s.branch_id === branchId ? { ...s, quantity: qty } : s))
-    );
-  };
-
-  const getBranchName = (id: string) =>
-    branches.find((b) => b.id === id)?.name || "Unknown";
+  // ── GST Inheritance from Category ──────────────────────────────────
+  // Determine the most specific category's GST rate
+  const inheritedGst = useMemo(() => {
+    // Priority: variant → sub → main
+    const catId = formData.subvariant_id || formData.subcategory_id || formData.category_id;
+    if (!catId) return null;
+    const cat = categories.find((c) => c.id === catId);
+    if (!cat) return null;
+    return {
+      percentage: cat.gst_percentage ?? 5,
+      categoryName: cat.name,
+    };
+  }, [formData.category_id, formData.subcategory_id, formData.subvariant_id, categories]);
 
   // ── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = useCallback(
@@ -274,15 +214,27 @@ export default function ProductForm({
       setError("");
 
       try {
-        const activeStocks = branchStocks.filter((s) => s.quantity > 0);
-        if (activeStocks.length === 0) {
-          showError("Add stock to at least one branch");
+        // Mandatory field validation
+        if (!formData.name.trim()) {
+          showError("Product name is required");
           setLoading(false);
           return;
         }
 
-        if (!formData.name.trim()) {
-          showError("Product name is required");
+        if (!formData.category_id) {
+          showError("Category is required");
+          setLoading(false);
+          return;
+        }
+
+        if (!formData.price_per_day || formData.price_per_day <= 0) {
+          showError("Rent amount is required and must be greater than 0");
+          setLoading(false);
+          return;
+        }
+
+        if (!formData.quantity || formData.quantity <= 0) {
+          showError("Stock quantity is required and must be greater than 0");
           setLoading(false);
           return;
         }
@@ -306,8 +258,6 @@ export default function ProductForm({
           images,
           // NOTE: store_id is deliberately ABSENT here.
           // The server injects it from the auth cookie (Zero-Trust).
-          // This eliminates the race condition where user?.store_id
-          // was undefined because Zustand hadn't finished hydrating.
           category_id: formData.category_id || undefined,
           subcategory_id: formData.subcategory_id || undefined,
           subvariant_id: formData.subvariant_id || undefined,
@@ -316,38 +266,25 @@ export default function ProductForm({
           track_inventory: true,
           low_stock_threshold: 0,
           price_per_day: formData.price_per_day,
-          quantity: totalBranchQuantity,
-          available_quantity: totalBranchQuantity,
+          quantity: formData.quantity,
+          available_quantity: formData.quantity,
           is_active: formData.is_active,
           sku: formData.sku || undefined,
           barcode: formData.barcode || undefined,
           description: formData.description || undefined,
-          branch_inventory: branchStocks.filter((s) => s.id || s.quantity > 0).map(s => ({
-            id: s.id,
-            branch_id: s.branch_id,
-            quantity: s.quantity
-          })),
         };
 
         if (isEdit && product) {
-          // Include items removed from inventory in edit mode
-          (basePayload as any).removed_inventory_ids = removedInventoryIds;
           await updateProduct({ id: product.id, data: basePayload as any });
         } else {
           await createProduct(basePayload as any);
         }
-
-        // With Optimistic UI, success UI and cache invalidation are handled by the hook
-        // We just need to navigate or reset the form.
 
         if (continueAdding && !isEdit) {
           // Reset form for next product
           setFormData(emptyFormData());
           setImageUrls([]);
           setSlugManuallyEdited(false);
-          setBranchStocks(
-            activeBranches.map((b) => ({ branch_id: b.id, quantity: 0 }))
-          );
           window.scrollTo({ top: 0, behavior: "smooth" });
         } else {
           router.push("/dashboard/products");
@@ -365,11 +302,8 @@ export default function ProductForm({
     [
       formData,
       imageUrls,
-      branchStocks,
-      removedInventoryIds,
       isEdit,
       product,
-      totalBranchQuantity,
     ]
   );
 
@@ -393,7 +327,7 @@ export default function ProductForm({
             </h1>
             <p className="text-sm text-slate-500">
               {isEdit
-                ? "Update details and stock allocation"
+                ? "Update details and stock"
                 : "Fill in the essentials — you can always edit later"}
             </p>
           </div>
@@ -468,7 +402,7 @@ export default function ProductForm({
             />
           </div>
 
-          {/* Rent Price + Category — side by side */}
+          {/* Rent Price + Purchase Price — side by side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Rent Price */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
@@ -529,10 +463,13 @@ export default function ProductForm({
 
             {/* Categories */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-900">Category</h3>
+              <h3 className="text-sm font-semibold text-slate-900">
+                Category <span className="text-red-500">*</span>
+              </h3>
               <select
                 value={formData.category_id}
                 onChange={(e) => handleMainCategoryChange(e.target.value)}
+                required
                 className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
               >
                 <option value="">Select category</option>
@@ -572,6 +509,43 @@ export default function ProductForm({
                   ))}
                 </select>
               )}
+
+              {/* GST Inherited from Category */}
+              {inheritedGst && (
+                <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg mt-2">
+                  <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                  <p className="text-xs text-blue-700 font-medium">
+                    GST Rate: <span className="font-bold">{inheritedGst.percentage}%</span>{" "}
+                    <span className="text-blue-500">(from {inheritedGst.categoryName})</span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Stock Quantity — single global field */}
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                <Package className="w-4 h-4 text-slate-400" />
+                Stock Quantity <span className="text-red-500">*</span>
+              </h3>
+              <Input
+                type="number"
+                min={0}
+                value={formData.quantity}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    quantity: parseInt(e.target.value) || 0,
+                  })
+                }
+                onFocus={clearZeroOnFocus}
+                required
+                placeholder="0"
+                className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
+              />
+              <p className="text-xs text-slate-400">
+                Common stock across all branches
+              </p>
             </div>
           </div>
         </div>
@@ -679,57 +653,6 @@ export default function ProductForm({
                 className="h-9 border-slate-200 focus:border-slate-900 font-mono text-xs"
               />
             </div>
-          </div>
-
-          {/* Branch Inventory — ALL branches inline */}
-          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">
-                Stock by Branch
-              </h3>
-              <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
-                Total: {totalBranchQuantity}
-              </span>
-            </div>
-
-            {isLoadingInventory || isBranchesLoading ? (
-              <div className="flex justify-center py-6">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900" />
-              </div>
-            ) : activeBranches.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-4">
-                No active branches configured.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {branchStocks.map((entry) => (
-                  <div
-                    key={entry.branch_id}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Store className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="text-sm font-medium text-slate-800 truncate">
-                        {getBranchName(entry.branch_id)}
-                      </span>
-                    </div>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={entry.quantity}
-                      onChange={(e) =>
-                        handleStockChange(
-                          entry.branch_id,
-                          parseInt(e.target.value) || 0
-                        )
-                      }
-                      onFocus={clearZeroOnFocus}
-                      className="h-8 w-20 text-center font-bold border-slate-200 focus:border-slate-900"
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

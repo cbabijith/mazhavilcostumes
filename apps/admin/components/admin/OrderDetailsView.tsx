@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
-  Package, CheckCircle2, AlertTriangle, Loader2,
+  Package, CheckCircle2, AlertTriangle, Loader2, Info,
   ArrowLeft, XCircle, Phone, Banknote, CreditCard, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode
 } from "lucide-react";
 
@@ -50,6 +50,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   });
   const [isCancellationRefund, setIsCancellationRefund] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [isReturnConfirmOpen, setIsReturnConfirmOpen] = useState(false);
 
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({
@@ -165,6 +166,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         product_id: item.product_id,
         quantity: item.quantity,
         product_name: (item as any).product?.name || `Product #${item.product_id?.slice(0, 6)}`,
+        buffer_override: (order as any).buffer_override || false,
       }));
 
       const res = await fetch('/api/orders/check-availability', {
@@ -262,12 +264,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const submitReturn = () => {
     if (!order) return;
-
-    const unmarked = Object.entries(returnItems).filter(([_, val]) => val.status === null);
-    if (unmarked.length > 0) {
-      showError("Incomplete", "Please mark the condition of all items before settling.");
-      return;
-    }
+    setIsReturnConfirmOpen(false);
 
     const returnPayload = {
       order_id: order.id,
@@ -287,6 +284,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     };
 
     processOrderReturn({ orderId: order.id, returnData: returnPayload });
+  };
+
+  const handleReturnClick = () => {
+    if (!order) return;
+
+    const unmarked = Object.entries(returnItems).filter(([_, val]) => val.status === null);
+    if (unmarked.length > 0) {
+      showError("Incomplete", "Please mark the condition of all items before settling.");
+      return;
+    }
+
+    setIsReturnConfirmOpen(true);
   };
 
   if (isLoading || !order) {
@@ -368,7 +377,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   variant="outline"
                   className="h-11 px-4 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold text-sm rounded-xl"
                 >
-                  <XCircle className="w-4 h-4 mr-1.5" /> Cancel
+                  <XCircle className="w-4 h-4 mr-1.5" /> Cancel Order
                 </Button>
                 {isEarlyStart && (
                   <p className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
@@ -405,6 +414,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <p className="text-2xl font-bold text-slate-900">{order.items.length} Pieces</p>
         </div>
       </div>
+      {/* Quick Booking indicator */}
+      {order.buffer_override && (
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+          <span className="text-base">⚡</span>
+          <span><strong>Quick Booking</strong> — The usual 1-day gap between rentals was skipped for this order. Please ensure the product was prepared before handover.</span>
+        </div>
+      )}
 
       {/* Payment History Block */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -566,7 +582,30 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             
             {/* Settlement Footer (Only visible when processing returns) */}
             {isReturnable && (
-               <div className="bg-slate-50 p-6 border-t border-slate-200">
+               <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
+                  {/* Payment Due Warning */}
+                  {amount_due > 0 && (
+                    <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                        <AlertTriangle className="w-5 h-5 text-red-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-red-800">Payment Due — {formatCurrency(amount_due)}</p>
+                        <p className="text-xs text-red-600 mt-0.5">Collect the remaining balance before or after completing the return.</p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                          setIsPaymentModalOpen(true);
+                        }}
+                        className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
+                      >
+                        Collect Payment
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
                       <div className="flex gap-4 w-full sm:w-auto">
                         <div className="space-y-1">
@@ -579,7 +618,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         </div>
                       </div>
                      <Button
-                        onClick={submitReturn}
+                        onClick={handleReturnClick}
                         disabled={isReturning}
                         className="w-full sm:w-auto h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-md"
                      >
@@ -632,9 +671,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <span>{formatCurrency(order.subtotal || order.total_amount)}</span>
               </div>
               {(order.gst_amount || 0) > 0 && (
-                <div className="flex justify-between text-slate-600 font-medium text-sm">
-                  <span>GST</span>
-                  <span>{formatCurrency(order.gst_amount)}</span>
+                <div className="pt-2 border-t border-dashed border-slate-100 space-y-1.5">
+                  <div className="flex justify-between text-xs text-slate-500">
+                    <span>Base Amount (excl. GST)</span>
+                    <span className="font-medium">{formatCurrency((order.subtotal || order.total_amount) - order.gst_amount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-blue-600">
+                    <span className="flex items-center gap-1">
+                      <Info className="w-3 h-3" /> GST (included)
+                    </span>
+                    <span className="font-semibold">{formatCurrency(order.gst_amount)}</span>
+                  </div>
                 </div>
               )}
 
@@ -663,7 +710,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               )}
 
               <div className="flex justify-between text-slate-800 font-black text-sm pt-3 border-t-2 border-slate-100">
-                <span>Grand Total</span>
+                <div>
+                  <span>Grand Total</span>
+                  {(order.gst_amount || 0) > 0 && (
+                    <span className="block text-[10px] text-slate-400 font-medium mt-0.5">Inclusive of GST</span>
+                  )}
+                </div>
                 <span>{formatCurrency(order.total_amount)}</span>
               </div>
               <div className="flex justify-between text-slate-600 font-bold text-sm">
@@ -1182,6 +1234,89 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
               >
                 <Edit3 className="w-4 h-4 mr-2" /> Edit Order
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Return Confirmation Modal */}
+        <Modal open={isReturnConfirmOpen} onClose={() => setIsReturnConfirmOpen(false)} title="Confirm Return">
+          <div className="p-6 space-y-5">
+            <p className="text-sm text-slate-600">Please review the return summary before confirming.</p>
+
+            {/* Items Summary */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {order.items.map((item) => {
+                  const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: '' };
+                  const product = (item as any).product;
+                  return (
+                    <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
+                        <span className="text-xs text-slate-400">×{item.quantity}</span>
+                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+                        rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        rItem.status === 'damaged' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
+                        'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                        {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Missing' : 'Unmarked'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Fees Summary */}
+            {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
+              <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
+                {calculatedDamage > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-orange-700 font-medium">Damage Charges</span>
+                    <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
+                  </div>
+                )}
+                {lateFee > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-red-700 font-medium">Late Fee</span>
+                    <span className="font-bold text-red-700">{formatCurrency(lateFee)}</span>
+                  </div>
+                )}
+                {discount > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-emerald-700 font-medium">Discount</span>
+                    <span className="font-bold text-emerald-700">−{formatCurrency(discount)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Payment Due Warning */}
+            {amount_due > 0 && (
+              <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-red-800">Payment still due: {formatCurrency(amount_due)}</p>
+                  <p className="text-xs text-red-600">You can collect the payment after completing the return.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <Button variant="outline" onClick={() => setIsReturnConfirmOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200">
+                Go Back
+              </Button>
+              <Button
+                onClick={submitReturn}
+                disabled={isReturning}
+                className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
+              >
+                {isReturning ? 'Processing...' : 'Confirm & Complete Return'}
               </Button>
             </div>
           </div>

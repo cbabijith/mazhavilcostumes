@@ -15,7 +15,6 @@ import { queryKeys } from "@/lib/query-client";
 import {
   AlertCircle,
   ArrowLeft,
-  Eye,
   FolderTree,
   Hash,
   ImageIcon,
@@ -24,13 +23,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
-import { type Category } from "@/domain/types/category";
+import { type Category, GST_OPTIONS } from "@/domain/types/category";
 import { useAppStore } from "@/stores";
 import {
   CategoryFieldLabel,
   CategoryFormPanel,
   CategoryPlacementSummary,
-  CategoryToggleRow,
   categoryLevelConfig,
   type CategoryLevelName,
 } from "@/components/admin/category/CategoryFormPrimitives";
@@ -67,6 +65,7 @@ export default function CategoryForm({
     is_global: true, // Always global — Mazhavil Costumes is a single-shop business
     parent_id: (category?.parent_id ?? defaultParentId ?? null) as string | null,
     store_id: user?.store_id || null,
+    gst_percentage: category?.gst_percentage ?? 5,
   });
 
   const generateSlug = (name: string): string =>
@@ -310,20 +309,31 @@ export default function CategoryForm({
             )}
           </CategoryFormPanel>
 
+
+
           <CategoryFormPanel
-            title="Visibility"
-            description="Control storefront availability"
-            action={<Eye className="h-4 w-4 text-slate-400" />}
+            title="GST Rate"
+            description="Tax rate applied to products under this category"
           >
-            <CategoryToggleRow
-              title="Active"
-              description="Visible in the admin and storefront"
-              checked={formData.is_active}
-              onCheckedChange={(checked) =>
-                setFormData({ ...formData, is_active: checked })
-              }
-              icon={<Eye className="h-4 w-4 text-slate-500" />}
-            />
+            <div className="space-y-1.5">
+              <CategoryFieldLabel required>GST Percentage</CategoryFieldLabel>
+              <select
+                value={formData.gst_percentage}
+                onChange={(e) =>
+                  setFormData({ ...formData, gst_percentage: Number(e.target.value) })
+                }
+                className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
+              >
+                {GST_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500">
+                This GST rate will apply to all products under this category when GST is enabled in Settings.
+              </p>
+            </div>
           </CategoryFormPanel>
 
           <CategoryFormPanel

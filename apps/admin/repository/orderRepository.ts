@@ -140,8 +140,9 @@ export class OrderRepository extends BaseRepository {
     startDate: string,
     endDate: string,
     branchId?: string,
-    excludeOrderId?: string
-  ): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[] }>> {
+    excludeOrderId?: string,
+    bufferOverride: boolean = false
+  ): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>> {
     // Get product total quantity
     const productResponse = await this.client
       .from('products')
@@ -150,7 +151,7 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     if (productResponse.error) {
-      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[] }>(productResponse);
+      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>(productResponse);
     }
 
     const totalQuantity = productResponse.data?.quantity || 0;
@@ -158,19 +159,24 @@ export class OrderRepository extends BaseRepository {
     // Fetch all active order items for this product with their order date ranges
     const ordersResponse = await this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
+      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, buffer_override, customer:customer_id(name))')
       .eq('product_id', productId)
       .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
 
     if (ordersResponse.error) {
-      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[] }>(ordersResponse);
+      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>(ordersResponse);
     }
 
     const reqStart = new Date(startDate).getTime();
     const reqEnd = new Date(endDate).getTime();
 
-    // Collect overlapping bookings (filtering out the excluded order if editing)
-    const overlappingBookings: { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string }[] = [];
+    // Buffer for the REQUESTING order
+    const reqBuffer = bufferOverride ? 0 : BUFFER_MS;
+
+    // Collect bookings into categories
+    const actualOverlaps: { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string; bufferOverride: boolean }[] = [];
+    const bufferOnlyOverlaps: typeof actualOverlaps = [];
+    const allBookings: typeof actualOverlaps = [];
 
     for (const item of (ordersResponse.data || []) as any[]) {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
@@ -179,37 +185,49 @@ export class OrderRepository extends BaseRepository {
 
       const ordStart = new Date(order.start_date).getTime();
       const ordEnd = new Date(order.end_date).getTime();
+      const unreturned = item.quantity - (item.returned_quantity || 0);
+      if (unreturned <= 0) continue;
 
-      // Overlap condition with buffer days (±1 day for cleaning/prep)
-      // A booking's effective range is [start - BUFFER, end + BUFFER]
-      const effectiveStart = ordStart - BUFFER_MS;
-      const effectiveEnd = ordEnd + BUFFER_MS;
-      if (effectiveStart <= reqEnd && effectiveEnd >= reqStart) {
-        const unreturned = item.quantity - (item.returned_quantity || 0);
-        if (unreturned > 0) {
-          const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
-          overlappingBookings.push({
-            start: ordStart,
-            end: ordEnd,
-            quantity: unreturned,
-            orderId: order.id,
-            customerName: customer?.name || 'Unknown',
-            startDate: order.start_date,
-            endDate: order.end_date,
-            status: order.status,
-          });
-        }
+      const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
+      const bookingInfo = {
+        start: ordStart,
+        end: ordEnd,
+        quantity: unreturned,
+        orderId: order.id,
+        customerName: customer?.name || 'Unknown',
+        startDate: order.start_date,
+        endDate: order.end_date,
+        status: order.status,
+        bufferOverride: order.buffer_override || false,
+      };
+
+      allBookings.push(bookingInfo);
+
+      // Check ACTUAL rental date overlap (no buffer)
+      const hasActualOverlap = ordStart <= reqEnd && ordEnd >= reqStart;
+
+      // Check buffer-extended overlap using EACH booking's own buffer + the request's buffer
+      const bookingBuffer = bookingInfo.bufferOverride ? 0 : BUFFER_MS;
+      const effectiveStart = ordStart - bookingBuffer;
+      const effectiveEnd = ordEnd + bookingBuffer;
+      const effectiveReqStart = reqStart - reqBuffer;
+      const effectiveReqEnd = reqEnd + reqBuffer;
+      const hasBufferOverlap = effectiveStart <= effectiveReqEnd && effectiveEnd >= effectiveReqStart;
+
+      if (hasActualOverlap) {
+        actualOverlaps.push(bookingInfo);
+      } else if (hasBufferOverlap) {
+        // Buffer-only: informational, does NOT block availability
+        bufferOnlyOverlaps.push(bookingInfo);
       }
     }
 
-    // ─── Sweep Line Algorithm (with buffer days) ─────────────────────
-    // Each booking blocks the product from (start - BUFFER) to (end + BUFFER).
-    // Events: +qty at (start - BUFFER), -qty at (end + BUFFER + 1 day)
+    // ─── Sweep Line Algorithm ─────────────────────────────────────────
+    // Only count ACTUAL overlaps for blocking (buffer-only are auto-allowed)
     const events: { time: number; delta: number }[] = [];
-    for (const booking of overlappingBookings) {
-      events.push({ time: booking.start - BUFFER_MS, delta: +booking.quantity });
-      // Release: 1 day after the buffer-extended end date
-      events.push({ time: booking.end + BUFFER_MS + 86400000, delta: -booking.quantity });
+    for (const booking of actualOverlaps) {
+      events.push({ time: booking.start, delta: +booking.quantity });
+      events.push({ time: booking.end + 86400000, delta: -booking.quantity });
     }
 
     // Sort: by time, then releases (-delta) before acquisitions (+delta)
@@ -218,21 +236,17 @@ export class OrderRepository extends BaseRepository {
     let currentUsage = 0;
     let peakUsage = 0;
     for (const event of events) {
-      // Only count events within the requested range (including buffer)
-      if (event.time > reqEnd + BUFFER_MS + 86400000) break;
+      if (event.time > reqEnd + 86400000) break;
       currentUsage += event.delta;
-      if (event.time >= reqStart - BUFFER_MS && event.time <= reqEnd + BUFFER_MS) {
+      if (event.time >= reqStart && event.time <= reqEnd) {
         peakUsage = Math.max(peakUsage, currentUsage);
       }
     }
 
-    // Also check usage at the very start of the requested range
-    // (bookings whose buffered range covers reqStart contribute to baseline)
+    // Baseline check: bookings whose actual range covers reqStart
     let baselineAtStart = 0;
-    for (const booking of overlappingBookings) {
-      const bufferedStart = booking.start - BUFFER_MS;
-      const bufferedEnd = booking.end + BUFFER_MS;
-      if (bufferedStart <= reqStart && bufferedEnd >= reqStart) {
+    for (const booking of actualOverlaps) {
+      if (booking.start <= reqStart && booking.end >= reqStart) {
         baselineAtStart += booking.quantity;
       }
     }
@@ -240,19 +254,63 @@ export class OrderRepository extends BaseRepository {
 
     const availableQuantity = Math.max(0, totalQuantity - peakUsage);
 
+    // ─── Adjacent Orders (for buffer override warnings) ─────────────
+    // Find bookings within ±2 days of the requested range that are NOT overlapping
+    const adjacentOrders: any[] = [];
+    if (bufferOverride) {
+      const ADJACENT_WINDOW = 2 * 86400000; // ±2 days
+      for (const booking of allBookings) {
+        // Skip if already overlapping with the rental period
+        if (booking.start <= reqEnd && booking.end >= reqStart) continue;
+
+        // Check if booking is within ±2 days
+        const gapBefore = reqStart - booking.end;
+        const gapAfter = booking.start - reqEnd;
+
+        if ((gapBefore > 0 && gapBefore <= ADJACENT_WINDOW) || (gapAfter > 0 && gapAfter <= ADJACENT_WINDOW)) {
+          adjacentOrders.push({
+            orderId: booking.orderId,
+            customerName: booking.customerName,
+            quantity: booking.quantity,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            status: booking.status,
+            position: gapAfter > 0 ? 'after' : 'before',
+          });
+        }
+      }
+    }
+
+    // Build the overlapping orders response — combine actual + buffer-only with flags
+    const allOverlapping = [
+      ...actualOverlaps.map(b => ({ ...b, bufferOnly: false })),
+      ...bufferOnlyOverlaps.map(b => ({ ...b, bufferOnly: true })),
+    ];
+
     return {
       data: {
         available: availableQuantity,
         total: totalQuantity,
         peakReserved: peakUsage,
-        overlappingOrders: overlappingBookings.map(b => ({
-          orderId: b.orderId,
-          customerName: b.customerName,
-          quantity: b.quantity,
-          startDate: b.startDate,
-          endDate: b.endDate,
-          status: b.status,
-        })),
+        overlappingOrders: allOverlapping.map(b => {
+          // Compute buffer date range: 1 day before start, 1 day after end
+          // If the overlapping order itself has buffer_override, it has no buffer zone
+          const hasBuffer = !b.bufferOverride;
+          const bufferStart = hasBuffer ? new Date(b.start - BUFFER_MS).toISOString().split('T')[0] : null;
+          const bufferEnd = hasBuffer ? new Date(b.end + BUFFER_MS).toISOString().split('T')[0] : null;
+          return {
+            orderId: b.orderId,
+            customerName: b.customerName,
+            quantity: b.quantity,
+            startDate: b.startDate,
+            endDate: b.endDate,
+            status: b.status,
+            bufferStartDate: bufferStart,
+            bufferEndDate: bufferEnd,
+            bufferOnly: b.bufferOnly,
+          };
+        }),
+        adjacentOrders,
       },
       error: null,
       success: true,
@@ -410,19 +468,26 @@ export class OrderRepository extends BaseRepository {
   /**
    * Create a new order with items
    */
-  async create(data: CreateOrderDTO, gstPercentage: number = 0): Promise<RepositoryResult<OrderWithRelations>> {
-    // Parse rental dates (tracked for scheduling, NOT for pricing)
+  async create(data: CreateOrderDTO, isGstEnabled: boolean = false, perItemGstRates: Map<string, number> = new Map()): Promise<RepositoryResult<OrderWithRelations>> {
+    // Parse rental dates — used for scheduling AND pricing
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
 
-    // Calculate subtotal — flat rent price × quantity with per-item discounts
+    // Calculate rental days — inclusive counting (pickup day + return day)
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    // Pricing multiplier: base price covers first 3 days, each extra day adds 1×
+    const pricingMultiplier = Math.max(1, rentalDays - 2);
+
+    // Calculate subtotal — rent price × quantity × pricingMultiplier, with per-item discounts
     let rawSubtotal = 0;
     let itemDiscountTotal = 0;
     data.items.forEach((item: any) => {
-      const lineTotal = item.price_per_day * item.quantity;
+      const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
       const itemDisc = item.discount_type === 'percent'
         ? lineTotal * ((item.discount || 0) / 100)
-        : (item.discount || 0);
+        : (item.discount || 0) * item.quantity;
       rawSubtotal += lineTotal;
       itemDiscountTotal += Math.min(itemDisc, lineTotal);
     });
@@ -437,11 +502,32 @@ export class OrderRepository extends BaseRepository {
     const effectiveOrderDiscount = Math.min(orderDiscAmt, afterItemDiscount);
     const subtotal = afterItemDiscount - effectiveOrderDiscount;
 
-    // Calculate GST amount (on discounted subtotal)
-    const gstAmount = subtotal * (gstPercentage / 100);
+    // GST-INCLUSIVE calculation: the rent amount ALREADY includes GST
+    // Formula: base = amount / (1 + rate/100), gst = amount - base
+    let totalGstAmount = 0;
+    if (isGstEnabled) {
+      data.items.forEach((item: any) => {
+        const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+        const itemDisc = item.discount_type === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * item.quantity;
+        const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
+        const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+        if (gstRate > 0) {
+          const gst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+          totalGstAmount += gst;
+        }
+      });
+      // Proportionally adjust GST if order-level discount was applied
+      if (effectiveOrderDiscount > 0 && afterItemDiscount > 0) {
+        const ratio = subtotal / afterItemDiscount;
+        totalGstAmount = totalGstAmount * ratio;
+      }
+      totalGstAmount = Math.round(totalGstAmount * 100) / 100;
+    }
     
-    // Total amount
-    const totalAmount = subtotal + gstAmount;
+    // Grand total = subtotal (GST is WITHIN, not added on top)
+    const totalAmount = subtotal;
 
     // Fetch store_id from branch
     const branchResponse = await this.client
@@ -480,7 +566,7 @@ export class OrderRepository extends BaseRepository {
         delivery_address: data.delivery_address || null,
         pickup_address: data.pickup_address || null,
         subtotal: rawSubtotal,
-        gst_amount: gstAmount,
+        gst_amount: totalGstAmount,
         discount: effectiveOrderDiscount,
         discount_type: orderDiscountType,
         advance_amount: data.advance_amount || 0,
@@ -493,6 +579,7 @@ export class OrderRepository extends BaseRepository {
           ? (data.advance_amount >= totalAmount ? 'paid' : 'partial')
           : 'pending',
         notes: data.notes || null,
+        buffer_override: (data as any).buffer_override || false,
       })
       .select()
       .single();
@@ -514,7 +601,7 @@ export class OrderRepository extends BaseRepository {
           price_per_day: item.price_per_day,
           discount: item.discount || 0,
           discount_type: item.discount_type || 'flat',
-          subtotal: item.price_per_day * item.quantity,
+          subtotal: item.price_per_day * item.quantity * pricingMultiplier,
         }))
       )
       .select();
@@ -565,21 +652,62 @@ export class OrderRepository extends BaseRepository {
     // Fetch existing order to check status transitions
     const oldOrderResponse = await this.client
       .from(this.tableName)
-      .select('status, branch_id')
+      .select('status, branch_id, start_date, end_date')
       .eq('id', id)
       .single();
       
     const oldStatus = oldOrderResponse.data?.status;
     const branchId = oldOrderResponse.data?.branch_id;
 
+    // Normalize date fields to 'YYYY-MM-DD' for DATE columns
+    const normalizedData: Record<string, any> = { ...data };
+    if (normalizedData.start_date) {
+      normalizedData.start_date = new Date(normalizedData.start_date).toISOString().split('T')[0];
+    }
+    if (normalizedData.end_date) {
+      normalizedData.end_date = new Date(normalizedData.end_date).toISOString().split('T')[0];
+    }
+    if (normalizedData.event_date) {
+      normalizedData.event_date = new Date(normalizedData.event_date).toISOString().split('T')[0];
+    }
+
+    // Extract items to handle them separately
+    const { items, ...orderData } = normalizedData;
+
     const response = await this.client
       .from(this.tableName)
-      .update({
-        ...data,
-      })
+      .update({ ...orderData })
       .eq('id', id)
       .select()
       .single();
+
+    // If items are provided, sync them
+    if (items && Array.isArray(items)) {
+      // 1. Delete existing items
+      // NOTE: In a production app with complex stock tracking, we might want to do a differential update
+      // But for this rental system, replacing them is simpler as long as we're not in an active rental state.
+      await this.client.from(this.orderItemsTable).delete().eq('order_id', id);
+
+      // 2. Insert new items
+      // Calculate pricingMultiplier based on current dates (either updated or existing)
+      const finalStartDate = new Date(normalizedData.start_date || oldOrderResponse.data?.start_date);
+      const finalEndDate = new Date(normalizedData.end_date || oldOrderResponse.data?.end_date);
+      const diffTime = Math.abs(finalEndDate.getTime() - finalStartDate.getTime());
+      const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+      const pricingMultiplier = Math.max(1, rentalDays - 2);
+
+      await this.client.from(this.orderItemsTable).insert(
+        items.map((item: any) => ({
+          order_id: id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price_per_day: item.price_per_day,
+          discount: item.discount || 0,
+          discount_type: item.discount_type || 'flat',
+          subtotal: item.price_per_day * item.quantity * pricingMultiplier,
+        }))
+      );
+    }
 
     // If status changed to ongoing/in_use, decrement stock
     if (data.status && oldStatus && branchId) {

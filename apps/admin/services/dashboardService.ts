@@ -103,7 +103,7 @@ export class DashboardService {
     const now = new Date();
     const todayStart = startOfDay(now).toISOString();
     const todayEnd = endOfDay(now).toISOString();
-    const next7Days = endOfDay(addDays(now, 7)).toISOString();
+    const next5Days = endOfDay(addDays(now, 5)).toISOString();
 
     // 1. Today's Bookings — orders created today
     const { data: todaysBookings } = await supabase
@@ -144,7 +144,7 @@ export class DashboardService {
       .from('orders')
       .select('id, order_items(quantity)')
       .gte('start_date', tomorrowStart)
-      .lte('start_date', next7Days.split('T')[0])
+      .lte('start_date', next5Days.split('T')[0])
       .in('status', ['scheduled', 'pending']);
 
     const prepareDeliveryProducts = (prepareDeliveries || []).reduce((sum, o: any) =>
