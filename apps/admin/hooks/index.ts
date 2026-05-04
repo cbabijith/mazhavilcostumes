@@ -71,7 +71,6 @@ export {
 
 // Permission hooks
 export { usePermissions } from './usePermissions';
-export { useProductDiscountPermission, useOrderDiscountPermission } from './useDiscountPermission';
 
 // Banner hooks
 export {
@@ -108,8 +107,6 @@ export {
 
 // Settings hooks
 export {
-  useGSTPercentage,
-  useUpdateGSTPercentage,
   useIsGSTEnabled,
   useUpdateIsGSTEnabled,
   useInvoicePrefix,

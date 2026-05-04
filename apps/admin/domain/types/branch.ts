@@ -41,8 +41,6 @@ export interface Staff {
   phone: string | null;
   role: StaffRole;
   is_active: boolean;
-  can_give_product_discount: boolean;
-  can_give_order_discount: boolean;
   readonly created_at: string;
   readonly updated_at: string;
   // Audit fields
@@ -93,8 +91,6 @@ export interface UpdateStaffDTO {
   role?: StaffRole;
   branch_id?: string;
   is_active?: boolean;
-  can_give_product_discount?: boolean;
-  can_give_order_discount?: boolean;
 }
 
 // ─── Search Params ───────────────────────────────────────────────────

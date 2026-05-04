@@ -18,6 +18,7 @@ export interface Category {
   sort_order: number;
   is_active: boolean;
   is_global: boolean;
+  gst_percentage: number;
   created_at: string;
   updated_at?: string;
   // Audit fields
@@ -45,6 +46,7 @@ export interface CreateCategoryDTO {
   is_active?: boolean;
   is_global?: boolean;
   store_id?: string;
+  gst_percentage?: number;
 }
 
 // Category Update DTO
@@ -58,7 +60,15 @@ export interface UpdateCategoryDTO {
   is_active?: boolean;
   is_global?: boolean;
   store_id?: string;
+  gst_percentage?: number;
 }
+
+// GST Options for category dropdown
+export const GST_OPTIONS = [
+  { value: 5, label: '5%' },
+  { value: 12, label: '12%' },
+  { value: 18, label: '18%' },
+] as const;
 
 // Category with Relations
 export interface CategoryWithRelations extends Category {

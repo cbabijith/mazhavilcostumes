@@ -25,6 +25,8 @@ import {
   XCircle,
   Calendar,
   Package,
+  Zap,
+  MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -94,6 +96,25 @@ function OrderRowInner({
         </div>
       </td>
 
+      {/* Phone - Clickable Badge */}
+      <td className="px-4 py-4">
+        {order.customer?.phone ? (
+          <a
+            href={`tel:${order.customer.phone}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors cursor-pointer gap-1.5">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              {order.customer.phone}
+            </Badge>
+          </a>
+        ) : (
+          <span className="text-sm text-slate-400">—</span>
+        )}
+      </td>
+
       {/* Dates */}
       <td className="px-4 py-4">
         <div className="flex flex-col gap-1 text-xs">
@@ -138,6 +159,13 @@ function OrderRowInner({
       <td className="px-4 py-4">
         <div className="flex flex-col items-start gap-1">
           <OrderStatusBadge status={order.status} />
+
+          {/* Buffer override indicator */}
+          {order.buffer_override && (
+            <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5 flex items-center gap-0.5">
+              <Zap className="w-2.5 h-2.5" /> Quick Booking
+            </Badge>
+          )}
           
           {/* Show payment badge for active (non-terminal) orders */}
           {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (
@@ -170,6 +198,66 @@ function OrderRowInner({
       {/* Actions */}
       <td className="px-4 py-4 text-right">
         <div className="flex items-center justify-end gap-1">
+          {/* WhatsApp Button */}
+          {order.customer?.phone && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                const phone = order.customer?.phone?.replace(/\D/g, '');
+                if (!phone) return;
+                
+                const customerName = order.customer?.name || 'Customer';
+                const orderIdShort = order.id.slice(0, 8);
+                const startDate = format(new Date(order.start_date), 'MMM d, yyyy');
+                const endDate = format(new Date(order.end_date), 'MMM d, yyyy');
+                
+                let message = '';
+                switch (order.status) {
+                  case OrderStatus.PENDING:
+                  case OrderStatus.SCHEDULED:
+                    message = `Hi ${customerName}, this is regarding your upcoming order #${orderIdShort} scheduled for ${startDate}. Please confirm your availability.`;
+                    break;
+                  case OrderStatus.ONGOING:
+                  case OrderStatus.IN_USE:
+                    message = `Hi ${customerName}, your order #${orderIdShort} is currently active. Please remember to return by ${endDate}.`;
+                    break;
+                  case OrderStatus.LATE_RETURN:
+                    message = `Hi ${customerName}, your order #${orderIdShort} is overdue. Please return immediately to avoid additional charges.`;
+                    break;
+                  case OrderStatus.PARTIAL:
+                    message = `Hi ${customerName}, your order #${orderIdShort} has partial returns pending. Please complete the return process.`;
+                    break;
+                  case OrderStatus.DELIVERED:
+                    message = `Hi ${customerName}, your order #${orderIdShort} has been delivered. Enjoy your event! Please return by ${endDate}.`;
+                    break;
+                  case OrderStatus.RETURNED:
+                    message = `Hi ${customerName}, thank you for returning your order #${orderIdShort}. We hope you had a great experience!`;
+                    break;
+                  case OrderStatus.COMPLETED:
+                    message = `Hi ${customerName}, your order #${orderIdShort} has been completed. Thank you for choosing Mazhavil Costumes!`;
+                    break;
+                  case OrderStatus.CANCELLED:
+                    message = `Hi ${customerName}, your order #${orderIdShort} has been cancelled. Contact us if you need assistance.`;
+                    break;
+                  case OrderStatus.FLAGGED:
+                    message = `Hi ${customerName}, there is an issue with your order #${orderIdShort}. Please contact us immediately.`;
+                    break;
+                  default:
+                    message = `Hi ${customerName}, this is regarding your order #${orderIdShort} at Mazhavil Costumes.`;
+                }
+                
+                const encodedMessage = encodeURIComponent(message);
+                window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
+              }}
+              title="Send WhatsApp Message"
+            >
+              <MessageCircle className="w-4 h-4" />
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"

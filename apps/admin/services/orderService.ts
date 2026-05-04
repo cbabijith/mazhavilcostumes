@@ -50,8 +50,8 @@ export class OrderService {
   /**
    * Check product availability for given date range (Sweep Line)
    */
-  async checkAvailability(productId: string, startDate: string, endDate: string, branchId?: string, excludeOrderId?: string): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[] }>> {
-    return await orderRepository.checkAvailability(productId, startDate, endDate, branchId, excludeOrderId);
+  async checkAvailability(productId: string, startDate: string, endDate: string, branchId?: string, excludeOrderId?: string, bufferOverride: boolean = false): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>> {
+    return await orderRepository.checkAvailability(productId, startDate, endDate, branchId, excludeOrderId, bufferOverride);
   }
 
   /**
@@ -158,7 +158,8 @@ export class OrderService {
         };
       }
       
-      const availCheck = await this.checkAvailability(item.product_id, data.rental_start_date, data.rental_end_date, data.branch_id);
+      const bufferOverride = !!(data as any).buffer_override;
+      const availCheck = await this.checkAvailability(item.product_id, data.rental_start_date, data.rental_end_date, data.branch_id, undefined, bufferOverride);
       if (!availCheck.success) {
         return {
           data: null,
@@ -176,15 +177,30 @@ export class OrderService {
     }
 
     // Get GST settings
-    const [gstResult, isGstEnabledResult] = await Promise.all([
-      settingsService.getGSTPercentage(),
-      settingsService.getIsGSTEnabled()
-    ]);
-    
-    const isGstEnabled = isGstEnabledResult.success && isGstEnabledResult.data;
-    const gstPercentage = (isGstEnabled && gstResult.success) ? gstResult.data || 0 : 0;
+    const isGstEnabledResult = await settingsService.getIsGSTEnabled();
+    const isGstEnabled = !!(isGstEnabledResult.success && isGstEnabledResult.data);
 
-    return await orderRepository.create(data, gstPercentage);
+    // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
+    let perItemGstRates: Map<string, number> = new Map();
+    if (isGstEnabled) {
+      const productIds = data.items.map((item: any) => item.product_id);
+      const { createAdminClient } = await import('@/lib/supabase/server');
+      const adminClient = createAdminClient();
+      const { data: products } = await adminClient
+        .from('products')
+        .select('id, category_id, categories:category_id(gst_percentage)')
+        .in('id', productIds);
+      
+      if (products) {
+        for (const p of products) {
+          const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+          const gstRate = (cat as any)?.gst_percentage ?? 0;
+          perItemGstRates.set(p.id, gstRate);
+        }
+      }
+    }
+
+    return await orderRepository.create(data, isGstEnabled, perItemGstRates);
   }
 
   /**

@@ -43,6 +43,7 @@ const CREATE_FIELDS = [
   'is_active',
   'is_global',
   'store_id',
+  'gst_percentage',
 ] as const;
 
 function pickCategoryFields(body: Record<string, unknown>) {

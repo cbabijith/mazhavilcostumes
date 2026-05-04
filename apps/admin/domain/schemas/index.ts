@@ -148,13 +148,11 @@ export type {
 export {
   CreateSettingSchema,
   UpdateSettingSchema,
-  GSTPercentageSchema,
 } from './settings.schema';
 
 export type {
   CreateSettingInput,
   UpdateSettingInput,
-  GSTPercentageInput,
 } from './settings.schema';
 
 // Payment schemas

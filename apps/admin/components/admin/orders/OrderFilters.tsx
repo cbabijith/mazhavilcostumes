@@ -39,6 +39,7 @@ const FILTER_CHIPS = [
   { label: "Completed", value: OrderStatus.COMPLETED },
   { label: "Cancelled", value: OrderStatus.CANCELLED },
   { label: "Flagged", value: OrderStatus.FLAGGED },
+  { label: "⚡ Quick Booking", value: "BUFFER_OVERRIDE" },
 ] as const;
 
 interface OrderFiltersProps {
@@ -87,14 +88,12 @@ function OrderFiltersInner({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (searchInput !== initialQuery) {
-        onSearchChange(searchInput);
-      }
+      onSearchChange(searchInput);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchInput, initialQuery, onSearchChange]);
+  }, [searchInput, onSearchChange]);
 
   const handleSearchInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

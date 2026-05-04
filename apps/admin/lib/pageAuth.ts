@@ -45,7 +45,7 @@ export async function getPageAuthUser(): Promise<AuthUser | null> {
     const adminClient = createAdminClient();
     const { data: staff } = await adminClient
       .from('staff')
-      .select('id, role, branch_id, store_id, can_give_product_discount, can_give_order_discount')
+      .select('id, role, branch_id, store_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
@@ -58,8 +58,6 @@ export async function getPageAuthUser(): Promise<AuthUser | null> {
         store_id: staff.store_id,
         branch_id: staff.branch_id,
         staff_id: staff.id,
-        can_give_product_discount: staff.can_give_product_discount ?? false,
-        can_give_order_discount: staff.can_give_order_discount ?? false,
       };
     }
 

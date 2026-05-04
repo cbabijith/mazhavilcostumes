@@ -102,6 +102,7 @@ export interface Order {
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
+  buffer_override?: boolean;
   readonly created_at: string;
   readonly updated_at?: string;
 }
@@ -160,6 +161,7 @@ export interface CreateOrderDTO {
   advance_amount?: number;
   advance_collected?: boolean;
   advance_payment_method?: string;
+  buffer_override?: boolean;
 }
 
 // Order Update DTO
@@ -176,14 +178,25 @@ export interface UpdateOrderDTO {
   payment_status?: PaymentStatus | string;
   advance_amount?: number;
   advance_collected?: boolean;
+  advance_payment_method?: string;
   late_fee?: number;
   discount?: number;
   discount_type?: 'flat' | 'percent';
   damage_charges_total?: number;
+  subtotal?: number;
+  gst_amount?: number;
   total_amount?: number;
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
+  buffer_override?: boolean;
+  items?: {
+    product_id: string;
+    quantity: number;
+    price_per_day: number;
+    discount?: number;
+    discount_type?: 'flat' | 'percent';
+  }[];
 }
 
 // Return Order DTO
@@ -265,6 +278,18 @@ export interface ItemAvailabilityResult {
   isAvailable: boolean;
   peakReserved: number;
   overlappingOrders: DayBookingInfo[];
+  adjacentOrders?: AdjacentOrderInfo[];
+}
+
+/** Adjacent order info for buffer override warnings */
+export interface AdjacentOrderInfo {
+  orderId: string;
+  customerName: string;
+  quantity: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  position: 'before' | 'after'; // relative to the new order
 }
 
 /** Batch availability check response */

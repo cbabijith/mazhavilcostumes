@@ -8,7 +8,6 @@
 
 // Setting Key Enum
 export enum SettingKey {
-  GST_PERCENTAGE = 'gst_percentage',
   IS_GST_ENABLED = 'is_gst_enabled',
   INVOICE_PREFIX = 'invoice_prefix',
   PAYMENT_TERMS = 'payment_terms',
