@@ -31,6 +31,19 @@ export class OrderRepository extends BaseRepository {
    * Find all orders
    */
   async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderWithRelations[]>> {
+    let customerIds: string[] = [];
+    const searchTerm = params?.query?.trim();
+
+    // Two-step search: if query provided, first find matching customers
+    if (searchTerm) {
+      const { data: matchingCustomers } = await this.client
+        .from('customers')
+        .select('id')
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+
+      customerIds = matchingCustomers?.map(c => c.id) || [];
+    }
+
     let query = this.client
       .from(this.tableName)
       .select(`
@@ -53,8 +66,19 @@ export class OrderRepository extends BaseRepository {
       query = query.eq('status', params.status);
     }
 
-    if (params?.query) {
-      query = query.or(`customer.name.ilike.%${params.query}%,customer.phone.ilike.%${params.query}%`);
+    if (searchTerm) {
+      // Search by customer_id in matched customers (from customer name/phone/email search)
+      if (customerIds.length > 0) {
+        const customerIdList = customerIds.join(',');
+        query = query.in('customer_id', customerIds);
+      }
+
+      // Also search by order ID if the search term looks like a valid UUID
+      // UUID format: 8-4-4-4-12 hex characters
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidPattern.test(searchTerm)) {
+        query = query.or(`id.eq.${searchTerm}`);
+      }
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {
@@ -841,6 +865,19 @@ export class OrderRepository extends BaseRepository {
    * Count orders
    */
   async count(params?: OrderSearchParams): Promise<RepositoryResult<number>> {
+    let customerIds: string[] = [];
+    const searchTerm = params?.query?.trim();
+
+    // Two-step search: if query provided, first find matching customers
+    if (searchTerm) {
+      const { data: matchingCustomers } = await this.client
+        .from('customers')
+        .select('id')
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+
+      customerIds = matchingCustomers?.map(c => c.id) || [];
+    }
+
     let query = this.client
       .from(this.tableName)
       .select('*', { count: 'exact', head: true });
@@ -857,8 +894,19 @@ export class OrderRepository extends BaseRepository {
       query = query.eq('status', params.status);
     }
 
-    if (params?.query) {
-      query = query.or(`customer.name.ilike.%${params.query}%,customer.phone.ilike.%${params.query}%`);
+    if (searchTerm) {
+      // Search by customer_id in matched customers (from customer name/phone/email search)
+      if (customerIds.length > 0) {
+        const customerIdList = customerIds.join(',');
+        query = query.in('customer_id', customerIds);
+      }
+
+      // Also search by order ID if the search term looks like a valid UUID
+      // UUID format: 8-4-4-4-12 hex characters
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidPattern.test(searchTerm)) {
+        query = query.or(`id.eq.${searchTerm}`);
+      }
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {

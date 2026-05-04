@@ -88,14 +88,12 @@ function OrderFiltersInner({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (searchInput !== initialQuery) {
-        onSearchChange(searchInput);
-      }
+      onSearchChange(searchInput);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchInput, initialQuery, onSearchChange]);
+  }, [searchInput, onSearchChange]);
 
   const handleSearchInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

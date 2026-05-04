@@ -40,9 +40,10 @@ const TableSkeleton = React.memo(function TableSkeleton() {
   return (
     <div className="divide-y divide-slate-100">
       {/* Table header skeleton */}
-      <div className="hidden md:grid grid-cols-[auto_1fr_140px_160px_120px_100px_120px] gap-4 p-4 bg-slate-50/50">
+      <div className="hidden md:grid grid-cols-[auto_1fr_120px_140px_160px_120px_100px_120px] gap-4 p-4 bg-slate-50/50">
         <div className="h-4 w-4 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+        <div className="h-4 w-20 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
@@ -141,6 +142,7 @@ function OrderListTableInner({
                 />
               </th>
               <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Phone</th>
               <th className="px-4 py-3">Dates</th>
               <th className="px-4 py-3">Items</th>
               <th className="px-4 py-3">Amount</th>
