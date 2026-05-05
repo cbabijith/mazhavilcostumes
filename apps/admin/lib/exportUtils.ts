@@ -34,7 +34,10 @@ export function exportToExcel(
       if (col.format === 'currency') return Number(val).toFixed(2);
       if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
       if (col.format === 'date' && val) {
-        try { return new Date(val).toLocaleDateString('en-IN'); } catch { return val; }
+        try { 
+          const d = new Date(val);
+          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+        } catch { return val; }
       }
       return String(val);
     })
@@ -82,7 +85,10 @@ export function exportToPDF(
       if (col.format === 'currency') return `₹${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
       if (col.format === 'date' && val) {
-        try { return new Date(val).toLocaleDateString('en-IN'); } catch { return val; }
+        try { 
+          const d = new Date(val);
+          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+        } catch { return val; }
       }
       return String(val);
     })

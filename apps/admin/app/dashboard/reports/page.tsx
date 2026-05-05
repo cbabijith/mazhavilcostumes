@@ -7,6 +7,10 @@ import {
   PiggyBank, PackageX, UserCheck, Boxes, MessageSquare, Download,
   FileSpreadsheet, FileText, Search, Plus, Loader2, ArrowLeft, X
 } from "lucide-react";
+import { 
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,13 +93,33 @@ function getColumns(type: ReportType): { header: string; key: string; format?: "
       { header: "Customer", key: "customer_name" }, { header: "Phone", key: "customer_phone" },
       { header: "Notes", key: "notes" }, { header: "Logged By", key: "staff_name" },
     ];
+    case "gst-filing": return [
+      { header: "GST Slab", key: "slab", format: "percent" },
+      { header: "Taxable Value", key: "taxable_value", format: "currency" },
+      { header: "CGST", key: "cgst", format: "currency" },
+      { header: "SGST", key: "sgst", format: "currency" },
+      { header: "Total GST", key: "total_gst", format: "currency" },
+    ];
     default: return [];
   }
 }
 
+/** Columns for GST Detailed Invoice List (GSTR-1 B2C) */
+const GST_DETAILED_COLUMNS = [
+  { header: "Invoice No", key: "invoice_no" },
+  { header: "Date", key: "date", format: "date" as const },
+  { header: "Customer", key: "customer_name" },
+  { header: "Total Value", key: "total_value", format: "currency" as const },
+  { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+  { header: "GST Amount", key: "gst_amount", format: "currency" as const },
+  { header: "Slabs", key: "slabs" },
+];
+
 export default function ReportsPage() {
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(null);
   const [data, setData] = useState<any[]>([]);
+  const [reportSummary, setReportSummary] = useState<any>(null);
+  const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -120,10 +144,13 @@ export default function ReportsPage() {
   const fetchReport = useCallback(async (type: ReportType) => {
     setLoading(true);
     setError("");
+    setData([]);
+    setReportSummary(null);
+    setGstDetails([]);
     try {
       const params = new URLSearchParams();
       if (type === "day-wise-booking") params.set("date", date);
-      if (["revenue", "dead-stock", "sales-by-staff", "enquiry-log"].includes(type)) {
+      if (["revenue", "dead-stock", "sales-by-staff", "enquiry-log", "gst-filing"].includes(type)) {
         params.set("from_date", fromDate);
         params.set("to_date", toDate);
         if (type === "revenue") params.set("period", period);
@@ -133,11 +160,17 @@ export default function ReportsPage() {
       const res = await fetch(`/api/reports/${type}?${params.toString()}`);
       const json = await res.json();
       if (json.success && json.data) {
-        let rows = json.data.rows || [];
-        if (type === "enquiry-log") {
-          rows = rows.map((r: any) => ({ ...r, staff_name: r.staff?.name || "Unknown" }));
+        if (type === "gst-filing") {
+          setData(json.data.summary || []);
+          setGstDetails(json.data.details || []);
+          setReportSummary(json.data);
+        } else {
+          let rows = json.data.rows || json.data || [];
+          if (type === "enquiry-log") {
+            rows = rows.map((r: any) => ({ ...r, staff_name: r.staff?.name || "Unknown" }));
+          }
+          setData(rows);
         }
-        setData(rows);
       } else {
         setError(json.error || "Failed to fetch report");
       }
@@ -153,15 +186,26 @@ export default function ReportsPage() {
   }, [selectedReport, fetchReport]);
 
   const handleExportExcel = () => {
-    if (!selectedReport || data.length === 0) return;
+    if (!selectedReport || (data.length === 0 && gstDetails.length === 0)) return;
     const meta = REPORT_LIST.find(r => r.id === selectedReport)!;
-    exportToExcel(data, getColumns(selectedReport), `${meta.name}_${toDate}`);
+    
+    if (selectedReport === "gst-filing" && gstDetails.length > 0) {
+      // For GST, export the detailed list as it's more useful for accountants
+      exportToExcel(gstDetails, GST_DETAILED_COLUMNS, `GSTR1_B2C_Details_${toDate}`);
+    } else {
+      exportToExcel(data, getColumns(selectedReport), `${meta.name}_${toDate}`);
+    }
   };
 
   const handleExportPDF = () => {
-    if (!selectedReport || data.length === 0) return;
+    if (!selectedReport || (data.length === 0 && gstDetails.length === 0)) return;
     const meta = REPORT_LIST.find(r => r.id === selectedReport)!;
-    exportToPDF(data, getColumns(selectedReport), meta.name, `${meta.name}_${toDate}`);
+
+    if (selectedReport === "gst-filing" && gstDetails.length > 0) {
+      exportToPDF(gstDetails, GST_DETAILED_COLUMNS, "GSTR-1 B2C Detailed List", `GSTR1_B2C_Details_${toDate}`);
+    } else {
+      exportToPDF(data, getColumns(selectedReport), meta.name, `${meta.name}_${toDate}`);
+    }
   };
 
   const handleSubmitEnquiry = async () => {
@@ -187,7 +231,7 @@ export default function ReportsPage() {
   const formatCell = (val: any, format?: string) => {
     if (val == null || val === "") return "—";
     if (format === "currency") return formatCurrency(Number(val));
-    if (format === "percent") return `${Number(val).toFixed(1)}%`;
+    if (format === "percent") return typeof val === 'number' && val < 1 ? `${(val * 100).toFixed(0)}%` : `${Number(val).toFixed(0)}%`;
     if (format === "date") {
       try { return new Date(val).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }); }
       catch { return val; }
@@ -238,16 +282,17 @@ export default function ReportsPage() {
   const columns = getColumns(selectedReport);
   const Icon = ICONS[meta.icon] || BarChart3;
   const needsDateFilter = selectedReport === "day-wise-booking";
-  const needsRangeFilter = ["revenue", "dead-stock", "sales-by-staff", "enquiry-log"].includes(selectedReport);
+  const needsRangeFilter = ["revenue", "dead-stock", "sales-by-staff", "enquiry-log", "gst-filing"].includes(selectedReport);
   const needsRankBy = selectedReport === "top-costumes";
   const isEnquiry = selectedReport === "enquiry-log";
+  const isGST = selectedReport === "gst-filing";
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => { setSelectedReport(null); setData([]); }} className="w-9 h-9 border-slate-200 text-slate-500 hover:text-slate-900 bg-white">
+          <Button variant="outline" size="icon" onClick={() => { setSelectedReport(null); setData([]); setReportSummary(null); }} className="w-9 h-9 border-slate-200 text-slate-500 hover:text-slate-900 bg-white">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${CATEGORY_COLORS[meta.category]}`}>
@@ -322,11 +367,180 @@ export default function ReportsPage() {
         </CardContent>
       </Card>
 
+      {/* GST Summary Header (Specific to R12) */}
+      {isGST && reportSummary && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardContent className="p-5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Taxable Value</p>
+              <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_taxable)}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardContent className="p-5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">CGST (Central)</p>
+              <p className="text-2xl font-black text-blue-700">{formatCurrency(reportSummary.total_cgst)}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardContent className="p-5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">SGST (State)</p>
+              <p className="text-2xl font-black text-blue-700">{formatCurrency(reportSummary.total_sgst)}</p>
+            </CardContent>
+          </Card>
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardContent className="p-5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Total GST Liability</p>
+              <p className="text-2xl font-black text-emerald-700">{formatCurrency(reportSummary.total_gst)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* GST Adoption Transparency */}
+      {isGST && reportSummary?.composition && (
+        <Card className="shadow-sm border-slate-200 bg-slate-50/50 mb-8 border-l-4 border-l-slate-900">
+          <CardContent className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Tax Filing Composition</h3>
+                <p className="text-sm text-slate-600">
+                  Out of <span className="font-bold text-slate-900">{reportSummary.composition.total_orders}</span> total orders, 
+                  <span className="font-bold text-slate-900"> {reportSummary.composition.gst_orders}</span> have GST included.
+                </p>
+              </div>
+              <div className="flex items-center gap-8">
+                <div className="text-center">
+                  <p className="text-2xl font-black text-slate-900">{reportSummary.composition.gst_percentage}%</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">GST Included</p>
+                </div>
+                <div className="w-px h-10 bg-slate-200" />
+                <div className="text-center">
+                  <p className="text-2xl font-black text-slate-400">{100 - reportSummary.composition.gst_percentage}%</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">GST Exempted</p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
+              <div 
+                className="h-full bg-slate-900 transition-all duration-500" 
+                style={{ width: `${reportSummary.composition.gst_percentage}%` }} 
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* GST Charts */}
+      {isGST && reportSummary && data.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardHeader className="py-3 px-6 border-b border-slate-100">
+              <CardTitle className="text-sm font-semibold">GST Liability by Slab</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="total_gst"
+                    nameKey="slab"
+                    label={({ payload }) => `${payload.slab}%`}
+                  >
+                    {data.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={["#3b82f6", "#8b5cf6", "#ec4899"][index % 3]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: any) => formatCurrency(Number(value || 0))}
+                    labelFormatter={(label) => `GST Slab ${label}%`}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardHeader className="py-3 px-6 border-b border-slate-100">
+              <CardTitle className="text-sm font-semibold">Taxable Value vs GST</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="slab" tickFormatter={(v) => `${v}% Slab`} axisLine={false} tickLine={false} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value || 0))} />
+                  <Legend />
+                  <Bar dataKey="taxable_value" name="Taxable Value" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total_gst" name="GST Amount" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Revenue Charts */}
+      {selectedReport === "revenue" && data.length > 0 && (
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardHeader className="py-3 px-6 border-b border-slate-100">
+            <CardTitle className="text-sm font-semibold">Revenue Trend by Status</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} margin={{ top: 10, right: 10, left: 10, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="period" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v/1000}k`} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }}
+                  formatter={(value: any) => formatCurrency(Number(value || 0))}
+                />
+                <Legend />
+                <Bar dataKey="completed_revenue" name="Completed" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="ongoing_revenue" name="Ongoing" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="scheduled_revenue" name="Scheduled" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Staff Charts */}
+      {selectedReport === "sales-by-staff" && data.length > 0 && (
+        <Card className="shadow-sm border-slate-200 bg-white">
+          <CardHeader className="py-3 px-6 border-b border-slate-100">
+            <CardTitle className="text-sm font-semibold">Revenue by Staff Member</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data} layout="vertical" margin={{ left: 40, right: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                <XAxis type="number" hide />
+                <YAxis dataKey="staff_name" type="category" axisLine={false} tickLine={false} width={120} />
+                <Tooltip 
+                  cursor={{ fill: '#f8fafc' }}
+                  formatter={(value: any) => formatCurrency(Number(value || 0))}
+                />
+                <Bar dataKey="total_revenue" name="Total Revenue" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={32} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Results table */}
       <Card className="shadow-sm border-slate-200 bg-white">
         <CardHeader className="border-b border-slate-200 py-3 px-6 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-semibold text-slate-900">
-            {loading ? "Loading..." : `${data.length} result${data.length !== 1 ? "s" : ""}`}
+            {loading ? "Loading..." : isGST ? "GST Slab Summary" : `${data.length} result${data.length !== 1 ? "s" : ""}`}
           </CardTitle>
         </CardHeader>
         <div className="overflow-x-auto">
@@ -357,9 +571,58 @@ export default function ReportsPage() {
                 ))
               )}
             </tbody>
+            {isGST && reportSummary && (
+               <tfoot className="bg-slate-50 font-bold text-slate-900">
+                  <tr>
+                    <td className="px-5 py-3 border-t border-slate-200 uppercase text-xs">Total Liability</td>
+                    <td className="px-5 py-3 border-t border-slate-200">{formatCurrency(reportSummary.total_taxable)}</td>
+                    <td className="px-5 py-3 border-t border-slate-200">{formatCurrency(reportSummary.total_cgst)}</td>
+                    <td className="px-5 py-3 border-t border-slate-200">{formatCurrency(reportSummary.total_sgst)}</td>
+                    <td className="px-5 py-3 border-t border-slate-200">{formatCurrency(reportSummary.total_gst)}</td>
+                  </tr>
+               </tfoot>
+            )}
           </table>
         </div>
       </Card>
+
+      {/* Detailed Invoice List (GST Only) */}
+      {isGST && gstDetails.length > 0 && (
+        <div className="mt-8">
+          <Card className="shadow-sm border-slate-200 bg-white">
+            <CardHeader className="border-b border-slate-200 py-4 px-6 flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold text-slate-900 uppercase tracking-wider">
+                Detailed Invoice List (GSTR-1 B2C)
+              </CardTitle>
+              <div className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                {gstDetails.length} Invoices
+              </div>
+            </CardHeader>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50/50 text-slate-500">
+                  <tr>
+                    {GST_DETAILED_COLUMNS.map((col, i) => (
+                      <th key={i} className="px-5 py-3 font-medium border-b border-slate-200 whitespace-nowrap">{col.header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {gstDetails.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      {GST_DETAILED_COLUMNS.map((col, ci) => (
+                        <td key={ci} className={`px-5 py-3 whitespace-nowrap ${col.format === "currency" ? "tabular-nums font-medium" : ""}`}>
+                          {formatCell(row[col.key], col.format)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Enquiry Form Modal */}
       {showEnquiryForm && (

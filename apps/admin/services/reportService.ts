@@ -361,6 +361,142 @@ export class ReportService {
     return (data || []) as CustomerEnquiry[];
   }
 
+  /** R12: GST Filing report */
+  async getGSTFilingReport(filters: ReportFilters): Promise<any> {
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+
+    // Fetch invoice prefix from settings
+    const { data: settingsData } = await supabase()
+      .from('settings')
+      .select('value')
+      .eq('key', 'invoice_prefix')
+      .single();
+    const prefix = settingsData?.value || 'INV-';
+
+    // 1. Fetch total counts for GST vs Non-GST transparency
+    const { data: allOrders } = await supabase()
+      .from('orders')
+      .select('id, gst_amount, status')
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`)
+      .not('status', 'eq', 'cancelled');
+
+    const totalOrderCount = allOrders?.length || 0;
+    const gstOrderCount = allOrders?.filter(o => Number(o.gst_amount) > 0).length || 0;
+    const nonGstOrderCount = totalOrderCount - gstOrderCount;
+
+    // 2. Fetch all order items for the detailed slab breakdown
+    const { data, error } = await supabase()
+      .from('order_items')
+      .select(`
+        id,
+        gst_percentage,
+        base_amount,
+        gst_amount,
+        subtotal,
+        order:order_id (
+          id,
+          status,
+          created_at,
+          total_amount,
+          gst_amount,
+          customer:customer_id (
+            name
+          )
+        )
+      `)
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`)
+      .not('order.status', 'eq', 'cancelled');
+
+    if (error) throw new Error(error.message);
+
+    const items = data || [];
+    
+    // Group by GST slab
+    const slabs: Record<number, { taxable: number; gst: number }> = {
+      5: { taxable: 0, gst: 0 },
+      12: { taxable: 0, gst: 0 },
+      18: { taxable: 0, gst: 0 }
+    };
+
+    // Detailed invoice-wise tracking
+    const invoiceMap: Record<string, any> = {};
+
+    let totalTaxable = 0;
+    let totalGst = 0;
+
+    items.forEach((item: any) => {
+      const slab = Number(item.gst_percentage);
+      const taxable = Number(item.base_amount || 0);
+      const gst = Number(item.gst_amount || 0);
+
+      if (slab > 0) {
+        if (!slabs[slab]) slabs[slab] = { taxable: 0, gst: 0 };
+        slabs[slab].taxable += taxable;
+        slabs[slab].gst += gst;
+        
+        totalTaxable += taxable;
+        totalGst += gst;
+      }
+
+      // Track details for the invoice list (only for GST orders)
+      const order = item.order;
+      if (order && Number(order.gst_amount) > 0) {
+        if (!invoiceMap[order.id]) {
+          invoiceMap[order.id] = {
+            order_id: order.id,
+            invoice_no: `${prefix}${order.id.slice(0, 8).toUpperCase()}`,
+            date: order.created_at,
+            customer_name: order.customer?.name || 'Unknown',
+            total_value: Number(order.total_amount || 0),
+            taxable_value: 0,
+            gst_amount: 0,
+            slabs: new Set()
+          };
+        }
+        invoiceMap[order.id].taxable_value += taxable;
+        invoiceMap[order.id].gst_amount += gst;
+        if (slab > 0) invoiceMap[order.id].slabs.add(slab);
+      }
+    });
+
+    const summary = Object.entries(slabs)
+      .map(([slab, vals]) => ({
+        slab: Number(slab),
+        taxable_value: Math.round(vals.taxable * 100) / 100,
+        cgst: Math.round((vals.gst / 2) * 100) / 100,
+        sgst: Math.round((vals.gst / 2) * 100) / 100,
+        total_gst: Math.round(vals.gst * 100) / 100
+      }))
+      .filter(s => s.taxable_value > 0)
+      .sort((a, b) => a.slab - b.slab);
+
+    const details = Object.values(invoiceMap).map((inv: any) => ({
+      ...inv,
+      taxable_value: Math.round(inv.taxable_value * 100) / 100,
+      gst_amount: Math.round(inv.gst_amount * 100) / 100,
+      slabs: Array.from(inv.slabs).sort().join(', ') + '%'
+    })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return {
+      summary,
+      details,
+      composition: {
+        total_orders: totalOrderCount,
+        gst_orders: gstOrderCount,
+        non_gst_orders: nonGstOrderCount,
+        gst_percentage: totalOrderCount > 0 ? Math.round((gstOrderCount / totalOrderCount) * 100) : 0
+      },
+      total_taxable: Math.round(totalTaxable * 100) / 100,
+      total_cgst: Math.round((totalGst / 2) * 100) / 100,
+      total_sgst: Math.round((totalGst / 2) * 100) / 100,
+      total_gst: Math.round(totalGst * 100) / 100,
+      period: `${fromDate} to ${toDate}`
+    };
+  }
+
   /** Create enquiry */
   async createEnquiry(dto: CreateEnquiryDTO, staffId: string, branchId: string | null, storeId: string | null): Promise<CustomerEnquiry> {
     const { data, error } = await supabase()

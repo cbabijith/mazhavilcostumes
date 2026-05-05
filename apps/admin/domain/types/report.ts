@@ -17,7 +17,8 @@ export type ReportType =
   | 'dead-stock'          // R8
   | 'sales-by-staff'      // R9
   | 'inventory-revenue'   // R10
-  | 'enquiry-log';        // R11
+  | 'enquiry-log'         // R11
+  | 'gst-filing';         // R12
 
 export interface ReportMeta {
   id: ReportType;
@@ -39,6 +40,7 @@ export const REPORT_LIST: ReportMeta[] = [
   { id: 'sales-by-staff', name: 'Sales by Staff', description: 'Staff ranked by order revenue', category: 'sale', icon: 'UserCheck' },
   { id: 'inventory-revenue', name: 'Inventory + Revenue', description: 'Stock levels and lifetime revenue', category: 'inventory', icon: 'Boxes' },
   { id: 'enquiry-log', name: 'Customer Enquiry Log', description: 'Manual enquiry entries', category: 'reminder', icon: 'MessageSquare' },
+  { id: 'gst-filing', name: 'GST Filing Report', description: 'GSTR-1 friendly tax breakdown', category: 'sale', icon: 'FileText' },
 ];
 
 /** R1: Day-wise booking row */
@@ -162,6 +164,24 @@ export interface CustomerEnquiry {
   store_id: string | null;
   created_at: string;
   staff?: { name: string; email: string };
+}
+
+/** R12: GST Filing report */
+export interface GSTFilingRow {
+  slab: number;
+  taxable_value: number;
+  cgst: number;
+  sgst: number;
+  total_gst: number;
+}
+
+export interface GSTFilingReport {
+  summary: GSTFilingRow[];
+  total_taxable: number;
+  total_cgst: number;
+  total_sgst: number;
+  total_gst: number;
+  period: string;
 }
 
 export interface CreateEnquiryDTO {

@@ -96,7 +96,7 @@ export class DashboardService {
   /**
    * Operational Metrics — visible to ALL roles.
    * Returns 6 cards: Today's Booking, Today's Delivery, Today's Return,
-   * Prepare Delivery (next 7 days), Pending Delivery, Pending Return.
+   * Prepare Delivery (next 5 days), Pending Delivery, Pending Return.
    */
   async getOperationalMetrics(): Promise<OperationalMetrics> {
     const supabase = createAdminClient();
@@ -138,7 +138,7 @@ export class DashboardService {
     const todaysReturnProducts = (todaysReturns || []).reduce((sum, o: any) =>
       sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
 
-    // 4. Prepare Delivery — scheduled orders starting within next 7 days
+    // 4. Prepare Delivery — scheduled orders starting within next 5 days
     const tomorrowStart = startOfDay(addDays(now, 1)).toISOString().split('T')[0];
     const { data: prepareDeliveries } = await supabase
       .from('orders')
@@ -197,7 +197,7 @@ export class DashboardService {
           filterUrl: '/dashboard/orders?status=ongoing&date_filter=today',
         },
         {
-          label: "Prepare Delivery",
+          label: "Prepare Delivery (5d)",
           orderCount: prepareDeliveries?.length || 0,
           productCount: prepareDeliveryProducts,
           icon: 'boxes',

@@ -82,6 +82,45 @@ export class StaffRepository extends BaseRepository {
     if (error) return { data: null, error, success: false };
     return { data: true, error: null, success: true };
   }
+
+  /**
+   * Get staff performance stats from orders table
+   */
+  async getStaffStats(staffId: string): Promise<RepositoryResult<any>> {
+    const { data: userRecord } = await this.client
+      .from(this.tableName)
+      .select('user_id')
+      .eq('id', staffId)
+      .single();
+    
+    if (!userRecord?.user_id) {
+      return { data: null, error: { message: 'Staff has no linked auth user' } as any, success: false };
+    }
+
+    // Query orders created by this user's auth ID
+    const { data: orders, error } = await this.client
+      .from('orders')
+      .select('id, total_amount, discount, created_at')
+      .eq('created_by', userRecord.user_id)
+      .neq('status', 'cancelled');
+
+    if (error) return this.handleResponse<any>({ data: null, error });
+
+    const totalSales = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const totalDiscounts = orders.reduce((sum, o) => sum + (o.discount || 0), 0);
+    const orderCount = orders.length;
+
+    return {
+      data: {
+        totalSales,
+        totalDiscounts,
+        orderCount,
+        recentOrders: orders.slice(0, 5)
+      },
+      error: null,
+      success: true
+    };
+  }
 }
 
 export const staffRepository = new StaffRepository();

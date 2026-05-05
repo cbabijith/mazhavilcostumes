@@ -63,6 +63,9 @@ export interface OrderItem {
   subtotal: number;
   discount: number;
   discount_type: 'flat' | 'percent';
+  gst_percentage: number;
+  base_amount: number;
+  gst_amount: number;
   condition_rating?: ConditionRating;
   damage_description?: string;
   damage_charges?: number;
@@ -70,6 +73,17 @@ export interface OrderItem {
   returned_at?: string;
   returned_quantity?: number;
   readonly created_at: string;
+  // Relation
+  product?: {
+    id: string;
+    name: string;
+    images?: Array<{
+      url: string;
+      alt_text?: string;
+      is_primary: boolean;
+      sort_order: number;
+    }>;
+  };
 }
 
 // Order Entity
@@ -196,6 +210,9 @@ export interface UpdateOrderDTO {
     price_per_day: number;
     discount?: number;
     discount_type?: 'flat' | 'percent';
+    gst_percentage?: number;
+    base_amount?: number;
+    gst_amount?: number;
   }[];
 }
 
