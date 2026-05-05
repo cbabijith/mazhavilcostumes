@@ -10,7 +10,7 @@ export function DashboardFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const currentRange = searchParams.get("range") || "this_month";
+  const currentRange = searchParams.get("range") || "this_week";
   const customFrom = searchParams.get("from") || "";
   const customTo = searchParams.get("to") || "";
 

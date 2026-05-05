@@ -60,6 +60,10 @@ export interface DashboardMetrics {
     damagedCount: number;
     pendingApprovalCount: number;
   };
+  dailyRevenue: {
+    date: string;
+    amount: number;
+  }[];
   bookingVelocity: {
     date: string;
     count: number;
@@ -227,23 +231,44 @@ export class DashboardService {
   /**
    * Full dashboard metrics — admin-level data + operational metrics.
    */
-  async getMetrics(startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date): Promise<DashboardMetrics> {
+  async getMetrics(
+    startDate: Date, endDate: Date, 
+    prevStartDate: Date, prevEndDate: Date,
+    overrides?: {
+      categoryPeriod?: 'month' | 'year' | 'all';
+      roiLimit?: number;
+    }
+  ): Promise<DashboardMetrics> {
     const supabase = createAdminClient();
     const now = new Date();
 
     // 1. Revenue Pacing (Current vs Previous Period)
     const { data: currentPayments } = await supabase
       .from('payments')
-      .select('amount, payment_type')
+      .select('amount, payment_type, payment_date')
       .gte('payment_date', startDate.toISOString())
       .lte('payment_date', endDate.toISOString())
       .neq('payment_type', 'refund');
 
     const currentRevenue = currentPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
 
+    // 1.1 Daily Revenue (for the bar chart)
+    const dailyRevenueMap = new Map<string, number>();
+    currentPayments?.forEach(p => {
+      const dateStr = format(new Date(p.payment_date), 'MMM dd');
+      dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + Number(p.amount));
+    });
+
+    const diffDays = differenceInDays(endDate, startDate);
+    const dailyRevenue = Array.from({ length: diffDays + 1 }).map((_, i) => {
+      const d = addDays(startDate, i);
+      const dateStr = format(d, 'MMM dd');
+      return { date: dateStr, amount: dailyRevenueMap.get(dateStr) || 0 };
+    });
+
     const { data: prevPayments } = await supabase
       .from('payments')
-      .select('amount, payment_type')
+      .select('amount, payment_type, payment_date')
       .gte('payment_date', prevStartDate.toISOString())
       .lte('payment_date', prevEndDate.toISOString())
       .neq('payment_type', 'refund');
@@ -251,24 +276,30 @@ export class DashboardService {
     const prevRevenue = prevPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
     const percentageChange = prevRevenue === 0 ? 100 : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
 
-    // 2. Revenue by Status
+    // 2. Revenue by Status (Filtered by date range)
     const { data: completedOrders } = await supabase
       .from('orders')
       .select('total_amount')
-      .eq('status', 'completed');
+      .eq('status', 'completed')
+      .gte('updated_at', startDate.toISOString())
+      .lte('updated_at', endDate.toISOString());
     const completedRevenue = completedOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
 
     const { data: ongoingOrders } = await supabase
       .from('orders')
       .select('total_amount')
-      .in('status', ['ongoing', 'in_use', 'late_return', 'partial']);
+      .in('status', ['ongoing', 'in_use', 'late_return', 'partial'])
+      .gte('start_date', startDate.toISOString().split('T')[0])
+      .lte('start_date', endDate.toISOString().split('T')[0]);
     const ongoingRevenue = ongoingOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
 
     const { data: scheduledOrders } = await supabase
       .from('orders')
       .select('advance_amount')
       .in('status', ['scheduled', 'pending'])
-      .eq('advance_collected', true);
+      .eq('advance_collected', true)
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString());
     const scheduledRevenue = scheduledOrders?.reduce((sum, o) => sum + Number(o.advance_amount || 0), 0) || 0;
 
     // 3. Cancellation Stats
@@ -337,14 +368,19 @@ export class DashboardService {
       return { date: format(d, 'MMM dd'), count: velocityMap.get(dateStr) || 0 };
     });
 
-    // 7. Top Performers
-    const { data: orderItems } = await supabase
+    // 7. Top Performers (ROI)
+    const roiLimit = overrides?.roiLimit || 3;
+    let roiQuery = supabase
       .from('order_items')
-      .select('product_id, quantity, price_per_day, products(name, category_id, categories:category_id(name))')
-      .returns<any[]>();
+      .select('product_id, quantity, price_per_day, orders!inner(status, created_at), products(name)')
+      .neq('orders.status', 'cancelled')
+      .gte('orders.created_at', startDate.toISOString())
+      .lte('orders.created_at', endDate.toISOString());
+
+    const { data: roiItems } = await roiQuery.returns<any[]>();
 
     const productStats = new Map<string, { name: string; rentals: number; revenue: number }>();
-    orderItems?.forEach(item => {
+    roiItems?.forEach(item => {
       if (!item.products) return;
       const pid = item.product_id;
       const stats = productStats.get(pid) || { name: item.products.name, rentals: 0, revenue: 0 };
@@ -355,12 +391,28 @@ export class DashboardService {
 
     const topPerformers = Array.from(productStats.values())
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 3)
+      .slice(0, roiLimit)
       .map((p, i) => ({ id: String(i), ...p }));
 
     // 8. Category Revenue
+    let catStartDate = startDate;
+    if (overrides?.categoryPeriod === 'year') {
+      const d = new Date(); d.setFullYear(d.getFullYear() - 1); catStartDate = d;
+    } else if (overrides?.categoryPeriod === 'all') {
+      catStartDate = new Date(2000, 0, 1);
+    }
+
+    let catQuery = supabase
+      .from('order_items')
+      .select('quantity, price_per_day, orders!inner(status, created_at), products(categories:category_id(name))')
+      .neq('orders.status', 'cancelled')
+      .gte('orders.created_at', catStartDate.toISOString())
+      .lte('orders.created_at', endDate.toISOString());
+
+    const { data: catItems } = await catQuery.returns<any[]>();
+
     const categoryRevenueMap = new Map<string, { name: string; revenue: number }>();
-    orderItems?.forEach(item => {
+    catItems?.forEach(item => {
       if (!item.products?.categories) return;
       const catName = item.products.categories.name || 'Uncategorized';
       const existing = categoryRevenueMap.get(catName) || { name: catName, revenue: 0 };
@@ -434,6 +486,7 @@ export class DashboardService {
         damagedCount: 0,
         pendingApprovalCount: 0,
       },
+      dailyRevenue,
       bookingVelocity,
       topPerformers,
       deadStock,

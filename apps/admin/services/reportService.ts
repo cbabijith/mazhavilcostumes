@@ -30,13 +30,20 @@ export class ReportService {
 
   /** R1: Day-wise booking */
   async getDayWiseBooking(filters: ReportFilters): Promise<DayWiseBookingRow[]> {
-    const date = filters.date || new Date(Date.now() + 86400000).toISOString().split('T')[0]; // default: tomorrow
-    const { data } = await supabase()
+    const today = new Date().toLocaleDateString('en-CA');
+    const date = filters.date || today;
+
+    const { data, error } = await supabase()
       .from('orders')
       .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))')
       .eq('start_date', date)
-      .neq('status', 'cancelled')
+      .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
       .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching day-wise bookings:', error);
+      throw new Error(error.message);
+    }
 
     return (data || []).map((o: any) => ({
       order_id: o.id,
@@ -52,19 +59,26 @@ export class ReportService {
 
   /** R2: Due / Overdue */
   async getDueOverdue(): Promise<DueOverdueRow[]> {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA');
     const { data } = await supabase()
       .from('orders')
       .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
-      .lte('end_date', today)
+      .lt('end_date', today)
       .in('status', ['ongoing', 'in_use', 'delivered', 'late_return'])
       .order('end_date', { ascending: true });
 
     return (data || []).map((o: any) => {
-      const endDate = new Date(o.end_date);
-      const daysOverdue = Math.max(0, Math.floor((Date.now() - endDate.getTime()) / 86400000));
-      const paid = Number(o.amount_paid || 0);
-      const total = Number(o.total_amount || 0);
+      const returnDate = new Date(o.end_date);
+      const todayDate = new Date(today);
+      const diffTime = todayDate.getTime() - returnDate.getTime();
+      const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      
+      // Dynamically determine status for the report
+      let displayStatus = o.status;
+      if (daysOverdue > 0 && ['ongoing', 'in_use', 'delivered', 'pending'].includes(o.status)) {
+        displayStatus = 'overdue';
+      }
+
       return {
         order_id: o.id,
         customer_name: o.customer?.name || 'Unknown',
@@ -72,10 +86,10 @@ export class ReportService {
         product_names: (o.order_items || []).map((i: any) => i.product?.name).filter(Boolean).join(', '),
         end_date: o.end_date,
         days_overdue: daysOverdue,
-        total_amount: total,
-        amount_paid: paid,
-        balance: total - paid,
-        status: o.status,
+        total_amount: o.total_amount,
+        amount_paid: o.amount_paid,
+        balance: Math.max(0, o.total_amount - o.amount_paid),
+        status: displayStatus,
       };
     });
   }
@@ -84,7 +98,7 @@ export class ReportService {
   async getRevenue(filters: ReportFilters): Promise<RevenueRow[]> {
     const period = filters.period || 'month';
     const fromDate = filters.from_date || this.getPeriodStart(period);
-    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
     const { data } = await supabase()
       .from('orders')
@@ -147,10 +161,15 @@ export class ReportService {
 
   /** R5: Top customers */
   async getTopCustomers(filters: ReportFilters): Promise<TopCustomerRow[]> {
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+
     const { data } = await supabase()
       .from('orders')
       .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
-      .neq('status', 'cancelled');
+      .neq('status', 'cancelled')
+      .gte('created_at', fromDate)
+      .lte('created_at', toDate + 'T23:59:59');
 
     const map: Record<string, TopCustomerRow> = {};
     for (const o of (data || []) as any[]) {
@@ -172,10 +191,15 @@ export class ReportService {
   }
 
   /** R6: Rental frequency */
-  async getRentalFrequency(): Promise<RentalFrequencyRow[]> {
+  async getRentalFrequency(filters: ReportFilters): Promise<RentalFrequencyRow[]> {
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+
     const { data } = await supabase()
       .from('order_items')
       .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)')
+      .gte('created_at', fromDate)
+      .lte('created_at', toDate + 'T23:59:59')
       .not('order.status', 'eq', 'cancelled');
 
     const map: Record<string, RentalFrequencyRow> = {};
@@ -193,11 +217,14 @@ export class ReportService {
 
     const rows = Object.values(map);
     rows.sort((a, b) => b.rental_count - a.rental_count);
-    return rows;
+    return rows.slice(0, filters.limit || 50);
   }
 
   /** R7: ROI / Profit per costume */
-  async getROI(): Promise<ROIRow[]> {
+  async getROI(filters: ReportFilters): Promise<ROIRow[]> {
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+
     const { data: products } = await supabase()
       .from('products')
       .select('id, name, purchase_price')
@@ -207,8 +234,10 @@ export class ReportService {
 
     const { data: items } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status)')
+      .select('product_id, quantity, subtotal, order:order_id(status, created_at)')
       .in('product_id', products.map((p: any) => p.id))
+      .gte('created_at', fromDate)
+      .lte('created_at', toDate + 'T23:59:59')
       .not('order.status', 'eq', 'cancelled');
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
@@ -239,7 +268,7 @@ export class ReportService {
   /** R8: Dead stock / No-sale */
   async getDeadStock(filters: ReportFilters): Promise<DeadStockRow[]> {
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
     // Get all products
     const { data: products } = await supabase()
@@ -286,29 +315,112 @@ export class ReportService {
   /** R9: Sales by staff */
   async getSalesByStaff(filters: ReportFilters): Promise<SalesByStaffRow[]> {
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
-    const { data } = await supabase()
+    const { data, error } = await supabase()
       .from('orders')
-      .select('id, total_amount, amount_paid, created_by, staff:created_by(id, name, email)')
+      .select(`
+        id, 
+        status,
+        total_amount, 
+        amount_paid, 
+        discount, 
+        created_by, 
+        staff:created_by(id, name, email),
+        order_items(discount, subtotal)
+      `)
       .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
-      .neq('status', 'cancelled');
+      .lte('created_at', `${toDate}T23:59:59`);
+
+    if (error) throw new Error(error.message);
 
     const map: Record<string, SalesByStaffRow> = {};
     for (const o of (data || []) as any[]) {
       if (!o.staff) continue;
       const sid = o.created_by;
+      const isCancelled = o.status === 'cancelled';
+
       if (!map[sid]) {
-        map[sid] = { staff_id: sid, staff_name: o.staff.name || 'Unknown', staff_email: o.staff.email || '', order_count: 0, total_revenue: 0, avg_order_value: 0 };
+        map[sid] = { 
+          staff_id: sid, 
+          staff_name: o.staff.name || 'Unknown', 
+          staff_email: o.staff.email || '', 
+          order_count: 0, 
+          cancelled_order_count: 0,
+          total_revenue: 0, 
+          avg_order_value: 0,
+          total_item_discount: 0,
+          total_order_discount: 0,
+          total_discount: 0,
+          discount_percentage: 0
+        };
       }
+      
+      if (isCancelled) {
+        map[sid].cancelled_order_count++;
+        continue; // Don't count revenue/discount for cancelled orders
+      }
+
+      const itemDiscount = (o.order_items || []).reduce((sum: number, item: any) => sum + Number(item.discount || 0), 0);
+      const orderDiscount = Number(o.discount || 0);
+      const totalRev = Number(o.amount_paid || o.total_amount || 0);
+
       map[sid].order_count++;
-      map[sid].total_revenue += Number(o.amount_paid || o.total_amount || 0);
+      map[sid].total_revenue += totalRev;
+      map[sid].total_item_discount += itemDiscount;
+      map[sid].total_order_discount += orderDiscount;
+      map[sid].total_discount += (itemDiscount + orderDiscount);
     }
 
     return Object.values(map)
-      .map(s => ({ ...s, total_revenue: Math.round(s.total_revenue * 100) / 100, avg_order_value: s.order_count > 0 ? Math.round((s.total_revenue / s.order_count) * 100) / 100 : 0 }))
+      .map(s => {
+        const potentialRevenue = s.total_revenue + s.total_discount;
+        return { 
+          ...s, 
+          total_revenue: Math.round(s.total_revenue * 100) / 100, 
+          total_item_discount: Math.round(s.total_item_discount * 100) / 100,
+          total_order_discount: Math.round(s.total_order_discount * 100) / 100,
+          total_discount: Math.round(s.total_discount * 100) / 100,
+          avg_order_value: s.order_count > 0 ? Math.round((s.total_revenue / s.order_count) * 100) / 100 : 0,
+          discount_percentage: potentialRevenue > 0 ? Math.round((s.total_discount / potentialRevenue) * 10000) / 100 : 0
+        };
+      })
       .sort((a, b) => b.total_revenue - a.total_revenue);
+  }
+
+  /** Fetch order history for a specific staff member */
+  async getStaffOrderHistory(staffId: string, filters: ReportFilters): Promise<any[]> {
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+
+    const { data, error } = await supabase()
+      .from('orders')
+      .select(`
+        id,
+        status,
+        start_date,
+        end_date,
+        total_amount,
+        discount,
+        customer:customer_id(name),
+        order_items(product:product_id(name), quantity)
+      `)
+      .eq('created_by', staffId)
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(error.message);
+
+    return (data || []).map((o: any) => ({
+      id: o.id,
+      status: o.status,
+      date: o.start_date,
+      customer: o.customer?.name || 'Unknown',
+      products: (o.order_items || []).map((i: any) => `${i.product?.name} (x${i.quantity})`).join(', '),
+      amount: o.total_amount,
+      discount: o.discount
+    }));
   }
 
   /** R10: Inventory + Revenue */
@@ -349,22 +461,25 @@ export class ReportService {
   /** R11: Customer enquiry log */
   async getEnquiries(filters: ReportFilters): Promise<CustomerEnquiry[]> {
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
     const { data } = await supabase()
       .from('customer_enquiries')
-      .select('*, staff:logged_by(name, email)')
+      .select('*, logged_by_staff:staff!logged_by(name, email)')
       .gte('created_at', `${fromDate}T00:00:00`)
       .lte('created_at', `${toDate}T23:59:59`)
       .order('created_at', { ascending: false });
 
-    return (data || []) as CustomerEnquiry[];
+    return (data || []).map((d: any) => ({
+      ...d,
+      staff: d.logged_by_staff
+    })) as CustomerEnquiry[];
   }
 
   /** R12: GST Filing report */
   async getGSTFilingReport(filters: ReportFilters): Promise<any> {
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toISOString().split('T')[0];
+    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
     // Fetch invoice prefix from settings
     const { data: settingsData } = await supabase()
@@ -375,19 +490,23 @@ export class ReportService {
     const prefix = settingsData?.value || 'INV-';
 
     // 1. Fetch total counts for GST vs Non-GST transparency
-    const { data: allOrders } = await supabase()
+    let orderQuery = supabase()
       .from('orders')
       .select('id, gst_amount, status')
       .gte('created_at', `${fromDate}T00:00:00`)
       .lte('created_at', `${toDate}T23:59:59`)
       .not('status', 'eq', 'cancelled');
 
+    if (filters.status?.length) {
+      orderQuery = orderQuery.in('status', filters.status);
+    }
+
+    const { data: allOrders } = await orderQuery;
+
     const totalOrderCount = allOrders?.length || 0;
-    const gstOrderCount = allOrders?.filter(o => Number(o.gst_amount) > 0).length || 0;
-    const nonGstOrderCount = totalOrderCount - gstOrderCount;
 
     // 2. Fetch all order items for the detailed slab breakdown
-    const { data, error } = await supabase()
+    let itemQuery = supabase()
       .from('order_items')
       .select(`
         id,
@@ -407,8 +526,9 @@ export class ReportService {
         )
       `)
       .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
-      .not('order.status', 'eq', 'cancelled');
+      .lte('created_at', `${toDate}T23:59:59`);
+
+    const { data, error } = await itemQuery;
 
     if (error) throw new Error(error.message);
 
@@ -418,17 +538,25 @@ export class ReportService {
     const slabs: Record<number, { taxable: number; gst: number }> = {
       5: { taxable: 0, gst: 0 },
       12: { taxable: 0, gst: 0 },
-      18: { taxable: 0, gst: 0 }
+      18: { taxable: 0, gst: 0 },
+      28: { taxable: 0, gst: 0 }
     };
 
-    // Detailed invoice-wise tracking
     const invoiceMap: Record<string, any> = {};
 
     let totalTaxable = 0;
     let totalGst = 0;
 
     items.forEach((item: any) => {
-      const slab = Number(item.gst_percentage);
+      const order = item.order;
+      // Skip items from cancelled orders or if status filter is applied and doesn't match
+      if (!order || order.status === 'cancelled') return;
+      
+      if (filters.status?.length && !filters.status.includes(order.status)) {
+        return;
+      }
+
+      const slab = Number(item.gst_percentage || 0);
       const taxable = Number(item.base_amount || 0);
       const gst = Number(item.gst_amount || 0);
 
@@ -441,23 +569,28 @@ export class ReportService {
         totalGst += gst;
       }
 
-      // Track details for the invoice list (only for GST orders)
-      const order = item.order;
-      if (order && Number(order.gst_amount) > 0) {
+      // Track details for the invoice list (Include if order has GST OR item has GST)
+      const hasGst = Number(order.gst_amount) > 0 || gst > 0 || slab > 0;
+      if (hasGst) {
         if (!invoiceMap[order.id]) {
           invoiceMap[order.id] = {
             order_id: order.id,
             invoice_no: `${prefix}${order.id.slice(0, 8).toUpperCase()}`,
             date: order.created_at,
             customer_name: order.customer?.name || 'Unknown',
+            status: order.status,
             total_value: Number(order.total_amount || 0),
             taxable_value: 0,
             gst_amount: 0,
+            cgst: 0,
+            sgst: 0,
             slabs: new Set()
           };
         }
         invoiceMap[order.id].taxable_value += taxable;
         invoiceMap[order.id].gst_amount += gst;
+        invoiceMap[order.id].cgst += (gst / 2);
+        invoiceMap[order.id].sgst += (gst / 2);
         if (slab > 0) invoiceMap[order.id].slabs.add(slab);
       }
     });
@@ -473,21 +606,28 @@ export class ReportService {
       .filter(s => s.taxable_value > 0)
       .sort((a, b) => a.slab - b.slab);
 
-    const details = Object.values(invoiceMap).map((inv: any) => ({
-      ...inv,
-      taxable_value: Math.round(inv.taxable_value * 100) / 100,
-      gst_amount: Math.round(inv.gst_amount * 100) / 100,
-      slabs: Array.from(inv.slabs).sort().join(', ') + '%'
-    })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const details = Object.values(invoiceMap)
+      .filter((inv: any) => inv.gst_amount > 0) // Only include orders that actually have GST items
+      .map((inv: any) => ({
+        ...inv,
+        taxable_value: Math.round(inv.taxable_value * 100) / 100,
+        gst_amount: Math.round(inv.gst_amount * 100) / 100,
+        cgst: Math.round(inv.cgst * 100) / 100,
+        sgst: Math.round(inv.sgst * 100) / 100,
+        slabs: inv.slabs.size > 0 ? Array.from(inv.slabs).sort().join(', ') + '%' : '-'
+      })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Correct the GST order count based on actual items processed
+    const finalGstOrderCount = Object.keys(invoiceMap).length;
 
     return {
       summary,
       details,
       composition: {
         total_orders: totalOrderCount,
-        gst_orders: gstOrderCount,
-        non_gst_orders: nonGstOrderCount,
-        gst_percentage: totalOrderCount > 0 ? Math.round((gstOrderCount / totalOrderCount) * 100) : 0
+        gst_orders: finalGstOrderCount,
+        non_gst_orders: totalOrderCount - finalGstOrderCount,
+        gst_percentage: totalOrderCount > 0 ? Math.round((finalGstOrderCount / totalOrderCount) * 100) : 0
       },
       total_taxable: Math.round(totalTaxable * 100) / 100,
       total_cgst: Math.round((totalGst / 2) * 100) / 100,
@@ -510,22 +650,25 @@ export class ReportService {
         branch_id: branchId,
         store_id: storeId,
       })
-      .select('*, staff:logged_by(name, email)')
+      .select('*, logged_by_staff:staff!logged_by(name, email)')
       .single();
 
     if (error) throw new Error(error.message);
-    return data as CustomerEnquiry;
+    return {
+      ...(data as any),
+      staff: (data as any).logged_by_staff
+    } as CustomerEnquiry;
   }
 
   // ── Helpers ──────────────────────────────────────────────
   private getPeriodStart(period: string): string {
     const now = new Date();
     switch (period) {
-      case 'day': return now.toISOString().split('T')[0];
-      case 'week': { const d = new Date(now); d.setDate(d.getDate() - 7); return d.toISOString().split('T')[0]; }
-      case 'month': { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toISOString().split('T')[0]; }
+      case 'day': return now.toLocaleDateString('en-CA');
+      case 'week': { const d = new Date(now); d.setDate(d.getDate() - 7); return d.toLocaleDateString('en-CA'); }
+      case 'month': { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toLocaleDateString('en-CA'); }
       case 'year': return `${now.getFullYear()}-01-01`;
-      default: { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toISOString().split('T')[0]; }
+      default: { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toLocaleDateString('en-CA'); }
     }
   }
 

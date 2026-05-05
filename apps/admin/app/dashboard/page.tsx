@@ -35,6 +35,7 @@ import { dashboardService } from "@/services/dashboardService";
 import { getPageAuthUser } from "@/lib/pageAuth";
 import Link from "next/link";
 import { DashboardFilter } from "@/components/admin/dashboard/DashboardFilter";
+import { DashboardLocalFilter } from "@/components/admin/dashboard/DashboardLocalFilter";
 import {
   startOfToday, endOfToday,
   startOfYesterday, endOfYesterday,
@@ -74,7 +75,7 @@ export default async function DashboardPage(props: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const range = searchParams.range || "this_month";
+  const range = searchParams.range || "this_week";
 
   // Resolve user role
   const authUser = await getPageAuthUser();
@@ -132,9 +133,15 @@ export default async function DashboardPage(props: {
   const prevLabel = rangeLabels[range] || "Previous Period";
 
   // Fetch data
+  const catPeriod = (searchParams.cat_period as any) || 'month';
+  const roiLimit = searchParams.roi_limit ? parseInt(searchParams.roi_limit) : 3;
+
   const [operational, metrics] = await Promise.all([
     dashboardService.getOperationalMetrics(),
-    isAdmin ? dashboardService.getMetrics(startDate, endDate, prevStartDate, prevEndDate) : null,
+    isAdmin ? dashboardService.getMetrics(startDate, endDate, prevStartDate, prevEndDate, {
+      categoryPeriod: catPeriod,
+      roiLimit: roiLimit,
+    }) : null,
   ]);
 
   return (
@@ -147,11 +154,6 @@ export default async function DashboardPage(props: {
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        {isAdmin && (
-          <div className="flex gap-2 items-center">
-            <DashboardFilter />
-          </div>
-        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -209,36 +211,59 @@ export default async function DashboardPage(props: {
       {isAdmin && metrics && (
         <>
           {/* Revenue Overview Row */}
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-slate-400" />
-              Revenue &amp; Analytics
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Revenue Pacing */}
-              <Card className="border-0 shadow-sm bg-white">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Revenue Pacing</CardTitle>
-                  <DollarSign className="h-4 w-4 text-slate-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold tracking-tight text-slate-900">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-slate-400" />
+                Revenue &amp; Analytics
+              </h2>
+              <DashboardFilter />
+            </div>
+
+            {/* Revenue Trends Chart (Full Width) */}
+            <Card className="border-0 shadow-sm bg-white overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle className="text-base font-bold">Revenue Trends</CardTitle>
+                  <CardDescription>Daily collections for the selected period</CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-slate-900 tabular-nums">
                     {formatCurrency(metrics.revenuePacing.current)}
                   </div>
-                  <p className="text-xs flex items-center gap-1 mt-2">
+                  <p className="text-[10px] font-bold flex items-center justify-end gap-1 mt-0.5 uppercase tracking-wider">
                     {metrics.revenuePacing.isPositive
-                      ? <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+                      ? <TrendingUp className="h-3 w-3 text-emerald-500" />
                       : <ArrowDownRight className="h-3 w-3 text-rose-500" />}
-                    <span className={metrics.revenuePacing.isPositive ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"}>
-                      {metrics.revenuePacing.isPositive ? "+" : "-"}{metrics.revenuePacing.percentageChange}%
+                    <span className={metrics.revenuePacing.isPositive ? "text-emerald-600" : "text-rose-600"}>
+                      {metrics.revenuePacing.percentageChange}% {metrics.revenuePacing.isPositive ? 'Growth' : 'Decline'}
                     </span>
-                    <span className="text-slate-500">vs {prevLabel.toLowerCase()}</span>
                   </p>
-                </CardContent>
-              </Card>
+                </div>
+              </CardHeader>
+              <CardContent className="h-[200px] flex items-end gap-1.5 pt-6 px-6">
+                {metrics.dailyRevenue.map((day, i) => {
+                  const maxAmount = Math.max(...metrics.dailyRevenue.map(d => d.amount), 1000);
+                  const heightPercent = (day.amount / maxAmount) * 100;
+                  return (
+                    <div key={i} className="flex-1 bg-slate-50 hover:bg-slate-100 rounded-t-md relative group transition-all duration-300" style={{ height: '100%' }}>
+                      <div
+                        className={`absolute bottom-0 w-full rounded-t-md transition-all duration-700 ease-out ${day.amount > 0 ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-slate-200'}`}
+                        style={{ height: `${Math.max(heightPercent, 2)}%` }}
+                      />
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] py-1.5 px-2.5 rounded shadow-xl pointer-events-none z-10 whitespace-nowrap transition-opacity">
+                        <span className="font-bold">{formatCurrency(day.amount)}</span>
+                        <span className="block text-slate-400 text-[8px]">{day.date}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
 
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Revenue: Completed */}
-              <Card className="border-0 shadow-sm bg-white">
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-slate-600">Completed Revenue</CardTitle>
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -247,35 +272,35 @@ export default async function DashboardPage(props: {
                   <div className="text-3xl font-bold tracking-tight text-emerald-700">
                     {formatCurrency(metrics.revenueByStatus.completedRevenue)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Total from completed orders</p>
+                  <p className="text-xs mt-2 text-slate-500">Orders finished in this period</p>
                 </CardContent>
               </Card>
 
               {/* Revenue: Ongoing */}
-              <Card className="border-0 shadow-sm bg-white">
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Ongoing Revenue</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">Active Rentals Value</CardTitle>
                   <TrendingUp className="h-4 w-4 text-blue-400" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold tracking-tight text-blue-700">
                     {formatCurrency(metrics.revenueByStatus.ongoingRevenue)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Active rentals in progress</p>
+                  <p className="text-xs mt-2 text-slate-500">Contract value of active bookings</p>
                 </CardContent>
               </Card>
 
               {/* Revenue: Scheduled (Advance) */}
-              <Card className="border-0 shadow-sm bg-white">
+              <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Scheduled Advance</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">Advances Collected</CardTitle>
                   <CalendarDays className="h-4 w-4 text-amber-400" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold tracking-tight text-amber-700">
                     {formatCurrency(metrics.revenueByStatus.scheduledRevenue)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Advance collected for upcoming</p>
+                  <p className="text-xs mt-2 text-slate-500">Cash received for future orders</p>
                 </CardContent>
               </Card>
             </div>
@@ -365,9 +390,20 @@ export default async function DashboardPage(props: {
             </Card>
 
             <Card className="border-0 shadow-sm bg-white">
-              <CardHeader>
-                <CardTitle>Category Revenue</CardTitle>
-                <CardDescription>Selected period distribution</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">Category Revenue</CardTitle>
+                  <CardDescription className="text-[10px]">Selected period distribution</CardDescription>
+                </div>
+                <DashboardLocalFilter 
+                  paramName="cat_period"
+                  defaultValue="month"
+                  options={[
+                    { label: "This Period", value: "month" },
+                    { label: "Last 12m", value: "year" },
+                    { label: "All Time", value: "all" },
+                  ]}
+                />
               </CardHeader>
               <CardContent className="pt-6">
                 {metrics.categoryRevenue.length > 0 ? (
@@ -397,9 +433,20 @@ export default async function DashboardPage(props: {
           {/* Top Performers + Dead Stock + Bottlenecks */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card className="border-0 shadow-sm bg-white overflow-hidden flex flex-col">
-              <CardHeader className="border-b border-slate-50 bg-slate-50/50 pb-4">
-                <CardTitle>Inventory ROI (Top 3)</CardTitle>
-                <CardDescription>Highest revenue generating products</CardDescription>
+              <CardHeader className="border-b border-slate-50 bg-slate-50/50 flex flex-row items-center justify-between space-y-0 py-3 px-6">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">Inventory ROI</CardTitle>
+                  <CardDescription className="text-[10px]">Top {roiLimit} revenue contributors</CardDescription>
+                </div>
+                <DashboardLocalFilter 
+                  paramName="roi_limit"
+                  defaultValue="3"
+                  options={[
+                    { label: "Top 3", value: "3" },
+                    { label: "Top 5", value: "5" },
+                    { label: "Top 10", value: "10" },
+                  ]}
+                />
               </CardHeader>
               <div className="flex-1 p-0 flex flex-col">
                 {metrics.topPerformers.length > 0 ? (

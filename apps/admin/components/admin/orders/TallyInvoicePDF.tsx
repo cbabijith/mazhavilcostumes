@@ -24,6 +24,9 @@ export interface InvoiceItem {
   quantity: number;
   rate: number;
   amount: number;
+  gstRate?: number;
+  gstAmount?: number;
+  discount?: number;
 }
 
 export interface TallyInvoiceProps {
@@ -61,6 +64,7 @@ export interface TallyInvoiceProps {
   balanceDue: number;
 
   termsAndConditions?: string;
+  authorizedSignature?: string;
 }
 
 // ─── Number to Words (Indian system) ────────────────────────────────────────
@@ -281,7 +285,7 @@ const s = StyleSheet.create({
 
   // ── Amount in words ──
   wordsRow: {
-    borderBottom: BORDER,
+    borderTop: BORDER,
     paddingVertical: 4,
     paddingHorizontal: 8,
   },
@@ -298,20 +302,53 @@ const s = StyleSheet.create({
 
   // ── Footer ──
   footerRow: {
-    flexGrow: 1,
-    padding: 8,
+    flexGrow: 0,
+    flexDirection: 'row' as const,
+    minHeight: 80,
+    borderTop: BORDER,
+  },
+  spacer: {
+    flex: 1,
+  },
+  termsCol: {
+    width: '60%',
+    padding: 6,
+    borderRight: BORDER,
+  },
+  signatureCol: {
+    width: '40%',
+    padding: 6,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    minHeight: 80,
   },
   footerLabel: {
     fontFamily: 'Helvetica-Bold',
-    fontSize: 8,
-    marginBottom: 4,
+    fontSize: 7,
+    marginBottom: 2,
     color: '#555',
     textTransform: 'uppercase' as const,
   },
   footerTerms: {
-    fontSize: 7,
-    lineHeight: 1.5,
+    fontSize: 6.5,
+    lineHeight: 1.3,
     color: '#333',
+  },
+  forCompany: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center' as const,
+  },
+  authSignatory: {
+    fontSize: 7,
+    fontFamily: 'Helvetica',
+    textAlign: 'center' as const,
+  },
+  itemSubText: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Oblique',
+    color: '#444',
+    marginTop: 1,
   },
   eoe: {
     fontSize: 7,
@@ -331,7 +368,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
     items,
     subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
     totalAmount, totalPaid, balanceDue,
-    termsAndConditions,
+    termsAndConditions, authorizedSignature,
   } = props;
 
   return (
@@ -403,7 +440,21 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
           {items.map((item) => (
             <View key={item.sno} style={s.tableRow}>
               <Text style={s.colSno}>{item.sno}</Text>
-              <Text style={s.colDesc}>{item.name}</Text>
+              <View style={s.colDesc}>
+                <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold' }}>{item.name}</Text>
+                <View style={{ flexDirection: 'row' as const, gap: 4 }}>
+                  {item.gstRate && item.gstRate > 0 ? (
+                    <Text style={s.itemSubText}>
+                      [GST: {item.gstRate}% ({rs(item.gstAmount || 0)})]
+                    </Text>
+                  ) : null}
+                  {item.discount && item.discount > 0 ? (
+                    <Text style={s.itemSubText}>
+                      [Disc: {rs(item.discount)}]
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
               <Text style={s.colQty}>{item.quantity}</Text>
               <Text style={s.colRate}>{rs(item.rate)}</Text>
               <Text style={s.colAmt}>{rs(item.amount)}</Text>
@@ -474,6 +525,9 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
           </View>
 
 
+          {/* Push everything below to the bottom */}
+          <View style={s.spacer} />
+
           {/* ── Amount in Words ── */}
           <View style={s.wordsRow}>
             <View style={{ flexDirection: 'row' as const, justifyContent: 'space-between' as const }}>
@@ -485,10 +539,20 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
 
           {/* ── Footer ── */}
           <View style={s.footerRow}>
-            <Text style={s.footerLabel}>Terms & Conditions</Text>
-            {termsAndConditions ? (
-              <Text style={s.footerTerms}>{termsAndConditions}</Text>
-            ) : null}
+            <View style={s.termsCol}>
+              <Text style={s.footerLabel}>Payment Terms</Text>
+              {termsAndConditions ? (
+                <Text style={s.footerTerms}>{termsAndConditions}</Text>
+              ) : null}
+            </View>
+            <View style={s.signatureCol}>
+              <Text style={s.forCompany}>for {companyName}</Text>
+              <View style={{ height: 25 }} />
+              <View>
+                <Text style={s.authSignatory}>{authorizedSignature || ''}</Text>
+                <Text style={s.authSignatory}>Authorized Signatory</Text>
+              </View>
+            </View>
           </View>
         </View>
       </Page>

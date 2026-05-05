@@ -124,6 +124,9 @@ export class InvoiceService {
       quantity: item.quantity || 0,
       rate: item.price_per_day || 0,
       amount: item.total_price || (item.price_per_day || 0) * (item.quantity || 0),
+      gstRate: item.gst_percentage || 0,
+      gstAmount: item.gst_amount || 0,
+      discount: item.discount || 0,
     }));
 
     // Payment calculations
@@ -136,6 +139,9 @@ export class InvoiceService {
     const depositPayment = payments.find((p) => p.payment_type === 'deposit');
     const paymentMode = depositPayment?.payment_mode?.toUpperCase() || undefined;
 
+
+    const itemDiscountTotal = order.items.reduce((sum, item) => sum + Number(item.discount || 0), 0);
+    const totalDiscount = (Number(order.discount) || 0) + itemDiscountTotal;
 
     return {
       companyName: order.store?.name || 'Mazhavil Costumes',
@@ -163,7 +169,7 @@ export class InvoiceService {
 
       subtotal: Number(order.subtotal) || 0,
       gstAmount: Number(order.gst_amount) || 0,
-      discount: Number(order.discount) || 0,
+      discount: totalDiscount,
       lateFee: Number(order.late_fee) || 0,
       damageCharges: Number(order.damage_charges_total) || 0,
       securityDeposit: 0,
@@ -172,6 +178,7 @@ export class InvoiceService {
       balanceDue,
 
       termsAndConditions: settings.paymentTerms || undefined,
+      authorizedSignature: settings.authorizedSignature || undefined,
     };
   }
 }

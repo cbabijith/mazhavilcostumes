@@ -67,17 +67,33 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      // Search by customer_id in matched customers (from customer name/phone/email search)
+      console.log('Order Search Debug:', { searchTerm, customerIdsFound: customerIds.length });
+      const filters: string[] = [];
+      
+      // 1. Add customer ID matches
       if (customerIds.length > 0) {
-        const customerIdList = customerIds.join(',');
-        query = query.in('customer_id', customerIds);
+        filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
 
-      // Also search by order ID if the search term looks like a valid UUID
-      // UUID format: 8-4-4-4-12 hex characters
+      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
+
       if (uuidPattern.test(searchTerm)) {
-        query = query.or(`id.eq.${searchTerm}`);
+        filters.push(`id.eq.${searchTerm}`);
+      } else if (isHexIsh && searchTerm.length >= 4) {
+        // Support searching by the first 8 characters (short ID used in invoices)
+        // ONLY if it looks like a hex string to avoid performance issues on UUID column
+        filters.push(`id.ilike.${searchTerm}%`);
+      }
+
+      console.log('Generated Search Filters:', filters);
+
+      if (filters.length > 0) {
+        query = query.or(filters.join(','));
+      } else {
+        // If searchTerm provided but no matching customers or ID pattern, force empty result
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
 
@@ -972,17 +988,33 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      // Search by customer_id in matched customers (from customer name/phone/email search)
+      console.log('Order Search Debug:', { searchTerm, customerIdsFound: customerIds.length });
+      const filters: string[] = [];
+      
+      // 1. Add customer ID matches
       if (customerIds.length > 0) {
-        const customerIdList = customerIds.join(',');
-        query = query.in('customer_id', customerIds);
+        filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
 
-      // Also search by order ID if the search term looks like a valid UUID
-      // UUID format: 8-4-4-4-12 hex characters
+      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
+
       if (uuidPattern.test(searchTerm)) {
-        query = query.or(`id.eq.${searchTerm}`);
+        filters.push(`id.eq.${searchTerm}`);
+      } else if (isHexIsh && searchTerm.length >= 4) {
+        // Support searching by the first 8 characters (short ID used in invoices)
+        // ONLY if it looks like a hex string to avoid performance issues on UUID column
+        filters.push(`id.ilike.${searchTerm}%`);
+      }
+
+      console.log('Generated Search Filters:', filters);
+
+      if (filters.length > 0) {
+        query = query.or(filters.join(','));
+      } else {
+        // If searchTerm provided but no matching customers or ID pattern, force empty result
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
 

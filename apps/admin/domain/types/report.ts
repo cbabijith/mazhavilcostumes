@@ -29,7 +29,7 @@ export interface ReportMeta {
 }
 
 export const REPORT_LIST: ReportMeta[] = [
-  { id: 'day-wise-booking', name: 'Day-wise Booking', description: 'Orders by delivery date', category: 'booking', icon: 'CalendarDays' },
+  { id: 'day-wise-booking', name: 'Day-wise Booking', description: 'Daily pickups and deliveries schedule', category: 'booking', icon: 'CalendarDays' },
   { id: 'due-overdue', name: 'Due / Overdue Report', description: 'Overdue returns as of today', category: 'due', icon: 'AlertTriangle' },
   { id: 'revenue', name: 'Revenue Report', description: 'Revenue by status and period', category: 'sale', icon: 'TrendingUp' },
   { id: 'top-costumes', name: 'Top Costumes', description: 'Most rented or highest earning', category: 'sale', icon: 'Trophy' },
@@ -136,8 +136,13 @@ export interface SalesByStaffRow {
   staff_name: string;
   staff_email: string;
   order_count: number;
+  cancelled_order_count: number;
   total_revenue: number;
   avg_order_value: number;
+  total_item_discount: number;
+  total_order_discount: number;
+  total_discount: number;
+  discount_percentage: number;
 }
 
 /** R10: Inventory + Revenue row */
