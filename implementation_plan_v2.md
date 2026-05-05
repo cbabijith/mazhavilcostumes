@@ -574,3 +574,70 @@ flowchart TD
 | 30 | R12: GST Filing Report with slab-wise separation | ✅ New |
 | 31 | Charts added to R3, R4, R6, R9 using Recharts | ✅ New |
 | 32 | Prepare Delivery shows next 5 days (not 7) | ✅ New |
+---
+
+## Phase 7: Interactive Staff Sales Dashboard
+
+**Goal:** Create a high-performance analytics dashboard that allows managers to track staff productivity (orders placed/cancelled) and drill down into individual history.
+
+### Step 7A: Service Layer Refactoring
+
+**File:** `services/reportService.ts`
+
+1. **Refactor `getSalesByStaff()`**:
+   - Fetch ALL orders (including cancelled) for the period.
+   - Aggregate: `placed_count` (non-cancelled), `cancelled_count` (cancelled status).
+   - Calculate `revenue`, `total_discount`, and `discount_percentage` as before.
+2. **New Method `getStaffOrderHistory(staffId, filters)`**:
+   - Fetch detailed order list for a specific staff member.
+   - Include status, customer name, total amount, and items.
+
+### Step 7B: Domain Layer Updates
+
+**File:** `domain/types/report.ts`
+
+```typescript
+export interface SalesByStaffRow {
+  staff_id: string;
+  staff_name: string;
+  staff_email: string;
+  order_count: number;          // Total placed (non-cancelled)
+  cancelled_order_count: number; // Total cancelled
+  total_revenue: number;        // From non-cancelled orders
+  total_discount: number;
+  discount_percentage: number;
+  avg_order_value: number;
+}
+```
+
+### Step 7C: UI Layer — Master-Detail View
+
+**File:** `components/admin/reports/views/SalesByStaffReport.tsx`
+
+1. **Master View (Main Dashboard):**
+   - **Chart 1: Revenue Share % (Pie)** — Visual split of total income.
+   - **Chart 2: Productivity (Bar)** — Stacked bar showing "Placed" vs "Cancelled" orders per staff.
+   - **Staff Table**: Columns for Name, Orders Created, Orders Cancelled, Total Revenue.
+   - **Interaction**: Make rows clickable.
+2. **Detail View (Drill-down):**
+   - Triggered by clicking a staff row.
+   - **Top Row**: Personal stats (Cancellation rate, Avg Discount given).
+   - **Order History Table**: A full list of that staff's orders (Date, Customer, Status, Amount) with links to actual Order Details.
+
+### Files Modified in Phase 7
+
+| File | Change |
+|------|--------|
+| `services/reportService.ts` | Add cancellation tracking + individual history fetcher |
+| `domain/types/report.ts` | Add `cancelled_order_count` |
+| `components/admin/reports/views/SalesByStaffReport.tsx` | Implement Master-Detail dashboard with 2 charts |
+
+---
+
+## Confirmed Decisions (Updated)
+
+| # | Decision | Status |
+|---|----------|--------|
+| 33 | Sales by Staff refactored into an interactive Master-Detail dashboard | ✅ New |
+| 34 | Cancellation rate and order history tracking added per staff member | ✅ New |
+| 35 | Productivity chart added: Placed vs Cancelled counts | ✅ New |
