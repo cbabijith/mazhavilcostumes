@@ -36,10 +36,22 @@ export class OrderRepository extends BaseRepository {
 
     // Two-step search: if query provided, first find matching customers
     if (searchTerm) {
-      const { data: matchingCustomers } = await this.client
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuid = uuidPattern.test(searchTerm);
+      
+      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
+      if (isUuid) {
+        customerOr += `,id.eq.${searchTerm}`;
+      }
+
+      const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+        .or(customerOr);
+
+      if (customerError) {
+        console.error('Customer Search Query Error:', customerError);
+      }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
@@ -67,17 +79,31 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      // Search by customer_id in matched customers (from customer name/phone/email search)
+      const filters: string[] = [];
+      
+      // 1. Add customer ID matches
       if (customerIds.length > 0) {
-        const customerIdList = customerIds.join(',');
-        query = query.in('customer_id', customerIds);
+        filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
 
-      // Also search by order ID if the search term looks like a valid UUID
-      // UUID format: 8-4-4-4-12 hex characters
+      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
+
       if (uuidPattern.test(searchTerm)) {
-        query = query.or(`id.eq.${searchTerm}`);
+        filters.push(`id.eq.${searchTerm}`);
+      } else if (isHexIsh && searchTerm.length >= 4) {
+        // Support searching by the first 8 characters (short ID used in invoices)
+        // ONLY if it looks like a hex string to avoid performance issues on UUID column
+        filters.push(`id.ilike.${searchTerm}%`);
+      }
+
+
+      if (filters.length > 0) {
+        query = query.or(filters.join(','));
+      } else {
+        // If searchTerm provided but no matching customers or ID pattern, force empty result
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
 
@@ -529,6 +555,8 @@ export class OrderRepository extends BaseRepository {
     // GST-INCLUSIVE calculation: the rent amount ALREADY includes GST
     // Formula: base = amount / (1 + rate/100), gst = amount - base
     let totalGstAmount = 0;
+    const itemGstDetails = new Map<string, { rate: number; base: number; gst: number }>();
+    
     if (isGstEnabled) {
       data.items.forEach((item: any) => {
         const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
@@ -537,17 +565,42 @@ export class OrderRepository extends BaseRepository {
           : (item.discount || 0) * item.quantity;
         const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
         const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+        
+        let itemGst = 0;
+        let itemBase = lineAfterDiscount;
+        
         if (gstRate > 0) {
-          const gst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
-          totalGstAmount += gst;
+          itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+          itemBase = lineAfterDiscount - itemGst;
+          totalGstAmount += itemGst;
         }
+        
+        itemGstDetails.set(item.product_id, { rate: gstRate, base: itemBase, gst: itemGst });
       });
+
       // Proportionally adjust GST if order-level discount was applied
       if (effectiveOrderDiscount > 0 && afterItemDiscount > 0) {
         const ratio = subtotal / afterItemDiscount;
         totalGstAmount = totalGstAmount * ratio;
+        
+        // Also adjust individual item details for accurate reporting
+        for (const [productId, details] of itemGstDetails.entries()) {
+          const adjustedGst = details.gst * ratio;
+          const adjustedBase = (details.base + details.gst) * ratio - adjustedGst;
+          itemGstDetails.set(productId, { ...details, base: adjustedBase, gst: adjustedGst });
+        }
       }
       totalGstAmount = Math.round(totalGstAmount * 100) / 100;
+    } else {
+      // If GST not enabled, still need base amounts (which is just the line total)
+      data.items.forEach((item: any) => {
+        const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+        const itemDisc = item.discount_type === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * item.quantity;
+        const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
+        itemGstDetails.set(item.product_id, { rate: 0, base: lineAfterDiscount, gst: 0 });
+      });
     }
     
     // Grand total = subtotal (GST is WITHIN, not added on top)
@@ -604,6 +657,7 @@ export class OrderRepository extends BaseRepository {
           : 'pending',
         notes: data.notes || null,
         buffer_override: (data as any).buffer_override || false,
+        ...this.getCreateAuditFields(),
       })
       .select()
       .single();
@@ -618,15 +672,21 @@ export class OrderRepository extends BaseRepository {
     const itemsResponse = await this.client
       .from(this.orderItemsTable)
       .insert(
-        data.items.map((item: any) => ({
-          order_id: order.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price_per_day: item.price_per_day,
-          discount: item.discount || 0,
-          discount_type: item.discount_type || 'flat',
-          subtotal: item.price_per_day * item.quantity * pricingMultiplier,
-        }))
+        data.items.map((item: any) => {
+          const gst = itemGstDetails.get(item.product_id) || { rate: 0, base: 0, gst: 0 };
+          return {
+            order_id: order.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price_per_day: item.price_per_day,
+            discount: item.discount || 0,
+            discount_type: item.discount_type || 'flat',
+            subtotal: item.price_per_day * item.quantity * pricingMultiplier,
+            gst_percentage: gst.rate,
+            base_amount: Math.round(gst.base * 100) / 100,
+            gst_amount: Math.round(gst.gst * 100) / 100,
+          };
+        })
       )
       .select();
 
@@ -712,24 +772,67 @@ export class OrderRepository extends BaseRepository {
       // But for this rental system, replacing them is simpler as long as we're not in an active rental state.
       await this.client.from(this.orderItemsTable).delete().eq('order_id', id);
 
-      // 2. Insert new items
-      // Calculate pricingMultiplier based on current dates (either updated or existing)
+      // 2. Insert new items with GST calculation
+      // Fetch current GST rates for updated items
+      const productIds = items.map((item: any) => item.product_id);
+      const { data: products } = await this.client
+        .from('products')
+        .select('id, categories:category_id(gst_percentage)')
+        .in('id', productIds);
+      
+      const perItemGstRates = new Map<string, number>();
+      if (products) {
+        for (const p of products) {
+          const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+          perItemGstRates.set(p.id, (cat as any)?.gst_percentage ?? 0);
+        }
+      }
+
+      // Fetch global GST setting
+      const { data: settings } = await this.client.from('settings').select('value').eq('key', 'is_gst_enabled').single();
+      const isGstEnabled = settings?.value === 'true';
+
       const finalStartDate = new Date(normalizedData.start_date || oldOrderResponse.data?.start_date);
       const finalEndDate = new Date(normalizedData.end_date || oldOrderResponse.data?.end_date);
       const diffTime = Math.abs(finalEndDate.getTime() - finalStartDate.getTime());
       const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
       const pricingMultiplier = Math.max(1, rentalDays - 2);
 
+      // We don't adjust per-item GST for order-level discount during update yet
+      // because the update data might not include all order financial fields.
+      // Ideally we should recalculate the whole order totals here.
+      // For now, save the raw per-item GST breakdown.
+      
       await this.client.from(this.orderItemsTable).insert(
-        items.map((item: any) => ({
-          order_id: id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price_per_day: item.price_per_day,
-          discount: item.discount || 0,
-          discount_type: item.discount_type || 'flat',
-          subtotal: item.price_per_day * item.quantity * pricingMultiplier,
-        }))
+        items.map((item: any) => {
+          const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+          const itemDisc = item.discount_type === 'percent'
+            ? lineTotal * ((item.discount || 0) / 100)
+            : (item.discount || 0) * item.quantity;
+          const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
+          const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+          
+          let itemGst = 0;
+          let itemBase = lineAfterDiscount;
+          
+          if (isGstEnabled && gstRate > 0) {
+            itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+            itemBase = lineAfterDiscount - itemGst;
+          }
+
+          return {
+            order_id: id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            price_per_day: item.price_per_day,
+            discount: item.discount || 0,
+            discount_type: item.discount_type || 'flat',
+            subtotal: lineTotal,
+            gst_percentage: gstRate,
+            base_amount: Math.round(itemBase * 100) / 100,
+            gst_amount: Math.round(itemGst * 100) / 100,
+          };
+        })
       );
     }
 
@@ -870,10 +973,22 @@ export class OrderRepository extends BaseRepository {
 
     // Two-step search: if query provided, first find matching customers
     if (searchTerm) {
-      const { data: matchingCustomers } = await this.client
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuid = uuidPattern.test(searchTerm);
+      
+      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
+      if (isUuid) {
+        customerOr += `,id.eq.${searchTerm}`;
+      }
+
+      const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+        .or(customerOr);
+
+      if (customerError) {
+        console.error('Customer Search Query Error:', customerError);
+      }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
@@ -895,17 +1010,31 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      // Search by customer_id in matched customers (from customer name/phone/email search)
+      const filters: string[] = [];
+      
+      // 1. Add customer ID matches
       if (customerIds.length > 0) {
-        const customerIdList = customerIds.join(',');
-        query = query.in('customer_id', customerIds);
+        filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
 
-      // Also search by order ID if the search term looks like a valid UUID
-      // UUID format: 8-4-4-4-12 hex characters
+      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
+
       if (uuidPattern.test(searchTerm)) {
-        query = query.or(`id.eq.${searchTerm}`);
+        filters.push(`id.eq.${searchTerm}`);
+      } else if (isHexIsh && searchTerm.length >= 4) {
+        // Support searching by the first 8 characters (short ID used in invoices)
+        // ONLY if it looks like a hex string to avoid performance issues on UUID column
+        filters.push(`id.ilike.${searchTerm}%`);
+      }
+
+
+      if (filters.length > 0) {
+        query = query.or(filters.join(','));
+      } else {
+        // If searchTerm provided but no matching customers or ID pattern, force empty result
+        query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
 

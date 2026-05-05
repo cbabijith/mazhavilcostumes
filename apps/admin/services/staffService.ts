@@ -164,6 +164,13 @@ export class StaffService {
     const result = await staffRepository.update(id, { is_active: false });
     return { data: result.success, error: result.error, success: result.success };
   }
+
+  /**
+   * Get staff performance statistics
+   */
+  async getStaffOrderStats(id: string): Promise<RepositoryResult<any>> {
+    return staffRepository.getStaffStats(id);
+  }
 }
 
 export const staffService = new StaffService();

@@ -232,6 +232,8 @@ export type {
   InventoryRevenueRow,
   CustomerEnquiry,
   CreateEnquiryDTO,
+  GSTFilingRow,
+  GSTFilingReport,
 } from './report';
 
 export { REPORT_LIST } from './report';

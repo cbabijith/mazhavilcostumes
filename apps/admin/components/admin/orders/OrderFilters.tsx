@@ -166,7 +166,7 @@ function OrderFiltersInner({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <Input
               type="text"
-              placeholder="Search orders by customer or ID..."
+              placeholder="Search by customer name..."
               className="pl-9 border-slate-200 focus:border-slate-900"
               value={searchInput}
               onChange={handleSearchInput}

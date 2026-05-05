@@ -523,7 +523,29 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       </div>
                       <div className="flex-1">
                         <h4 className="text-lg font-bold text-slate-900">{product?.name || `Product #${item.product_id?.slice(0, 6).toUpperCase()}`}</h4>
-                        <p className="text-sm font-medium text-slate-500 mt-1">Qty: {item.quantity} · {formatCurrency(item.price_per_day)}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                          <p className="text-sm font-bold text-slate-700">
+                            Qty: {item.quantity} × {formatCurrency(item.price_per_day)}
+                          </p>
+                          
+                          {item.discount > 0 && (
+                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                              -{item.discount_type === 'percent' ? `${item.discount}%` : formatCurrency(item.discount)} Off
+                            </span>
+                          )}
+
+                          {item.gst_percentage > 0 && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase tracking-tight">
+                              {item.gst_percentage}% GST Incl.
+                            </span>
+                          )}
+                        </div>
+                        
+                        {(item.gst_amount > 0 || item.discount > 0) && (
+                          <p className="text-[10px] text-slate-400 mt-1 font-medium">
+                            Base: {formatCurrency(item.base_amount)} + GST: {formatCurrency(item.gst_amount)}
+                          </p>
+                        )}
                       </div>
 
                       {isReturnable ? (
@@ -665,64 +687,118 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </Button>}
             </div>
             
-            <div className="space-y-3">
-              <div className="flex justify-between text-slate-600 font-medium text-sm">
-                <span>Subtotal (Rental)</span>
-                <span>{formatCurrency(order.subtotal || order.total_amount)}</span>
-              </div>
-              {(order.gst_amount || 0) > 0 && (
-                <div className="pt-2 border-t border-dashed border-slate-100 space-y-1.5">
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>Base Amount (excl. GST)</span>
-                    <span className="font-medium">{formatCurrency((order.subtotal || order.total_amount) - order.gst_amount)}</span>
+            {(() => {
+              // Calculate breakdown from items (more accurate than order summary fields)
+              const rawSubtotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+              const afterItemDiscountTotal = order.items.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0);
+              const itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
+              
+              // Base amount excluding GST is the sum of all item base_amounts
+              const totalBaseExclGst = order.items.reduce((sum, item) => sum + (item.base_amount || 0), 0);
+              const totalGst = order.items.reduce((sum, item) => sum + (item.gst_amount || 0), 0);
+              
+              // The order-level discount is applied on the afterItemDiscountTotal
+              const orderLevelDiscount = Math.max(0, afterItemDiscountTotal - order.total_amount);
+
+              return (
+                <div className="space-y-4">
+                  {/* 1. Raw Subtotal */}
+                  <div className="flex justify-between text-slate-600 font-medium text-sm">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(rawSubtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-xs text-blue-600">
-                    <span className="flex items-center gap-1">
-                      <Info className="w-3 h-3" /> GST (included)
-                    </span>
-                    <span className="font-semibold">{formatCurrency(order.gst_amount)}</span>
-                  </div>
-                </div>
-              )}
 
-
-
-              {/* Late Fee */}
-              {(order.late_fee || 0) > 0 && (
-                <div className="flex justify-between text-red-600 font-bold text-sm">
-                  <span>Late Fee</span>
-                  <span>+ {formatCurrency(order.late_fee)}</span>
-                </div>
-              )}
-              {/* Damage Charges */}
-              {(order.damage_charges_total || 0) > 0 && (
-                <div className="flex justify-between text-orange-600 font-bold text-sm">
-                  <span>Damage Charges</span>
-                  <span>+ {formatCurrency(order.damage_charges_total)}</span>
-                </div>
-              )}
-              {/* Discount */}
-              {(order.discount || 0) > 0 && (
-                <div className="flex justify-between text-emerald-600 font-bold text-sm">
-                  <span>Discount</span>
-                  <span>- {formatCurrency(order.discount)}</span>
-                </div>
-              )}
-
-              <div className="flex justify-between text-slate-800 font-black text-sm pt-3 border-t-2 border-slate-100">
-                <div>
-                  <span>Grand Total</span>
-                  {(order.gst_amount || 0) > 0 && (
-                    <span className="block text-[10px] text-slate-400 font-medium mt-0.5">Inclusive of GST</span>
+                  {/* 2. Item Discounts Breakdown */}
+                  {itemDiscountsTotal > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex justify-between text-orange-600 font-bold text-sm">
+                        <span className="flex items-center gap-1 uppercase text-[10px] tracking-wider">
+                          <Info className="w-3 h-3" /> Item Discounts
+                        </span>
+                        <span>- {formatCurrency(itemDiscountsTotal)}</span>
+                      </div>
+                      <div className="pl-4 space-y-1">
+                        {order.items.map((item) => {
+                          const itemRaw = item.subtotal || 0;
+                          const itemAfter = (item.base_amount || 0) + (item.gst_amount || 0);
+                          const itemDisc = itemRaw - itemAfter;
+                          if (itemDisc <= 0) return null;
+                          
+                          return (
+                            <div key={item.id} className="flex justify-between text-[11px] text-orange-500 font-medium italic">
+                              <span className="truncate max-w-[150px]">{item.product?.name}</span>
+                              <span>- {formatCurrency(itemDisc)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
+
+                  {/* 3. Base & GST Breakdown */}
+                  <div className="pt-3 border-t border-dashed border-slate-100 space-y-2">
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>Base Amount (excl. GST)</span>
+                      <span className="font-medium">{formatCurrency(totalBaseExclGst)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-blue-600">
+                      <span className="flex items-center gap-1">
+                        <Info className="w-3 h-3" /> GST (included)
+                      </span>
+                      <span className="font-semibold">{formatCurrency(totalGst)}</span>
+                    </div>
+                  </div>
+
+                  {/* 4. Order-Level Discount */}
+                  {orderLevelDiscount > 0 && (
+                    <div className="flex justify-between text-purple-600 font-bold text-sm pt-2 border-t border-slate-50">
+                      <span className="uppercase text-[10px] tracking-wider">Order Discount</span>
+                      <span>- {formatCurrency(orderLevelDiscount)}</span>
+                    </div>
+                  )}
+
+                  {/* 5. Extra Fees (Late/Damage) */}
+                  {(order.late_fee || 0) > 0 && (
+                    <div className="flex justify-between text-red-600 font-bold text-sm pt-2 border-t border-slate-50">
+                      <span className="uppercase text-[10px] tracking-wider">Late Fee</span>
+                      <span>+ {formatCurrency(order.late_fee)}</span>
+                    </div>
+                  )}
+                  {(order.damage_charges_total || 0) > 0 && (
+                    <div className="flex justify-between text-amber-600 font-bold text-sm">
+                      <span className="uppercase text-[10px] tracking-wider">Damage Charges</span>
+                      <span>+ {formatCurrency(order.damage_charges_total)}</span>
+                    </div>
+                  )}
+
+                  {/* 6. Grand Total */}
+                  <div className="flex justify-between text-slate-800 font-black text-sm pt-4 border-t-2 border-slate-100">
+                    <div>
+                      <span className="text-base">Grand Total</span>
+                      {totalGst > 0 && (
+                        <span className="block text-[10px] text-slate-400 font-medium mt-0.5">Inclusive of GST</span>
+                      )}
+                    </div>
+                    <span className="text-2xl">{formatCurrency(order.total_amount)}</span>
+                  </div>
+
+                  {/* 7. Payments & Balance */}
+                  <div className="pt-4 space-y-2.5">
+                    <div className="flex justify-between text-emerald-600 font-bold text-sm p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                      <span className="flex items-center gap-1">Less: Advance Paid</span>
+                      <span>- {formatCurrency(order.amount_paid || 0)}</span>
+                    </div>
+                    
+                    <div className="flex justify-between text-slate-900 font-black text-lg px-1">
+                      <span>Balance Due</span>
+                      <span>{formatCurrency(Math.max(0, order.total_amount - (order.amount_paid || 0)))}</span>
+                    </div>
+                  </div>
                 </div>
-                <span>{formatCurrency(order.total_amount)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600 font-bold text-sm">
-                <span>Total Paid</span>
-                <span>{formatCurrency(order.amount_paid || 0)}</span>
-              </div>
-              <div className="flex justify-between items-center pt-2">
+              );
+            })()}
+            
+            <div className="flex justify-between items-center pt-2">
                 {order.status === OrderStatus.CANCELLED ? (
                   <div className="w-full space-y-2">
                     <div className="flex justify-between items-center">
@@ -796,7 +872,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
         </div>
-      </div>
 
       {/* Payment Modal */}
       <Modal
