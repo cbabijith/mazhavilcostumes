@@ -54,7 +54,6 @@ export class OrderRepository extends BaseRepository {
       }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
-      console.log('Customer Search Result:', { searchTerm, customerIdsFound: customerIds.length });
     }
 
     let query = this.client
@@ -80,7 +79,6 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      console.log('Order Search Debug:', { searchTerm, customerIdsFound: customerIds.length });
       const filters: string[] = [];
       
       // 1. Add customer ID matches
@@ -100,7 +98,6 @@ export class OrderRepository extends BaseRepository {
         filters.push(`id.ilike.${searchTerm}%`);
       }
 
-      console.log('Generated Search Filters:', filters);
 
       if (filters.length > 0) {
         query = query.or(filters.join(','));
@@ -994,7 +991,6 @@ export class OrderRepository extends BaseRepository {
       }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
-      console.log('Customer Search Result:', { searchTerm, customerIdsFound: customerIds.length });
     }
 
     let query = this.client
@@ -1014,7 +1010,6 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (searchTerm) {
-      console.log('Order Search Debug:', { searchTerm, customerIdsFound: customerIds.length });
       const filters: string[] = [];
       
       // 1. Add customer ID matches
@@ -1034,7 +1029,6 @@ export class OrderRepository extends BaseRepository {
         filters.push(`id.ilike.${searchTerm}%`);
       }
 
-      console.log('Generated Search Filters:', filters);
 
       if (filters.length > 0) {
         query = query.or(filters.join(','));
