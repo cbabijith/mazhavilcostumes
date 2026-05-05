@@ -36,12 +36,25 @@ export class OrderRepository extends BaseRepository {
 
     // Two-step search: if query provided, first find matching customers
     if (searchTerm) {
-      const { data: matchingCustomers } = await this.client
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuid = uuidPattern.test(searchTerm);
+      
+      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
+      if (isUuid) {
+        customerOr += `,id.eq.${searchTerm}`;
+      }
+
+      const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+        .or(customerOr);
+
+      if (customerError) {
+        console.error('Customer Search Query Error:', customerError);
+      }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
+      console.log('Customer Search Result:', { searchTerm, customerIdsFound: customerIds.length });
     }
 
     let query = this.client
@@ -963,12 +976,25 @@ export class OrderRepository extends BaseRepository {
 
     // Two-step search: if query provided, first find matching customers
     if (searchTerm) {
-      const { data: matchingCustomers } = await this.client
+      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const isUuid = uuidPattern.test(searchTerm);
+      
+      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
+      if (isUuid) {
+        customerOr += `,id.eq.${searchTerm}`;
+      }
+
+      const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,id.eq.${searchTerm}`);
+        .or(customerOr);
+
+      if (customerError) {
+        console.error('Customer Search Query Error:', customerError);
+      }
 
       customerIds = matchingCustomers?.map(c => c.id) || [];
+      console.log('Customer Search Result:', { searchTerm, customerIdsFound: customerIds.length });
     }
 
     let query = this.client
