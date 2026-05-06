@@ -62,7 +62,7 @@ export class ProductRepository extends BaseRepository {
     let selectQuery = this.buildQuery(this.tableName, {
       select: `
         *,
-        category:category_id(id, name, slug, gst_percentage),
+        category:category_id(id, name, slug, gst_percentage, has_buffer),
         branch:branch_id(id, name),
         product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at, branches:branch_id(id, name))
       `,
@@ -157,7 +157,7 @@ export class ProductRepository extends BaseRepository {
       .from(this.tableName)
       .select(`
         *,
-        category:category_id(id, name, slug, gst_percentage),
+        category:category_id(id, name, slug, gst_percentage, has_buffer),
         branch:branch_id(id, name),
         product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at, branches:branch_id(id, name))
       `)

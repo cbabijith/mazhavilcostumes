@@ -61,7 +61,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .order('created_at', { ascending: false });
@@ -75,7 +75,15 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.status) {
-      query = query.eq('status', params.status);
+      if (Array.isArray(params.status)) {
+        query = query.in('status', params.status);
+      } else {
+        query = query.eq('status', params.status);
+      }
+    }
+
+    if (params?.buffer_override !== undefined) {
+      query = query.eq('buffer_override', params.buffer_override);
     }
 
     if (searchTerm) {
@@ -161,7 +169,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .eq('branch_id', branchId)
@@ -193,10 +201,10 @@ export class OrderRepository extends BaseRepository {
     excludeOrderId?: string,
     bufferOverride: boolean = false
   ): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>> {
-    // Get product total quantity
+    // Get product total quantity and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select('quantity, name')
+      .select('quantity, name, category:category_id(has_buffer)')
       .eq('id', productId)
       .single();
 
@@ -205,6 +213,10 @@ export class OrderRepository extends BaseRepository {
     }
 
     const totalQuantity = productResponse.data?.quantity || 0;
+    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
+    const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active order items for this product with their order date ranges
     const ordersResponse = await this.client
@@ -221,7 +233,7 @@ export class OrderRepository extends BaseRepository {
     const reqEnd = new Date(endDate).getTime();
 
     // Buffer for the REQUESTING order
-    const reqBuffer = bufferOverride ? 0 : BUFFER_MS;
+    const reqBuffer = (bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
 
     // Collect bookings into categories
     const actualOverlaps: { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string; bufferOverride: boolean }[] = [];
@@ -256,13 +268,12 @@ export class OrderRepository extends BaseRepository {
       // Check ACTUAL rental date overlap (no buffer)
       const hasActualOverlap = ordStart <= reqEnd && ordEnd >= reqStart;
 
-      // Check buffer-extended overlap using EACH booking's own buffer + the request's buffer
-      const bookingBuffer = bookingInfo.bufferOverride ? 0 : BUFFER_MS;
+      // Check buffer-extended overlap using EACH booking's own buffer + the effective buffer
+      // We use effectiveBuffer here which is 0 if category has no buffer
+      const bookingBuffer = (bookingInfo.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
       const effectiveStart = ordStart - bookingBuffer;
       const effectiveEnd = ordEnd + bookingBuffer;
-      const effectiveReqStart = reqStart - reqBuffer;
-      const effectiveReqEnd = reqEnd + reqBuffer;
-      const hasBufferOverlap = effectiveStart <= effectiveReqEnd && effectiveEnd >= effectiveReqStart;
+      const hasBufferOverlap = effectiveStart <= (reqEnd + effectiveBuffer) && effectiveEnd >= (reqStart - effectiveBuffer);
 
       if (hasActualOverlap) {
         actualOverlaps.push(bookingInfo);
@@ -272,35 +283,89 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
-    // ─── Sweep Line Algorithm ─────────────────────────────────────────
-    // Only count ACTUAL overlaps for blocking (buffer-only are auto-allowed)
-    const events: { time: number; delta: number }[] = [];
-    for (const booking of actualOverlaps) {
-      events.push({ time: booking.start, delta: +booking.quantity });
-      events.push({ time: booking.end + 86400000, delta: -booking.quantity });
-    }
+    // ─── Availability Calculation ────────────────────────────────────────
+    // Two modes depending on whether the requesting order has Skip Gap ON/OFF.
+    //
+    // When bufferOverride = true (Skip Gap ON):
+    //   Only count ACTUAL rental date overlaps. Buffers are ignored.
+    //   → Available = total - peakActualUsage
+    //
+    // When bufferOverride = false (Skip Gap OFF, default):
+    //   Use per-day formula: blocked = actual_normal + max(buffer_only, actual_skipgap)
+    //   This avoids double-counting because Skip Gap orders take units FROM the buffer pool.
+    //   Example: 9 in buffer + 2 Skip Gap = max(9,2) = 9 blocked (not 11)
 
-    // Sort: by time, then releases (-delta) before acquisitions (+delta)
-    events.sort((a, b) => a.time - b.time || a.delta - b.delta);
-
-    let currentUsage = 0;
     let peakUsage = 0;
-    for (const event of events) {
-      if (event.time > reqEnd + 86400000) break;
-      currentUsage += event.delta;
-      if (event.time >= reqStart && event.time <= reqEnd) {
-        peakUsage = Math.max(peakUsage, currentUsage);
-      }
-    }
 
-    // Baseline check: bookings whose actual range covers reqStart
-    let baselineAtStart = 0;
-    for (const booking of actualOverlaps) {
-      if (booking.start <= reqStart && booking.end >= reqStart) {
-        baselineAtStart += booking.quantity;
+    if (bufferOverride) {
+      // ─── Skip Gap ON: simple sweep line on actual overlaps only ──────
+      const events: { time: number; delta: number }[] = [];
+      for (const booking of actualOverlaps) {
+        events.push({ time: booking.start, delta: +booking.quantity });
+        // Release on the same day (same-day turnover allowed in Skip Gap mode)
+        events.push({ time: booking.end, delta: -booking.quantity });
+      }
+      // Sort by time. If same time, process PICKUPS (+delta) before RETURNS (-delta)
+      // This ensures that same-day turnover (Return 7, Pickup 7) counts as an overlap
+      events.sort((a, b) => a.time - b.time || b.delta - a.delta);
+
+      let currentUsage = 0;
+      for (const event of events) {
+        if (event.time > reqEnd) break;
+        currentUsage += event.delta;
+        if (event.time >= reqStart && event.time <= reqEnd) {
+          peakUsage = Math.max(peakUsage, currentUsage);
+        }
+      }
+      // Baseline check: count orders that are active at the very start of reqStart
+      // If an order ends ON reqStart, we still count it for the start of the day
+      let baselineAtStart = 0;
+      for (const booking of actualOverlaps) {
+        if (booking.start <= reqStart && booking.end >= reqStart) {
+          baselineAtStart += booking.quantity;
+        }
+      }
+      peakUsage = Math.max(peakUsage, baselineAtStart);
+    } else {
+      // ─── Skip Gap OFF: per-day calculation with buffer awareness ─────
+      // For each day in the requested range, categorize bookings:
+      //   actual_normal:  actual overlap, order did NOT use buffer_override
+      //   actual_skipgap: actual overlap, order DID use buffer_override
+      //   buffer_only:    day is in buffer zone (not actual rental), order did NOT use buffer_override
+      // Formula: blocked = actual_normal + max(buffer_only, actual_skipgap)
+
+      const DAY_MS = 86400000;
+      const allRelevant = [...actualOverlaps, ...bufferOnlyOverlaps];
+
+      // Iterate each day in the requested range
+      for (let dayMs = reqStart; dayMs <= reqEnd; dayMs += DAY_MS) {
+        let actualNormal = 0;
+        let actualSkipgap = 0;
+        let bufferOnly = 0;
+
+        for (const booking of allRelevant) {
+          const isActualDay = booking.start <= dayMs && booking.end >= dayMs;
+          // Buffer zone: 1 day before start + 1 day after end (if booking didn't use buffer_override)
+          const bookingBuffer = (booking.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
+          const bufferStart = booking.start - bookingBuffer;
+          const bufferEnd = booking.end + bookingBuffer;
+          const isBufferDay = !isActualDay && bufferStart <= dayMs && bufferEnd >= dayMs;
+
+          if (isActualDay) {
+            if (booking.bufferOverride) {
+              actualSkipgap += booking.quantity;
+            } else {
+              actualNormal += booking.quantity;
+            }
+          } else if (isBufferDay) {
+            bufferOnly += booking.quantity;
+          }
+        }
+
+        const dayBlocked = actualNormal + Math.max(bufferOnly, actualSkipgap);
+        peakUsage = Math.max(peakUsage, dayBlocked);
       }
     }
-    peakUsage = Math.max(peakUsage, baselineAtStart);
 
     const availableQuantity = Math.max(0, totalQuantity - peakUsage);
 
@@ -381,10 +446,10 @@ export class OrderRepository extends BaseRepository {
     rangeStart: string,
     rangeEnd: string,
   ): Promise<RepositoryResult<{ productId: string; productName: string; totalQuantity: number; days: any[] }>> {
-    // Get product info
+    // Get product info and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select('quantity, name')
+      .select('quantity, name, category:category_id(has_buffer)')
       .eq('id', productId)
       .single();
 
@@ -394,6 +459,8 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || '';
+    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
     const ordersResponse = await this.client
@@ -452,8 +519,8 @@ export class OrderRepository extends BaseRepository {
       for (const booking of bookings) {
         const bookingStartTime = booking.start.getTime();
         const bookingEndTime = booking.end.getTime();
-        const bufferedStartTime = bookingStartTime - BUFFER_MS;
-        const bufferedEndTime = bookingEndTime + BUFFER_MS;
+        const bufferedStartTime = bookingStartTime - effectiveBuffer;
+        const bufferedEndTime = bookingEndTime + effectiveBuffer;
 
         // Check if this booking (including buffer) covers the current day
         if (bufferedStartTime <= currentTime && bufferedEndTime >= currentTime) {
@@ -506,7 +573,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .eq('id', id)
@@ -1006,7 +1073,15 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.status) {
-      query = query.eq('status', params.status);
+      if (Array.isArray(params.status)) {
+        query = query.in('status', params.status);
+      } else {
+        query = query.eq('status', params.status);
+      }
+    }
+
+    if (params?.buffer_override !== undefined) {
+      query = query.eq('buffer_override', params.buffer_override);
     }
 
     if (searchTerm) {

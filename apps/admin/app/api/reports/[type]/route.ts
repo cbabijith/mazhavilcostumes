@@ -40,7 +40,9 @@ export async function GET(
       period: (sp.get('period') as any) || undefined,
       rank_by: (sp.get('rank_by') as any) || undefined,
       limit: sp.get('limit') ? parseInt(sp.get('limit')!) : undefined,
+      page: sp.get('page') ? parseInt(sp.get('page')!) : undefined,
       status: sp.get('status') ? sp.get('status')!.split(',') : undefined,
+      payment_mode: sp.get('payment_mode') || undefined,
     };
 
     const staffId = sp.get('staffId');

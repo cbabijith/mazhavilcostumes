@@ -69,14 +69,39 @@ export interface DueOverdueRow {
   status: string;
 }
 
-/** R3: Revenue row */
+/** R3: Revenue row (Summary) */
 export interface RevenueRow {
   period: string;
   completed_revenue: number;
   ongoing_revenue: number;
   scheduled_revenue: number;
+  cash_revenue: number;
+  upi_revenue: number;
+  card_revenue: number;
+  other_revenue: number;
   total_revenue: number;
   order_count: number;
+}
+
+/** R3: Revenue detail row (Order-wise) */
+export interface RevenueDetailRow {
+  date: string;
+  order_id: string;
+  customer_name: string;
+  payment_mode: string;
+  amount: number;
+  status: string;
+}
+
+/** R3: Revenue report data structure */
+export interface RevenueReportData {
+  summary: RevenueRow[];
+  details: RevenueDetailRow[];
+  total_details_count: number;
+  total_cash: number;
+  total_upi: number;
+  total_card: number;
+  total_collected: number;
 }
 
 /** R4: Top costumes row */
@@ -205,4 +230,6 @@ export interface ReportFilters {
   status?: string[];
   rank_by?: 'count' | 'revenue';
   limit?: number;
+  page?: number;
+  payment_mode?: string;
 }

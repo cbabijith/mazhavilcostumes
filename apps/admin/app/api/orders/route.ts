@@ -37,10 +37,15 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 25;
     
+    const statusParams = searchParams.getAll('status');
+    const status = statusParams.length > 0 ? (statusParams.length === 1 ? statusParams[0] : statusParams) : undefined;
+
     const params = {
       customer_id: searchParams.get('customer_id') || undefined,
       branch_id: searchParams.get('branch_id') || undefined,
-      status: searchParams.get('status') as any || undefined,
+      status: status as any,
+      product_id: searchParams.get('product_id') || undefined,
+      buffer_override: searchParams.get('buffer_override') === 'true' ? true : (searchParams.get('buffer_override') === 'false' ? false : undefined),
       query: searchParams.get('query') || undefined,
       date_filter: searchParams.get('date_filter') as any || undefined,
       date_from: searchParams.get('date_from') || undefined,

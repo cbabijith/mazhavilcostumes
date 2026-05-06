@@ -14,6 +14,7 @@ interface ReportFiltersProps {
   needsRangeFilter?: boolean;
   needsRankBy?: boolean;
   needsStatusFilter?: boolean;
+  needsPaymentModeFilter?: boolean;
 }
 
 export function ReportFilters({ 
@@ -24,7 +25,8 @@ export function ReportFilters({
   needsDateFilter,
   needsRangeFilter,
   needsRankBy,
-  needsStatusFilter
+  needsStatusFilter,
+  needsPaymentModeFilter
 }: ReportFiltersProps) {
   return (
     <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6">
@@ -90,6 +92,23 @@ export function ReportFilters({
               <option value="completed">Completed Only</option>
               <option value="ongoing">Ongoing Only</option>
               <option value="scheduled">Scheduled Only</option>
+            </select>
+          </div>
+        )}
+
+        {needsPaymentModeFilter && (
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Payment Mode</label>
+            <select 
+              value={filters.payment_mode || "all"} 
+              onChange={e => setFilters({ ...filters, payment_mode: e.target.value })}
+              className="w-[180px] h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
+            >
+              <option value="all">All Modes</option>
+              <option value="cash">Cash Only</option>
+              <option value="upi">UPI Only</option>
+              <option value="card">Card Only</option>
+              <option value="bank_transfer">Bank Transfer Only</option>
             </select>
           </div>
         )}

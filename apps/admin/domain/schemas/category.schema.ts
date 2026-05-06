@@ -29,6 +29,7 @@ const baseCategorySchema = {
   is_active: z.boolean().optional().default(true),
   is_global: z.boolean().optional().default(false),
   store_id: z.string().uuid().optional(),
+  has_buffer: z.boolean().optional().default(true),
 };
 
 /**

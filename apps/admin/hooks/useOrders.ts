@@ -64,7 +64,15 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       const searchParams = new URLSearchParams();
       if (params?.customer_id) searchParams.append('customer_id', params.customer_id);
       if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
-      if (params?.status) searchParams.append('status', params.status);
+      if (params?.status) {
+        if (Array.isArray(params.status)) {
+          params.status.forEach(s => searchParams.append('status', s));
+        } else {
+          searchParams.append('status', params.status);
+        }
+      }
+      if (params?.product_id) searchParams.append('product_id', params.product_id);
+      if (params?.buffer_override !== undefined) searchParams.append('buffer_override', params.buffer_override.toString());
       if (params?.query) searchParams.append('query', params.query);
       if (params?.date_filter) searchParams.append('date_filter', params.date_filter);
       if (params?.date_from) searchParams.append('date_from', params.date_from);

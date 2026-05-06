@@ -19,6 +19,7 @@ export interface Category {
   is_active: boolean;
   is_global: boolean;
   gst_percentage: number;
+  has_buffer: boolean;
   created_at: string;
   updated_at?: string;
   // Audit fields
@@ -47,6 +48,7 @@ export interface CreateCategoryDTO {
   is_global?: boolean;
   store_id?: string;
   gst_percentage?: number;
+  has_buffer?: boolean;
 }
 
 // Category Update DTO

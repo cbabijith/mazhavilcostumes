@@ -49,7 +49,8 @@ function ReportsPageContent() {
     from_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA'),
     to_date: new Date().toLocaleDateString('en-CA'),
     rank_by: 'count',
-    limit: 50
+    limit: 50,
+    page: 1
   });
 
   const selectedReport = reportFromUrl;
@@ -66,7 +67,9 @@ function ReportsPageContent() {
     if (filters.period) queryParams.append('period', filters.period);
     if (filters.rank_by) queryParams.append('rank_by', filters.rank_by);
     if (filters.limit) queryParams.append('limit', filters.limit.toString());
+    if (filters.page) queryParams.append('page', filters.page.toString());
     if (filters.status?.length) queryParams.append('status', filters.status.join(','));
+    if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
 
     try {
       const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
@@ -79,10 +82,10 @@ function ReportsPageContent() {
       // Robust check for rows wrapper (some reports might not have it depending on API version)
       const result = json.data.rows !== undefined ? json.data.rows : json.data;
 
-      if (selectedReport === 'gst-filing') {
+      if (selectedReport === 'gst-filing' || selectedReport === 'revenue') {
         setData(result.summary || []);
         setReportSummary(result);
-        setGstDetails(result.details || []);
+        setGstDetails(result.details || []); // We can reuse this or add a revenue-specific one, but gstDetails is already being used for 'details'
       } else {
         setData(result || []);
         setReportSummary(null);
@@ -153,9 +156,10 @@ function ReportsPageContent() {
       case 'revenue':
         return [
           { header: "Period", key: "period" },
+          { header: "Cash", key: "cash_revenue", format: "currency" as const },
+          { header: "UPI", key: "upi_revenue", format: "currency" as const },
           { header: "Completed", key: "completed_revenue", format: "currency" as const },
           { header: "Ongoing", key: "ongoing_revenue", format: "currency" as const },
-          { header: "Scheduled", key: "scheduled_revenue", format: "currency" as const },
           { header: "Total", key: "total_revenue", format: "currency" as const },
           { header: "Orders", key: "order_count" },
         ];
@@ -240,18 +244,29 @@ function ReportsPageContent() {
     let exportData = sortedData;
     let exportColumns = getExportColumns();
     
-    if (selectedReport === 'gst-filing' && gstDetails.length > 0) {
+    if ((selectedReport === 'gst-filing' || selectedReport === 'revenue') && gstDetails.length > 0) {
       exportData = gstDetails;
-      exportColumns = [
-        { header: "Order ID", key: "order_id" },
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
+      if (selectedReport === 'gst-filing') {
+        exportColumns = [
+          { header: "Order ID", key: "order_id" },
+          { header: "Invoice No", key: "invoice_no" },
+          { header: "Date", key: "date", format: "date" as const },
+          { header: "Customer", key: "customer_name" },
+          { header: "Total Value", key: "total_value", format: "currency" as const },
+          { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+          { header: "GST Slabs", key: "slabs" },
+          { header: "Total GST", key: "gst_amount", format: "currency" as const },
+        ];
+      } else {
+        exportColumns = [
+          { header: "Date", key: "date", format: "date" as const },
+          { header: "Order ID", key: "order_id" },
+          { header: "Customer", key: "customer_name" },
+          { header: "Payment Mode", key: "payment_mode" },
+          { header: "Amount", key: "amount", format: "currency" as const },
+          { header: "Order Status", key: "status" },
+        ];
+      }
     } else if (selectedReport === 'enquiry-log') {
       exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
     }
@@ -356,6 +371,7 @@ function ReportsPageContent() {
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
         needsStatusFilter={selectedReport === 'gst-filing'}
+        needsPaymentModeFilter={selectedReport === 'revenue'}
       />
 
       {error && (
@@ -368,7 +384,7 @@ function ReportsPageContent() {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {selectedReport === 'day-wise-booking' && <DayWiseBookingView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'due-overdue' && <DueOverdueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'revenue' && <RevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
+        {selectedReport === 'revenue' && <RevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
         {selectedReport === 'top-costumes' && <TopCostumesView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} rankBy={filters.rank_by || 'count'} />}
         {selectedReport === 'top-customers' && <TopCustomersView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'rental-frequency' && <RentalFrequencyView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}

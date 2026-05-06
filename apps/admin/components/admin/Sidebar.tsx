@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { 
   LayoutDashboard, 
+  Sparkles,
   Package, 
   ShoppingCart, 
   Users, 
@@ -29,6 +30,7 @@ import { routePermissionMap, type Permission } from "@/lib/permissions";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Cleaning", href: "/dashboard/cleaning", icon: Sparkles },
   { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart },
   { name: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
   { name: "Products", href: "/dashboard/products", icon: Package },
