@@ -277,20 +277,100 @@ export class DashboardService {
   ): Promise<DashboardMetrics> {
     const supabase = createAdminClient();
     const now = new Date();
+    const startDateStr = startDate.toISOString();
+    const endDateStr = endDate.toISOString();
+    const prevStartDateStr = prevStartDate.toISOString();
+    const prevEndDateStr = prevEndDate.toISOString();
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const velocityEndDate = addDays(now, 15).toISOString();
 
-    // 1. Revenue Pacing (Current vs Previous Period)
-    const { data: currentPayments } = await supabase
-      .from('payments')
-      .select('amount, payment_type, payment_date')
-      .gte('payment_date', startDate.toISOString())
-      .lte('payment_date', endDate.toISOString())
-      .neq('payment_type', 'refund');
+    const roiLimit = overrides?.roiLimit || 3;
+    let catStartDate = startDate;
+    if (overrides?.categoryPeriod === 'year') {
+      const d = new Date(); d.setFullYear(d.getFullYear() - 1); catStartDate = d;
+    } else if (overrides?.categoryPeriod === 'all') {
+      catStartDate = new Date(2000, 0, 1);
+    }
+    const catStartDateStr = catStartDate.toISOString();
 
-    const currentRevenue = currentPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    // Kick off all queries in parallel
+    const [
+      currentPaymentsRes,
+      prevPaymentsRes,
+      completedOrdersRes,
+      ongoingOrdersRes,
+      scheduledOrdersRes,
+      currentCancelRes,
+      prevCancelRes,
+      activeOrdersRes,
+      totalProductsRes,
+      rentedItemsRes,
+      upcomingOrdersRes,
+      roiItemsRes,
+      catItemsRes,
+      recentOrderRes,
+      allActiveProductsRes,
+      priorityRes
+    ] = await Promise.all([
+      // 1. Current Payments
+      supabase.from('payments').select('amount, payment_date').gte('payment_date', startDateStr).lte('payment_date', endDateStr).neq('payment_type', 'refund'),
+      
+      // 2. Previous Payments
+      supabase.from('payments').select('amount').gte('payment_date', prevStartDateStr).lte('payment_date', prevEndDateStr).neq('payment_type', 'refund'),
+      
+      // 3. Completed Orders
+      supabase.from('orders').select('total_amount').eq('status', 'completed').gte('updated_at', startDateStr).lte('updated_at', endDateStr),
+      
+      // 4. Ongoing Orders
+      supabase.from('orders').select('total_amount').in('status', ['ongoing', 'in_use', 'late_return', 'partial']).gte('start_date', startDateStr.split('T')[0]).lte('start_date', endDateStr.split('T')[0]),
+      
+      // 5. Scheduled Orders
+      supabase.from('orders').select('advance_amount').in('status', ['scheduled', 'pending']).eq('advance_collected', true).gte('created_at', startDateStr).lte('created_at', endDateStr),
+      
+      // 6. Current Cancellations
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', startDateStr).lte('cancelled_at', endDateStr),
+      
+      // 7. Previous Cancellations
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', prevStartDateStr).lte('cancelled_at', prevEndDateStr),
+      
+      // 8. Active Orders (for Overdue)
+      supabase.from('orders').select('id, status, end_date').in('status', ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending']),
+      
+      // 9. Total Products
+      supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
+      
+      // 10. Rented Items
+      supabase.from('order_items').select('product_id, orders!inner(status)').in('orders.status', ['ongoing', 'in_use', 'late_return']),
+      
+      // 11. Upcoming Orders (Velocity)
+      supabase.from('orders').select('start_date').gte('start_date', now.toISOString()).lte('start_date', velocityEndDate).neq('status', 'cancelled'),
+      
+      // 12. ROI Items
+      supabase.from('order_items').select('product_id, quantity, price_per_day, orders!inner(status, created_at), products(name)').neq('orders.status', 'cancelled').gte('orders.created_at', startDateStr).lte('orders.created_at', endDateStr).returns<any[]>(),
+      
+      // 13. Category Items
+      supabase.from('order_items').select('quantity, price_per_day, orders!inner(status, created_at), products(categories:category_id(name))').neq('orders.status', 'cancelled').gte('orders.created_at', catStartDateStr).lte('orders.created_at', endDateStr).returns<any[]>(),
+      
+      // 14. Dead Stock (Recent Orders)
+      supabase.from('order_items').select('product_id, orders!inner(created_at)').gte('orders.created_at', ninetyDaysAgo).returns<any[]>(),
+      
+      // 15. Active Products (Dead Stock check)
+      supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true).limit(100),
+      
+      // 16. Priority Cleaning
+      supabase.from('orders').select('id, start_date, customer:customer_id(name), order_items(quantity, products(name))').eq('buffer_override', true).in('status', ['scheduled', 'pending', 'confirmed']).gte('start_date', now.toISOString().split('T')[0]).order('start_date', { ascending: true }).limit(5)
+    ]);
 
-    // 1.1 Daily Revenue (for the bar chart)
+    // Processing results
+    const currentPayments = currentPaymentsRes.data || [];
+    const prevPayments = prevPaymentsRes.data || [];
+    const currentRevenue = currentPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    const prevRevenue = prevPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    const percentageChange = prevRevenue === 0 ? 100 : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+
+    // Daily Revenue Map
     const dailyRevenueMap = new Map<string, number>();
-    currentPayments?.forEach(p => {
+    currentPayments.forEach(p => {
       const dateStr = format(new Date(p.payment_date), 'MMM dd');
       dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + Number(p.amount));
     });
@@ -302,98 +382,25 @@ export class DashboardService {
       return { date: dateStr, amount: dailyRevenueMap.get(dateStr) || 0 };
     });
 
-    const { data: prevPayments } = await supabase
-      .from('payments')
-      .select('amount, payment_type, payment_date')
-      .gte('payment_date', prevStartDate.toISOString())
-      .lte('payment_date', prevEndDate.toISOString())
-      .neq('payment_type', 'refund');
+    const completedRevenue = completedOrdersRes.data?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    const ongoingRevenue = ongoingOrdersRes.data?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    const scheduledRevenue = scheduledOrdersRes.data?.reduce((sum, o) => sum + Number(o.advance_amount || 0), 0) || 0;
 
-    const prevRevenue = prevPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const percentageChange = prevRevenue === 0 ? 100 : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
-
-    // 2. Revenue by Status (Filtered by date range)
-    const { data: completedOrders } = await supabase
-      .from('orders')
-      .select('total_amount')
-      .eq('status', 'completed')
-      .gte('updated_at', startDate.toISOString())
-      .lte('updated_at', endDate.toISOString());
-    const completedRevenue = completedOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
-
-    const { data: ongoingOrders } = await supabase
-      .from('orders')
-      .select('total_amount')
-      .in('status', ['ongoing', 'in_use', 'late_return', 'partial'])
-      .gte('start_date', startDate.toISOString().split('T')[0])
-      .lte('start_date', endDate.toISOString().split('T')[0]);
-    const ongoingRevenue = ongoingOrders?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
-
-    const { data: scheduledOrders } = await supabase
-      .from('orders')
-      .select('advance_amount')
-      .in('status', ['scheduled', 'pending'])
-      .eq('advance_collected', true)
-      .gte('created_at', startDate.toISOString())
-      .lte('created_at', endDate.toISOString());
-    const scheduledRevenue = scheduledOrders?.reduce((sum, o) => sum + Number(o.advance_amount || 0), 0) || 0;
-
-    // 3. Cancellation Stats
-    const { count: currentCancelCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'cancelled')
-      .gte('cancelled_at', startDate.toISOString())
-      .lte('cancelled_at', endDate.toISOString());
-
-    const { count: prevCancelCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'cancelled')
-      .gte('cancelled_at', prevStartDate.toISOString())
-      .lte('cancelled_at', prevEndDate.toISOString());
-
-    const cancelCurrent = currentCancelCount || 0;
-    const cancelPrev = prevCancelCount || 0;
+    const cancelCurrent = currentCancelRes.count || 0;
+    const cancelPrev = prevCancelRes.count || 0;
     const cancelChange = cancelPrev === 0 ? 0 : ((cancelCurrent - cancelPrev) / cancelPrev) * 100;
 
-    // 4. Overdue Orders
-    const { data: activeOrders } = await supabase
-      .from('orders')
-      .select('id, status, end_date')
-      .in('status', ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending']);
-
-    const overdueOrders = activeOrders?.filter(o =>
+    const overdueOrders = activeOrdersRes.data?.filter(o =>
       ['ongoing', 'in_use', 'late_return'].includes(o.status) && new Date(o.end_date) < now
     ) || [];
 
-    // 5. Utilization
-    const { count: totalProducts } = await supabase
-      .from('products')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_active', true);
-
-    const { data: rentedItems } = await supabase
-      .from('order_items')
-      .select('product_id, orders!inner(status)')
-      .in('orders.status', ['ongoing', 'in_use', 'late_return']);
-
-    const uniqueRentedProducts = new Set((rentedItems || []).map((i: any) => i.product_id));
+    const totalProducts = totalProductsRes.count || 0;
+    const uniqueRentedProducts = new Set((rentedItemsRes.data || []).map((i: any) => i.product_id));
     const rentedOut = uniqueRentedProducts.size;
-    const utilizationPercentage = totalProducts && totalProducts > 0
-      ? Math.round((rentedOut / totalProducts) * 100) : 0;
-
-    // 6. Booking Velocity (next 15 days)
-    const velocityEndDate = addDays(now, 15);
-    const { data: upcomingOrders } = await supabase
-      .from('orders')
-      .select('start_date, status')
-      .gte('start_date', now.toISOString())
-      .lte('start_date', velocityEndDate.toISOString())
-      .neq('status', 'cancelled');
+    const utilizationPercentage = totalProducts > 0 ? Math.round((rentedOut / totalProducts) * 100) : 0;
 
     const velocityMap = new Map<string, number>();
-    upcomingOrders?.forEach(order => {
+    upcomingOrdersRes.data?.forEach(order => {
       const dateStr = format(new Date(order.start_date), 'yyyy-MM-dd');
       velocityMap.set(dateStr, (velocityMap.get(dateStr) || 0) + 1);
     });
@@ -404,19 +411,9 @@ export class DashboardService {
       return { date: format(d, 'MMM dd'), count: velocityMap.get(dateStr) || 0 };
     });
 
-    // 7. Top Performers (ROI)
-    const roiLimit = overrides?.roiLimit || 3;
-    let roiQuery = supabase
-      .from('order_items')
-      .select('product_id, quantity, price_per_day, orders!inner(status, created_at), products(name)')
-      .neq('orders.status', 'cancelled')
-      .gte('orders.created_at', startDate.toISOString())
-      .lte('orders.created_at', endDate.toISOString());
-
-    const { data: roiItems } = await roiQuery.returns<any[]>();
-
+    // ROI Processing
     const productStats = new Map<string, { name: string; rentals: number; revenue: number }>();
-    roiItems?.forEach(item => {
+    roiItemsRes.data?.forEach(item => {
       if (!item.products) return;
       const pid = item.product_id;
       const stats = productStats.get(pid) || { name: item.products.name, rentals: 0, revenue: 0 };
@@ -430,25 +427,9 @@ export class DashboardService {
       .slice(0, roiLimit)
       .map((p, i) => ({ id: String(i), ...p }));
 
-    // 8. Category Revenue
-    let catStartDate = startDate;
-    if (overrides?.categoryPeriod === 'year') {
-      const d = new Date(); d.setFullYear(d.getFullYear() - 1); catStartDate = d;
-    } else if (overrides?.categoryPeriod === 'all') {
-      catStartDate = new Date(2000, 0, 1);
-    }
-
-    let catQuery = supabase
-      .from('order_items')
-      .select('quantity, price_per_day, orders!inner(status, created_at), products(categories:category_id(name))')
-      .neq('orders.status', 'cancelled')
-      .gte('orders.created_at', catStartDate.toISOString())
-      .lte('orders.created_at', endDate.toISOString());
-
-    const { data: catItems } = await catQuery.returns<any[]>();
-
+    // Category Processing
     const categoryRevenueMap = new Map<string, { name: string; revenue: number }>();
-    catItems?.forEach(item => {
+    catItemsRes.data?.forEach(item => {
       if (!item.products?.categories) return;
       const catName = item.products.categories.name || 'Uncategorized';
       const existing = categoryRevenueMap.get(catName) || { name: catName, revenue: 0 };
@@ -456,8 +437,7 @@ export class DashboardService {
       categoryRevenueMap.set(catName, existing);
     });
 
-    const categoryRevenueArr = Array.from(categoryRevenueMap.values())
-      .sort((a, b) => b.revenue - a.revenue);
+    const categoryRevenueArr = Array.from(categoryRevenueMap.values()).sort((a, b) => b.revenue - a.revenue);
     const totalCategoryRevenue = categoryRevenueArr.reduce((sum, c) => sum + c.revenue, 0);
     const categoryRevenue = categoryRevenueArr.slice(0, 5).map(c => ({
       name: c.name,
@@ -465,23 +445,9 @@ export class DashboardService {
       percentage: totalCategoryRevenue > 0 ? Math.round((c.revenue / totalCategoryRevenue) * 100) : 0,
     }));
 
-    // 9. Dead Stock (90+ days with no orders)
-    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const { data: recentOrderProductIds } = await supabase
-      .from('order_items')
-      .select('product_id, orders!inner(created_at)')
-      .gte('orders.created_at', ninetyDaysAgo.toISOString())
-      .returns<any[]>();
-
-    const recentProductIdSet = new Set(recentOrderProductIds?.map(i => i.product_id) || []);
-
-    const { data: allActiveProducts } = await supabase
-      .from('products')
-      .select('id, name, price_per_day, created_at')
-      .eq('is_active', true)
-      .limit(100);
-
-    const deadStock = (allActiveProducts || [])
+    // Dead Stock
+    const recentProductIdSet = new Set(recentOrderRes.data?.map(i => i.product_id) || []);
+    const deadStock = (allActiveProductsRes.data || [])
       .filter(p => !recentProductIdSet.has(p.id))
       .map(p => ({
         id: p.id,
@@ -500,22 +466,14 @@ export class DashboardService {
         percentageChange: Math.abs(Math.round(percentageChange)),
         isPositive: percentageChange >= 0,
       },
-      revenueByStatus: {
-        completedRevenue,
-        ongoingRevenue,
-        scheduledRevenue,
-      },
+      revenueByStatus: { completedRevenue, ongoingRevenue, scheduledRevenue },
       cancellationStats: {
         currentCount: cancelCurrent,
         previousCount: cancelPrev,
         percentageChange: Math.abs(Math.round(cancelChange)),
-        isPositive: cancelChange <= 0, // fewer cancellations is positive
+        isPositive: cancelChange <= 0,
       },
-      utilization: {
-        percentage: utilizationPercentage,
-        rentedOut,
-        totalProducts: totalProducts || 0,
-      },
+      utilization: { percentage: utilizationPercentage, rentedOut, totalProducts },
       actionRequired: {
         totalIssues: overdueOrders.length,
         overdueCount: overdueOrders.length,
@@ -533,26 +491,15 @@ export class DashboardService {
         message: `Order #${o.id.substring(0, 8)} is overdue for return`,
         severity: 'high' as const,
       })),
-      priorityCleaning: (await (async () => {
-        const { data } = await supabase
-          .from('orders')
-          .select('id, start_date, customer:customer_id(name), order_items(quantity, products(name))')
-          .eq('buffer_override', true)
-          .in('status', ['scheduled', 'pending', 'confirmed'])
-          .gte('start_date', now.toISOString().split('T')[0])
-          .order('start_date', { ascending: true })
-          .limit(5);
-
-        return (data || []).map((o: any) => ({
-          id: o.id,
-          customerName: o.customer?.name || 'Unknown',
-          startDate: o.start_date,
-          products: o.order_items?.map((item: any) => ({
-            name: item.products?.name || 'Unknown Product',
-            quantity: item.quantity,
-          })) || [],
-        }));
-      })()),
+      priorityCleaning: (priorityRes.data || []).map((o: any) => ({
+        id: o.id,
+        customerName: o.customer?.name || 'Unknown',
+        startDate: o.start_date,
+        products: o.order_items?.map((item: any) => ({
+          name: item.products?.name || 'Unknown Product',
+          quantity: item.quantity,
+        })) || [],
+      })),
     };
   }
 }

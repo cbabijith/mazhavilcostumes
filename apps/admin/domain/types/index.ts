@@ -223,6 +223,8 @@ export type {
   DayWiseBookingRow,
   DueOverdueRow,
   RevenueRow,
+  RevenueDetailRow,
+  RevenueReportData,
   TopCostumeRow,
   TopCustomerRow,
   RentalFrequencyRow,

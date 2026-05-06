@@ -13,6 +13,8 @@ import type {
   DayWiseBookingRow,
   DueOverdueRow,
   RevenueRow,
+  RevenueDetailRow,
+  RevenueReportData,
   TopCostumeRow,
   TopCustomerRow,
   RentalFrequencyRow,
@@ -94,40 +96,161 @@ export class ReportService {
     });
   }
 
-  /** R3: Revenue report */
-  async getRevenue(filters: ReportFilters): Promise<RevenueRow[]> {
+  /** R3: Revenue report - Scalable Dual-Query Approach */
+  async getRevenue(filters: ReportFilters): Promise<RevenueReportData> {
     const period = filters.period || 'month';
     const fromDate = filters.from_date || this.getPeriodStart(period);
     const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const limit = filters.limit || 50;
+    const page = filters.page || 1;
+    const offset = (page - 1) * limit;
 
-    const { data } = await supabase()
-      .from('orders')
-      .select('id, status, total_amount, amount_paid, advance_amount, created_at')
+    // 1. Fetch Aggregation Data (Small payload, all records in range)
+    let aggQuery = supabase()
+      .from('payments')
+      .select(`
+        amount,
+        payment_mode,
+        payment_date,
+        created_at,
+        order:order_id (
+          id,
+          status
+        )
+      `)
       .gte('created_at', `${fromDate}T00:00:00`)
       .lte('created_at', `${toDate}T23:59:59`)
-      .neq('status', 'cancelled');
+      .neq('payment_type', 'refund');
 
-    // Group by period
-    const groups: Record<string, { completed: number; ongoing: number; scheduled: number; count: number }> = {};
-    for (const o of (data || []) as any[]) {
-      const key = this.getPeriodKey(o.created_at, period);
-      if (!groups[key]) groups[key] = { completed: 0, ongoing: 0, scheduled: 0, count: 0 };
-      groups[key].count++;
-      const amount = Number(o.amount_paid || o.total_amount || 0);
-      const status = (o.status || '').toLowerCase();
-      if (['completed', 'returned'].includes(status)) groups[key].completed += amount;
-      else if (['ongoing', 'in_use', 'delivered'].includes(status)) groups[key].ongoing += amount;
-      else if (['scheduled', 'pending', 'confirmed'].includes(status)) groups[key].scheduled += Number(o.advance_amount || 0);
+    if (filters.payment_mode && filters.payment_mode !== 'all') {
+      aggQuery = aggQuery.eq('payment_mode', filters.payment_mode);
     }
 
-    return Object.entries(groups).map(([period, v]) => ({
-      period,
-      completed_revenue: Math.round(v.completed * 100) / 100,
-      ongoing_revenue: Math.round(v.ongoing * 100) / 100,
-      scheduled_revenue: Math.round(v.scheduled * 100) / 100,
-      total_revenue: Math.round((v.completed + v.ongoing + v.scheduled) * 100) / 100,
-      order_count: v.count,
+    // 2. Fetch Paginated Details (Full payload, slice only)
+    let detailsQuery = supabase()
+      .from('payments')
+      .select(`
+        id,
+        amount,
+        payment_mode,
+        payment_date,
+        created_at,
+        order:order_id (
+          id,
+          status,
+          customer:customer_id (
+            name
+          )
+        )
+      `, { count: 'exact' })
+      .gte('created_at', `${fromDate}T00:00:00`)
+      .lte('created_at', `${toDate}T23:59:59`)
+      .neq('payment_type', 'refund')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (filters.payment_mode && filters.payment_mode !== 'all') {
+      detailsQuery = detailsQuery.eq('payment_mode', filters.payment_mode);
+    }
+
+    // Execute in parallel
+    const [aggResult, detailsResult] = await Promise.all([aggQuery, detailsQuery]);
+
+    if (aggResult.error) throw new Error(aggResult.error.message);
+    if (detailsResult.error) throw new Error(detailsResult.error.message);
+
+    const allPayments = (aggResult.data || []) as any[];
+    const detailsData = (detailsResult.data || []) as any[];
+    const totalDetailsCount = detailsResult.count || 0;
+
+    // Process Summary (Always based on ALL records in range)
+    const summaryGroups: Record<string, RevenueRow> = {};
+    let totalCash = 0;
+    let totalUpi = 0;
+    let totalCard = 0;
+    let totalCollected = 0;
+    const orderCounts: Record<string, Set<string>> = {};
+
+    for (const p of allPayments) {
+      const order = p.order;
+      if (!order) continue;
+
+      const amount = Number(p.amount || 0);
+      const mode = (p.payment_mode || '').toLowerCase();
+      const status = (order.status || '').toLowerCase();
+      const date = p.payment_date || p.created_at;
+      const key = this.getPeriodKey(date, period);
+
+      totalCollected += amount;
+      if (mode === 'cash') totalCash += amount;
+      else if (mode === 'upi') totalUpi += amount;
+      else if (mode === 'card') totalCard += amount;
+
+      if (!summaryGroups[key]) {
+        summaryGroups[key] = {
+          period: key,
+          completed_revenue: 0,
+          ongoing_revenue: 0,
+          scheduled_revenue: 0,
+          cash_revenue: 0,
+          upi_revenue: 0,
+          card_revenue: 0,
+          other_revenue: 0,
+          total_revenue: 0,
+          order_count: 0
+        };
+        orderCounts[key] = new Set();
+      }
+
+      const g = summaryGroups[key];
+      g.total_revenue += amount;
+      orderCounts[key].add(order.id);
+
+      // Status breakdown
+      if (['completed', 'returned'].includes(status)) g.completed_revenue += amount;
+      else if (['ongoing', 'in_use', 'delivered', 'late_return'].includes(status)) g.ongoing_revenue += amount;
+      else g.scheduled_revenue += amount;
+
+      // Mode breakdown
+      if (mode === 'cash') g.cash_revenue += amount;
+      else if (mode === 'upi') g.upi_revenue += amount;
+      else if (mode === 'card') g.card_revenue += amount;
+      else g.other_revenue += amount;
+    }
+
+    // Finalize summary
+    const summary = Object.entries(summaryGroups).map(([key, g]) => ({
+      ...g,
+      order_count: orderCounts[key].size,
+      total_revenue: Math.round(g.total_revenue * 100) / 100,
+      completed_revenue: Math.round(g.completed_revenue * 100) / 100,
+      ongoing_revenue: Math.round(g.ongoing_revenue * 100) / 100,
+      scheduled_revenue: Math.round(g.scheduled_revenue * 100) / 100,
+      cash_revenue: Math.round(g.cash_revenue * 100) / 100,
+      upi_revenue: Math.round(g.upi_revenue * 100) / 100,
+      card_revenue: Math.round(g.card_revenue * 100) / 100,
+      other_revenue: Math.round(g.other_revenue * 100) / 100,
     }));
+
+    // Process Details (Paginated)
+    const details: RevenueDetailRow[] = detailsData.map(p => ({
+      date: p.payment_date || p.created_at,
+      order_id: p.order?.id || 'Unknown',
+      customer_name: p.order?.customer?.name || 'Unknown',
+      payment_mode: p.payment_mode,
+      amount: Number(p.amount || 0),
+      status: p.order?.status || 'unknown'
+    }));
+
+    return {
+      summary,
+      details,
+      total_details_count: totalDetailsCount,
+      total_cash: Math.round(totalCash * 100) / 100,
+      total_upi: Math.round(totalUpi * 100) / 100,
+      total_card: Math.round(totalCard * 100) / 100,
+      total_collected: Math.round(totalCollected * 100) / 100
+    };
   }
 
   /** R4: Top costumes */
