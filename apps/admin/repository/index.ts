@@ -27,3 +27,4 @@ export { CustomerRepository, customerRepository } from './customerRepository';
 export { orderRepository } from './orderRepository';
 export { settingsRepository } from './settingsRepository';
 export { paymentRepository } from './paymentRepository';
+export { cleaningRepository } from './cleaningRepository';

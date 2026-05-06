@@ -20,3 +20,4 @@ export { InvoiceService, invoiceService } from './invoiceService';
 export { BranchInventoryService, branchInventoryService } from './branchInventoryService';
 export { StaffService, staffService } from './staffService';
 export { ReportService, reportService } from './reportService';
+export { cleaningService } from './cleaningService';

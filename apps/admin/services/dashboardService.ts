@@ -23,8 +23,19 @@ export interface OperationalCard {
   filterUrl: string;
 }
 
+export interface PriorityCleaningOrder {
+  id: string;
+  customerName: string;
+  startDate: string;
+  products: {
+    name: string;
+    quantity: number;
+  }[];
+}
+
 export interface OperationalMetrics {
   cards: OperationalCard[];
+  priorityCleaning: PriorityCleaningOrder[];
 }
 
 export interface RevenueByStatus {
@@ -91,6 +102,7 @@ export interface DashboardMetrics {
     message: string;
     severity: 'high' | 'medium';
   }[];
+  priorityCleaning: PriorityCleaningOrder[];
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────────
@@ -174,8 +186,7 @@ export class DashboardService {
     const pendingReturnProducts = (pendingReturns || []).reduce((sum, o: any) =>
       sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
 
-    return {
-      cards: [
+    const cards = [
         {
           label: "Today's Bookings",
           orderCount: todaysBookings?.length || 0,
@@ -224,7 +235,32 @@ export class DashboardService {
           color: 'red',
           filterUrl: '/dashboard/orders?status=late_return',
         },
-      ],
+      ];
+
+    // 7. Priority Cleaning — Skip Gap orders needing urgent prep
+    // Fetch upcoming Skip Gap orders starting in the next 5 days
+    const { data: priorityOrders } = await supabase
+      .from('orders')
+      .select('id, start_date, buffer_override, customer:customer_id(name), items:order_items(product_id, quantity, product:product_id(name))')
+      .eq('buffer_override', true)
+      .in('status', ['confirmed', 'scheduled'])
+      .gte('start_date', todayStart.split('T')[0])
+      .lte('start_date', endOfDay(addDays(now, 5)).toISOString().split('T')[0])
+      .order('start_date', { ascending: true });
+
+    const priorityCleaning: PriorityCleaningOrder[] = (priorityOrders || []).map((o: any) => ({
+      id: o.id,
+      customerName: o.customer?.name || 'Unknown',
+      startDate: o.start_date,
+      products: (o.items || []).map((i: any) => ({
+        name: i.product?.name || 'Unknown',
+        quantity: i.quantity || 0,
+      })),
+    }));
+
+    return {
+      cards,
+      priorityCleaning,
     };
   }
 
@@ -497,6 +533,26 @@ export class DashboardService {
         message: `Order #${o.id.substring(0, 8)} is overdue for return`,
         severity: 'high' as const,
       })),
+      priorityCleaning: (await (async () => {
+        const { data } = await supabase
+          .from('orders')
+          .select('id, start_date, customer:customer_id(name), order_items(quantity, products(name))')
+          .eq('buffer_override', true)
+          .in('status', ['scheduled', 'pending', 'confirmed'])
+          .gte('start_date', now.toISOString().split('T')[0])
+          .order('start_date', { ascending: true })
+          .limit(5);
+
+        return (data || []).map((o: any) => ({
+          id: o.id,
+          customerName: o.customer?.name || 'Unknown',
+          startDate: o.start_date,
+          products: o.order_items?.map((item: any) => ({
+            name: item.products?.name || 'Unknown Product',
+            quantity: item.quantity,
+          })) || [],
+        }));
+      })()),
     };
   }
 }

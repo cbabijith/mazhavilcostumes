@@ -19,6 +19,8 @@ import {
 } from '@/domain/types/order';
 import { orderRepository } from '@/repository';
 import { settingsService } from './settingsService';
+import { cleaningService } from './cleaningService';
+import { CleaningPriority } from '@/domain';
 
 export class OrderService {
   private currentUserId: string | null = null;
@@ -410,8 +412,53 @@ export class OrderService {
     const result = await orderRepository.processReturn(orderId, returnData);
     
     // After return processing, check if both tracks are done for auto-complete
-    if (result.success) {
+    if (result.success && result.data) {
       await this.checkAndAutoComplete(orderId);
+
+      // ─── PHASE 2: AUTO-CREATE CLEANING RECORDS ─────────────────────────────────
+      try {
+        const order = result.data;
+        const branchId = order.branch_id;
+        
+        for (const item of order.items || []) {
+          // Check for upcoming Skip Gap orders for this product to mark as URGENT
+          // We look for orders starting within the next 3 days (buffer period)
+          const now = new Date();
+          const threeDaysLater = new Date();
+          threeDaysLater.setDate(now.getDate() + 3);
+
+          const { data: upcomingOrders } = await orderRepository.findAll({
+            branch_id: branchId,
+            product_id: item.product_id,
+            status: [OrderStatus.SCHEDULED, OrderStatus.CONFIRMED],
+            buffer_override: true,
+          });
+
+          // Filter for those starting very soon (in the buffer overlap)
+          const urgentOrder = (upcomingOrders || []).find(o => {
+            const hasProduct = o.items.some(oi => oi.product_id === item.product_id);
+            const start = new Date(o.start_date);
+            return hasProduct && start >= now && start <= threeDaysLater;
+          });
+
+          // ONLY create cleaning records for URGENT items (needed for upcoming Skip Gap bookings)
+          // This keeps the cleaning queue focused and prevents cluttering for high-volume products.
+          if (urgentOrder) {
+            await cleaningService.createRecord({
+              product_id: item.product_id,
+              order_id: orderId, // The order being returned
+              branch_id: branchId,
+              quantity: item.quantity,
+              priority: CleaningPriority.URGENT,
+              priority_order_id: urgentOrder.id,
+              notes: `Needed for urgent Skip Gap Order #${urgentOrder.id.substring(0, 8)}`,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Failed to create cleaning records:', err);
+        // We don't block the return process if cleaning record creation fails
+      }
     }
 
     return result;

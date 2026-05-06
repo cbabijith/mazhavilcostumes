@@ -237,3 +237,16 @@ export type {
 } from './report';
 
 export { REPORT_LIST } from './report';
+
+// Cleaning types
+export type {
+  CleaningRecord,
+  CreateCleaningRecordDTO,
+  UpdateCleaningRecordDTO,
+  CleaningSearchParams,
+} from './cleaning';
+
+export {
+  CleaningStatus,
+  CleaningPriority,
+} from './cleaning';

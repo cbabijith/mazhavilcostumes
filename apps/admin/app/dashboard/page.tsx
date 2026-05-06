@@ -28,6 +28,7 @@ import {
   ClockAlert,
   XCircle,
   BarChart3,
+  Zap,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -430,8 +431,8 @@ export default async function DashboardPage(props: {
             </Card>
           </div>
 
-          {/* Top Performers + Dead Stock + Bottlenecks */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Top Performers + Dead Stock + Bottlenecks + Priority Cleaning */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             <Card className="border-0 shadow-sm bg-white overflow-hidden flex flex-col">
               <CardHeader className="border-b border-slate-50 bg-slate-50/50 flex flex-row items-center justify-between space-y-0 py-3 px-6">
                 <div>
@@ -523,6 +524,7 @@ export default async function DashboardPage(props: {
                 )}
               </CardContent>
             </Card>
+
           </div>
         </>
       )}

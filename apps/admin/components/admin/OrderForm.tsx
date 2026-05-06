@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfDay } from "date-fns";
 import {
-  Search, Plus, Minus, Trash2, Calendar, User, Package,
-  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, CalendarDays
+  Search, Plus, Minus, Trash2, Calendar, User, Package, UserPlus,
+  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, CalendarDays, X
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -114,12 +114,12 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Sync selected customer's address to delivery address if empty
+  // Auto-fill delivery address when a customer is selected (new orders)
   useEffect(() => {
-    if (selectedCustomer?.address && !deliveryAddress && !isEditing) {
-      setDeliveryAddress(selectedCustomer.address);
+    if (selectedCustomer && !isEditing) {
+      setDeliveryAddress(selectedCustomer.address || "");
     }
-  }, [selectedCustomer, deliveryAddress, isEditing]);
+  }, [selectedCustomer, isEditing]);
 
   // Set Dates Quick Action — uses the currently selected start date
   const handleQuickDate = (days: number) => {
@@ -317,12 +317,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     }
 
     const existing = cartItems.find(p => p.product.id === product.id);
-    if (existing && product.available_quantity !== undefined && existing.quantity >= product.available_quantity) {
-      showError("Stock Limit Reached", `Only ${product.available_quantity} available in stock.`);
-      return;
-    }
-
     const cartAvail = availabilityMap.get(product.id);
+    
     if (existing && cartAvail && existing.quantity >= cartAvail.available) {
       showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
       return;
@@ -342,12 +338,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const updateCartQty = (productId: string, delta: number) => {
     if (delta > 0) {
       const itemToUpdate = cartItems.find(p => p.product.id === productId);
-      if (itemToUpdate && itemToUpdate.product.available_quantity !== undefined && itemToUpdate.quantity >= itemToUpdate.product.available_quantity) {
-        showError("Stock Limit Reached", `Only ${itemToUpdate.product.available_quantity} available in stock.`);
-        return;
-      }
-
       const cartAvail = availabilityMap.get(productId);
+      
       if (cartAvail && itemToUpdate && itemToUpdate.quantity >= cartAvail.available) {
         showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
         return;
@@ -421,6 +413,23 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   };
 
   // Quick Add Customer
+  const openQuickAddDialog = () => {
+    // Pre-fill from search text
+    const trimmed = customerSearch.trim();
+    const isPhone = /^\d+$/.test(trimmed);
+    if (isPhone) {
+      setQuickAddPhone(trimmed);
+      setQuickAddName("");
+    } else {
+      setQuickAddName(trimmed);
+      setQuickAddPhone("");
+    }
+    setQuickAddAltPhone("");
+    setQuickAddAddress("");
+    setIsQuickAddMode(true);
+    setIsCustomerDropdownOpen(false);
+  };
+
   const handleQuickAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickAddName.trim() || !quickAddPhone.trim()) {
@@ -555,112 +564,62 @@ export default function OrderForm({ initialData }: OrderFormProps) {
               Customer
             </h3>
             {!selectedCustomer ? (
-              <div className="relative" ref={customerRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <Input
-                    placeholder="Search customer by name or phone..."
-                    className="pl-10 h-12 border-slate-200 focus:border-slate-900 text-base"
-                    value={customerSearch}
-                    onChange={(e) => {
-                      setCustomerSearch(e.target.value);
-                      setIsCustomerDropdownOpen(true);
-                    }}
-                    onFocus={() => setIsCustomerDropdownOpen(true)}
-                  />
-                </div>
-                {isCustomerDropdownOpen && customerSearch.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
-                    {isQuickAddMode ? (
-                      <div className="p-4 space-y-3">
-                        <h5 className="text-sm font-semibold text-slate-900">Create New Customer</h5>
-                        <form onSubmit={handleQuickAddSubmit} className="space-y-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Full Name</label>
-                            <Input
-                              value={quickAddName}
-                              onChange={e => setQuickAddName(e.target.value)}
-                              placeholder="Customer name"
-                              className="h-9 border-slate-200 focus:border-slate-900"
-                              autoFocus
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Phone Number</label>
-                            <Input
-                              value={quickAddPhone}
-                              onChange={e => setQuickAddPhone(e.target.value)}
-                              placeholder="9876543210"
-                              className="h-9 border-slate-200 focus:border-slate-900"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Alternate Phone <span className="text-slate-400 normal-case">(Optional)</span></label>
-                            <Input
-                              value={quickAddAltPhone}
-                              onChange={e => setQuickAddAltPhone(e.target.value)}
-                              placeholder="2nd number"
-                              className="h-9 border-slate-200 focus:border-slate-900"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Address (Optional)</label>
-                            <textarea
-                              value={quickAddAddress}
-                              onChange={e => setQuickAddAddress(e.target.value)}
-                              placeholder="Customer address"
-                              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none"
-                              rows={2}
-                            />
-                          </div>
-                          <div className="flex gap-2 pt-1">
-                            <Button type="button" variant="outline" size="sm" onClick={() => setIsQuickAddMode(false)} className="flex-1 h-9 border-slate-200 text-slate-600">
-                              Cancel
-                            </Button>
-                            <Button type="submit" size="sm" className="flex-1 h-9 bg-slate-900 text-white hover:bg-slate-800 font-semibold" disabled={isCreatingCustomer}>
-                              {isCreatingCustomer ? "Saving..." : "Save & Select"}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1" ref={customerRef}>
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <Input
+                      placeholder="Search customer by name or phone..."
+                      className="pl-10 h-12 border-slate-200 focus:border-slate-900 text-base"
+                      value={customerSearch}
+                      onChange={(e) => {
+                        setCustomerSearch(e.target.value);
+                        setIsCustomerDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsCustomerDropdownOpen(true)}
+                    />
+                    {isCustomerDropdownOpen && customerSearch.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                        {customers.length > 0 ? (
+                          <ul className="py-1">
+                            {customers.map((c: any) => (
+                              <li
+                                key={c.id}
+                                className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer flex flex-col"
+                                onClick={() => { setSelectedCustomer(c); setIsCustomerDropdownOpen(false); setCustomerSearch(""); }}
+                              >
+                                <span className="font-medium text-slate-900 text-sm">{c.name}</span>
+                                <span className="text-xs text-slate-500">{c.phone}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="p-4 text-center">
+                            <p className="text-sm text-slate-500 mb-2">No customer found.</p>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-full h-9 border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
+                              onClick={openQuickAddDialog}
+                            >
+                              <Plus className="w-4 h-4 mr-1" /> Create &quot;{customerSearch}&quot;
                             </Button>
                           </div>
-                        </form>
-                      </div>
-                    ) : customers.length > 0 ? (
-                      <ul className="py-1">
-                        {customers.map((c: any) => (
-                          <li
-                            key={c.id}
-                            className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer flex flex-col"
-                            onClick={() => { setSelectedCustomer(c); setIsCustomerDropdownOpen(false); setCustomerSearch(""); }}
-                          >
-                            <span className="font-medium text-slate-900 text-sm">{c.name}</span>
-                            <span className="text-xs text-slate-500">{c.phone}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="p-4 text-center">
-                        <p className="text-sm text-slate-500 mb-2">No customer found.</p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full h-9 border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
-                          onClick={() => {
-                            setIsQuickAddMode(true);
-                            const isPhone = /^\d+$/.test(customerSearch.trim());
-                            if (isPhone) {
-                              setQuickAddPhone(customerSearch.trim());
-                              setQuickAddName("");
-                            } else {
-                              setQuickAddName(customerSearch.trim());
-                              setQuickAddPhone("");
-                            }
-                          }}
-                        >
-                          <Plus className="w-4 h-4 mr-1" /> Quick Add &quot;{customerSearch}&quot;
-                        </Button>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={openQuickAddDialog}
+                    className="h-12 w-12 flex-shrink-0 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                    title="Create New Customer"
+                  >
+                    <UserPlus className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
@@ -707,9 +666,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                     const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
                       setStartDate(newDate);
-                      if (startOfDay(endDate) < startOfDay(newDate)) {
-                        setEndDate(newDate);
-                      }
+                      setEndDate(addDays(newDate, 2));
                     }
                   }}
                 />
@@ -981,19 +938,34 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                         {item.buffer_override && avail && (avail as any).adjacentOrders?.length > 0 && (
                           <div className="mt-1.5 space-y-1">
                             {(avail as any).adjacentOrders.map((adj: any, idx: number) => {
-                              const adjStart = new Date(adj.startDate);
-                              const adjEnd = new Date(adj.endDate);
-                              const fmtDate = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                              const adjStart = new Date(adj.startDate).getTime();
+                              const adjEnd = new Date(adj.endDate).getTime();
+                              const fmtDate = (d: number) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                               const isBefore = adj.position === 'before';
+                              
+                              // Calculate gap in days
+                              const gapMs = isBefore ? (startDate.getTime() - adjEnd) : (adjStart - endDate.getTime());
+                              const gapDays = Math.max(0, Math.floor(gapMs / 86400000));
+                              
+                              // Determine color based on urgency
+                              // 0 days gap = same day turnover (Red)
+                              // 1 day gap = next day turnover (Amber)
+                              // 2+ days = Blue
+                              let colorClass = 'bg-blue-50 border-blue-200 text-blue-800';
+                              if (!isBefore) {
+                                if (gapDays === 0) colorClass = 'bg-red-50 border-red-200 text-red-800';
+                                else if (gapDays === 1) colorClass = 'bg-amber-50 border-amber-200 text-amber-800';
+                              }
+
                               return (
-                                <div key={idx} className={`px-2.5 py-2 rounded-lg text-[11px] border ${isBefore ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                <div key={idx} className={`px-2.5 py-2 rounded-lg text-[11px] border ${colorClass}`}>
                                   <div className="flex items-start gap-1.5">
                                     <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                                     <div>
                                       {isBefore ? (
                                         <p><strong>{item.product.name}</strong> was rented until <strong>{fmtDate(adjEnd)}</strong> ({adj.quantity} qty, {adj.customerName}). Confirm product is cleaned and ready.</p>
                                       ) : (
-                                        <p><strong>{item.product.name}</strong> has a booking starting <strong>{fmtDate(adjStart)}</strong> ({adj.quantity} qty, {adj.customerName}). <strong className="text-red-700">Must return by {fmtDate(endDate)}!</strong></p>
+                                        <p><strong>{item.product.name}</strong> has a booking starting <strong>{fmtDate(adjStart)}</strong> ({adj.quantity} qty, {adj.customerName}). {gapDays <= 1 ? <strong className={gapDays === 0 ? "text-red-700" : "text-amber-700"}>Must return by {fmtDate(endDate.getTime())}!</strong> : `Returning by ${fmtDate(endDate.getTime())} leaves a ${gapDays}-day gap.`}</p>
                                       )}
                                     </div>
                                   </div>
@@ -1014,8 +986,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           // No overlaps at all AND not already toggled on — don't show
                           if (!hasActualOverlaps && !hasBufferOnly && !item.buffer_override) return null;
 
-                          // Has actual date overlaps — disabled toggle with explanation
-                          if (hasActualOverlaps) {
+                          // Has actual date overlaps AND NO buffer-only overlaps — Skip Gap won't help
+                          // Disable toggle with explanation (UNLESS it's already turned on, then allow turning off)
+                          if (hasActualOverlaps && !hasBufferOnly && !item.buffer_override) {
                             return (
                               <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg border bg-slate-50/30 border-slate-100 opacity-50">
                                 <div className="relative inline-flex items-center">
@@ -1094,6 +1067,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 e.target.value = raw;
                                 if (raw === '') return;
                                 const val = Math.max(1, parseInt(raw));
+                                
+                                // Stock check
+                                const cartAvail = availabilityMap.get(item.product.id);
+                                if (cartAvail && val > cartAvail.available) {
+                                  showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
+                                  e.target.value = String(item.quantity);
+                                  return;
+                                }
+
                                 setCartItems(prev => prev.map(p =>
                                   p.product.id === item.product.id ? { ...p, quantity: val } : p
                                 ));
@@ -1101,6 +1083,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               onBlur={(e) => {
                                 const val = parseInt(e.target.value) || 1;
                                 const clamped = Math.max(1, val);
+                                
+                                // Stock check
+                                const cartAvail = availabilityMap.get(item.product.id);
+                                if (cartAvail && clamped > cartAvail.available) {
+                                  showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
+                                  e.target.value = String(item.quantity);
+                                  return;
+                                }
+
                                 e.target.value = String(clamped);
                                 setCartItems(prev => prev.map(p =>
                                   p.product.id === item.product.id ? { ...p, quantity: clamped } : p
@@ -1408,6 +1399,127 @@ export default function OrderForm({ initialData }: OrderFormProps) {
           </div>
         </div>
       </div>
+
+      {/* Create Customer Dialog */}
+      {isQuickAddMode && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in-0"
+          onClick={(e) => { if (e.target === e.currentTarget && !isCreatingCustomer) setIsQuickAddMode(false); }}
+        >
+          <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-2">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center">
+                  <UserPlus className="w-5 h-5 text-slate-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">New Customer</h3>
+                  <p className="text-xs text-slate-500">Add a new customer to this order</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsQuickAddMode(false)}
+                disabled={isCreatingCustomer}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleQuickAddSubmit} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Full Name <span className="text-red-400">*</span></label>
+                <Input
+                  value={quickAddName}
+                  onChange={e => setQuickAddName(e.target.value)}
+                  placeholder="Customer name"
+                  className={`h-11 border-slate-200 focus:border-slate-900 ${quickAddName.length > 0 && quickAddName.trim().length < 2 ? 'border-red-300 focus:border-red-500' : ''}`}
+                  autoFocus
+                />
+                {quickAddName.length > 0 && quickAddName.trim().length < 2 && (
+                  <p className="text-xs text-red-500">Name must be at least 2 characters</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Phone Number <span className="text-red-400">*</span></label>
+                <Input
+                  value={quickAddPhone}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    if (val.length <= 10) setQuickAddPhone(val);
+                  }}
+                  placeholder="9876543210"
+                  className={`h-11 border-slate-200 focus:border-slate-900 ${quickAddPhone.length > 0 && quickAddPhone.length !== 10 ? 'border-red-300 focus:border-red-500' : ''}`}
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+                {quickAddPhone.length > 0 && quickAddPhone.length !== 10 && (
+                  <p className="text-xs text-red-500">Phone number must be 10 digits ({quickAddPhone.length}/10)</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Alternate Phone <span className="text-slate-400 normal-case font-normal">(Optional)</span></label>
+                <Input
+                  value={quickAddAltPhone}
+                  onChange={e => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    if (val.length <= 10) setQuickAddAltPhone(val);
+                  }}
+                  placeholder="2nd number"
+                  className={`h-11 border-slate-200 focus:border-slate-900 ${quickAddAltPhone.length > 0 && quickAddAltPhone.length !== 10 ? 'border-red-300 focus:border-red-500' : ''}`}
+                  inputMode="numeric"
+                  maxLength={10}
+                />
+                {quickAddAltPhone.length > 0 && quickAddAltPhone.length !== 10 && (
+                  <p className="text-xs text-red-500">Phone number must be 10 digits ({quickAddAltPhone.length}/10)</p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Address <span className="text-slate-400 normal-case font-normal">(Optional)</span></label>
+                <textarea
+                  value={quickAddAddress}
+                  onChange={e => setQuickAddAddress(e.target.value)}
+                  placeholder="Customer address"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsQuickAddMode(false)}
+                  disabled={isCreatingCustomer}
+                  className="flex-1 h-11 border-slate-300 text-slate-600"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isCreatingCustomer || !quickAddName.trim() || quickAddPhone.length !== 10 || (quickAddAltPhone.length > 0 && quickAddAltPhone.length !== 10)}
+                  className="flex-1 h-11 bg-slate-900 text-white hover:bg-slate-800 font-semibold"
+                >
+                  {isCreatingCustomer ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 mr-1.5" />
+                      Save & Select
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

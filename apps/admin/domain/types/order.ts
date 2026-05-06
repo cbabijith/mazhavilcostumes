@@ -235,7 +235,9 @@ export interface ReturnOrderDTO {
 export interface OrderSearchParams {
   customer_id?: string;
   branch_id?: string;
-  status?: OrderStatus;
+  status?: OrderStatus | OrderStatus[];
+  product_id?: string;
+  buffer_override?: boolean;
   query?: string;
   date_filter?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
   date_from?: string;
