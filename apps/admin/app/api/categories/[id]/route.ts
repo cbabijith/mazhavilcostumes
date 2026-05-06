@@ -41,6 +41,7 @@ const UPDATE_FIELDS = [
   'is_global',
   'store_id',
   'gst_percentage',
+  'has_buffer',
 ] as const;
 
 function pickCategoryFields(body: Record<string, unknown>) {

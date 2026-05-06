@@ -442,8 +442,10 @@ export class OrderService {
           });
 
           // ONLY create cleaning records for URGENT items (needed for upcoming Skip Gap bookings)
-          // This keeps the cleaning queue focused and prevents cluttering for high-volume products.
-          if (urgentOrder) {
+          // AND only if the product's category requires a buffer.
+          const categoryHasBuffer = (item as any).product?.category?.has_buffer ?? true;
+
+          if (urgentOrder && categoryHasBuffer) {
             await cleaningService.createRecord({
               product_id: item.product_id,
               order_id: orderId, // The order being returned

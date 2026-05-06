@@ -18,11 +18,13 @@ import {
   FolderTree,
   Hash,
   ImageIcon,
+  RefreshCw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
+import { Switch } from "@/components/ui/switch";
 import { type Category, GST_OPTIONS } from "@/domain/types/category";
 import { useAppStore } from "@/stores";
 import {
@@ -66,6 +68,7 @@ export default function CategoryForm({
     parent_id: (category?.parent_id ?? defaultParentId ?? null) as string | null,
     store_id: user?.store_id || null,
     gst_percentage: category?.gst_percentage ?? 5,
+    has_buffer: category?.has_buffer ?? true,
   });
 
   const generateSlug = (name: string): string =>
@@ -353,6 +356,27 @@ export default function CategoryForm({
                 required
                 placeholder="auto-generated"
                 className="h-9 border-slate-200 focus:border-slate-900 font-mono text-xs"
+              />
+            </div>
+          </CategoryFormPanel>
+
+          <CategoryFormPanel
+            title="Operational Settings"
+            description="Control inventory and cleaning behavior"
+            action={<RefreshCw className="h-4 w-4 text-slate-400" />}
+          >
+            <div className="flex items-center justify-between p-3 rounded-lg border border-slate-100 bg-slate-50/50">
+              <div className="space-y-0.5">
+                <CategoryFieldLabel>Cleaning Buffer Required</CategoryFieldLabel>
+                <p className="text-[10px] text-slate-500 max-w-[180px]">
+                  Enforces a mandatory 1-day cleaning gap between rentals. Disable for items like ornaments.
+                </p>
+              </div>
+              <Switch
+                checked={formData.has_buffer}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, has_buffer: checked })
+                }
               />
             </div>
           </CategoryFormPanel>

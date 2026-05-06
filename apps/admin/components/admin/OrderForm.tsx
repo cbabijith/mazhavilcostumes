@@ -702,7 +702,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             {/* Buffer days info */}
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
               <Info className="w-4 h-4 flex-shrink-0 text-blue-500" />
-              <span className="flex-1">Products are blocked <strong>1 day before pickup</strong> and <strong>1 day after return</strong> for preparation. You can skip this per product in the cart using <Zap className="w-3 h-3 inline text-amber-500" /> Skip Gap.</span>
+              <span className="flex-1">Most products are blocked <strong>1 day before pickup</strong> and <strong>1 day after return</strong> for preparation. (Note: Some categories like Ornaments are exempt from this gap).</span>
             </div>
           </div>
 
@@ -982,6 +982,10 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           const hasActualOverlaps = actualConflicts.length > 0;
                           const hasBufferOnly = bufferOnlyList.length > 0;
                           const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+                          // If category doesn't have buffer, don't show Skip Gap UI (it's auto-skipped)
+                          const categoryHasBuffer = item.product.category?.has_buffer ?? true;
+                          if (!categoryHasBuffer) return null;
 
                           // No overlaps at all AND not already toggled on — don't show
                           if (!hasActualOverlaps && !hasBufferOnly && !item.buffer_override) return null;

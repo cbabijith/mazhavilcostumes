@@ -61,7 +61,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .order('created_at', { ascending: false });
@@ -169,7 +169,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .eq('branch_id', branchId)
@@ -201,10 +201,10 @@ export class OrderRepository extends BaseRepository {
     excludeOrderId?: string,
     bufferOverride: boolean = false
   ): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>> {
-    // Get product total quantity
+    // Get product total quantity and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select('quantity, name')
+      .select('quantity, name, category:category_id(has_buffer)')
       .eq('id', productId)
       .single();
 
@@ -213,6 +213,10 @@ export class OrderRepository extends BaseRepository {
     }
 
     const totalQuantity = productResponse.data?.quantity || 0;
+    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
+    const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active order items for this product with their order date ranges
     const ordersResponse = await this.client
@@ -229,7 +233,7 @@ export class OrderRepository extends BaseRepository {
     const reqEnd = new Date(endDate).getTime();
 
     // Buffer for the REQUESTING order
-    const reqBuffer = bufferOverride ? 0 : BUFFER_MS;
+    const reqBuffer = (bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
 
     // Collect bookings into categories
     const actualOverlaps: { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string; bufferOverride: boolean }[] = [];
@@ -264,12 +268,12 @@ export class OrderRepository extends BaseRepository {
       // Check ACTUAL rental date overlap (no buffer)
       const hasActualOverlap = ordStart <= reqEnd && ordEnd >= reqStart;
 
-      // Check buffer-extended overlap using EACH booking's own buffer + the standard buffer
-      // We use the standard BUFFER_MS here to identify "nearby" bookings consistently
-      const bookingBuffer = bookingInfo.bufferOverride ? 0 : BUFFER_MS;
+      // Check buffer-extended overlap using EACH booking's own buffer + the effective buffer
+      // We use effectiveBuffer here which is 0 if category has no buffer
+      const bookingBuffer = (bookingInfo.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
       const effectiveStart = ordStart - bookingBuffer;
       const effectiveEnd = ordEnd + bookingBuffer;
-      const hasBufferOverlap = effectiveStart <= (reqEnd + BUFFER_MS) && effectiveEnd >= (reqStart - BUFFER_MS);
+      const hasBufferOverlap = effectiveStart <= (reqEnd + effectiveBuffer) && effectiveEnd >= (reqStart - effectiveBuffer);
 
       if (hasActualOverlap) {
         actualOverlaps.push(bookingInfo);
@@ -342,7 +346,7 @@ export class OrderRepository extends BaseRepository {
         for (const booking of allRelevant) {
           const isActualDay = booking.start <= dayMs && booking.end >= dayMs;
           // Buffer zone: 1 day before start + 1 day after end (if booking didn't use buffer_override)
-          const bookingBuffer = booking.bufferOverride ? 0 : BUFFER_MS;
+          const bookingBuffer = (booking.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
           const bufferStart = booking.start - bookingBuffer;
           const bufferEnd = booking.end + bookingBuffer;
           const isBufferDay = !isActualDay && bufferStart <= dayMs && bufferEnd >= dayMs;
@@ -442,10 +446,10 @@ export class OrderRepository extends BaseRepository {
     rangeStart: string,
     rangeEnd: string,
   ): Promise<RepositoryResult<{ productId: string; productName: string; totalQuantity: number; days: any[] }>> {
-    // Get product info
+    // Get product info and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select('quantity, name')
+      .select('quantity, name, category:category_id(has_buffer)')
       .eq('id', productId)
       .single();
 
@@ -455,6 +459,8 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || '';
+    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
     const ordersResponse = await this.client
@@ -513,8 +519,8 @@ export class OrderRepository extends BaseRepository {
       for (const booking of bookings) {
         const bookingStartTime = booking.start.getTime();
         const bookingEndTime = booking.end.getTime();
-        const bufferedStartTime = bookingStartTime - BUFFER_MS;
-        const bufferedEndTime = bookingEndTime + BUFFER_MS;
+        const bufferedStartTime = bookingStartTime - effectiveBuffer;
+        const bufferedEndTime = bookingEndTime + effectiveBuffer;
 
         // Check if this booking (including buffer) covers the current day
         if (bufferedStartTime <= currentTime && bufferedEndTime >= currentTime) {
@@ -567,7 +573,7 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images)),
+        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
       `)
       .eq('id', id)
