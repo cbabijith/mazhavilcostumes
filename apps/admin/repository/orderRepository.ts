@@ -1354,6 +1354,57 @@ export class OrderRepository extends BaseRepository {
         changed_by: null,
       });
   }
+
+  /**
+   * Transition all overdue orders (ongoing/in_use past end_date) to late_return.
+   *
+   * This is a bulk operation intended to be called by:
+   *   1. A daily Vercel Cron Job
+   *   2. On-read when the orders list is fetched (lazy fallback)
+   *
+   * @returns Number of orders transitioned
+   */
+  async transitionOverdueToLateReturn(): Promise<number> {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Find all orders that are in ongoing/in_use AND past their end_date
+    const { data: overdueOrders, error } = await this.client
+      .from(this.tableName)
+      .select('id')
+      .in('status', ['ongoing', 'in_use'])
+      .lt('end_date', todayStr);
+
+    if (error || !overdueOrders || overdueOrders.length === 0) {
+      return 0;
+    }
+
+    const overdueIds = overdueOrders.map(o => o.id);
+
+    // Bulk update status to late_return
+    const { error: updateError } = await this.client
+      .from(this.tableName)
+      .update({ status: 'late_return' })
+      .in('id', overdueIds);
+
+    if (updateError) {
+      console.error('Failed to bulk-transition overdue orders:', updateError);
+      return 0;
+    }
+
+    // Insert status history entries for each transitioned order
+    const historyEntries = overdueIds.map(id => ({
+      order_id: id,
+      status: 'late_return',
+      notes: 'Auto-transitioned: rental period ended without return',
+      changed_by: null,
+    }));
+
+    await this.client
+      .from(this.orderStatusHistoryTable)
+      .insert(historyEntries);
+
+    return overdueIds.length;
+  }
 }
 
 // Singleton instance

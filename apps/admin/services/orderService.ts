@@ -491,6 +491,18 @@ export class OrderService {
       await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned + payment settled');
     }
   }
+
+  /**
+   * Transition all overdue orders (ongoing/in_use past end_date) to late_return.
+   * Called by:
+   *   1. Vercel Cron Job (daily)
+   *   2. On-read when the orders list is fetched (lazy fallback)
+   *
+   * @returns Number of orders transitioned
+   */
+  async transitionOverdueOrders(): Promise<number> {
+    return await orderRepository.transitionOverdueToLateReturn();
+  }
 }
 
 // Singleton instance
