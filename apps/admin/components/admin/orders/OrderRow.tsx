@@ -25,7 +25,7 @@ import {
   XCircle,
   Calendar,
   Package,
-  Zap,
+  Sparkles,
   MessageCircle,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -163,7 +163,7 @@ function OrderRowInner({
           {/* Buffer override indicator */}
           {order.buffer_override && (
             <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5 flex items-center gap-0.5">
-              <Zap className="w-2.5 h-2.5" /> Quick Booking
+              <Sparkles className="w-2.5 h-2.5" /> Prior Cleaning
             </Badge>
           )}
           

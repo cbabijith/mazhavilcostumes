@@ -1,24 +1,25 @@
-/**
- * Cleaning Queue Component
- *
- * Displays active cleaning tasks on the dashboard.
- *
- * @module components/admin/dashboard/CleaningQueue
- */
-
 "use client";
 
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
+import { 
   useCleaningQueue, 
-  useStartCleaning, 
   useCompleteCleaning 
 } from "@/hooks/useCleaning";
 import { CleaningStatus, CleaningPriority } from "@/domain";
-import { Package, Play, CheckCircle2, Clock, Zap, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { Package, Clock, Sparkles, Filter, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 interface CleaningQueueProps {
   branchId: string;
@@ -26,112 +27,173 @@ interface CleaningQueueProps {
 
 export function CleaningQueue({ branchId }: CleaningQueueProps) {
   const { data: queue, isLoading } = useCleaningQueue(branchId);
-  const { mutate: startCleaning, isPending: isStarting } = useStartCleaning();
   const { mutate: completeCleaning, isPending: isCompleting } = useCompleteCleaning();
+  const [filter, setFilter] = useState<'all' | 'priority'>('all');
 
-  const activeItems = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];
+  const activeItems = useMemo(() => {
+    let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];
+    if (filter === 'priority') {
+      items = items.filter(item => item.priority === CleaningPriority.URGENT);
+    }
+    return items;
+  }, [queue, filter]);
+
+  const getImageUrl = (item: any) => {
+    const images = item.product?.images;
+    if (!images || !Array.isArray(images) || images.length === 0) return null;
+    const img = images[0];
+    return typeof img === "string" ? img : img?.url || null;
+  };
 
   if (isLoading) {
     return (
-      <Card className="border-0 shadow-sm bg-white animate-pulse">
-        <div className="h-64 bg-slate-50 rounded-lg"></div>
+      <Card className="border-slate-200 shadow-sm bg-white">
+        <div className="h-[400px] flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+            <p className="text-sm text-slate-500 font-medium">Loading cleaning queue...</p>
+          </div>
+        </div>
       </Card>
     );
   }
 
   return (
-    <Card className="border-0 shadow-sm bg-white overflow-hidden flex flex-col h-full">
-      <CardHeader className="border-b border-slate-50 bg-slate-50/50 py-4 px-6">
-        <div className="flex items-center justify-between">
+    <Card className="border-slate-200 shadow-sm bg-white overflow-hidden flex flex-col h-full">
+      <CardHeader className="border-b border-slate-100 bg-slate-50/50 py-4 px-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Package className="w-4 h-4 text-slate-400" />
-              Cleaning Queue
+            <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Package className="w-5 h-5 text-slate-400" />
+              Cleaning Status
             </CardTitle>
-            <CardDescription className="text-[10px]">Items returned and needing prep</CardDescription>
+            <CardDescription className="text-xs">Products in cleaning/preparation phase</CardDescription>
           </div>
-          {activeItems.length > 0 && (
-            <Badge variant="secondary" className="bg-slate-100 text-slate-600 font-bold">
-              {activeItems.length}
-            </Badge>
-          )}
+          
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <Button 
+              variant={filter === 'all' ? 'secondary' : 'ghost'} 
+              size="sm" 
+              onClick={() => setFilter('all')}
+              className={`h-8 text-xs px-3 ${filter === 'all' ? 'bg-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              All Items
+            </Button>
+            <Button 
+              variant={filter === 'priority' ? 'secondary' : 'ghost'} 
+              size="sm" 
+              onClick={() => setFilter('priority')}
+              className={`h-8 text-xs px-3 ${filter === 'priority' ? 'bg-white shadow-sm text-amber-700' : 'text-slate-500 hover:text-slate-900'}`}
+            >
+              <Sparkles className="w-3 h-3 mr-1.5" />
+              Prior Cleaning
+            </Button>
+          </div>
         </div>
       </CardHeader>
       
-      <CardContent className="p-0 flex-1 overflow-y-auto max-h-[500px]">
+      <CardContent className="p-0">
         {activeItems.length > 0 ? (
-          <div className="divide-y divide-slate-50">
-            {activeItems.map((item) => (
-              <div key={item.id} className={`p-4 hover:bg-slate-50 transition-colors ${item.priority === CleaningPriority.URGENT ? 'bg-amber-50/20' : ''}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h4 className="text-sm font-bold text-slate-900 truncate">
-                        {item.product?.name || "Unknown Product"}
-                      </h4>
-                      {item.priority === CleaningPriority.URGENT && (
-                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[9px] px-1.5 h-4 gap-0.5">
-                          <Zap className="w-2.5 h-2.5 fill-amber-500" />
+          <Table>
+            <TableHeader className="bg-slate-50/50">
+              <TableRow>
+                <TableHead className="w-[300px] text-[11px] font-bold uppercase tracking-wider">Product</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Qty</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Return Time</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Urgency</TableHead>
+                <TableHead className="text-right text-[11px] font-bold uppercase tracking-wider">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {activeItems.map((item) => {
+                const imgUrl = getImageUrl(item);
+                const isUrgent = item.priority === CleaningPriority.URGENT;
+                
+                return (
+                  <TableRow key={item.id} className={isUrgent ? "bg-amber-50/30 hover:bg-amber-50/50" : ""}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={item.product?.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-300">
+                              <Package className="w-5 h-5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 truncate text-sm">
+                            {item.product?.name || "Unknown"}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Link 
+                              href={`/dashboard/orders/${item.order_id}`}
+                              className="text-[10px] text-slate-500 hover:text-blue-600 flex items-center gap-0.5"
+                            >
+                              Order #{item.order_id.substring(0, 8)}
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-black text-slate-700 text-sm">{item.quantity}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-slate-900">{format(new Date(item.created_at), 'h:mm a')}</span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {isUrgent ? (
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-2 py-0 h-5 gap-1 shadow-none">
+                          <Sparkles className="w-3 h-3 fill-amber-500" />
                           URGENT
                         </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-slate-500 border-slate-200 text-[10px] font-bold px-2 py-0 h-5 shadow-none">
+                          NORMAL
+                        </Badge>
                       )}
-                    </div>
-                    
-                    <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Package className="w-3 h-3" />
-                        Qty: {item.quantity}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {format(new Date(item.created_at), 'MMM d, h:mm a')}
-                      </span>
-                    </div>
-
-                    {item.notes && (
-                      <p className="mt-2 text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded flex items-center gap-1.5 font-medium">
-                        <AlertTriangle className="w-3 h-3" />
-                        {item.notes}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex flex-col gap-2 shrink-0">
-                    {item.status === CleaningStatus.PENDING ? (
+                    </TableCell>
+                    <TableCell className="text-right">
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="h-8 text-[10px] gap-1.5 border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
-                        onClick={() => startCleaning(item.id)}
-                        disabled={isStarting}
-                      >
-                        <Play className="w-3 h-3 fill-current" />
-                        Start
-                      </Button>
-                    ) : (
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-8 text-[10px] gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                        variant="ghost" 
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
                         onClick={() => completeCleaning(item.id)}
                         disabled={isCompleting}
+                        title="Mark as Ready"
                       >
-                        <CheckCircle2 className="w-3 h-3" />
-                        Done
+                        <CheckCircle2 className="w-4 h-4" />
                       </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         ) : (
-          <div className="py-12 text-center">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-50 mb-3">
-              <CheckCircle2 className="w-6 h-6 text-slate-300" />
+          <div className="py-20 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-50 mb-4">
+              <CheckCircle2 className="w-8 h-8 text-slate-200" />
             </div>
-            <p className="text-sm font-medium text-slate-500">Queue is empty</p>
-            <p className="text-[10px] text-slate-400 mt-1">All products are prepped and ready</p>
+            <p className="text-base font-bold text-slate-900">Queue is empty</p>
+            <p className="text-sm text-slate-500 mt-1">All returned items are ready for the next rental</p>
+            {filter === 'priority' && (
+              <Button 
+                variant="link" 
+                className="mt-2 text-blue-600 text-xs"
+                onClick={() => setFilter('all')}
+              >
+                Clear priority filter
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

@@ -414,11 +414,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <p className="text-2xl font-bold text-slate-900">{order.items.length} Pieces</p>
         </div>
       </div>
-      {/* Quick Booking indicator */}
+      {/* Prior Cleaning indicator */}
       {order.buffer_override && (
         <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-          <span className="text-base">⚡</span>
-          <span><strong>Quick Booking</strong> — The usual 1-day gap between rentals was skipped for this order. Please ensure the product was prepared before handover.</span>
+          <span className="text-base">✨</span>
+          <span><strong>Prior Cleaning</strong> — The usual 1-day gap between rentals was skipped for this order. Please ensure the product was prepared before handover.</span>
         </div>
       )}
 
@@ -822,7 +822,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 ) : order.status === OrderStatus.COMPLETED ? (
                   <>
                     <span className="text-lg font-black text-emerald-700">Settled</span>
-                    <span className="text-2xl font-black text-emerald-600">{formatCurrency(0)}</span>
+                    <span className="text-2xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
                   </>
                 ) : (
                   <>
