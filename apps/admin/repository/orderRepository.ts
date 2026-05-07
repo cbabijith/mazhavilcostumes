@@ -229,8 +229,9 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>(ordersResponse);
     }
 
-    const reqStart = new Date(startDate).getTime();
-    const reqEnd = new Date(endDate).getTime();
+    const DAY_MS = 86400000;
+    const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
+    const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
 
     // Buffer for the REQUESTING order
     const reqBuffer = (bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
@@ -245,8 +246,8 @@ export class OrderRepository extends BaseRepository {
       if (!order) continue;
       if (excludeOrderId && order.id === excludeOrderId) continue;
 
-      const ordStart = new Date(order.start_date).getTime();
-      const ordEnd = new Date(order.end_date).getTime();
+      const ordStart = Math.floor(new Date(order.start_date).getTime() / DAY_MS) * DAY_MS;
+      const ordEnd = Math.floor(new Date(order.end_date).getTime() / DAY_MS) * DAY_MS;
       const unreturned = item.quantity - (item.returned_quantity || 0);
       if (unreturned <= 0) continue;
 
@@ -269,8 +270,11 @@ export class OrderRepository extends BaseRepository {
       const hasActualOverlap = ordStart <= reqEnd && ordEnd >= reqStart;
 
       // Check buffer-extended overlap using EACH booking's own buffer + the effective buffer
-      // We use effectiveBuffer here which is 0 if category has no buffer
-      const bookingBuffer = (bookingInfo.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
+      // IMPORTANT: For availability checking of a NEW order, we ALWAYS assume existing orders 
+      // have their buffer, even if they themselves were 'Prior Cleaning' orders.
+      // This is because 'Prior Cleaning' only skips the buffer BEFORE the order,
+      // not the buffer AFTER it (unless the NEXT order also skips it).
+      const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
       const effectiveStart = ordStart - bookingBuffer;
       const effectiveEnd = ordEnd + bookingBuffer;
       const hasBufferOverlap = effectiveStart <= (reqEnd + effectiveBuffer) && effectiveEnd >= (reqStart - effectiveBuffer);
@@ -284,25 +288,25 @@ export class OrderRepository extends BaseRepository {
     }
 
     // ─── Availability Calculation ────────────────────────────────────────
-    // Two modes depending on whether the requesting order has Skip Gap ON/OFF.
+    // Two modes depending on whether the requesting order has Prior Cleaning ON/OFF.
     //
-    // When bufferOverride = true (Skip Gap ON):
+    // When bufferOverride = true (Prior Cleaning ON):
     //   Only count ACTUAL rental date overlaps. Buffers are ignored.
     //   → Available = total - peakActualUsage
     //
-    // When bufferOverride = false (Skip Gap OFF, default):
+    // When bufferOverride = false (Prior Cleaning OFF, default):
     //   Use per-day formula: blocked = actual_normal + max(buffer_only, actual_skipgap)
-    //   This avoids double-counting because Skip Gap orders take units FROM the buffer pool.
-    //   Example: 9 in buffer + 2 Skip Gap = max(9,2) = 9 blocked (not 11)
+    //   This avoids double-counting because Prior Cleaning orders take units FROM the buffer pool.
+    //   Example: 9 in buffer + 2 Prior Cleaning = max(9,2) = 9 blocked (not 11)
 
     let peakUsage = 0;
 
     if (bufferOverride) {
-      // ─── Skip Gap ON: simple sweep line on actual overlaps only ──────
+      // ─── Prior Cleaning ON: simple sweep line on actual overlaps only ──────
       const events: { time: number; delta: number }[] = [];
       for (const booking of actualOverlaps) {
         events.push({ time: booking.start, delta: +booking.quantity });
-        // Release on the same day (same-day turnover allowed in Skip Gap mode)
+        // Release on the same day (same-day turnover allowed in Prior Cleaning mode)
         events.push({ time: booking.end, delta: -booking.quantity });
       }
       // Sort by time. If same time, process PICKUPS (+delta) before RETURNS (-delta)
@@ -327,7 +331,7 @@ export class OrderRepository extends BaseRepository {
       }
       peakUsage = Math.max(peakUsage, baselineAtStart);
     } else {
-      // ─── Skip Gap OFF: per-day calculation with buffer awareness ─────
+      // ─── Prior Cleaning OFF: per-day calculation with buffer awareness ─────
       // For each day in the requested range, categorize bookings:
       //   actual_normal:  actual overlap, order did NOT use buffer_override
       //   actual_skipgap: actual overlap, order DID use buffer_override
@@ -345,8 +349,10 @@ export class OrderRepository extends BaseRepository {
 
         for (const booking of allRelevant) {
           const isActualDay = booking.start <= dayMs && booking.end >= dayMs;
-          // Buffer zone: 1 day before start + 1 day after end (if booking didn't use buffer_override)
-          const bookingBuffer = (booking.bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
+          // Buffer zone: 1 day before start + 1 day after end
+          // For future orders, we ALWAYS respect the existing booking's buffer,
+          // regardless of whether the existing order skipped its OWN buffer.
+          const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
           const bufferStart = booking.start - bookingBuffer;
           const bufferEnd = booking.end + bookingBuffer;
           const isBufferDay = !isActualDay && bufferStart <= dayMs && bufferEnd >= dayMs;
@@ -408,11 +414,11 @@ export class OrderRepository extends BaseRepository {
         total: totalQuantity,
         peakReserved: peakUsage,
         overlappingOrders: allOverlapping.map(b => {
-          // Compute buffer date range: 1 day before start, 1 day after end
-          // If the overlapping order itself has buffer_override, it has no buffer zone
-          const hasBuffer = !b.bufferOverride;
-          const bufferStart = hasBuffer ? new Date(b.start - BUFFER_MS).toISOString().split('T')[0] : null;
-          const bufferEnd = hasBuffer ? new Date(b.end + BUFFER_MS).toISOString().split('T')[0] : null;
+          // Compute potential buffer date range: 1 day before start, 1 day after end
+          // We show this even if it's currently skipped so the staff understands the timeline
+          const potentialBufferStart = categoryHasBuffer ? new Date(b.start - DAY_MS).toISOString().split('T')[0] : null;
+          const potentialBufferEnd = categoryHasBuffer ? new Date(b.end + DAY_MS).toISOString().split('T')[0] : null;
+          
           return {
             orderId: b.orderId,
             customerName: b.customerName,
@@ -420,8 +426,11 @@ export class OrderRepository extends BaseRepository {
             startDate: b.startDate,
             endDate: b.endDate,
             status: b.status,
-            bufferStartDate: bufferStart,
-            bufferEndDate: bufferEnd,
+            bufferStartDate: potentialBufferStart,
+            bufferEndDate: potentialBufferEnd,
+            // bufferSkipped: Flag if THIS order's current request is skipping its buffer
+            // For existing orders, we still show the buffer dates as requested
+            bufferSkipped: false, 
             bufferOnly: b.bufferOnly,
           };
         }),

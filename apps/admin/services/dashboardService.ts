@@ -237,8 +237,8 @@ export class DashboardService {
         },
       ];
 
-    // 7. Priority Cleaning — Skip Gap orders needing urgent prep
-    // Fetch upcoming Skip Gap orders starting in the next 5 days
+    // 7. Priority Cleaning — Prior Cleaning orders needing urgent prep
+    // Fetch upcoming Prior Cleaning orders starting in the next 5 days
     const { data: priorityOrders } = await supabase
       .from('orders')
       .select('id, start_date, buffer_override, customer:customer_id(name), items:order_items(product_id, quantity, product:product_id(name))')

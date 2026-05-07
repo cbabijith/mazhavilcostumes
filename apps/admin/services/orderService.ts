@@ -418,11 +418,26 @@ export class OrderService {
       // ─── PHASE 2: AUTO-CREATE CLEANING RECORDS ─────────────────────────────────
       try {
         const order = result.data;
+        if (!order) return result;
+        
         const branchId = order.branch_id;
+        if (!branchId) {
+          console.warn('Order return processed but no branch_id found on order for cleaning records');
+        }
         
         for (const item of order.items || []) {
-          // Check for upcoming Skip Gap orders for this product to mark as URGENT
-          // We look for orders starting within the next 3 days (buffer period)
+          if (!item.product_id) continue;
+
+          // 1. Check if the product's category requires a buffer.
+          // Handle both object and array response formats for safety
+          const product = (item as any).product;
+          const category = Array.isArray(product?.category) ? product.category[0] : product?.category;
+          const categoryHasBuffer = category?.has_buffer ?? true;
+          
+          if (!categoryHasBuffer) continue;
+
+          // 2. Identify if this item is URGENT (needed for an upcoming Prior Cleaning order)
+          // We look for orders starting within the next 3 days (buffer period overlap)
           const now = new Date();
           const threeDaysLater = new Date();
           threeDaysLater.setDate(now.getDate() + 3);
@@ -434,32 +449,27 @@ export class OrderService {
             buffer_override: true,
           });
 
-          // Filter for those starting very soon (in the buffer overlap)
           const urgentOrder = (upcomingOrders || []).find(o => {
-            const hasProduct = o.items.some(oi => oi.product_id === item.product_id);
+            const hasProduct = (o.items || []).some((oi: any) => oi.product_id === item.product_id);
             const start = new Date(o.start_date);
             return hasProduct && start >= now && start <= threeDaysLater;
           });
 
-          // ONLY create cleaning records for URGENT items (needed for upcoming Skip Gap bookings)
-          // AND only if the product's category requires a buffer.
-          const categoryHasBuffer = (item as any).product?.category?.has_buffer ?? true;
-
-          if (urgentOrder && categoryHasBuffer) {
-            await cleaningService.createRecord({
-              product_id: item.product_id,
-              order_id: orderId, // The order being returned
-              branch_id: branchId,
-              quantity: item.quantity,
-              priority: CleaningPriority.URGENT,
-              priority_order_id: urgentOrder.id,
-              notes: `Needed for urgent Skip Gap Order #${urgentOrder.id.substring(0, 8)}`,
-            });
-          }
+          // 3. Create cleaning record for ALL items with buffer (regardless of urgency)
+          await cleaningService.createRecord({
+            product_id: item.product_id,
+            order_id: orderId, 
+            branch_id: branchId || '', // Fallback to empty if not found
+            quantity: item.quantity,
+            priority: urgentOrder ? CleaningPriority.URGENT : CleaningPriority.NORMAL,
+            priority_order_id: urgentOrder?.id,
+            notes: urgentOrder 
+              ? `Urgently needed for Prior Cleaning Order #${urgentOrder.id.substring(0, 8)}`
+              : `Standard cleaning buffer`,
+          });
         }
       } catch (err) {
         console.error('Failed to create cleaning records:', err);
-        // We don't block the return process if cleaning record creation fails
       }
     }
 

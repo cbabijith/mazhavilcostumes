@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfDay } from "date-fns";
 import {
   Search, Plus, Minus, Trash2, Calendar, User, Package, UserPlus,
-  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, CalendarDays, X
+  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, Sparkles, CalendarDays, X
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -892,44 +892,42 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                           return (
                             <>
-                              {/* Actual overlapping bookings */}
-                              {actualConflicts.length > 0 && (
-                                <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
-                                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
-                                    Overlapping bookings
-                                  </p>
-                                  {actualConflicts.slice(0, 3).map((o: any, idx: number) => (
-                                    <div key={idx} className="text-[10px] text-slate-500 flex flex-wrap items-center gap-x-1.5">
-                                      <span>{o.customerName} — {o.quantity} unit{o.quantity > 1 ? 's' : ''}</span>
-                                      <span className="text-slate-600 font-medium">({fmtShort(o.startDate)} – {fmtShort(o.endDate)})</span>
-                                    </div>
-                                  ))}
-                                  {actualConflicts.length > 3 && (
-                                    <div className="text-[10px] text-slate-400">+{actualConflicts.length - 3} more</div>
-                                  )}
-                                </div>
-                              )}
+                                {((actualConflicts.length > 0 || nearbyBookings.length > 0)) && (
+                                  <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
+                                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                      Existing Bookings
+                                    </p>
+                                    {[...actualConflicts, ...nearbyBookings].slice(0, 5).map((o: any, idx: number) => (
+                                      <div key={idx} className="text-[10px] text-slate-500 flex flex-col gap-0.5 mb-1 last:mb-0 p-1.5 rounded bg-white/50 border border-slate-200/50">
+                                        <div className="flex items-center justify-between">
+                                          <span className="font-bold text-slate-800">{o.customerName} — {o.quantity} {o.quantity > 1 ? 'units' : 'unit'}</span>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-slate-600">{fmtShort(o.startDate)} – {fmtShort(o.endDate)}</span>
+                                            <span className={`${o.bufferSkipped ? 'text-slate-400 line-through decoration-amber-500/50' : 'text-amber-600 font-medium'} border-l border-slate-200 pl-2`}>
+                                              {o.bufferStartDate && o.bufferEndDate 
+                                                ? `Gap: ${fmtShort(o.bufferStartDate)} & ${fmtShort(o.bufferEndDate)}`
+                                                : 'No Buffer'}
+                                              {o.bufferSkipped && <span className="text-[8px] ml-1 text-amber-600 font-bold">(Prior Cleaning ON)</span>}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {(actualConflicts.length + nearbyBookings.length) > 5 && (
+                                      <div className="text-[10px] text-slate-400">+{(actualConflicts.length + nearbyBookings.length) - 5} more</div>
+                                    )}
+                                  </div>
+                                )}
 
-                              {/* Buffer-only nearby bookings — auto-allowed, informational */}
-                              {nearbyBookings.length > 0 && (
-                                <div className="mt-1 px-2 py-1.5 rounded-md bg-amber-50/70 border border-amber-200/60">
-                                  <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                    <Info className="w-3 h-3" /> Nearby bookings <span className="normal-case font-normal text-amber-500">(within gap period — auto-allowed)</span>
-                                  </p>
-                                  {nearbyBookings.slice(0, 3).map((o: any, idx: number) => (
-                                    <div key={idx} className="text-[10px] text-amber-600 flex flex-wrap items-center gap-x-1.5">
-                                      <span>{o.customerName} — {o.quantity} unit{o.quantity > 1 ? 's' : ''}</span>
-                                      <span className="text-amber-700 font-medium">({fmtShort(o.startDate)} – {fmtShort(o.endDate)})</span>
-                                      {o.bufferStartDate && o.bufferEndDate && (
-                                        <span className="text-[9px] text-amber-500 font-medium">
-                                          Gap: {fmtShort(o.bufferStartDate)} – {fmtShort(o.bufferEndDate)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  ))}
-                                  <p className="text-[9px] text-amber-500 mt-1">Product will be returned before this rental starts. Ensure it&apos;s prepared in time.</p>
-                                </div>
-                              )}
+                                {/* Buffer-only nearby bookings — show warning only if quantity exceeds truly available stock */}
+                                {nearbyBookings.length > 0 && item.quantity > avail.available && (
+                                  <div className="mt-1 px-2 py-1.5 rounded-md bg-amber-50/70 border border-amber-200/60">
+                                    <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                      <Info className="w-3 h-3" /> Nearby bookings <span className="normal-case font-normal text-amber-500">(within gap period — auto-allowed)</span>
+                                    </p>
+                                    <p className="text-[9px] text-amber-500 mt-1">Product will be returned before this rental starts. Ensure it&apos;s prepared in time.</p>
+                                  </div>
+                                )}
                             </>
                           );
                         })()}
@@ -983,14 +981,14 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           const hasBufferOnly = bufferOnlyList.length > 0;
                           const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-                          // If category doesn't have buffer, don't show Skip Gap UI (it's auto-skipped)
+                          // If category doesn't have buffer, don't show Prior Cleaning UI (it's auto-skipped)
                           const categoryHasBuffer = item.product.category?.has_buffer ?? true;
                           if (!categoryHasBuffer) return null;
 
                           // No overlaps at all AND not already toggled on — don't show
                           if (!hasActualOverlaps && !hasBufferOnly && !item.buffer_override) return null;
 
-                          // Has actual date overlaps AND NO buffer-only overlaps — Skip Gap won't help
+                          // Has actual date overlaps AND NO buffer-only overlaps — Prior Cleaning won't help
                           // Disable toggle with explanation (UNLESS it's already turned on, then allow turning off)
                           if (hasActualOverlaps && !hasBufferOnly && !item.buffer_override) {
                             return (
@@ -1000,7 +998,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                   <div className="absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow"></div>
                                 </div>
                                 <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                                  <Zap className="w-3 h-3" /> Skip Gap
+                                  <Sparkles className="w-3 h-3" /> Prior Cleaning
                                 </span>
                                 <span className="text-[10px] text-slate-400 ml-auto">Dates overlap directly</span>
                               </div>
@@ -1026,11 +1024,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                   <div className={`absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${item.buffer_override ? 'translate-x-3' : 'translate-x-0'}`}></div>
                                 </div>
                                 <span className={`text-[11px] font-medium flex items-center gap-1 ${item.buffer_override ? 'text-amber-700' : 'text-slate-500'}`}>
-                                  <Zap className="w-3 h-3" />
-                                  {item.buffer_override ? 'Skip Gap ON' : 'Skip Gap'}
+                                  <Sparkles className={`w-3 h-3 ${item.buffer_override ? 'animate-pulse' : ''}`} />
+                                  {item.buffer_override ? 'Prior Cleaning ON' : 'Prior Cleaning'}
                                 </span>
                                 {item.buffer_override && (
-                                  <span className="text-[10px] text-amber-600 font-medium ml-auto">1-day gap skipped</span>
+                                  <span className="text-[10px] text-amber-600 font-medium ml-auto">Cleaning prioritized</span>
                                 )}
                               </label>
                               {/* Contextual details: which booking's gap is being skipped */}
@@ -1040,7 +1038,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                     <div key={idx} className="flex items-center gap-1">
                                       <span>📋</span>
                                       <span>
-                                        <strong>{o.customerName}</strong>&apos;s order ({fmtShort(o.startDate)} – {fmtShort(o.endDate)}) has a gap until <strong>{o.bufferEndDate ? fmtShort(o.bufferEndDate) : 'next day'}</strong>
+                                        <strong>{o.customerName}</strong>&apos;s order ({fmtShort(o.startDate)} – {fmtShort(o.endDate)}) 
+                                        {o.bufferEndDate ? ` has a buffer until ${fmtShort(o.bufferEndDate)}` : ' overlaps with your preparation time'}
                                       </span>
                                     </div>
                                   ))}
