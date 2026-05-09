@@ -166,7 +166,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         product_id: item.product_id,
         quantity: item.quantity,
         product_name: (item as any).product?.name || `Product #${item.product_id?.slice(0, 6)}`,
-        buffer_override: (order as any).buffer_override || false,
       }));
 
       const res = await fetch('/api/orders/check-availability', {
@@ -414,13 +413,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <p className="text-2xl font-bold text-slate-900">{order.items.length} Pieces</p>
         </div>
       </div>
-      {/* Prior Cleaning indicator */}
-      {order.buffer_override && (
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-          <span className="text-base">✨</span>
-          <span><strong>Prior Cleaning</strong> — The usual 1-day gap between rentals was skipped for this order. Please ensure the product was prepared before handover.</span>
-        </div>
-      )}
+
 
       {/* Payment History Block */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">

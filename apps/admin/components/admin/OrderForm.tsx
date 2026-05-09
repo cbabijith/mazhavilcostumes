@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfDay } from "date-fns";
 import {
   Search, Plus, Minus, Trash2, Calendar, User, Package, UserPlus,
-  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, Sparkles, CalendarDays, X
+  ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2, Info, ScanBarcode, Banknote, Percent, Tag, Zap, CalendarDays, X, ChevronDown
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       price_per_day: item.price_per_day,
       discount: item.discount || 0,
       discount_type: item.discount_type || 'flat' as 'flat' | 'percent',
-      buffer_override: initialData?.buffer_override || false,
     })) || []
   );
 
@@ -270,7 +269,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       product_id: item.product.id,
       quantity: item.quantity,
       product_name: item.product.name,
-      buffer_override: item.buffer_override || false,
     }));
   }, [cartItems]);
 
@@ -311,17 +309,21 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     }
 
     const searchAvail = searchAvailabilityMap.get(product.id);
-    if (searchAvail && searchAvail.available < 1) {
-      showError("Unavailable for Dates", `0 free for the selected dates.`);
+    const searchMaxAvail = (searchAvail as any)?.availableWithPriority ?? searchAvail?.available ?? 0;
+    if (searchAvail && searchMaxAvail < 1) {
+      showError("Unavailable for Dates", `0 available for the selected dates (even with priority cleaning).`);
       return;
     }
 
     const existing = cartItems.find(p => p.product.id === product.id);
     const cartAvail = availabilityMap.get(product.id);
     
-    if (existing && cartAvail && existing.quantity >= cartAvail.available) {
-      showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
-      return;
+    if (existing && cartAvail) {
+      const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
+      if (existing.quantity >= maxQty) {
+        showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates.`);
+        return;
+      }
     }
 
     setCartItems(prev => {
@@ -329,7 +331,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       if (ex) {
         return prev.map(p => p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
-      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const, buffer_override: false }];
+      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
     });
     setProductSearch("");
     setIsProductDropdownOpen(false);
@@ -340,8 +342,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       const itemToUpdate = cartItems.find(p => p.product.id === productId);
       const cartAvail = availabilityMap.get(productId);
       
-      if (cartAvail && itemToUpdate && itemToUpdate.quantity >= cartAvail.available) {
-        showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
+      const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
+      if (cartAvail && itemToUpdate && itemToUpdate.quantity >= maxQty) {
+        showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
         return;
       }
     }
@@ -381,7 +384,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
           );
         }
-        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const, buffer_override: false }];
+        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
       });
       showSuccess(wasExisting ? `${product.name} — quantity increased` : `${product.name} added to cart`);
     } catch {
@@ -480,7 +483,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       advance_amount: advanceAmount > 0 ? advanceAmount : 0,
       advance_collected: advanceAmount > 0,
       advance_payment_method: advanceAmount > 0 ? advancePaymentMethod : undefined,
-      buffer_override: cartItems.some(item => item.buffer_override),
       subtotal: cartTotals.subtotal,
       gst_amount: cartTotals.gstAmount,
       total_amount: cartTotals.grandTotal,
@@ -497,8 +499,44 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       }))
     };
 
+    // Check if any items ACTUALLY need priority cleaning based on requested quantity
+    const priorityItems = cartItems.filter(item => {
+      const avail = availabilityMap.get(item.product.id);
+      return (avail as any)?.priorityCleaningNeeded && item.quantity > (avail?.available || 0);
+    });
+
+    if (priorityItems.length > 0 && !isEditing) {
+      // Collect only the priority info needed for each item's quantity
+      const infoList = priorityItems.flatMap(item => {
+        const avail = availabilityMap.get(item.product.id) as any;
+        const allInfo = avail?.priorityCleaningInfo || [];
+        const neededExtra = item.quantity - (avail?.available || 0);
+        if (neededExtra <= 0) return [];
+
+        // Accumulate from sorted list until we have enough
+        let accumulated = 0;
+        const result: any[] = [];
+        for (const info of allInfo) {
+          if (accumulated >= neededExtra) break;
+          const useFromThis = Math.min(info.returningQuantity, neededExtra - accumulated);
+          result.push({ ...info, usedQuantity: useFromThis });
+          accumulated += useFromThis;
+        }
+        return result;
+      });
+      setPriorityCleaningItems(infoList);
+      setPendingOrderPayload(basePayload);
+      setShowPriorityConfirmDialog(true);
+      return;
+    }
+
+    submitOrder(basePayload, false);
+  };
+
+  // Actual order submission (called directly or after priority confirmation)
+  const submitOrder = (payload: any, priorityCleaning: boolean) => {
     if (isEditing) {
-      updateOrder({ id: initialData.id, data: { ...basePayload, start_date: format(startDate, "yyyy-MM-dd"), end_date: format(endDate, "yyyy-MM-dd") } as any }, {
+      updateOrder({ id: initialData.id, data: { ...payload, start_date: format(startDate, "yyyy-MM-dd"), end_date: format(endDate, "yyyy-MM-dd") } as any }, {
         onSuccess: async () => {
           await queryClient.invalidateQueries({ queryKey: ['orders'] });
           router.push("/dashboard/orders");
@@ -506,11 +544,12 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       });
     } else {
       createOrder({
-        ...basePayload,
+        ...payload,
         customer_id: selectedCustomer.id,
         branch_id: selectedBranchId,
         rental_start_date: startDate.toISOString(),
         rental_end_date: endDate.toISOString(),
+        priority_cleaning_confirmed: priorityCleaning,
         items: cartItems.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -522,12 +561,35 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         onSuccess: async () => {
           await queryClient.invalidateQueries({ queryKey: ['orders'] });
           router.push("/dashboard/orders");
+        },
+        onError: async (error: any) => {
+          // Handle priority cleaning required from server (fallback)
+          if (error?.message?.includes('PRIORITY_CLEANING_REQUIRED')) {
+            showError('Priority Cleaning Required', 'Please confirm priority cleaning before placing this order.');
+          }
         }
       });
     }
   };
 
+  // Priority cleaning confirmation state
+  const [priorityCleaningItems, setPriorityCleaningItems] = useState<any[]>([]);
+  const [showPriorityConfirmDialog, setShowPriorityConfirmDialog] = useState(false);
+  const [pendingOrderPayload, setPendingOrderPayload] = useState<any>(null);
+
+  // Accordion state for existing bookings per product
+  const [expandedBookings, setExpandedBookings] = useState<Set<string>>(new Set());
+
+  const handleConfirmPriorityCleaning = () => {
+    setShowPriorityConfirmDialog(false);
+    if (pendingOrderPayload) {
+      submitOrder(pendingOrderPayload, true);
+      setPendingOrderPayload(null);
+    }
+  };
+
   return (
+    <>
     <div className="space-y-6">
       {/* Page header — same as product module */}
       <div className="flex items-center justify-between">
@@ -768,7 +830,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                             {availableProducts.map((p: any) => {
                             const imgUrl = getImageUrl(p);
                             const sAvail = searchAvailabilityMap.get(p.id);
-                            const isAvail = sAvail ? sAvail.available > 0 : p.available_quantity > 0;
+                            const sMaxAvail = (sAvail as any)?.availableWithPriority ?? sAvail?.available ?? 0;
+                            const isAvail = sAvail ? sMaxAvail > 0 : p.available_quantity > 0;
                             
                             return (
                               <li
@@ -789,11 +852,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                   <div className="font-medium text-slate-900 text-sm truncate">{p.name}</div>
                                   <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
                                     <span>{formatCurrency(p.price_per_day)}</span>
-                                    <span className={isAvail ? "text-emerald-600" : "text-red-500 font-bold"}>
+                                    <span className={isAvail ? (sAvail && sAvail.available === 0 ? "text-amber-600" : "text-emerald-600") : "text-red-500 font-bold"}>
                                       {isCheckingSearch 
                                         ? "Checking dates..." 
                                         : sAvail 
-                                          ? `${sAvail.available} free for dates` 
+                                          ? (sAvail.available > 0 ? `${sAvail.available} free for dates` : `0 free (${sMaxAvail} with priority cleaning)`)
                                           : `${p.available_quantity} in stock`}
                                     </span>
                                   </div>
@@ -879,10 +942,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               <><Loader2 className="w-3 h-3 animate-spin" /> Checking...</>
                             ) : isItemUnavailable ? (
                               <><AlertTriangle className="w-3 h-3 flex-shrink-0" /> <span>Unavailable — only <strong>{avail.available}</strong> free for these dates (need {item.quantity})</span></>
-                            ) : avail.available === avail.peakReserved + item.quantity ? (
-                              <><Info className="w-3 h-3 flex-shrink-0" /> <span>Last {avail.available} available for this period</span></>
                             ) : (
-                              <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.available + avail.peakReserved} free for this period</span></>
+                              <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.available + avail.peakReserved} free for this period{(avail as any).priorityCleaningNeeded ? <span className="text-amber-600 ml-1">({(avail as any).availableWithPriority} with priority cleaning)</span> : null}</span></>
                             )}
                           </div>
                         )}
@@ -892,32 +953,69 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                           return (
                             <>
-                                {((actualConflicts.length > 0 || nearbyBookings.length > 0)) && (
-                                  <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
-                                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                                      Existing Bookings
-                                    </p>
-                                    {[...actualConflicts, ...nearbyBookings].slice(0, 5).map((o: any, idx: number) => (
-                                      <div key={idx} className="text-[10px] text-slate-500 flex flex-col gap-0.5 mb-1 last:mb-0 p-1.5 rounded bg-white/50 border border-slate-200/50">
+                                {((actualConflicts.length > 0 || nearbyBookings.length > 0)) && (() => {
+                                  const allBookings = [...actualConflicts, ...nearbyBookings];
+                                  const firstBooking = allBookings[0];
+                                  const remainingCount = allBookings.length - 1;
+                                  const expandKey = `${item.product.id}`;
+                                  const isExpanded = expandedBookings.has(expandKey);
+
+                                  return (
+                                    <div className="mt-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-100">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                                          Existing Bookings
+                                        </p>
+                                        {remainingCount > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedBookings(prev => {
+                                              const next = new Set(prev);
+                                              next.has(expandKey) ? next.delete(expandKey) : next.add(expandKey);
+                                              return next;
+                                            })}
+                                            className="text-[9px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-colors"
+                                          >
+                                            {isExpanded ? 'Collapse' : `+${remainingCount} more`}
+                                            <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                          </button>
+                                        )}
+                                      </div>
+                                      {/* Always show first booking */}
+                                      <div className="text-[10px] text-slate-500 flex flex-col gap-0.5 mt-1 p-1.5 rounded bg-white/50 border border-slate-200/50">
                                         <div className="flex items-center justify-between">
-                                          <span className="font-bold text-slate-800">{o.customerName} — {o.quantity} {o.quantity > 1 ? 'units' : 'unit'}</span>
+                                          <span className="font-bold text-slate-800">{firstBooking.customerName} — {firstBooking.quantity} {firstBooking.quantity > 1 ? 'units' : 'unit'}</span>
                                           <div className="flex items-center gap-2">
-                                            <span className="text-slate-600">{fmtShort(o.startDate)} – {fmtShort(o.endDate)}</span>
-                                            <span className={`${o.bufferSkipped ? 'text-slate-400 line-through decoration-amber-500/50' : 'text-amber-600 font-medium'} border-l border-slate-200 pl-2`}>
-                                              {o.bufferStartDate && o.bufferEndDate 
-                                                ? `Gap: ${fmtShort(o.bufferStartDate)} & ${fmtShort(o.bufferEndDate)}`
+                                            <span className="text-slate-600">{fmtShort(firstBooking.startDate)} – {fmtShort(firstBooking.endDate)}</span>
+                                            <span className={`${firstBooking.bufferSkipped ? 'text-slate-400 line-through decoration-amber-500/50' : 'text-amber-600 font-medium'} border-l border-slate-200 pl-2`}>
+                                              {firstBooking.bufferStartDate && firstBooking.bufferEndDate 
+                                                ? `Gap: ${fmtShort(firstBooking.bufferStartDate)} & ${fmtShort(firstBooking.bufferEndDate)}`
                                                 : 'No Buffer'}
-                                              {o.bufferSkipped && <span className="text-[8px] ml-1 text-amber-600 font-bold">(Prior Cleaning ON)</span>}
+                                              {firstBooking.bufferSkipped && <span className="text-[8px] ml-1 text-amber-600 font-bold">(Prior Cleaning ON)</span>}
                                             </span>
                                           </div>
                                         </div>
                                       </div>
-                                    ))}
-                                    {(actualConflicts.length + nearbyBookings.length) > 5 && (
-                                      <div className="text-[10px] text-slate-400">+{(actualConflicts.length + nearbyBookings.length) - 5} more</div>
-                                    )}
-                                  </div>
-                                )}
+                                      {/* Remaining bookings — collapsible */}
+                                      {isExpanded && allBookings.slice(1).map((o: any, idx: number) => (
+                                        <div key={idx} className="text-[10px] text-slate-500 flex flex-col gap-0.5 mt-1 p-1.5 rounded bg-white/50 border border-slate-200/50 animate-in fade-in slide-in-from-top-1 duration-150">
+                                          <div className="flex items-center justify-between">
+                                            <span className="font-bold text-slate-800">{o.customerName} — {o.quantity} {o.quantity > 1 ? 'units' : 'unit'}</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-slate-600">{fmtShort(o.startDate)} – {fmtShort(o.endDate)}</span>
+                                              <span className={`${o.bufferSkipped ? 'text-slate-400 line-through decoration-amber-500/50' : 'text-amber-600 font-medium'} border-l border-slate-200 pl-2`}>
+                                                {o.bufferStartDate && o.bufferEndDate 
+                                                  ? `Gap: ${fmtShort(o.bufferStartDate)} & ${fmtShort(o.bufferEndDate)}`
+                                                  : 'No Buffer'}
+                                                {o.bufferSkipped && <span className="text-[8px] ml-1 text-amber-600 font-bold">(Prior Cleaning ON)</span>}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* Buffer-only nearby bookings — show warning only if quantity exceeds truly available stock */}
                                 {nearbyBookings.length > 0 && item.quantity > avail.available && (
@@ -932,123 +1030,35 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           );
                         })()}
 
-                        {/* Buffer Override — Adjacent Order Warnings (per-product) */}
-                        {item.buffer_override && avail && (avail as any).adjacentOrders?.length > 0 && (
-                          <div className="mt-1.5 space-y-1">
-                            {(avail as any).adjacentOrders.map((adj: any, idx: number) => {
-                              const adjStart = new Date(adj.startDate).getTime();
-                              const adjEnd = new Date(adj.endDate).getTime();
-                              const fmtDate = (d: number) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-                              const isBefore = adj.position === 'before';
-                              
-                              // Calculate gap in days
-                              const gapMs = isBefore ? (startDate.getTime() - adjEnd) : (adjStart - endDate.getTime());
-                              const gapDays = Math.max(0, Math.floor(gapMs / 86400000));
-                              
-                              // Determine color based on urgency
-                              // 0 days gap = same day turnover (Red)
-                              // 1 day gap = next day turnover (Amber)
-                              // 2+ days = Blue
-                              let colorClass = 'bg-blue-50 border-blue-200 text-blue-800';
-                              if (!isBefore) {
-                                if (gapDays === 0) colorClass = 'bg-red-50 border-red-200 text-red-800';
-                                else if (gapDays === 1) colorClass = 'bg-amber-50 border-amber-200 text-amber-800';
-                              }
-
-                              return (
-                                <div key={idx} className={`px-2.5 py-2 rounded-lg text-[11px] border ${colorClass}`}>
-                                  <div className="flex items-start gap-1.5">
-                                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                                    <div>
-                                      {isBefore ? (
-                                        <p><strong>{item.product.name}</strong> was rented until <strong>{fmtDate(adjEnd)}</strong> ({adj.quantity} qty, {adj.customerName}). Confirm product is cleaned and ready.</p>
-                                      ) : (
-                                        <p><strong>{item.product.name}</strong> has a booking starting <strong>{fmtDate(adjStart)}</strong> ({adj.quantity} qty, {adj.customerName}). {gapDays <= 1 ? <strong className={gapDays === 0 ? "text-red-700" : "text-amber-700"}>Must return by {fmtDate(endDate.getTime())}!</strong> : `Returning by ${fmtDate(endDate.getTime())} leaves a ${gapDays}-day gap.`}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Per-product Buffer Override Toggle — contextual */}
-                        {avail && (() => {
-                          const actualConflicts = avail.overlappingOrders?.filter((o: any) => !o.bufferOnly) || [];
-                          const bufferOnlyList = avail.overlappingOrders?.filter((o: any) => o.bufferOnly) || [];
-                          const hasActualOverlaps = actualConflicts.length > 0;
-                          const hasBufferOnly = bufferOnlyList.length > 0;
-                          const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-                          // If category doesn't have buffer, don't show Prior Cleaning UI (it's auto-skipped)
-                          const categoryHasBuffer = item.product.category?.has_buffer ?? true;
-                          if (!categoryHasBuffer) return null;
-
-                          // No overlaps at all AND not already toggled on — don't show
-                          if (!hasActualOverlaps && !hasBufferOnly && !item.buffer_override) return null;
-
-                          // Has actual date overlaps AND NO buffer-only overlaps — Prior Cleaning won't help
-                          // Disable toggle with explanation (UNLESS it's already turned on, then allow turning off)
-                          if (hasActualOverlaps && !hasBufferOnly && !item.buffer_override) {
-                            return (
-                              <div className="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg border bg-slate-50/30 border-slate-100 opacity-50">
-                                <div className="relative inline-flex items-center">
-                                  <div className="w-7 h-[16px] bg-slate-200 rounded-full"></div>
-                                  <div className="absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow"></div>
-                                </div>
-                                <span className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3" /> Prior Cleaning
-                                </span>
-                                <span className="text-[10px] text-slate-400 ml-auto">Dates overlap directly</span>
-                              </div>
-                            );
+                        {/* Auto Priority Cleaning Warning Banner — only when qty exceeds free stock */}
+                        {avail && (avail as any).priorityCleaningNeeded && item.quantity > avail.available && (() => {
+                          const neededExtra = item.quantity - avail.available;
+                          const allInfo = (avail as any).priorityCleaningInfo || [];
+                          // Accumulate from sorted list until we have enough
+                          let accumulated = 0;
+                          const relevantInfo: any[] = [];
+                          for (const info of allInfo) {
+                            if (accumulated >= neededExtra) break;
+                            const useFromThis = Math.min(info.returningQuantity, neededExtra - accumulated);
+                            relevantInfo.push({ ...info, usedQuantity: useFromThis });
+                            accumulated += useFromThis;
                           }
-
-                          // Buffer-only overlaps — enabled toggle with context
                           return (
-                            <div className={`mt-2 rounded-lg border overflow-hidden ${item.buffer_override ? 'border-amber-200' : 'border-slate-100'}`}>
-                              <label className={`flex items-center gap-2 px-2.5 py-2 cursor-pointer select-none ${item.buffer_override ? 'bg-amber-50' : 'bg-slate-50/50'}`}>
-                                <div className="relative inline-flex items-center flex-shrink-0">
-                                  <input
-                                    type="checkbox"
-                                    checked={item.buffer_override || false}
-                                    onChange={(e) => {
-                                      setCartItems(prev => prev.map(p =>
-                                        p.product.id === item.product.id ? { ...p, buffer_override: e.target.checked } : p
-                                      ));
-                                    }}
-                                    className="sr-only peer"
-                                  />
-                                  <div className="w-7 h-[16px] bg-slate-200 peer-focus:ring-2 peer-focus:ring-amber-500/20 rounded-full peer peer-checked:bg-amber-500 transition-colors"></div>
-                                  <div className={`absolute left-0.5 top-[1px] w-3.5 h-3.5 bg-white rounded-full shadow transition-transform ${item.buffer_override ? 'translate-x-3' : 'translate-x-0'}`}></div>
-                                </div>
-                                <span className={`text-[11px] font-medium flex items-center gap-1 ${item.buffer_override ? 'text-amber-700' : 'text-slate-500'}`}>
-                                  <Sparkles className={`w-3 h-3 ${item.buffer_override ? 'animate-pulse' : ''}`} />
-                                  {item.buffer_override ? 'Prior Cleaning ON' : 'Prior Cleaning'}
+                            <div className="mt-2 px-2.5 py-2 rounded-lg bg-amber-50 border border-amber-200">
+                              <div className="flex items-center gap-1.5 text-[11px] text-amber-800 font-medium">
+                                <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span>
+                                  <strong>{avail.available}</strong> freely available, need <strong>{neededExtra}</strong> via priority cleaning
                                 </span>
-                                {item.buffer_override && (
-                                  <span className="text-[10px] text-amber-600 font-medium ml-auto">Cleaning prioritized</span>
-                                )}
-                              </label>
-                              {/* Contextual details: which booking's gap is being skipped */}
-                              {bufferOnlyList.length > 0 ? (
-                                <div className={`px-2.5 py-1.5 text-[10px] border-t ${item.buffer_override ? 'bg-amber-50/50 border-amber-100 text-amber-700' : 'bg-slate-50/30 border-slate-100 text-slate-500'}`}>
-                                  {bufferOnlyList.slice(0, 2).map((o: any, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-1">
-                                      <span>📋</span>
-                                      <span>
-                                        <strong>{o.customerName}</strong>&apos;s order ({fmtShort(o.startDate)} – {fmtShort(o.endDate)}) 
-                                        {o.bufferEndDate ? ` has a buffer until ${fmtShort(o.bufferEndDate)}` : ' overlaps with your preparation time'}
-                                      </span>
-                                    </div>
-                                  ))}
+                              </div>
+                              {relevantInfo.map((info: any, i: number) => (
+                                <div key={i} className="text-[10px] text-amber-700 mt-1 ml-5">
+                                  {info.direction === 'returning_before'
+                                    ? <span>⚡ {info.usedQuantity === info.returningQuantity ? `${info.returningQuantity}` : `${info.usedQuantity} of ${info.returningQuantity}`} units — rush-clean from <strong>{info.returningOrderCustomer}</strong> (returning {new Date(info.returningOrderEndDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})</span>
+                                    : <span>⚡ {info.usedQuantity} {info.usedQuantity === 1 ? 'unit' : 'units'} — skip prep for <strong>{info.returningOrderCustomer}</strong> (pickup {new Date(info.returningOrderStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})</span>
+                                  }
                                 </div>
-                              ) : item.buffer_override ? (
-                                <div className="px-2.5 py-1.5 text-[10px] border-t bg-amber-50/50 border-amber-100 text-amber-600">
-                                  Preparation gap skipped — product may need to be prepared before handover.
-                                </div>
-                              ) : null}
+                              ))}
                             </div>
                           );
                         })()}
@@ -1071,10 +1081,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 if (raw === '') return;
                                 const val = Math.max(1, parseInt(raw));
                                 
-                                // Stock check
+                                // Stock check — allow up to availableWithPriority
                                 const cartAvail = availabilityMap.get(item.product.id);
-                                if (cartAvail && val > cartAvail.available) {
-                                  showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
+                                const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
+                                if (cartAvail && val > maxQty) {
+                                  showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
                                   e.target.value = String(item.quantity);
                                   return;
                                 }
@@ -1087,10 +1098,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 const val = parseInt(e.target.value) || 1;
                                 const clamped = Math.max(1, val);
                                 
-                                // Stock check
+                                // Stock check — allow up to availableWithPriority
                                 const cartAvail = availabilityMap.get(item.product.id);
-                                if (cartAvail && clamped > cartAvail.available) {
-                                  showError("Unavailable for Dates", `Only ${cartAvail.available} free for these dates.`);
+                                const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
+                                if (cartAvail && clamped > maxQty) {
+                                  showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
                                   e.target.value = String(item.quantity);
                                   return;
                                 }
@@ -1524,5 +1536,58 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         </div>
       )}
     </div>
+
+      {/* Priority Cleaning Confirmation Dialog */}
+      {showPriorityConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md mx-4 p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-amber-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Priority Cleaning Required</h3>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">
+              The following products need priority cleaning to fulfill this order. Staff will be notified in the Cleaning Queue.
+            </p>
+            <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
+              {priorityCleaningItems.map((info: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-[12px] text-amber-800">
+                    <p className="font-medium">{info.productName}</p>
+                    <p className="text-amber-600 mt-0.5">
+                      {info.direction === 'returning_before'
+                        ? <>{info.usedQuantity === info.returningQuantity ? info.returningQuantity : `${info.usedQuantity} of ${info.returningQuantity}`} units — rush-clean from <strong>{info.returningOrderCustomer}</strong> (returning {new Date(info.returningOrderEndDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})</>
+                        : <>{info.usedQuantity} {info.usedQuantity === 1 ? 'unit' : 'units'} — skip prep for <strong>{info.returningOrderCustomer}</strong> (pickup {new Date(info.returningOrderStartDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })})</>
+                      }
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => {
+                  setShowPriorityConfirmDialog(false);
+                  setPendingOrderPayload(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={handleConfirmPriorityCleaning}
+              >
+                <Zap className="w-4 h-4 mr-1.5" />
+                Confirm &amp; Create Order
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

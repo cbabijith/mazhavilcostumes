@@ -1,8 +1,9 @@
 /**
  * Cron: Auto-Status Transition
  *
- * Runs daily via Vercel Cron to automatically transition overdue orders
- * from ongoing/in_use → late_return when the rental end_date has passed.
+ * Runs daily via Vercel Cron to:
+ *   1. Transition overdue orders from ongoing/in_use → late_return
+ *   2. Auto-complete cleaning records whose buffer period has expired
  *
  * Schedule: Every day at 00:05 IST (18:35 UTC previous day)
  *
@@ -13,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { orderService } from '@/services/orderService';
+import { cleaningService } from '@/services/cleaningService';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // 30 seconds max for cron
@@ -27,12 +29,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // 1. Transition overdue orders to late_return
     const transitioned = await orderService.transitionOverdueOrders();
+
+    // 2. Auto-complete cleaning records past their buffer period
+    const cleaningCompleted = await cleaningService.autoCompleteExpiredCleaning();
 
     return NextResponse.json({
       success: true,
       message: `Auto-status transition complete`,
       transitioned,
+      cleaningCompleted,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

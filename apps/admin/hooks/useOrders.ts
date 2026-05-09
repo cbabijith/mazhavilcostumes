@@ -72,9 +72,9 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
         }
       }
       if (params?.product_id) searchParams.append('product_id', params.product_id);
-      if (params?.buffer_override !== undefined) searchParams.append('buffer_override', params.buffer_override.toString());
       if (params?.query) searchParams.append('query', params.query);
       if (params?.date_filter) searchParams.append('date_filter', params.date_filter);
+      if (params?.date_field) searchParams.append('date_field', params.date_field);
       if (params?.date_from) searchParams.append('date_from', params.date_from);
       if (params?.date_to) searchParams.append('date_to', params.date_to);
       if (params?.limit) searchParams.append('limit', params.limit.toString());
@@ -144,6 +144,7 @@ export function useCreateOrder() {
       apiFetch<ApiSuccessResponse<OrderWithRelations>>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order created successfully');
     },
     onError: (error) => showError('Failed to create order', error.message),
@@ -168,6 +169,7 @@ export function useUpdateOrder() {
       apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order updated successfully');
     },
     onError: (error) => {
@@ -205,6 +207,7 @@ export function useDeleteOrder() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order deleted successfully');
     },
     onError: (error, id, context) => {
@@ -234,6 +237,7 @@ export function useProcessOrderReturn() {
       apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${orderId}/return`, { method: 'PATCH', body: JSON.stringify(returnData) }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order return processed successfully');
     },
     onError: (error) => {

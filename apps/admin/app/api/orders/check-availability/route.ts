@@ -50,8 +50,7 @@ export async function POST(request: NextRequest) {
         start_date,
         end_date,
         branch_id,
-        exclude_order_id,
-        !!item.buffer_override
+        exclude_order_id
       );
 
       if (!availResult.success || !availResult.data) {
@@ -70,17 +69,20 @@ export async function POST(request: NextRequest) {
       }
 
       const isAvailable = availResult.data.available >= item.quantity;
-      if (!isAvailable) allAvailable = false;
+      const isAvailableWithPriority = availResult.data.availableWithPriority >= item.quantity;
+      if (!isAvailable && !isAvailableWithPriority) allAvailable = false;
 
       results.push({
         product_id: item.product_id,
         product_name: item.product_name || 'Unknown',
         requested: item.quantity,
         available: availResult.data.available,
-        isAvailable,
+        availableWithPriority: availResult.data.availableWithPriority,
+        isAvailable: isAvailable || isAvailableWithPriority,
         peakReserved: availResult.data.peakReserved,
         overlappingOrders: availResult.data.overlappingOrders,
-        adjacentOrders: availResult.data.adjacentOrders || [],
+        priorityCleaningNeeded: availResult.data.priorityCleaningNeeded,
+        priorityCleaningInfo: availResult.data.priorityCleaningInfo || [],
       });
     }
 

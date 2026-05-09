@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
       branch_id: searchParams.get('branch_id') || undefined,
       status: status as any,
       product_id: searchParams.get('product_id') || undefined,
-      buffer_override: searchParams.get('buffer_override') === 'true' ? true : (searchParams.get('buffer_override') === 'false' ? false : undefined),
       query: searchParams.get('query') || undefined,
       date_filter: searchParams.get('date_filter') as any || undefined,
+      date_field: searchParams.get('date_field') as any || undefined,
       date_from: searchParams.get('date_from') || undefined,
       date_to: searchParams.get('date_to') || undefined,
       limit,
@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
     const result = await orderService.createOrder(validatedData.data);
     
     if (!result.success) {
+      // Special handling: priority cleaning required but not confirmed
+      if ((result.error as any)?.code === 'PRIORITY_CLEANING_REQUIRED') {
+        return Response.json(
+          { error: result.error?.message, code: 'PRIORITY_CLEANING_REQUIRED', details: (result.error as any)?.details || [] },
+          { status: 409 }
+        );
+      }
       return apiRepositoryError(result.error, 'Failed to create order');
     }
 

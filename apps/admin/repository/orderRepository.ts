@@ -82,9 +82,6 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
-    if (params?.buffer_override !== undefined) {
-      query = query.eq('buffer_override', params.buffer_override);
-    }
 
     if (searchTerm) {
       const filters: string[] = [];
@@ -116,33 +113,54 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {
+      const dateCol = params?.date_field || 'created_at';
+      const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
       if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
-        if (params?.date_from) query = query.gte('created_at', params.date_from);
-        if (params?.date_to) query = query.lte('created_at', params.date_to);
+        if (params?.date_from) query = query.gte(dateCol, params.date_from);
+        if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
         const now = new Date();
         let startDate, endDate;
         switch (params.date_filter) {
           case 'today':
-            startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const todayStr = now.toISOString().split('T')[0];
+              query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
+            } else {
+              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'yesterday':
             const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
-            startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const yStr = yesterday.toISOString().split('T')[0];
+              query = query.gte(dateCol, yStr).lte(dateCol, yStr);
+            } else {
+              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'this_week':
             const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-            startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-            query = query.gte('created_at', startDate);
+            if (isDateOnly) {
+              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+            } else {
+              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
           case 'this_month':
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            query = query.gte('created_at', startDate);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (isDateOnly) {
+              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+            } else {
+              startDate = monthStart.toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
         }
       }
@@ -199,9 +217,8 @@ export class OrderRepository extends BaseRepository {
     endDate: string,
     branchId?: string,
     excludeOrderId?: string,
-    bufferOverride: boolean = false
-  ): Promise<RepositoryResult<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>> {
-    // Get product total quantity and category buffer setting
+  ): Promise<RepositoryResult<{ available: number; availableWithPriority: number; total: number; peakReserved: number; overlappingOrders: any[]; priorityCleaningNeeded: boolean; priorityCleaningInfo: any[] }>> {
+    // Get product total quantity, name, and category buffer setting
     const productResponse = await this.client
       .from('products')
       .select('quantity, name, category:category_id(has_buffer)')
@@ -209,10 +226,11 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     if (productResponse.error) {
-      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>(productResponse);
+      return this.handleResponse<any>(productResponse);
     }
 
     const totalQuantity = productResponse.data?.quantity || 0;
+    const productName = productResponse.data?.name || 'Unknown';
     const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
     
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
@@ -221,25 +239,22 @@ export class OrderRepository extends BaseRepository {
     // Fetch all active order items for this product with their order date ranges
     const ordersResponse = await this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, buffer_override, customer:customer_id(name))')
+      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
       .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
 
     if (ordersResponse.error) {
-      return this.handleResponse<{ available: number; total: number; peakReserved: number; overlappingOrders: any[]; adjacentOrders: any[] }>(ordersResponse);
+      return this.handleResponse<any>(ordersResponse);
     }
 
     const DAY_MS = 86400000;
     const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
     const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
 
-    // Buffer for the REQUESTING order
-    const reqBuffer = (bufferOverride || !categoryHasBuffer) ? 0 : effectiveBuffer;
-
     // Collect bookings into categories
-    const actualOverlaps: { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string; bufferOverride: boolean }[] = [];
-    const bufferOnlyOverlaps: typeof actualOverlaps = [];
-    const allBookings: typeof actualOverlaps = [];
+    type BookingInfo = { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string };
+    const actualOverlaps: BookingInfo[] = [];
+    const bufferOnlyOverlaps: BookingInfo[] = [];
 
     for (const item of (ordersResponse.data || []) as any[]) {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
@@ -252,7 +267,7 @@ export class OrderRepository extends BaseRepository {
       if (unreturned <= 0) continue;
 
       const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
-      const bookingInfo = {
+      const bookingInfo: BookingInfo = {
         start: ordStart,
         end: ordEnd,
         quantity: unreturned,
@@ -261,19 +276,12 @@ export class OrderRepository extends BaseRepository {
         startDate: order.start_date,
         endDate: order.end_date,
         status: order.status,
-        bufferOverride: order.buffer_override || false,
       };
-
-      allBookings.push(bookingInfo);
 
       // Check ACTUAL rental date overlap (no buffer)
       const hasActualOverlap = ordStart <= reqEnd && ordEnd >= reqStart;
 
-      // Check buffer-extended overlap using EACH booking's own buffer + the effective buffer
-      // IMPORTANT: For availability checking of a NEW order, we ALWAYS assume existing orders 
-      // have their buffer, even if they themselves were 'Prior Cleaning' orders.
-      // This is because 'Prior Cleaning' only skips the buffer BEFORE the order,
-      // not the buffer AFTER it (unless the NEXT order also skips it).
+      // Check buffer-extended overlap
       const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
       const effectiveStart = ordStart - bookingBuffer;
       const effectiveEnd = ordEnd + bookingBuffer;
@@ -282,140 +290,116 @@ export class OrderRepository extends BaseRepository {
       if (hasActualOverlap) {
         actualOverlaps.push(bookingInfo);
       } else if (hasBufferOverlap) {
-        // Buffer-only: informational, does NOT block availability
         bufferOnlyOverlaps.push(bookingInfo);
       }
     }
 
-    // ─── Availability Calculation ────────────────────────────────────────
-    // Two modes depending on whether the requesting order has Prior Cleaning ON/OFF.
+    // ─── Availability Calculation (union-of-blocked-sets) ──────────────────
+    // For a multi-day rental, the same physical unit stays with the customer
+    // for the entire period. Blocked units on DIFFERENT days are disjoint
+    // physical units. We compute the UNION of all unique booking quantities
+    // that block any day in the requested range.
     //
-    // When bufferOverride = true (Prior Cleaning ON):
-    //   Only count ACTUAL rental date overlaps. Buffers are ignored.
-    //   → Available = total - peakActualUsage
-    //
-    // When bufferOverride = false (Prior Cleaning OFF, default):
-    //   Use per-day formula: blocked = actual_normal + max(buffer_only, actual_skipgap)
-    //   This avoids double-counting because Prior Cleaning orders take units FROM the buffer pool.
-    //   Example: 9 in buffer + 2 Prior Cleaning = max(9,2) = 9 blocked (not 11)
+    // Example: 5 units in cleaning on May 12 + 1 unit in prep on May 14
+    //          = 6 total blocked (disjoint sets) → available = total - 6
+    const allRelevant = [...actualOverlaps, ...bufferOnlyOverlaps];
+    const blockedBookingIds = new Set<string>();
+    const blockedBufferOrderIds = new Set<string>(); // Track buffer-only bookings that ACTUALLY blocked a day
+    let unionBlocked = 0;
 
-    let peakUsage = 0;
+    for (let dayMs = reqStart; dayMs <= reqEnd; dayMs += DAY_MS) {
+      for (const booking of allRelevant) {
+        // Skip if we already counted this booking
+        if (blockedBookingIds.has(booking.orderId)) continue;
 
-    if (bufferOverride) {
-      // ─── Prior Cleaning ON: simple sweep line on actual overlaps only ──────
-      const events: { time: number; delta: number }[] = [];
-      for (const booking of actualOverlaps) {
-        events.push({ time: booking.start, delta: +booking.quantity });
-        // Release on the same day (same-day turnover allowed in Prior Cleaning mode)
-        events.push({ time: booking.end, delta: -booking.quantity });
-      }
-      // Sort by time. If same time, process PICKUPS (+delta) before RETURNS (-delta)
-      // This ensures that same-day turnover (Return 7, Pickup 7) counts as an overlap
-      events.sort((a, b) => a.time - b.time || b.delta - a.delta);
+        const isActualDay = booking.start <= dayMs && booking.end >= dayMs;
+        const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
+        const bufferStart = booking.start - bookingBuffer;
+        const bufferEnd = booking.end + bookingBuffer;
+        const isBufferDay = !isActualDay && bufferStart <= dayMs && bufferEnd >= dayMs;
 
-      let currentUsage = 0;
-      for (const event of events) {
-        if (event.time > reqEnd) break;
-        currentUsage += event.delta;
-        if (event.time >= reqStart && event.time <= reqEnd) {
-          peakUsage = Math.max(peakUsage, currentUsage);
-        }
-      }
-      // Baseline check: count orders that are active at the very start of reqStart
-      // If an order ends ON reqStart, we still count it for the start of the day
-      let baselineAtStart = 0;
-      for (const booking of actualOverlaps) {
-        if (booking.start <= reqStart && booking.end >= reqStart) {
-          baselineAtStart += booking.quantity;
-        }
-      }
-      peakUsage = Math.max(peakUsage, baselineAtStart);
-    } else {
-      // ─── Prior Cleaning OFF: per-day calculation with buffer awareness ─────
-      // For each day in the requested range, categorize bookings:
-      //   actual_normal:  actual overlap, order did NOT use buffer_override
-      //   actual_skipgap: actual overlap, order DID use buffer_override
-      //   buffer_only:    day is in buffer zone (not actual rental), order did NOT use buffer_override
-      // Formula: blocked = actual_normal + max(buffer_only, actual_skipgap)
-
-      const DAY_MS = 86400000;
-      const allRelevant = [...actualOverlaps, ...bufferOnlyOverlaps];
-
-      // Iterate each day in the requested range
-      for (let dayMs = reqStart; dayMs <= reqEnd; dayMs += DAY_MS) {
-        let actualNormal = 0;
-        let actualSkipgap = 0;
-        let bufferOnly = 0;
-
-        for (const booking of allRelevant) {
-          const isActualDay = booking.start <= dayMs && booking.end >= dayMs;
-          // Buffer zone: 1 day before start + 1 day after end
-          // For future orders, we ALWAYS respect the existing booking's buffer,
-          // regardless of whether the existing order skipped its OWN buffer.
-          const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
-          const bufferStart = booking.start - bookingBuffer;
-          const bufferEnd = booking.end + bookingBuffer;
-          const isBufferDay = !isActualDay && bufferStart <= dayMs && bufferEnd >= dayMs;
-
-          if (isActualDay) {
-            if (booking.bufferOverride) {
-              actualSkipgap += booking.quantity;
-            } else {
-              actualNormal += booking.quantity;
-            }
-          } else if (isBufferDay) {
-            bufferOnly += booking.quantity;
+        if (isActualDay || isBufferDay) {
+          blockedBookingIds.add(booking.orderId);
+          unionBlocked += booking.quantity;
+          // Track if this was a buffer-only booking (not an actual overlap)
+          if (bufferOnlyOverlaps.some(b => b.orderId === booking.orderId)) {
+            blockedBufferOrderIds.add(booking.orderId);
           }
         }
-
-        const dayBlocked = actualNormal + Math.max(bufferOnly, actualSkipgap);
-        peakUsage = Math.max(peakUsage, dayBlocked);
       }
     }
 
-    const availableQuantity = Math.max(0, totalQuantity - peakUsage);
+    const availableQuantity = Math.max(0, totalQuantity - unionBlocked);
 
-    // ─── Adjacent Orders (for buffer override warnings) ─────────────
-    // Find bookings within ±2 days of the requested range that are NOT overlapping
-    const adjacentOrders: any[] = [];
-    if (bufferOverride) {
-      const ADJACENT_WINDOW = 2 * 86400000; // ±2 days
-      for (const booking of allBookings) {
-        // Skip if already overlapping with the rental period
-        if (booking.start <= reqEnd && booking.end >= reqStart) continue;
+    // ─── Priority Cleaning Detection ──────────────────────────────────────
+    // Calculate availability ignoring buffer-only overlaps (i.e. priority cleaning).
+    // Uses the same union approach — only actual rental overlaps count.
+    const actualBlockedIds = new Set<string>();
+    let unionBlockedActualOnly = 0;
 
-        // Check if booking is within ±2 days
-        const gapBefore = reqStart - booking.end;
-        const gapAfter = booking.start - reqEnd;
-
-        if ((gapBefore > 0 && gapBefore <= ADJACENT_WINDOW) || (gapAfter > 0 && gapAfter <= ADJACENT_WINDOW)) {
-          adjacentOrders.push({
-            orderId: booking.orderId,
-            customerName: booking.customerName,
-            quantity: booking.quantity,
-            startDate: booking.startDate,
-            endDate: booking.endDate,
-            status: booking.status,
-            position: gapAfter > 0 ? 'after' : 'before',
-          });
+    for (let dayMs = reqStart; dayMs <= reqEnd; dayMs += DAY_MS) {
+      for (const booking of actualOverlaps) {
+        if (actualBlockedIds.has(booking.orderId)) continue;
+        if (booking.start <= dayMs && booking.end >= dayMs) {
+          actualBlockedIds.add(booking.orderId);
+          unionBlockedActualOnly += booking.quantity;
         }
       }
+    }
+
+    const availableWithPriority = Math.max(0, totalQuantity - unionBlockedActualOnly);
+
+    // Priority cleaning is available when buffer-only overlaps exist and
+    // removing them would free up additional units
+    const priorityCleaningNeeded = blockedBufferOrderIds.size > 0 && availableWithPriority > availableQuantity;
+
+    // ─── Build Priority Cleaning Info ─────────────────────────────────────
+    // Only include buffer-only bookings that ACTUALLY blocked a day in the
+    // requested range (fixes phantom bookings from double-buffer overlap check).
+    // Add direction: 'returning_before' (rush-clean returned items) or
+    // 'starting_after' (skip prep for future booking).
+    const priorityCleaningInfo: any[] = [];
+    if (priorityCleaningNeeded) {
+      for (const bufferBooking of bufferOnlyOverlaps) {
+        // Skip phantom bookings — only include those that actually blocked availability
+        if (!blockedBufferOrderIds.has(bufferBooking.orderId)) continue;
+
+        const direction = bufferBooking.end < reqStart ? 'returning_before' : 'starting_after';
+        priorityCleaningInfo.push({
+          returningOrderId: bufferBooking.orderId,
+          returningOrderCustomer: bufferBooking.customerName,
+          returningOrderEndDate: bufferBooking.endDate,
+          returningOrderStartDate: bufferBooking.startDate,
+          returningQuantity: bufferBooking.quantity,
+          productId: productId,
+          productName: productName,
+          direction,
+        });
+      }
+
+      // Sort: returning_before first (by end date asc), then starting_after (by start date asc)
+      priorityCleaningInfo.sort((a: any, b: any) => {
+        if (a.direction !== b.direction) return a.direction === 'returning_before' ? -1 : 1;
+        const dateA = a.direction === 'returning_before' ? a.returningOrderEndDate : a.returningOrderStartDate;
+        const dateB = b.direction === 'returning_before' ? b.returningOrderEndDate : b.returningOrderStartDate;
+        return new Date(dateA).getTime() - new Date(dateB).getTime();
+      });
     }
 
     // Build the overlapping orders response — combine actual + buffer-only with flags
+    // Sort by start date for chronological display
     const allOverlapping = [
       ...actualOverlaps.map(b => ({ ...b, bufferOnly: false })),
       ...bufferOnlyOverlaps.map(b => ({ ...b, bufferOnly: true })),
-    ];
+    ].sort((a, b) => a.start - b.start);
 
     return {
       data: {
         available: availableQuantity,
+        availableWithPriority,
         total: totalQuantity,
-        peakReserved: peakUsage,
+        peakReserved: unionBlocked,
         overlappingOrders: allOverlapping.map(b => {
-          // Compute potential buffer date range: 1 day before start, 1 day after end
-          // We show this even if it's currently skipped so the staff understands the timeline
           const potentialBufferStart = categoryHasBuffer ? new Date(b.start - DAY_MS).toISOString().split('T')[0] : null;
           const potentialBufferEnd = categoryHasBuffer ? new Date(b.end + DAY_MS).toISOString().split('T')[0] : null;
           
@@ -428,13 +412,11 @@ export class OrderRepository extends BaseRepository {
             status: b.status,
             bufferStartDate: potentialBufferStart,
             bufferEndDate: potentialBufferEnd,
-            // bufferSkipped: Flag if THIS order's current request is skipping its buffer
-            // For existing orders, we still show the buffer dates as requested
-            bufferSkipped: false, 
             bufferOnly: b.bufferOnly,
           };
         }),
-        adjacentOrders,
+        priorityCleaningNeeded,
+        priorityCleaningInfo,
       },
       error: null,
       success: true,
@@ -732,7 +714,6 @@ export class OrderRepository extends BaseRepository {
           ? (data.advance_amount >= totalAmount ? 'paid' : 'partial')
           : 'pending',
         notes: data.notes || null,
-        buffer_override: (data as any).buffer_override || false,
         ...this.getCreateAuditFields(),
       })
       .select()
@@ -1028,6 +1009,73 @@ export class OrderRepository extends BaseRepository {
   }
 
   /**
+   * Find all active orders containing a specific product.
+   *
+   * Returns orders sorted by end_date ascending (chronological return order).
+   * Uses the same active status list as checkAvailability() for consistency.
+   *
+   * @param productId - The product to search for
+   * @param branchId  - Optional branch filter
+   */
+
+  /**
+   * Get a product's total stock quantity.
+   * Used by the priority cleaning recalculation to determine if buffer conflicts
+   * actually exceed available stock.
+   */
+  async getProductTotalQuantity(productId: string): Promise<number> {
+    const response = await this.client
+      .from('products')
+      .select('quantity')
+      .eq('id', productId)
+      .single();
+    return response.data?.quantity || 0;
+  }
+
+  async findActiveOrdersForProduct(
+    productId: string,
+    branchId?: string,
+  ): Promise<RepositoryResult<{ orderId: string; startDate: string; endDate: string; quantity: number }[]>> {
+    let query = this.client
+      .from('order_items')
+      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id)')
+      .eq('product_id', productId)
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
+
+    const response = await query;
+
+    if (response.error) {
+      return this.handleResponse<any>(response);
+    }
+
+    let results = (response.data || []).map((item: any) => {
+      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
+      const unreturned = item.quantity - (item.returned_quantity || 0);
+      return {
+        orderId: order.id,
+        startDate: order.start_date,
+        endDate: order.end_date,
+        quantity: unreturned,
+        branchId: order.branch_id,
+      };
+    }).filter((r: any) => r.quantity > 0);
+
+    // Filter by branch if specified
+    if (branchId) {
+      results = results.filter((r: any) => r.branchId === branchId);
+    }
+
+    // Sort by end_date ascending
+    results.sort((a: any, b: any) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime());
+
+    return {
+      data: results,
+      error: null,
+      success: true,
+    };
+  }
+
+  /**
    * Get order status history
    */
   async getStatusHistory(orderId: string): Promise<RepositoryResult<OrderStatusHistory[]>> {
@@ -1089,9 +1137,8 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
-    if (params?.buffer_override !== undefined) {
-      query = query.eq('buffer_override', params.buffer_override);
-    }
+
+
 
     if (searchTerm) {
       const filters: string[] = [];
@@ -1123,33 +1170,54 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {
+      const dateCol = params?.date_field || 'created_at';
+      const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
       if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
-        if (params?.date_from) query = query.gte('created_at', params.date_from);
-        if (params?.date_to) query = query.lte('created_at', params.date_to);
+        if (params?.date_from) query = query.gte(dateCol, params.date_from);
+        if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
         const now = new Date();
         let startDate, endDate;
         switch (params.date_filter) {
           case 'today':
-            startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const todayStr = now.toISOString().split('T')[0];
+              query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
+            } else {
+              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'yesterday':
             const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
-            startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const yStr = yesterday.toISOString().split('T')[0];
+              query = query.gte(dateCol, yStr).lte(dateCol, yStr);
+            } else {
+              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'this_week':
             const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-            startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-            query = query.gte('created_at', startDate);
+            if (isDateOnly) {
+              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+            } else {
+              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
           case 'this_month':
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            query = query.gte('created_at', startDate);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (isDateOnly) {
+              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+            } else {
+              startDate = monthStart.toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
         }
       }

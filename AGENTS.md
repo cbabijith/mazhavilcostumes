@@ -4,17 +4,27 @@
 
 ---
 
-## 🚨 MANDATORY: Post-Work Build Verification & Git Push
+## 🚨 MANDATORY: Post-Work Build Verification
 
 **After EVERY code change, the agent MUST:**
 
 1. Run `flutter analyze --no-pub` (for Flutter/Dart) or `pnpm run build` / `tsc --noEmit` (for Next.js/React apps).
 2. Fix ALL `error` and `warning` level issues before delivering to the user.
 3. Verify there are no runtime issues (e.g., React hook mismatches, unhandled rejections).
-4. **Push to GitHub:** Once all build and runtime issues are completely resolved, you MUST `git add`, `git commit`, and `git push` the code to the repository. 
-   **CRITICAL BRANCH RULE:** You must ONLY ever push to the `abijithcb` branch. NEVER push to the `main` branch.
 
-**This is non-negotiable. Every single change must be verified and pushed to the abijithcb branch.**
+**This is non-negotiable. Every single change must be verified.**
+
+### 🚫 No Automatic Git Push
+- The agent must **NEVER** run `git add`, `git commit`, or `git push` automatically.
+- Git operations are the **user's responsibility**. The agent should not suggest or attempt to push code.
+- If the user explicitly asks to push, the target branch is `abijithcb`. NEVER push to `main`.
+
+### 📝 Mandatory Change Explanations
+- For **every** code change, the agent MUST provide a clear explanation of:
+  - **What** was changed
+  - **Why** the change was necessary (root cause / reasoning)
+  - **How** the fix works (especially for non-obvious solutions)
+- Do NOT silently make changes and move on. The user must understand every modification.
 
 ---
 

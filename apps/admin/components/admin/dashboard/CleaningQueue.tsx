@@ -12,12 +12,9 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { 
-  useCleaningQueue, 
-  useCompleteCleaning 
-} from "@/hooks/useCleaning";
+import { useCleaningQueue } from "@/hooks/useCleaning";
 import { CleaningStatus, CleaningPriority } from "@/domain";
-import { Package, Clock, Sparkles, Filter, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react";
+import { Package, Sparkles, CheckCircle2, ExternalLink } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
@@ -27,7 +24,6 @@ interface CleaningQueueProps {
 
 export function CleaningQueue({ branchId }: CleaningQueueProps) {
   const { data: queue, isLoading } = useCleaningQueue(branchId);
-  const { mutate: completeCleaning, isPending: isCompleting } = useCompleteCleaning();
   const [filter, setFilter] = useState<'all' | 'priority'>('all');
 
   const activeItems = useMemo(() => {
@@ -99,9 +95,9 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
               <TableRow>
                 <TableHead className="w-[300px] text-[11px] font-bold uppercase tracking-wider">Product</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider">Qty</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Return Time</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Status</TableHead>
+                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Return / Time</TableHead>
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider">Urgency</TableHead>
-                <TableHead className="text-right text-[11px] font-bold uppercase tracking-wider">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,12 +138,47 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
                       <span className="font-black text-slate-700 text-sm">{item.quantity}</span>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-900">{format(new Date(item.created_at), 'h:mm a')}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
-                        </span>
-                      </div>
+                      {item.status === CleaningStatus.SCHEDULED ? (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[10px] font-bold px-2 py-0 h-5 shadow-none">
+                          Scheduled
+                        </Badge>
+                      ) : item.status === CleaningStatus.IN_PROGRESS ? (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] font-bold px-2 py-0 h-5 shadow-none">
+                          In Progress
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] font-bold px-2 py-0 h-5 shadow-none">
+                          Pending
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.status === CleaningStatus.SCHEDULED && item.expected_return_date ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-slate-900">
+                            {format(new Date(item.expected_return_date), 'MMM d, yyyy')}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            Expected return
+                          </span>
+                        </div>
+                      ) : item.status === CleaningStatus.IN_PROGRESS && item.started_at ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-slate-900">
+                            {format(new Date(item.started_at), 'MMM d, h:mm a')}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            Cleaning {formatDistanceToNow(new Date(item.started_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-slate-900">{format(new Date(item.created_at), 'h:mm a')}</span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            {formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       {isUrgent ? (
@@ -160,18 +191,6 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
                           NORMAL
                         </Badge>
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
-                        onClick={() => completeCleaning(item.id)}
-                        disabled={isCompleting}
-                        title="Mark as Ready"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 );

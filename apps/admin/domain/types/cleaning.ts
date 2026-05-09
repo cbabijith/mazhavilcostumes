@@ -5,6 +5,7 @@
  */
 
 export enum CleaningStatus {
+  SCHEDULED = 'scheduled',
   PENDING = 'pending',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
@@ -20,10 +21,12 @@ export interface CleaningRecord {
   product_id: string;
   order_id: string;
   branch_id: string;
+  store_id?: string;
   quantity: number;
   status: CleaningStatus;
   priority: CleaningPriority;
   priority_order_id?: string | null;
+  expected_return_date?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
   notes?: string | null;
@@ -39,9 +42,12 @@ export interface CreateCleaningRecordDTO {
   product_id: string;
   order_id: string;
   branch_id: string;
+  store_id?: string;
   quantity: number;
+  status?: CleaningStatus;
   priority?: CleaningPriority;
   priority_order_id?: string;
+  expected_return_date?: string;
   notes?: string;
 }
 
@@ -49,8 +55,10 @@ export interface UpdateCleaningRecordDTO {
   status?: CleaningStatus;
   priority?: CleaningPriority;
   priority_order_id?: string | null;
+  expected_return_date?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
+  quantity?: number;
   notes?: string;
 }
 

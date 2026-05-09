@@ -186,6 +186,12 @@ export class DashboardService {
     const pendingReturnProducts = (pendingReturns || []).reduce((sum, o: any) =>
       sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
 
+    const next5Start = new Date(now); next5Start.setDate(next5Start.getDate() + 1);
+    const next5End = new Date(now); next5End.setDate(next5End.getDate() + 5);
+    const next5StartStr = next5Start.toISOString().split('T')[0];
+    const next5EndStr = next5End.toISOString().split('T')[0];
+    const todayStr = now.toISOString().split('T')[0];
+
     const cards = [
         {
           label: "Today's Bookings",
@@ -201,7 +207,7 @@ export class DashboardService {
           productCount: todaysDeliveryProducts,
           icon: 'truck',
           color: 'emerald',
-          filterUrl: '/dashboard/orders?status=scheduled&date_filter=today',
+          filterUrl: '/dashboard/orders?status=scheduled&date_filter=today&date_field=start_date',
         },
         {
           label: "Today's Return",
@@ -209,7 +215,7 @@ export class DashboardService {
           productCount: todaysReturnProducts,
           icon: 'package-check',
           color: 'violet',
-          filterUrl: '/dashboard/orders?status=ongoing&date_filter=today',
+          filterUrl: '/dashboard/orders?status=ongoing&date_filter=today&date_field=end_date',
         },
         {
           label: "Prepare Delivery (5d)",
@@ -217,7 +223,7 @@ export class DashboardService {
           productCount: prepareDeliveryProducts,
           icon: 'boxes',
           color: 'amber',
-          filterUrl: '/dashboard/orders?status=scheduled',
+          filterUrl: `/dashboard/orders?status=scheduled&date_filter=custom&date_field=start_date&date_from=${next5StartStr}&date_to=${next5EndStr}`,
         },
         {
           label: "Pending Delivery",
@@ -225,7 +231,7 @@ export class DashboardService {
           productCount: pendingDeliveryProducts,
           icon: 'alert-triangle',
           color: 'rose',
-          filterUrl: '/dashboard/orders?status=pending',
+          filterUrl: `/dashboard/orders?status=scheduled&date_filter=custom&date_field=start_date&date_to=${todayStr}`,
         },
         {
           label: "Pending Return",
@@ -233,29 +239,28 @@ export class DashboardService {
           productCount: pendingReturnProducts,
           icon: 'clock-alert',
           color: 'red',
-          filterUrl: '/dashboard/orders?status=late_return',
+          filterUrl: `/dashboard/orders?status=late_return&date_filter=custom&date_field=end_date&date_to=${todayStr}`,
         },
       ];
 
-    // 7. Priority Cleaning — Prior Cleaning orders needing urgent prep
-    // Fetch upcoming Prior Cleaning orders starting in the next 5 days
-    const { data: priorityOrders } = await supabase
-      .from('orders')
-      .select('id, start_date, buffer_override, customer:customer_id(name), items:order_items(product_id, quantity, product:product_id(name))')
-      .eq('buffer_override', true)
-      .in('status', ['confirmed', 'scheduled'])
-      .gte('start_date', todayStart.split('T')[0])
-      .lte('start_date', endOfDay(addDays(now, 5)).toISOString().split('T')[0])
-      .order('start_date', { ascending: true });
+    // 7. Priority Cleaning — Scheduled urgent cleaning records
+    // Fetch cleaning records that are scheduled or pending with urgent priority
+    const { data: priorityCleaningRecords } = await supabase
+      .from('cleaning_records')
+      .select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)')
+      .in('status', ['scheduled', 'pending'])
+      .eq('priority', 'urgent')
+      .order('expected_return_date', { ascending: true })
+      .limit(10);
 
-    const priorityCleaning: PriorityCleaningOrder[] = (priorityOrders || []).map((o: any) => ({
-      id: o.id,
-      customerName: o.customer?.name || 'Unknown',
-      startDate: o.start_date,
-      products: (o.items || []).map((i: any) => ({
-        name: i.product?.name || 'Unknown',
-        quantity: i.quantity || 0,
-      })),
+    const priorityCleaning: PriorityCleaningOrder[] = (priorityCleaningRecords || []).map((r: any) => ({
+      id: r.priority_order_id || r.id,
+      customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
+      startDate: r.expected_return_date || '',
+      products: [{
+        name: r.product?.name || 'Unknown',
+        quantity: r.quantity || 0,
+      }],
     }));
 
     return {
@@ -357,8 +362,8 @@ export class DashboardService {
       // 15. Active Products (Dead Stock check)
       supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true).limit(100),
       
-      // 16. Priority Cleaning
-      supabase.from('orders').select('id, start_date, customer:customer_id(name), order_items(quantity, products(name))').eq('buffer_override', true).in('status', ['scheduled', 'pending', 'confirmed']).gte('start_date', now.toISOString().split('T')[0]).order('start_date', { ascending: true }).limit(5)
+      // 16. Priority Cleaning (from cleaning_records)
+      supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent').order('expected_return_date', { ascending: true }).limit(5)
     ]);
 
     // Processing results
@@ -491,14 +496,14 @@ export class DashboardService {
         message: `Order #${o.id.substring(0, 8)} is overdue for return`,
         severity: 'high' as const,
       })),
-      priorityCleaning: (priorityRes.data || []).map((o: any) => ({
-        id: o.id,
-        customerName: o.customer?.name || 'Unknown',
-        startDate: o.start_date,
-        products: o.order_items?.map((item: any) => ({
-          name: item.products?.name || 'Unknown Product',
-          quantity: item.quantity,
-        })) || [],
+      priorityCleaning: (priorityRes.data || []).map((r: any) => ({
+        id: r.priority_order_id || r.id,
+        customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
+        startDate: r.expected_return_date || '',
+        products: [{
+          name: r.product?.name || 'Unknown',
+          quantity: r.quantity || 0,
+        }],
       })),
     };
   }
