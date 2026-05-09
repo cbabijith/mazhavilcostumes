@@ -237,25 +237,24 @@ export class DashboardService {
         },
       ];
 
-    // 7. Priority Cleaning — Prior Cleaning orders needing urgent prep
-    // Fetch upcoming Prior Cleaning orders starting in the next 5 days
-    const { data: priorityOrders } = await supabase
-      .from('orders')
-      .select('id, start_date, buffer_override, customer:customer_id(name), items:order_items(product_id, quantity, product:product_id(name))')
-      .eq('buffer_override', true)
-      .in('status', ['confirmed', 'scheduled'])
-      .gte('start_date', todayStart.split('T')[0])
-      .lte('start_date', endOfDay(addDays(now, 5)).toISOString().split('T')[0])
-      .order('start_date', { ascending: true });
+    // 7. Priority Cleaning — Scheduled urgent cleaning records
+    // Fetch cleaning records that are scheduled or pending with urgent priority
+    const { data: priorityCleaningRecords } = await supabase
+      .from('cleaning_records')
+      .select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)')
+      .in('status', ['scheduled', 'pending'])
+      .eq('priority', 'urgent')
+      .order('expected_return_date', { ascending: true })
+      .limit(10);
 
-    const priorityCleaning: PriorityCleaningOrder[] = (priorityOrders || []).map((o: any) => ({
-      id: o.id,
-      customerName: o.customer?.name || 'Unknown',
-      startDate: o.start_date,
-      products: (o.items || []).map((i: any) => ({
-        name: i.product?.name || 'Unknown',
-        quantity: i.quantity || 0,
-      })),
+    const priorityCleaning: PriorityCleaningOrder[] = (priorityCleaningRecords || []).map((r: any) => ({
+      id: r.priority_order_id || r.id,
+      customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
+      startDate: r.expected_return_date || '',
+      products: [{
+        name: r.product?.name || 'Unknown',
+        quantity: r.quantity || 0,
+      }],
     }));
 
     return {
@@ -357,8 +356,8 @@ export class DashboardService {
       // 15. Active Products (Dead Stock check)
       supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true).limit(100),
       
-      // 16. Priority Cleaning
-      supabase.from('orders').select('id, start_date, customer:customer_id(name), order_items(quantity, products(name))').eq('buffer_override', true).in('status', ['scheduled', 'pending', 'confirmed']).gte('start_date', now.toISOString().split('T')[0]).order('start_date', { ascending: true }).limit(5)
+      // 16. Priority Cleaning (from cleaning_records)
+      supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent').order('expected_return_date', { ascending: true }).limit(5)
     ]);
 
     // Processing results

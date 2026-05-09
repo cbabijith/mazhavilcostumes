@@ -1,0 +1,294 @@
+# Fix Priority Cleaning Edge Cases
+
+## Problem Summary
+
+The current priority cleaning logic has several edge cases that aren't handled:
+
+| # | Edge Case | Bug |
+|---|-----------|-----|
+| 1 | **Direction bug**: New order (Order D, May 11–14) returns BEFORE existing order (Order A, May 15–18) | System wrongly flags Order A instead of Order D |
+| 2 | **Date changes**: Order B changes dates, no longer conflicts | Order A stays wrongly flagged as priority |
+| 3 | **Expected return date stale**: Order A extends rental | Cleaning record's `expected_return_date` stays old |
+| 4 | **Multiple priority orders**: Order B and C both trigger priority on Order A, then C is cancelled | Order A loses priority even though B still needs it |
+| 5 | **Item changes**: Order B replaces Product X with Product Y | Order A stays wrongly urgent for Product X |
+
+## Root Cause
+
+The current approach tracks priority cleaning **incrementally** (at create time, at cancel time) and tries to maintain relationships between individual order pairs. This is fragile because any change to any order can cascade and invalidate previous decisions.
+
+## Solution: Centralized Recalculation
+
+Instead of incremental tracking, introduce a **single method** that recalculates the complete priority cleaning picture for a product from scratch:
+
+```
+recalculateProductPriorityCleaning(productId, branchId)
+```
+
+This method:
+1. Gets ALL active orders for a product (sorted chronologically by `end_date`)
+2. For each consecutive pair, checks if a buffer conflict exists
+3. The **earlier-ending order** always needs priority cleaning (it returns first → needs fast cleaning for the next order)
+4. Updates cleaning records and `has_priority_cleaning` flags on orders
+
+Called from: `createOrder()`, `updateOrder()` (dates/items/cancel), `deleteOrder()`
+
+### Why "recalculate from scratch" is better than incremental
+
+- **No direction bug**: We sort all orders chronologically and always identify the correct one
+- **No stale data**: Every change triggers a full re-evaluation
+- **No multi-priority bug**: We check ALL orders, not just one pair
+- **Simple mental model**: One method, one source of truth
+
+---
+
+## Proposed Changes
+
+### Domain Layer
+
+#### [MODIFY] [cleaning.ts](file:///d:/personal/mazhavilcostumes/apps/admin/domain/types/cleaning.ts)
+
+**Add `expected_return_date` to `UpdateCleaningRecordDTO`**
+
+Currently `UpdateCleaningRecordDTO` doesn't include `expected_return_date`, so when an order's dates change, we can't update the cleaning slip's expected return date. This causes Edge Case #3 (stale dates on cleaning slips).
+
+```typescript
+export interface UpdateCleaningRecordDTO {
+  status?: CleaningStatus;
+  priority?: CleaningPriority;
+  priority_order_id?: string | null;
+  expected_return_date?: string | null;  // ← ADD THIS
+  started_at?: string | null;
+  completed_at?: string | null;
+  notes?: string;
+}
+```
+
+---
+
+### Service Layer
+
+#### [MODIFY] [orderService.ts](file:///d:/personal/mazhavilcostumes/apps/admin/services/orderService.ts)
+
+**New private method: `recalculateProductPriorityCleaning(productId, branchId)`**
+
+```typescript
+/**
+ * Recalculate priority cleaning for all active orders of a product.
+ *
+ * Algorithm:
+ * 1. Get all active orders with this product
+ * 2. Sort by end_date ascending (chronological return order)
+ * 3. For each order, check if the NEXT order's start_date
+ *    falls within this order's buffer (end_date + buffer_days)
+ * 4. If yes → this order needs priority cleaning (clean fast for next order)
+ * 5. Update cleaning records and has_priority_cleaning flags
+ */
+```
+
+Logic:
+```
+Orders sorted by end_date: [D(May11-14), A(May15-18), B(May19-22)]
+
+Check D→A: D ends May14 + 1 day buffer = May15. A starts May15. 
+            Conflict! → D needs priority cleaning (priority_order_id = A)
+
+Check A→B: A ends May18 + 1 day buffer = May19. B starts May19. 
+            Conflict! → A needs priority cleaning (priority_order_id = B)
+
+D: urgent (for A), A: urgent (for B), B: normal
+```
+
+**Modify `createOrder()`:**
+- Keep creating scheduled cleaning records for all items ✅ (already done)
+- **Remove** the inline priority upgrade logic (lines 263–293)
+- **Replace with**: call `recalculateProductPriorityCleaning(productId, branchId)` for each product in the order
+
+**Modify `updateOrder()`:**
+- After successful update, check if dates or items changed
+- If dates changed: update `expected_return_date` on own cleaning records, then call `recalculateProductPriorityCleaning()` for each product
+- If items changed: call recalculate for both OLD and NEW products
+- If cancelled: delete own scheduled cleaning records, then call recalculate for each product (this replaces the current inline cancellation logic)
+
+**Modify `deleteOrder()`:**
+
+> [!IMPORTANT]
+> Currently `deleteOrder()` does **nothing** about cleaning records. When an order is deleted, its cleaning records and any priority flags it caused on other orders are left behind as ghost data.
+
+- **Before deleting**, fetch the order's items to know which products are affected
+- Delete the order's own cleaning records
+- Call `recalculateProductPriorityCleaning()` for each affected product
+- **Then** proceed with the actual order deletion
+
+```
+deleteOrder(id):
+  1. Fetch order items → get list of product IDs
+  2. Fetch order's branch_id
+  3. Delete cleaning records for this order
+  4. Delete the order (repository.delete)
+  5. For each product: recalculateProductPriorityCleaning(productId, branchId)
+```
+
+> [!NOTE]
+> Step 5 runs **after** the order is deleted, so when recalculate queries active orders, the deleted order won't appear. This is the correct behavior — the deleted order should not influence priority calculations.
+
+**Modify `processOrderReturn()`:**
+- Keep transition `scheduled → pending` ✅ (already done)
+- No additional changes needed (recalculate not needed at return — the priority was already set)
+
+---
+
+### Repository Layer
+
+#### [MODIFY] [orderRepository.ts](file:///d:/personal/mazhavilcostumes/apps/admin/repository/orderRepository.ts)
+
+**New method: `findActiveOrdersForProduct(productId, branchId?)`**
+
+Returns all active orders that contain a given product, sorted by `end_date` ascending. This is needed by the recalculation method.
+
+> [!IMPORTANT]
+> Must use the **exact same status list** as `checkAvailability()` for consistency:
+> `['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']`
+> 
+> Excludes: `cancelled`, `completed`, `returned`, `flagged`
+
+```typescript
+async findActiveOrdersForProduct(
+  productId: string, 
+  branchId?: string
+): Promise<RepositoryResult<{ orderId: string; startDate: string; endDate: string; quantity: number }[]>>
+```
+
+#### [MODIFY] [cleaningRepository.ts](file:///d:/personal/mazhavilcostumes/apps/admin/repository/cleaningRepository.ts)
+
+No new methods needed — existing `findByOrderAndProduct()`, `update()`, `findByOrderId()`, `delete()` are sufficient.
+
+#### [MODIFY] [repository/index.ts](file:///d:/personal/mazhavilcostumes/apps/admin/repository/index.ts)
+
+Update barrel exports if any new public methods need re-exporting.
+
+---
+
+### Data Flow: Order D (May 11–14) Created After Order A (May 15–18)
+
+```mermaid
+sequenceDiagram
+    participant Staff
+    participant OrderService
+    participant Recalculate
+    participant CleaningDB
+    participant OrdersDB
+
+    Note over Staff: Order A (May 15-18, 5 qty) already exists
+
+    Staff->>OrderService: createOrder(Order D, May 11-14, 7 qty)
+    OrderService->>OrdersDB: INSERT Order D
+    OrderService->>CleaningDB: INSERT cleaning(D, scheduled, normal)
+    
+    Note over OrderService: Call recalculate for Product X
+    OrderService->>Recalculate: recalculateProductPriorityCleaning(productX)
+    
+    Recalculate->>OrdersDB: Get all active orders for Product X
+    Note over Recalculate: Sort by end_date: [D(end:May14), A(end:May18)]
+    Note over Recalculate: Check D→A: May14+1 buffer >= May15 start? YES
+    Note over Recalculate: → D needs priority cleaning for A
+    
+    Recalculate->>CleaningDB: UPDATE D's cleaning → urgent, priority_order_id=A
+    Recalculate->>OrdersDB: UPDATE Order D → has_priority_cleaning=true
+    Note over Recalculate: Check A→(none): no next order → A stays normal
+    Recalculate->>OrdersDB: UPDATE Order A → has_priority_cleaning=false
+    
+    Recalculate-->>Staff: Done ✅
+```
+
+### Data Flow: Order B Date Changed (No Longer Conflicts)
+
+```mermaid
+sequenceDiagram
+    participant Staff
+    participant OrderService
+    participant Recalculate
+    participant CleaningDB
+    participant OrdersDB
+
+    Note over Staff: Order A (May 15-17) has priority for Order B (May 18)
+    
+    Staff->>OrderService: updateOrder(B, dates: May 25-27)
+    OrderService->>OrdersDB: UPDATE Order B dates
+    
+    Note over OrderService: Dates changed → recalculate for each product
+    OrderService->>Recalculate: recalculateProductPriorityCleaning(productX)
+    
+    Recalculate->>OrdersDB: Get all active orders for Product X
+    Note over Recalculate: Sort: [A(end:May17), B(end:May27)]
+    Note over Recalculate: Check A→B: May17+1=May18. B starts May25. May18 < May25
+    Note over Recalculate: → No conflict! A stays normal
+    
+    Recalculate->>CleaningDB: UPDATE A's cleaning → normal, priority_order_id=null
+    Recalculate->>OrdersDB: UPDATE Order A → has_priority_cleaning=false
+    
+    Recalculate-->>Staff: Priority correctly removed ✅
+```
+
+### Data Flow: Order Deleted
+
+```mermaid
+sequenceDiagram
+    participant Staff
+    participant OrderService
+    participant Recalculate
+    participant CleaningDB
+    participant OrdersDB
+
+    Note over Staff: Order A (May 15-18) is URGENT because of Order B (May 19-21)
+    
+    Staff->>OrderService: deleteOrder(Order B)
+    OrderService->>OrdersDB: Fetch Order B items → [Product X]
+    OrderService->>CleaningDB: DELETE Order B's cleaning records
+    OrderService->>OrdersDB: DELETE Order B
+    
+    Note over OrderService: Recalculate for each affected product
+    OrderService->>Recalculate: recalculateProductPriorityCleaning(productX)
+    
+    Recalculate->>OrdersDB: Get all active orders for Product X
+    Note over Recalculate: Only Order A remains, no next order
+    Note over Recalculate: → A stays normal
+    
+    Recalculate->>CleaningDB: UPDATE A's cleaning → normal
+    Recalculate->>OrdersDB: UPDATE Order A → has_priority_cleaning=false
+    
+    Recalculate-->>Staff: Ghost priority correctly removed ✅
+```
+
+---
+
+## Edge Case Solutions Summary
+
+| Edge Case | How Recalculate Fixes It |
+|-----------|-------------------------|
+| **Direction bug** | Sort by `end_date` → the earlier-ending order always gets priority. Works regardless of creation order |
+| **Date changes** | Recalculate called after date update → re-evaluates all pairs from scratch |
+| **Expected return stale** | `updateOrder()` updates `expected_return_date` on cleaning records before calling recalculate (requires `UpdateCleaningRecordDTO` fix) |
+| **Multiple priority** | Recalculate checks ALL orders, not just one pair → won't miss Order B when Order C is cancelled |
+| **Item changes** | Recalculate called for both old and new products → old products lose stale priority, new products gain correct priority |
+| **Cancellation** | Delete cancelled order's records → recalculate → remaining orders re-evaluated correctly |
+| **Deletion** | Fetch affected products before delete → delete cleaning records → delete order → recalculate for each product |
+
+---
+
+## Verification Plan
+
+### Manual Testing Scenarios
+
+1. **Normal flow**: Create Order A (May 15–18) → create Order B (May 18–20) → verify Order A flagged urgent
+2. **Reversed direction**: Create Order A (May 15–18) → create Order D (May 11–14) → verify Order D flagged urgent
+3. **Date change removes priority**: After scenario 1, change Order B to May 25–27 → verify Order A unflagged
+4. **Date change adds priority**: After removing, change Order B back to May 18–20 → verify Order A re-flagged
+5. **Cancellation**: After scenario 1, cancel Order B → verify Order A unflagged
+6. **Multi-priority**: Create Order B AND Order C both triggering priority on Order A → cancel Order C → verify Order A stays urgent (for Order B)
+7. **Item change**: After scenario 1, edit Order B to use a different product → verify Order A unflagged for Product X
+8. **Delete order**: After scenario 1, delete Order B → verify Order A unflagged and no ghost cleaning records remain
+
+### Build Verification
+```bash
+pnpm run build
+```

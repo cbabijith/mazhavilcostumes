@@ -30,7 +30,7 @@ export const CreateOrderSchema = z.object({
   advance_amount: z.number().nonnegative().optional(),
   advance_collected: z.boolean().optional(),
   advance_payment_method: z.nativeEnum(PaymentMethod).optional(),
-  buffer_override: z.boolean().optional().default(false),
+  priority_cleaning_confirmed: z.boolean().optional().default(false),
 }).refine((data) => {
   const start = new Date(data.rental_start_date);
   const end = new Date(data.rental_end_date);
@@ -63,7 +63,7 @@ export const UpdateOrderSchema = z.object({
   total_amount: z.number().nonnegative().optional(),
   cancellation_reason: z.string().max(2000).optional(),
   cancelled_at: z.string().datetime().optional(),
-  buffer_override: z.boolean().optional(),
+
   items: z.array(orderItemSchema).optional(),
 }).refine((data) => {
   if (data.start_date && data.end_date) {

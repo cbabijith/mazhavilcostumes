@@ -39,7 +39,6 @@ const FILTER_CHIPS = [
   { label: "Completed", value: OrderStatus.COMPLETED },
   { label: "Cancelled", value: OrderStatus.CANCELLED },
   { label: "Flagged", value: OrderStatus.FLAGGED },
-  { label: "✨ Prior Cleaning", value: "BUFFER_OVERRIDE" },
 ] as const;
 
 interface OrderFiltersProps {

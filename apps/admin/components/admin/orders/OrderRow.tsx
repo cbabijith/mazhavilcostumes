@@ -160,13 +160,14 @@ function OrderRowInner({
         <div className="flex flex-col items-start gap-1">
           <OrderStatusBadge status={order.status} />
 
-          {/* Buffer override indicator */}
-          {order.buffer_override && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5 flex items-center gap-0.5">
-              <Sparkles className="w-2.5 h-2.5" /> Prior Cleaning
+          {/* Priority Cleaning badge */}
+          {order.has_priority_cleaning && (
+            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none">
+              <Sparkles className="w-3 h-3 fill-amber-500" />
+              Priority Cleaning
             </Badge>
           )}
-          
+
           {/* Show payment badge for active (non-terminal) orders */}
           {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (
             (() => {
@@ -340,6 +341,7 @@ const OrderRow = React.memo(OrderRowInner, (prev, next) => {
     prev.order.status === next.order.status &&
     prev.order.total_amount === next.order.total_amount &&
     prev.order.amount_paid === next.order.amount_paid &&
+    prev.order.has_priority_cleaning === next.order.has_priority_cleaning &&
     prev.selected === next.selected
   );
 });

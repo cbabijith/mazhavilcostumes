@@ -7,6 +7,7 @@
  *
  * Features:
  *   - Select all / deselect all
+ *   - Column sorting (ascending / descending) on all fields
  *   - Shimmer skeleton loading state
  *   - Empty state with CTA
  *   - Each row is independently memoized via React.memo
@@ -17,13 +18,21 @@
 
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { type OrderWithRelations } from "@/domain";
 import OrderRow from "./OrderRow";
+
+type SortField = "customer" | "phone" | "dates" | "items" | "amount" | "status";
+type SortDirection = "asc" | "desc";
+
+interface SortState {
+  field: SortField | null;
+  direction: SortDirection;
+}
 
 interface OrderListTableProps {
   orders: OrderWithRelations[];
@@ -95,6 +104,32 @@ const EmptyState = React.memo(function EmptyState({
   );
 });
 
+/** Status priority for sorting — more urgent statuses come first */
+const STATUS_ORDER: Record<string, number> = {
+  late_return: 0,
+  flagged: 1,
+  ongoing: 2,
+  in_use: 3,
+  partial: 4,
+  delivered: 5,
+  scheduled: 6,
+  pending: 7,
+  confirmed: 8,
+  returned: 9,
+  completed: 10,
+  cancelled: 11,
+};
+
+/** Sort icon component for table headers */
+function SortIcon({ field, sortState }: { field: SortField; sortState: SortState }) {
+  if (sortState.field !== field) {
+    return <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400 transition-colors" />;
+  }
+  return sortState.direction === "asc"
+    ? <ArrowUp className="w-3 h-3 text-slate-700" />
+    : <ArrowDown className="w-3 h-3 text-slate-700" />;
+}
+
 function OrderListTableInner({
   orders,
   isLoading,
@@ -104,6 +139,55 @@ function OrderListTableInner({
   onToggleSelect,
   onCancel,
 }: OrderListTableProps) {
+  const [sortState, setSortState] = useState<SortState>({ field: null, direction: "asc" });
+
+  const toggleSort = useCallback((field: SortField) => {
+    setSortState(prev => {
+      if (prev.field === field) {
+        // Same field → toggle direction, or clear if already desc
+        return prev.direction === "asc"
+          ? { field, direction: "desc" as SortDirection }
+          : { field: null, direction: "asc" as SortDirection };
+      }
+      // New field → default to ascending
+      return { field, direction: "asc" as SortDirection };
+    });
+  }, []);
+
+  const sortedOrders = useMemo(() => {
+    if (!sortState.field) return orders;
+
+    const sorted = [...orders].sort((a, b) => {
+      let cmp = 0;
+
+      switch (sortState.field) {
+        case "customer":
+          cmp = (a.customer?.name || "").localeCompare(b.customer?.name || "");
+          break;
+        case "phone":
+          cmp = (a.customer?.phone || "").localeCompare(b.customer?.phone || "");
+          break;
+        case "dates":
+          cmp = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+          if (cmp === 0) cmp = new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
+          break;
+        case "items":
+          cmp = (a.items?.length || 0) - (b.items?.length || 0);
+          break;
+        case "amount":
+          cmp = (a.total_amount || 0) - (b.total_amount || 0);
+          break;
+        case "status":
+          cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+          break;
+      }
+
+      return sortState.direction === "desc" ? -cmp : cmp;
+    });
+
+    return sorted;
+  }, [orders, sortState]);
+
   const isSelected = useCallback(
     (id: string) => selectedOrders.includes(id),
     [selectedOrders]
@@ -125,6 +209,8 @@ function OrderListTableInner({
     );
   }
 
+  const headerClass = "px-4 py-3 select-none cursor-pointer group hover:bg-slate-100/50 transition-colors";
+
   return (
     <Card className="shadow-sm border-slate-200 overflow-hidden bg-white">
       <div className="overflow-x-auto">
@@ -141,17 +227,47 @@ function OrderListTableInner({
                   className="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
                 />
               </th>
-              <th className="px-4 py-3">Customer</th>
-              <th className="px-4 py-3">Phone</th>
-              <th className="px-4 py-3">Dates</th>
-              <th className="px-4 py-3">Items</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Status</th>
+              <th className={headerClass} onClick={() => toggleSort("customer")}>
+                <div className="flex items-center gap-1.5">
+                  Customer
+                  <SortIcon field="customer" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("phone")}>
+                <div className="flex items-center gap-1.5">
+                  Phone
+                  <SortIcon field="phone" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("dates")}>
+                <div className="flex items-center gap-1.5">
+                  Dates
+                  <SortIcon field="dates" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("items")}>
+                <div className="flex items-center gap-1.5">
+                  Items
+                  <SortIcon field="items" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("amount")}>
+                <div className="flex items-center gap-1.5">
+                  Amount
+                  <SortIcon field="amount" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("status")}>
+                <div className="flex items-center gap-1.5">
+                  Status
+                  <SortIcon field="status" sortState={sortState} />
+                </div>
+              </th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {orders.map((order) => (
+            {sortedOrders.map((order) => (
               <OrderRow
                 key={order.id}
                 order={order}

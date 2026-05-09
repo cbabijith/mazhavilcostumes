@@ -80,7 +80,7 @@ export class CleaningService {
   async getDashboardMetrics(branchId: string) {
     const queueResult = await cleaningRepository.findMany({ 
       branch_id: branchId,
-      status: CleaningStatus.PENDING 
+      status: CleaningStatus.IN_PROGRESS 
     });
     
     const urgentCount = queueResult.data?.filter(r => r.priority === CleaningPriority.URGENT).length || 0;
@@ -91,6 +91,33 @@ export class CleaningService {
       totalCount,
       queue: queueResult.data || []
     };
+  }
+
+  /**
+   * Auto-complete cleaning records whose buffer period has expired.
+   * Called by the daily cron job.
+   *
+   * Buffer = 1 calendar day after started_at.
+   * Records with started_at::date + 1 <= today are marked completed.
+   *
+   * @param bufferDays Number of buffer days (default: 1)
+   * @returns Number of records auto-completed
+   */
+  async autoCompleteExpiredCleaning(bufferDays: number = 1): Promise<number> {
+    const expired = await cleaningRepository.findExpiredInProgress(bufferDays);
+    if (!expired.success || !expired.data || expired.data.length === 0) return 0;
+
+    let count = 0;
+    for (const record of expired.data) {
+      const result = await cleaningRepository.update(record.id, {
+        status: CleaningStatus.COMPLETED,
+        completed_at: new Date().toISOString(),
+      });
+      if (result.success) count++;
+    }
+
+    console.log(`[Cleaning Cron] Auto-completed ${count} cleaning records (buffer: ${bufferDays} day(s))`);
+    return count;
   }
 }
 

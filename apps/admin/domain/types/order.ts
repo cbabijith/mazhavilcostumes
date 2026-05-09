@@ -105,6 +105,7 @@ export interface Order {
   advance_collected_at?: string;
   amount_paid: number;
   payment_status: PaymentStatus;
+  has_priority_cleaning?: boolean;
   notes: string | null;
   delivery_method?: DeliveryMethod;
   delivery_address?: string;
@@ -116,10 +117,11 @@ export interface Order {
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
-  buffer_override?: boolean;
+
   readonly created_at: string;
   readonly updated_at?: string;
 }
+
 
 // Order with Relations
 export interface OrderWithRelations extends Order {
@@ -175,7 +177,7 @@ export interface CreateOrderDTO {
   advance_amount?: number;
   advance_collected?: boolean;
   advance_payment_method?: string;
-  buffer_override?: boolean;
+  priority_cleaning_confirmed?: boolean;
 }
 
 // Order Update DTO
@@ -203,7 +205,7 @@ export interface UpdateOrderDTO {
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
-  buffer_override?: boolean;
+
   items?: {
     product_id: string;
     quantity: number;
@@ -237,7 +239,6 @@ export interface OrderSearchParams {
   branch_id?: string;
   status?: OrderStatus | OrderStatus[];
   product_id?: string;
-  buffer_override?: boolean;
   query?: string;
   date_filter?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
   date_from?: string;
@@ -288,27 +289,28 @@ export interface AvailabilityCalendarResponse {
   days: DayAvailability[];
 }
 
+/** Info about an order whose cleaning must be prioritized */
+export interface PriorityCleaningInfo {
+  returningOrderId: string;
+  returningOrderCustomer: string;
+  returningOrderEndDate: string;
+  returningQuantity: number;
+  productId: string;
+  productName: string;
+}
+
 /** Availability check result for a single item (used in order form) */
 export interface ItemAvailabilityResult {
   product_id: string;
   product_name: string;
   requested: number;
   available: number;
+  availableWithPriority: number;
   isAvailable: boolean;
   peakReserved: number;
   overlappingOrders: DayBookingInfo[];
-  adjacentOrders?: AdjacentOrderInfo[];
-}
-
-/** Adjacent order info for buffer override warnings */
-export interface AdjacentOrderInfo {
-  orderId: string;
-  customerName: string;
-  quantity: number;
-  startDate: string;
-  endDate: string;
-  status: string;
-  position: 'before' | 'after'; // relative to the new order
+  priorityCleaningNeeded: boolean;
+  priorityCleaningInfo?: PriorityCleaningInfo[];
 }
 
 /** Batch availability check response */

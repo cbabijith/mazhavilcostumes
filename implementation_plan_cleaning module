@@ -1,0 +1,264 @@
+# Automated Cleaning Module — Revised Plan
+
+## The Correct Lifecycle
+
+Cleaning is about the **physical product**, not about payments or order completion. The lifecycle is:
+
+```
+Order Created ──────────► status = 'scheduled'
+                           (future workload — "this product will need cleaning after return")
+                                 │
+Items Physically Returned ──► status = 'in_progress', started_at = now()
+(processOrderReturn)           (product is back in shop, cleaning has started)
+                                 │
+Buffer Period Expires ──────► status = 'completed', completed_at = now()
+(1 day after started_at)       (cleaning done, product available for next rental)
+  ↑ via daily cron job
+```
+
+### Real-world example:
+- **May 15**: Customer returns the lehenga → cleaning starts (`in_progress`)
+- **May 16**: Buffer day — staff cleans/irons/packs the costume
+- **May 17 00:05 IST**: Cron runs → marks cleaning as `completed`
+- Product is now available for the next customer
+
+> [!IMPORTANT]
+> **No connection to payment status or order completion.** A customer can still owe money — that's a payment problem. The physical product is cleaned regardless.
+
+---
+
+## Current State Analysis
+
+| What | Current Behavior | Correct Behavior | Status |
+|------|-----------------|-------------------|--------|
+| Order created | Creates `scheduled` cleaning record | Same | ✅ OK |
+| Items returned | `scheduled` → `pending` | `scheduled` → `in_progress` + set `started_at` | ❌ Fix |
+| Buffer expires | Nothing happens | `in_progress` → `completed` via cron | ❌ Missing |
+| Order cancelled | Deletes `scheduled` records + recalculate | Same | ✅ OK |
+| Order deleted | Deletes records + recalculate | Same | ✅ OK |
+| Date changed | Updates `expected_return_date` + recalculate | Same | ✅ OK |
+| Manual completion | Was done via UI button (now removed) | Auto only — no manual | ✅ Fixed |
+
+---
+
+## Edge Cases
+
+### 1. Partial Return (some items returned, some not)
+
+**Scenario**: Order has 5 lehengas. Customer returns 3 today, 2 tomorrow.
+
+**How it works now**: `processOrderReturn` is called twice:
+- Call 1: Returns 3 items → order status = `partial`
+- Call 2: Returns remaining 2 → order status = `returned`
+
+**What should happen to cleaning**:
+- The cleaning record is **per product per order** (not per item unit). There's ONE cleaning record for "5 lehengas from Order X".
+- On the **first** partial return: Don't start cleaning yet — not all units are back. Keep `scheduled`.
+- On the **final** return (all units back): Transition to `in_progress`, set `started_at`.
+
+**Logic**: Only transition cleaning when `returned_quantity >= quantity` for that product in the order.
+
+---
+
+### 2. Late Return
+
+**Scenario**: End date was May 15, customer returns May 18.
+
+**What happens**:
+- Cleaning record stays `scheduled` the whole time (it was pre-created at order time with `expected_return_date = May 15`)
+- Cron transitions order to `late_return` — no effect on cleaning status
+- Customer finally returns on May 18 → cleaning starts (`in_progress`, `started_at = May 18`)
+- Cron on May 19 or 20 → cleaning `completed`
+
+**No special handling needed** — the existing flow handles this correctly.
+
+---
+
+### 3. Early Return
+
+**Scenario**: End date was May 20, customer returns May 16.
+
+**What happens**:
+- Cleaning starts immediately on May 16 (`in_progress`)
+- Buffer expires May 17 → cron marks `completed`
+- Product available earlier than expected
+
+**No special handling needed.**
+
+---
+
+### 4. Cancelled Order After Return Started
+
+**Scenario**: Items were returned (cleaning `in_progress`), then order is cancelled.
+
+**What should happen**: Cleaning should continue — the product physically needs cleaning regardless of the order's administrative status. **Don't delete `in_progress` cleaning records on cancellation.** Only delete `scheduled` ones.
+
+**Current code already does this** — it only deletes records with `status === CleaningStatus.SCHEDULED`.
+
+---
+
+### 5. Order Deleted After Return Started
+
+**Scenario**: Items were returned (cleaning `in_progress`), then the order is deleted from the system.
+
+**What happens**: Currently all cleaning records are deleted. But the physical product still needs cleaning.
+
+**Proposed**: On delete, only delete `scheduled` records. Keep `in_progress` and `completed` records (they track real physical work).
+
+---
+
+### 6. Product Re-rented During Buffer Period
+
+**Scenario**: Lehenga returned May 15, buffer until May 16. New order starts May 16 (needs priority cleaning).
+
+**What happens**: The priority cleaning system already handles this — it flags the cleaning as `URGENT`. The cron would still auto-complete the cleaning at the end of the buffer period, and the product would be available.
+
+**No special handling needed.**
+
+---
+
+### 7. Cron Timing: What if cron runs at midnight but item was returned at 11pm?
+
+**Buffer = 1 calendar day after `started_at` date.**
+
+If returned at 11pm on May 15:
+- `started_at = 2026-05-15T23:00:00`
+- Buffer expires: `started_at::date + 1 = May 16`
+- Cron runs May 17 at 00:05 → checks `started_at::date + 1 <= today (May 17)` → ✅ completes
+
+This gives the staff the full next calendar day for cleaning, regardless of return time.
+
+---
+
+## Proposed Changes
+
+### 1. `services/orderService.ts` → `processOrderReturn()`
+
+#### Change: `scheduled` → `in_progress` (instead of `pending`)
+
+Only transition when ALL units of the product are returned:
+
+```typescript
+// Current (line 678-698):
+status: CleaningStatus.PENDING
+
+// New:
+// Check if all units returned for this product
+const orderItem = result.data.items.find(i => i.product_id === item.product_id);
+const allReturned = orderItem && (orderItem.returned_quantity || 0) >= orderItem.quantity;
+
+if (allReturned) {
+  status: CleaningStatus.IN_PROGRESS,
+  started_at: new Date().toISOString(),
+}
+```
+
+---
+
+### 2. `services/orderService.ts` → `deleteOrder()`
+
+#### Change: Only delete `scheduled` records on delete
+
+```typescript
+// Current: deletes ALL cleaning records
+// New: only delete scheduled ones, keep in_progress/completed
+for (const record of ownRecords.data) {
+  if (record.status === CleaningStatus.SCHEDULED) {
+    await cleaningRepository.delete(record.id);
+  }
+}
+```
+
+---
+
+### 3. `repository/cleaningRepository.ts` → New method
+
+#### [NEW] `findExpiredInProgress()` — Find cleaning records ready for auto-completion
+
+```typescript
+async findExpiredInProgress(bufferDays: number = 1): Promise<RepositoryResult<CleaningRecord[]>> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - bufferDays);
+  const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+  return this.executeOperation(async () => {
+    return this.client
+      .from(this.TABLE)
+      .select('*')
+      .eq('status', 'in_progress')
+      .lte('started_at', cutoffStr + 'T23:59:59Z');
+  });
+}
+```
+
+---
+
+### 4. `services/cleaningService.ts` → New method
+
+#### [NEW] `autoCompleteExpiredCleaning()` — Called by cron
+
+```typescript
+async autoCompleteExpiredCleaning(): Promise<number> {
+  const expired = await cleaningRepository.findExpiredInProgress(BUFFER_DAYS);
+  if (!expired.success || !expired.data) return 0;
+
+  let count = 0;
+  for (const record of expired.data) {
+    await cleaningRepository.update(record.id, {
+      status: CleaningStatus.COMPLETED,
+      completed_at: new Date().toISOString(),
+    });
+    count++;
+  }
+  return count;
+}
+```
+
+---
+
+### 5. `app/api/cron/auto-status/route.ts` → Extend cron
+
+Add cleaning auto-completion alongside the existing overdue order transition:
+
+```typescript
+// Existing:
+const transitioned = await orderService.transitionOverdueOrders();
+
+// Add:
+const cleaningCompleted = await cleaningService.autoCompleteExpiredCleaning();
+```
+
+---
+
+### 6. `components/admin/dashboard/CleaningQueue.tsx` → No changes needed
+
+The queue already filters out `COMPLETED` records:
+```tsx
+let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];
+```
+
+---
+
+## Summary of All Changes
+
+| # | File | Change | Why |
+|---|------|--------|-----|
+| 1 | `orderService.ts` → `processOrderReturn()` | `scheduled` → `in_progress` (not `pending`), set `started_at`, only when all units returned | Start cleaning on physical return |
+| 2 | `orderService.ts` → `deleteOrder()` | Only delete `scheduled` records, keep `in_progress`/`completed` | Don't lose cleaning history for physically returned items |
+| 3 | `cleaningRepository.ts` | Add `findExpiredInProgress()` method | Cron needs to find buffer-expired records |
+| 4 | `cleaningService.ts` | Add `autoCompleteExpiredCleaning()` method | Business logic for auto-completion |
+| 5 | `cron/auto-status/route.ts` | Call `cleaningService.autoCompleteExpiredCleaning()` | Extend existing daily cron |
+
+---
+
+## Verification Plan
+
+### Test Cases
+
+1. **Full lifecycle**: Create order (May 15-17) → return items → verify cleaning = `in_progress` + `started_at` set → call cron after buffer → verify = `completed`
+2. **Partial return**: Return 2 of 5 → verify cleaning stays `scheduled` → return remaining 3 → verify cleaning = `in_progress`
+3. **Late return**: Order end date May 15 → return May 18 → verify cleaning starts May 18
+4. **Cancel after return**: Return items → cancel order → verify cleaning stays `in_progress` (not deleted)
+5. **Delete after return**: Return items → delete order → verify cleaning stays `in_progress`
+6. **Priority + buffer**: Create overlapping orders → verify priority flag + cleaning completes after buffer
+7. **Build**: `pnpm run build --filter=admin` passes with 0 errors
