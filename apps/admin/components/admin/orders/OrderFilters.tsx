@@ -31,6 +31,7 @@ import { OrderStatus } from "@/domain";
 /** Pre-defined status filter options */
 const FILTER_CHIPS = [
   { label: "All", value: "ALL" },
+  { label: "Pending", value: OrderStatus.PENDING },
   { label: "Ongoing", value: OrderStatus.ONGOING },
   { label: "Scheduled", value: OrderStatus.SCHEDULED },
   { label: "Late", value: OrderStatus.LATE_RETURN },

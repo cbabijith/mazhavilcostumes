@@ -241,6 +241,7 @@ export interface OrderSearchParams {
   product_id?: string;
   query?: string;
   date_filter?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
+  date_field?: 'created_at' | 'start_date' | 'end_date';
   date_from?: string;
   date_to?: string;
   limit?: number;

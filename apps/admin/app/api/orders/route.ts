@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       product_id: searchParams.get('product_id') || undefined,
       query: searchParams.get('query') || undefined,
       date_filter: searchParams.get('date_filter') as any || undefined,
+      date_field: searchParams.get('date_field') as any || undefined,
       date_from: searchParams.get('date_from') || undefined,
       date_to: searchParams.get('date_to') || undefined,
       limit,

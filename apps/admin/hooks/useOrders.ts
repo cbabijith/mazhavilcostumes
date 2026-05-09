@@ -74,6 +74,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.product_id) searchParams.append('product_id', params.product_id);
       if (params?.query) searchParams.append('query', params.query);
       if (params?.date_filter) searchParams.append('date_filter', params.date_filter);
+      if (params?.date_field) searchParams.append('date_field', params.date_field);
       if (params?.date_from) searchParams.append('date_from', params.date_from);
       if (params?.date_to) searchParams.append('date_to', params.date_to);
       if (params?.limit) searchParams.append('limit', params.limit.toString());

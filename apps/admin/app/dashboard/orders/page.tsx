@@ -70,6 +70,7 @@ function OrdersContent() {
   const statusFilter =
     (searchParams.get("status") || "ALL") as OrderStatus | "ALL";
   const dateFilter = searchParams.get("date_filter") || "ALL";
+  const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
 
@@ -112,6 +113,7 @@ function OrdersContent() {
       dateFilter === "ALL"
         ? undefined
         : (dateFilter as "today" | "yesterday" | "this_week" | "this_month" | "custom"),
+    date_field: dateField,
     date_from: dateFilter === "custom" && dateFrom ? dateFrom : undefined,
     date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
   });

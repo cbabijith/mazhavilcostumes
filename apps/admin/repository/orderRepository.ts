@@ -113,33 +113,54 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {
+      const dateCol = params?.date_field || 'created_at';
+      const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
       if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
-        if (params?.date_from) query = query.gte('created_at', params.date_from);
-        if (params?.date_to) query = query.lte('created_at', params.date_to);
+        if (params?.date_from) query = query.gte(dateCol, params.date_from);
+        if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
         const now = new Date();
         let startDate, endDate;
         switch (params.date_filter) {
           case 'today':
-            startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const todayStr = now.toISOString().split('T')[0];
+              query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
+            } else {
+              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'yesterday':
             const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
-            startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const yStr = yesterday.toISOString().split('T')[0];
+              query = query.gte(dateCol, yStr).lte(dateCol, yStr);
+            } else {
+              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'this_week':
             const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-            startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-            query = query.gte('created_at', startDate);
+            if (isDateOnly) {
+              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+            } else {
+              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
           case 'this_month':
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            query = query.gte('created_at', startDate);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (isDateOnly) {
+              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+            } else {
+              startDate = monthStart.toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
         }
       }
@@ -1149,33 +1170,54 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.date_filter || params?.date_from || params?.date_to) {
+      const dateCol = params?.date_field || 'created_at';
+      const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
       if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
-        if (params?.date_from) query = query.gte('created_at', params.date_from);
-        if (params?.date_to) query = query.lte('created_at', params.date_to);
+        if (params?.date_from) query = query.gte(dateCol, params.date_from);
+        if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
         const now = new Date();
         let startDate, endDate;
         switch (params.date_filter) {
           case 'today':
-            startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const todayStr = now.toISOString().split('T')[0];
+              query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
+            } else {
+              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'yesterday':
             const yesterday = new Date(now);
             yesterday.setDate(yesterday.getDate() - 1);
-            startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-            endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-            query = query.gte('created_at', startDate).lte('created_at', endDate);
+            if (isDateOnly) {
+              const yStr = yesterday.toISOString().split('T')[0];
+              query = query.gte(dateCol, yStr).lte(dateCol, yStr);
+            } else {
+              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
+              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
+              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+            }
             break;
           case 'this_week':
             const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
-            startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-            query = query.gte('created_at', startDate);
+            if (isDateOnly) {
+              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+            } else {
+              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
           case 'this_month':
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            query = query.gte('created_at', startDate);
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            if (isDateOnly) {
+              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+            } else {
+              startDate = monthStart.toISOString();
+              query = query.gte(dateCol, startDate);
+            }
             break;
         }
       }
