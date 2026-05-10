@@ -160,7 +160,9 @@ function ReportsPageContent() {
           { header: "UPI", key: "upi_revenue", format: "currency" as const },
           { header: "Completed", key: "completed_revenue", format: "currency" as const },
           { header: "Ongoing", key: "ongoing_revenue", format: "currency" as const },
-          { header: "Total", key: "total_revenue", format: "currency" as const },
+          { header: "Cancelled", key: "cancelled_revenue", format: "currency" as const },
+          { header: "Refunded", key: "refund_amount", format: "currency" as const },
+          { header: "Net Total", key: "total_revenue", format: "currency" as const },
           { header: "Orders", key: "order_count" },
         ];
       case 'top-costumes':
@@ -262,6 +264,7 @@ function ReportsPageContent() {
           { header: "Date", key: "date", format: "date" as const },
           { header: "Order ID", key: "order_id" },
           { header: "Customer", key: "customer_name" },
+          { header: "Type", key: "payment_type" },
           { header: "Payment Mode", key: "payment_mode" },
           { header: "Amount", key: "amount", format: "currency" as const },
           { header: "Order Status", key: "status" },

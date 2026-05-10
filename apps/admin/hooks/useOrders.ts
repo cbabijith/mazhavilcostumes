@@ -51,6 +51,7 @@ interface PaginatedResponse<T> {
   limit?: number;
   hasNext?: boolean;
   hasPrev?: boolean;
+  actionNeededCount?: number;
   error?: any;
 }
 
@@ -95,6 +96,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
         limit: raw.meta?.limit ?? 25,
         hasNext: raw.meta?.hasNext ?? false,
         hasPrev: raw.meta?.hasPrev ?? false,
+        actionNeededCount: raw.meta?.actionNeededCount ?? 0,
       };
     },
     placeholderData: keepPreviousData,

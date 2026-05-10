@@ -32,6 +32,8 @@ export interface PaginationMeta {
   totalPages: number;
   hasNext: boolean;
   hasPrev: boolean;
+  /** Count of scheduled orders whose pickup date has passed (action needed) */
+  actionNeededCount?: number;
 }
 
 /** Standard error envelope */

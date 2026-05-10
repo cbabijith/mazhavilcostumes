@@ -63,8 +63,11 @@ export async function GET(request: NextRequest) {
       offset: (page - 1) * limit,
     };
 
-    const result = await orderService.getAllOrders(params);
-    const countResult = await orderService.countOrders(params);
+    const [result, countResult, actionNeededResult] = await Promise.all([
+      orderService.getAllOrders(params),
+      orderService.countOrders(params),
+      orderService.countActionNeededOrders(params.branch_id),
+    ]);
 
     if (!result.success || !countResult.success) {
       return apiRepositoryError(result.error, 'Failed to fetch orders');
@@ -81,6 +84,7 @@ export async function GET(request: NextRequest) {
         limit,
         hasNext: page < totalPages,
         hasPrev: page > 1,
+        actionNeededCount: actionNeededResult.data || 0,
       },
     });
   } catch (err) {

@@ -105,34 +105,36 @@ export class ReportService {
     const page = filters.page || 1;
     const offset = (page - 1) * limit;
 
-    // 1. Fetch Aggregation Data (Small payload, all records in range)
+    // 1. Fetch Aggregation Data — includes refunds so we can track them separately
     let aggQuery = supabase()
       .from('payments')
       .select(`
         amount,
         payment_mode,
+        payment_type,
         payment_date,
         created_at,
         order:order_id (
           id,
-          status
+          status,
+          payment_status
         )
       `)
       .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
-      .neq('payment_type', 'refund');
+      .lte('created_at', `${toDate}T23:59:59`);
 
     if (filters.payment_mode && filters.payment_mode !== 'all') {
       aggQuery = aggQuery.eq('payment_mode', filters.payment_mode);
     }
 
-    // 2. Fetch Paginated Details (Full payload, slice only)
+    // 2. Fetch Paginated Details
     let detailsQuery = supabase()
       .from('payments')
       .select(`
         id,
         amount,
         payment_mode,
+        payment_type,
         payment_date,
         created_at,
         order:order_id (
@@ -145,7 +147,6 @@ export class ReportService {
       `, { count: 'exact' })
       .gte('created_at', `${fromDate}T00:00:00`)
       .lte('created_at', `${toDate}T23:59:59`)
-      .neq('payment_type', 'refund')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -153,8 +154,16 @@ export class ReportService {
       detailsQuery = detailsQuery.eq('payment_mode', filters.payment_mode);
     }
 
+    // 3. Fetch cancelled orders with unrefunded money (for refund_due)
+    const cancelledQuery = supabase()
+      .from('orders')
+      .select('id, amount_paid, payment_status')
+      .eq('status', 'cancelled')
+      .gt('amount_paid', 0)
+      .neq('payment_status', 'refund_waived');
+
     // Execute in parallel
-    const [aggResult, detailsResult] = await Promise.all([aggQuery, detailsQuery]);
+    const [aggResult, detailsResult, cancelledResult] = await Promise.all([aggQuery, detailsQuery, cancelledQuery]);
 
     if (aggResult.error) throw new Error(aggResult.error.message);
     if (detailsResult.error) throw new Error(detailsResult.error.message);
@@ -162,13 +171,16 @@ export class ReportService {
     const allPayments = (aggResult.data || []) as any[];
     const detailsData = (detailsResult.data || []) as any[];
     const totalDetailsCount = detailsResult.count || 0;
+    const cancelledOrders = (cancelledResult.data || []) as any[];
 
-    // Process Summary (Always based on ALL records in range)
+    // Process Summary
     const summaryGroups: Record<string, RevenueRow> = {};
     let totalCash = 0;
     let totalUpi = 0;
-    let totalCard = 0;
+    let totalGpay = 0;
     let totalCollected = 0;
+    let totalRefunded = 0;
+    let cancelledTotal = 0;
     const orderCounts: Record<string, Set<string>> = {};
 
     for (const p of allPayments) {
@@ -178,13 +190,10 @@ export class ReportService {
       const amount = Number(p.amount || 0);
       const mode = (p.payment_mode || '').toLowerCase();
       const status = (order.status || '').toLowerCase();
+      const paymentType = (p.payment_type || '').toLowerCase();
       const date = p.payment_date || p.created_at;
       const key = this.getPeriodKey(date, period);
-
-      totalCollected += amount;
-      if (mode === 'cash') totalCash += amount;
-      else if (mode === 'upi') totalUpi += amount;
-      else if (mode === 'card') totalCard += amount;
+      const isRefund = paymentType === 'refund';
 
       if (!summaryGroups[key]) {
         summaryGroups[key] = {
@@ -192,9 +201,11 @@ export class ReportService {
           completed_revenue: 0,
           ongoing_revenue: 0,
           scheduled_revenue: 0,
+          cancelled_revenue: 0,
+          refund_amount: 0,
           cash_revenue: 0,
           upi_revenue: 0,
-          card_revenue: 0,
+          gpay_revenue: 0,
           other_revenue: 0,
           total_revenue: 0,
           order_count: 0
@@ -203,33 +214,56 @@ export class ReportService {
       }
 
       const g = summaryGroups[key];
-      g.total_revenue += amount;
       orderCounts[key].add(order.id);
 
-      // Status breakdown
-      if (['completed', 'returned'].includes(status)) g.completed_revenue += amount;
-      else if (['ongoing', 'in_use', 'delivered', 'late_return'].includes(status)) g.ongoing_revenue += amount;
-      else g.scheduled_revenue += amount;
+      if (isRefund) {
+        // Refund payments: track separately, subtract from net totals
+        totalRefunded += amount;
+        g.refund_amount += amount;
+        g.total_revenue -= amount;
+      } else {
+        // Regular payments: add to totals
+        totalCollected += amount;
+        g.total_revenue += amount;
 
-      // Mode breakdown
-      if (mode === 'cash') g.cash_revenue += amount;
-      else if (mode === 'upi') g.upi_revenue += amount;
-      else if (mode === 'card') g.card_revenue += amount;
-      else g.other_revenue += amount;
+        // Mode breakdown (only for non-refund payments)
+        if (mode === 'cash') { totalCash += amount; g.cash_revenue += amount; }
+        else if (mode === 'upi') { totalUpi += amount; g.upi_revenue += amount; }
+        else if (mode === 'gpay') { totalGpay += amount; g.gpay_revenue += amount; }
+        else { g.other_revenue += amount; }
+
+        // Status breakdown
+        if (status === 'cancelled') {
+          g.cancelled_revenue += amount;
+          cancelledTotal += amount;
+        } else if (['completed', 'returned'].includes(status)) {
+          g.completed_revenue += amount;
+        } else if (['ongoing', 'in_use', 'delivered', 'late_return'].includes(status)) {
+          g.ongoing_revenue += amount;
+        } else {
+          g.scheduled_revenue += amount;
+        }
+      }
     }
 
+    // Compute refund due from cancelled orders with unrefunded money
+    const refundDue = cancelledOrders.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
+
     // Finalize summary
+    const r = (n: number) => Math.round(n * 100) / 100;
     const summary = Object.entries(summaryGroups).map(([key, g]) => ({
       ...g,
       order_count: orderCounts[key].size,
-      total_revenue: Math.round(g.total_revenue * 100) / 100,
-      completed_revenue: Math.round(g.completed_revenue * 100) / 100,
-      ongoing_revenue: Math.round(g.ongoing_revenue * 100) / 100,
-      scheduled_revenue: Math.round(g.scheduled_revenue * 100) / 100,
-      cash_revenue: Math.round(g.cash_revenue * 100) / 100,
-      upi_revenue: Math.round(g.upi_revenue * 100) / 100,
-      card_revenue: Math.round(g.card_revenue * 100) / 100,
-      other_revenue: Math.round(g.other_revenue * 100) / 100,
+      total_revenue: r(g.total_revenue),
+      completed_revenue: r(g.completed_revenue),
+      ongoing_revenue: r(g.ongoing_revenue),
+      scheduled_revenue: r(g.scheduled_revenue),
+      cancelled_revenue: r(g.cancelled_revenue),
+      refund_amount: r(g.refund_amount),
+      cash_revenue: r(g.cash_revenue),
+      upi_revenue: r(g.upi_revenue),
+      gpay_revenue: r(g.gpay_revenue),
+      other_revenue: r(g.other_revenue),
     }));
 
     // Process Details (Paginated)
@@ -238,6 +272,7 @@ export class ReportService {
       order_id: p.order?.id || 'Unknown',
       customer_name: p.order?.customer?.name || 'Unknown',
       payment_mode: p.payment_mode,
+      payment_type: p.payment_type || 'payment',
       amount: Number(p.amount || 0),
       status: p.order?.status || 'unknown'
     }));
@@ -246,10 +281,13 @@ export class ReportService {
       summary,
       details,
       total_details_count: totalDetailsCount,
-      total_cash: Math.round(totalCash * 100) / 100,
-      total_upi: Math.round(totalUpi * 100) / 100,
-      total_card: Math.round(totalCard * 100) / 100,
-      total_collected: Math.round(totalCollected * 100) / 100
+      total_cash: r(totalCash),
+      total_upi: r(totalUpi),
+      total_gpay: r(totalGpay),
+      total_collected: r(totalCollected),
+      total_refunded: r(totalRefunded),
+      cancelled_total: r(cancelledTotal),
+      refund_due: r(refundDue),
     };
   }
 

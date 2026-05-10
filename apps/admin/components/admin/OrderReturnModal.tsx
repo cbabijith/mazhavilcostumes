@@ -214,7 +214,7 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                     <SelectContent>
                       <SelectItem value={PaymentMode.CASH}>Cash</SelectItem>
                       <SelectItem value={PaymentMode.UPI}>UPI</SelectItem>
-                      <SelectItem value={PaymentMode.CARD}>Card</SelectItem>
+                      <SelectItem value={PaymentMode.GPAY}>GPay</SelectItem>
                       <SelectItem value={PaymentMode.BANK_TRANSFER}>Bank Transfer</SelectItem>
                       <SelectItem value={PaymentMode.CHEQUE}>Cheque</SelectItem>
                     </SelectContent>

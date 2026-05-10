@@ -22,7 +22,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { Search } from "lucide-react";
+import { Search, AlertTriangle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -49,6 +49,7 @@ interface OrderFiltersProps {
   dateTo: string;
   initialQuery: string;
   selectedCount: number;
+  actionNeededCount: number;
   onStatusChange: (status: string) => void;
   onDateFilterChange: (filter: string) => void;
   onDateFromChange: (date: string) => void;
@@ -64,6 +65,7 @@ function OrderFiltersInner({
   dateTo,
   initialQuery,
   selectedCount,
+  actionNeededCount,
   onStatusChange,
   onDateFilterChange,
   onDateFromChange,
@@ -121,6 +123,48 @@ function OrderFiltersInner({
                 {chip.label}
               </button>
             ))}
+
+            {/* Action Needed chip — only visible when there are overdue scheduled orders */}
+            {actionNeededCount > 0 && (
+              <button
+                onClick={() => onStatusChange('action_needed')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                  statusFilter === 'action_needed'
+                    ? "bg-amber-500 text-white border-amber-500"
+                    : "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:border-amber-400"
+                }`}
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                    statusFilter === 'action_needed' ? 'bg-white' : 'bg-amber-500'
+                  }`}></span>
+                </span>
+                Action Needed
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                  statusFilter === 'action_needed'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-200 text-amber-800'
+                }`}>
+                  {actionNeededCount}
+                </span>
+              </button>
+            )}
+
+            {/* Priority Cleaning chip */}
+            <button
+              onClick={() => onStatusChange('priority_cleaning')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                statusFilter === 'priority_cleaning'
+                  ? "bg-amber-500 text-white border-amber-500"
+                  : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50 hover:border-amber-300"
+              }`}
+            >
+              <Sparkles className={`w-3 h-3 ${
+                statusFilter === 'priority_cleaning' ? 'fill-white text-white' : 'fill-amber-500 text-amber-500'
+              }`} />
+              Priority Cleaning
+            </button>
           </div>
 
           {/* Date Filters */}

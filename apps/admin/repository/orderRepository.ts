@@ -75,7 +75,15 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.status) {
-      if (Array.isArray(params.status)) {
+      if ((params.status as string) === 'action_needed') {
+        // Virtual status: scheduled orders whose pickup date has passed
+        const todayStr = new Date().toISOString().split('T')[0];
+        query = query.eq('status', 'scheduled').lte('start_date', todayStr);
+      } else if ((params.status as string) === 'priority_cleaning') {
+        // Virtual status: active orders that need priority cleaning
+        query = query.eq('has_priority_cleaning', true)
+          .not('status', 'in', '(completed,cancelled)');
+      } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {
         query = query.eq('status', params.status);
@@ -1130,7 +1138,15 @@ export class OrderRepository extends BaseRepository {
     }
 
     if (params?.status) {
-      if (Array.isArray(params.status)) {
+      if ((params.status as string) === 'action_needed') {
+        // Virtual status: scheduled orders whose pickup date has passed
+        const todayStr = new Date().toISOString().split('T')[0];
+        query = query.eq('status', 'scheduled').lte('start_date', todayStr);
+      } else if ((params.status as string) === 'priority_cleaning') {
+        // Virtual status: active orders that need priority cleaning
+        query = query.eq('has_priority_cleaning', true)
+          .not('status', 'in', '(completed,cancelled)');
+      } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {
         query = query.eq('status', params.status);
@@ -1481,6 +1497,41 @@ export class OrderRepository extends BaseRepository {
       .insert(historyEntries);
 
     return overdueIds.length;
+  }
+
+  /**
+   * Count orders that need action: status = 'scheduled' AND start_date <= today.
+   * This is a lightweight query used for the filter badge count.
+   * It only respects branch_id filter, ignoring all other search params.
+   */
+  async countActionNeeded(branchId?: string): Promise<RepositoryResult<number>> {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    let query = this.client
+      .from(this.tableName)
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'scheduled')
+      .lte('start_date', todayStr);
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+
+    const response = await query;
+
+    if (response.error) {
+      return {
+        success: false,
+        data: null,
+        error: response.error,
+      };
+    }
+
+    return {
+      success: true,
+      data: response.count || 0,
+      error: null,
+    };
   }
 }
 

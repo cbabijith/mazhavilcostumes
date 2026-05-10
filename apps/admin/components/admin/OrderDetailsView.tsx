@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Package, CheckCircle2, AlertTriangle, Loader2, Info,
-  ArrowLeft, XCircle, Phone, Banknote, CreditCard, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode
+  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const [isEditingDeposit, setIsEditingDeposit] = useState(false);
   const [editDepositValue, setEditDepositValue] = useState("");
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isKeepMoneyModalOpen, setIsKeepMoneyModalOpen] = useState(false);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const [barcodeInput, setBarcodeInput] = useState('');  
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -775,43 +776,92 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <span className="text-2xl">{formatCurrency(order.total_amount)}</span>
                   </div>
 
-                  {/* 7. Payments & Balance */}
-                  <div className="pt-4 space-y-2.5">
-                    <div className="flex justify-between text-emerald-600 font-bold text-sm p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                      <span className="flex items-center gap-1">Less: Advance Paid</span>
-                      <span>- {formatCurrency(order.amount_paid || 0)}</span>
+                  {/* 7. Payments & Balance — contextual based on order status */}
+                  {order.status === OrderStatus.CANCELLED ? (
+                    <div className="pt-4 space-y-2.5">
+                      {/* Show what was originally paid */}
+                      {(order.advance_amount || 0) > 0 && (
+                        <div className="flex justify-between text-slate-500 font-medium text-xs px-1">
+                          <span>Original Advance</span>
+                          <span>{formatCurrency(order.advance_amount || 0)}</span>
+                        </div>
+                      )}
+
+                      {/* Show refund status */}
+                      {(order.amount_paid || 0) === 0 ? (
+                        <>
+                          {/* Fully refunded */}
+                          <div className="flex justify-between text-orange-600 font-bold text-sm p-3 bg-orange-50 rounded-xl border border-orange-100">
+                            <span className="flex items-center gap-1">Advance Refunded</span>
+                            <span>- {formatCurrency(order.advance_amount || 0)}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400 font-black text-lg px-1">
+                            <span>No Balance Due</span>
+                            <span>{formatCurrency(0)}</span>
+                          </div>
+                        </>
+                      ) : order.payment_status === PaymentStatus.REFUND_WAIVED ? (
+                        <>
+                          {/* Refund waived — money kept */}
+                          <div className="flex justify-between text-teal-600 font-bold text-sm p-3 bg-teal-50 rounded-xl border border-teal-100">
+                            <span className="flex items-center gap-1">Money Kept (No Refund)</span>
+                            <span>{formatCurrency(order.amount_paid)}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400 font-black text-lg px-1">
+                            <span>No Balance Due</span>
+                            <span>{formatCurrency(0)}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Money still held — pending refund */}
+                          <div className="flex justify-between text-amber-600 font-bold text-sm p-3 bg-amber-50 rounded-xl border border-amber-200">
+                            <span className="flex items-center gap-1">Amount Held</span>
+                            <span>{formatCurrency(order.amount_paid)}</span>
+                          </div>
+                          <div className="flex justify-between text-amber-700 font-black text-lg px-1">
+                            <span>Refundable</span>
+                            <span>{formatCurrency(order.amount_paid)}</span>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Cancellation info */}
+                      <div className="pt-2 space-y-2">
+                        <span className="text-lg font-black text-slate-400">Order Cancelled</span>
+                        {order.cancellation_reason && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
+                            <p className="text-sm text-red-600">{order.cancellation_reason}</p>
+                            {order.cancelled_at && (
+                              <p className="text-[10px] text-red-400 mt-1">
+                                Cancelled on {new Date(order.cancelled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    
-                    <div className="flex justify-between text-slate-900 font-black text-lg px-1">
-                      <span>Balance Due</span>
-                      <span>{formatCurrency(Math.max(0, order.total_amount - (order.amount_paid || 0)))}</span>
+                  ) : (
+                    <div className="pt-4 space-y-2.5">
+                      <div className="flex justify-between text-emerald-600 font-bold text-sm p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <span className="flex items-center gap-1">Less: Advance Paid</span>
+                        <span>- {formatCurrency(order.amount_paid || 0)}</span>
+                      </div>
+                      
+                      <div className="flex justify-between text-slate-900 font-black text-lg px-1">
+                        <span>Balance Due</span>
+                        <span>{formatCurrency(Math.max(0, order.total_amount - (order.amount_paid || 0)))}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
             
             <div className="flex justify-between items-center pt-2">
                 {order.status === OrderStatus.CANCELLED ? (
-                  <div className="w-full space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-black text-slate-400">Order Cancelled</span>
-                      {(order.amount_paid || 0) > 0 && (
-                        <span className="text-sm font-bold text-amber-600">Refundable: {formatCurrency(order.amount_paid)}</span>
-                      )}
-                    </div>
-                    {order.cancellation_reason && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
-                        <p className="text-sm text-red-600">{order.cancellation_reason}</p>
-                        {order.cancelled_at && (
-                          <p className="text-[10px] text-red-400 mt-1">
-                            Cancelled on {new Date(order.cancelled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <></> /* Cancellation info already shown inside the financial receipt */
                 ) : order.status === OrderStatus.COMPLETED ? (
                   <>
                     <span className="text-lg font-black text-emerald-700">Settled</span>
@@ -848,16 +898,31 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <div className="space-y-3 mt-4">
                 {/* Rental payment refund */}
                 {(order.amount_paid || 0) > 0 && (
-                  <Button 
-                    onClick={() => {
-                      setIsCancellationRefund(true);
-                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Cancellation Refund", amount: String(order.amount_paid || 0) });
-                      setIsRefundModalOpen(true);
-                    }} 
-                    className="w-full h-12 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
-                  >
-                    Refund Payment ({formatCurrency(order.amount_paid)})
-                  </Button>
+                  <>
+                    <Button 
+                      onClick={() => {
+                        setIsCancellationRefund(true);
+                        setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Cancellation Refund", amount: String(order.amount_paid || 0) });
+                        setIsRefundModalOpen(true);
+                      }} 
+                      className="w-full h-12 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
+                    >
+                      Refund Payment ({formatCurrency(order.amount_paid)})
+                    </Button>
+                    {order.payment_status !== PaymentStatus.REFUND_WAIVED && (
+                      <Button
+                        onClick={() => setIsKeepMoneyModalOpen(true)}
+                        className="w-full h-10 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-bold text-sm rounded-xl transition-colors"
+                      >
+                        Keep Money — No Refund Needed
+                      </Button>
+                    )}
+                    {order.payment_status === PaymentStatus.REFUND_WAIVED && (
+                      <div className="px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700 font-bold text-center flex items-center justify-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Refund waived — money kept
+                      </div>
+                    )}
+                  </>
                 )}
                 {/* Deposit refund removed - no longer applicable */}
               </div>
@@ -897,7 +962,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               {[
                 { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
                 { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                { id: PaymentMode.CARD, label: "Card", icon: CreditCard },
+                { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
                 { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
               ].map((method) => {
                 const Icon = method.icon;
@@ -1011,7 +1076,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 {[
                   { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
                   { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                  { id: PaymentMode.CARD, label: "Card", icon: CreditCard },
+                  { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
                   { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
                 ].map((method) => {
                   const Icon = method.icon;
@@ -1385,6 +1450,48 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
               >
                 {isReturning ? 'Processing...' : 'Confirm & Complete Return'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Keep Money Confirmation Modal */}
+        <Modal
+          open={isKeepMoneyModalOpen}
+          onClose={() => setIsKeepMoneyModalOpen(false)}
+          title="Keep Money — Confirm"
+        >
+          <div className="p-6 space-y-5">
+            <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
+              <p className="text-sm font-bold text-teal-800 mb-1">No refund will be issued</p>
+              <p className="text-xs text-teal-600 leading-relaxed">
+                You are choosing to keep <span className="font-black">{formatCurrency(order?.amount_paid || 0)}</span> from this cancelled order.
+                This action will mark the refund as waived and the amount will remain in your revenue.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Amount to Keep</p>
+              <p className="text-3xl font-black text-slate-900">{formatCurrency(order?.amount_paid || 0)}</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsKeepMoneyModalOpen(false)} 
+                className="flex-1 h-12 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  updateOrder({ id: orderId, data: { payment_status: PaymentStatus.REFUND_WAIVED } as any });
+                  setIsKeepMoneyModalOpen(false);
+                }}
+                disabled={isUpdating}
+                className="flex-1 h-12 rounded-xl font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-md"
+              >
+                {isUpdating ? 'Processing...' : 'Confirm — Keep Money'}
               </Button>
             </div>
           </div>

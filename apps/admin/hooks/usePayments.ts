@@ -102,6 +102,10 @@ export function useCreatePayment() {
       queryUtils.invalidatePayments();
       if (result.order_id) {
         queryUtils.invalidateOrderPayments(result.order_id);
+        // Also invalidate the order itself — refund payments atomically update
+        // order.amount_paid and payment_status on the server, so the order
+        // data must be re-fetched for the financial receipt to reflect changes.
+        queryUtils.invalidateOrder(result.order_id);
       }
       showSuccess('Payment recorded successfully');
     },

@@ -129,6 +129,7 @@ function OrdersContent() {
   const totalPages = ordersResult?.totalPages || 1;
   const hasNext = ordersResult?.hasNext || false;
   const hasPrev = ordersResult?.hasPrev || false;
+  const actionNeededCount = ordersResult?.actionNeededCount || 0;
 
   // ── Selection state ────────────────────────────────────────────────────
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
@@ -249,6 +250,7 @@ function OrdersContent() {
         dateTo={dateTo}
         initialQuery={urlQuery}
         selectedCount={selectedOrders.length}
+        actionNeededCount={actionNeededCount}
         onStatusChange={handleStatusChange}
         onDateFilterChange={handleDateFilterChange}
         onDateFromChange={handleDateFromChange}

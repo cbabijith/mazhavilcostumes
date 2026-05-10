@@ -23,7 +23,7 @@ enum PaymentMethod {
   cash,
   upi,
   bankTransfer,
-  card,
+  gpay,
   other,
 }
 
@@ -304,8 +304,8 @@ class Order {
         return PaymentMethod.upi;
       case 'bank_transfer':
         return PaymentMethod.bankTransfer;
-      case 'card':
-        return PaymentMethod.card;
+      case 'gpay':
+        return PaymentMethod.gpay;
       case 'other':
         return PaymentMethod.other;
       default:

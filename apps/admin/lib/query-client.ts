@@ -180,6 +180,23 @@ export const queryUtils = {
   /**
    * Invalidate order payments
    */
+  invalidateOrders: () => {
+    return queryClient.invalidateQueries({
+      queryKey: queryKeys.orders,
+    });
+  },
+
+  invalidateOrder: (id: string) => {
+    return Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.order(id),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.orders,
+      }),
+    ]);
+  },
+
   invalidateOrderPayments: (orderId: string) => {
     return queryClient.invalidateQueries({
       queryKey: queryKeys.orderPayments(orderId),

@@ -269,48 +269,51 @@ export default function CategoryForm({
         </div>
 
         <div className="space-y-6">
-          <CategoryFormPanel
-            title="Hierarchy"
-            description="Placement controls where this category appears"
-            action={<FolderTree className="h-4 w-4 text-slate-400" />}
-          >
-            <CategoryPlacementSummary
-              level={level}
-              parentName={selectedParent?.name}
-              locked={isParentLocked}
-            />
+          {/* Hierarchy — hidden for main category creation since it's redundant */}
+          {(isEdit || level !== "main") && (
+            <CategoryFormPanel
+              title="Hierarchy"
+              description="Placement controls where this category appears"
+              action={<FolderTree className="h-4 w-4 text-slate-400" />}
+            >
+              <CategoryPlacementSummary
+                level={level}
+                parentName={selectedParent?.name}
+                locked={isParentLocked}
+              />
 
-            {!isParentLocked && (
-              <div className="space-y-1.5">
-                <CategoryFieldLabel>Parent Category</CategoryFieldLabel>
-                <select
-                  value={formData.parent_id || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, parent_id: e.target.value || null })
-                  }
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
-                >
-                  <option value="">None (Main Category)</option>
-                  <optgroup label="Main Categories">
-                    {mains.map((main) => (
-                      <option key={main.id} value={main.id}>
-                        {main.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                  {subs.length > 0 && (
-                    <optgroup label="Sub Categories">
-                      {subs.map((sub) => (
-                        <option key={sub.id} value={sub.id}>
-                          {allCategories.find((p) => p.id === sub.parent_id)?.name} &gt; {sub.name}
+              {!isParentLocked && (
+                <div className="space-y-1.5">
+                  <CategoryFieldLabel>Parent Category</CategoryFieldLabel>
+                  <select
+                    value={formData.parent_id || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, parent_id: e.target.value || null })
+                    }
+                    className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
+                  >
+                    <option value="">None (Main Category)</option>
+                    <optgroup label="Main Categories">
+                      {mains.map((main) => (
+                        <option key={main.id} value={main.id}>
+                          {main.name}
                         </option>
                       ))}
                     </optgroup>
-                  )}
-                </select>
-              </div>
-            )}
-          </CategoryFormPanel>
+                    {subs.length > 0 && (
+                      <optgroup label="Sub Categories">
+                        {subs.map((sub) => (
+                          <option key={sub.id} value={sub.id}>
+                            {allCategories.find((p) => p.id === sub.parent_id)?.name} &gt; {sub.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+              )}
+            </CategoryFormPanel>
+          )}
 
 
 

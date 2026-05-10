@@ -27,6 +27,7 @@ export enum PaymentStatus {
   PENDING = 'pending',
   PARTIAL = 'partial',
   PAID = 'paid',
+  REFUND_WAIVED = 'refund_waived',
 }
 
 // Payment Method Enum
@@ -34,7 +35,7 @@ export enum PaymentMethod {
   CASH = 'cash',
   UPI = 'upi',
   BANK_TRANSFER = 'bank_transfer',
-  CARD = 'card',
+  GPAY = 'gpay',
   OTHER = 'other',
 }
 
