@@ -644,6 +644,14 @@ export class OrderService {
   }
 
   /**
+   * Count orders that need action: scheduled + pickup date passed.
+   * Used for the filter badge count in the orders list page.
+   */
+  async countActionNeededOrders(branchId?: string): Promise<RepositoryResult<number>> {
+    return await orderRepository.countActionNeeded(branchId);
+  }
+
+  /**
    * Process order return with condition assessment
    */
   async processOrderReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {

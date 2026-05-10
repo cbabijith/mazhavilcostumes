@@ -19,7 +19,7 @@ export enum PaymentType {
 export enum PaymentMode {
   CASH = 'cash',
   UPI = 'upi',
-  CARD = 'card',
+  GPAY = 'gpay',
   BANK_TRANSFER = 'bank_transfer',
   CHEQUE = 'cheque',
 }

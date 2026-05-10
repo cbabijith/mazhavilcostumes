@@ -11,6 +11,7 @@ import { ReportTable } from "../ReportTable";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RevenueReportData, RevenueRow, RevenueDetailRow } from "@/domain";
+import { AlertTriangle } from "lucide-react";
 
 interface RevenueViewProps {
   data: RevenueRow[];
@@ -28,9 +29,10 @@ const COLORS = {
   completed: "#10b981", // Emerald 500
   ongoing: "#3b82f6",   // Blue 500
   scheduled: "#94a3b8", // Slate 400
+  cancelled: "#ef4444", // Red 500
   cash: "#0ea5e9",      // Sky 500
   upi: "#8b5cf6",       // Violet 500
-  card: "#f59e0b",      // Amber 500
+  gpay: "#f59e0b",      // Amber 500
   other: "#64748b"      // Slate 500
 };
 
@@ -50,9 +52,11 @@ export function RevenueView({
     { header: "Completed", key: "completed_revenue", format: "currency" as const },
     { header: "Ongoing", key: "ongoing_revenue", format: "currency" as const },
     { header: "Scheduled", key: "scheduled_revenue", format: "currency" as const },
+    { header: "Cancelled", key: "cancelled_revenue", format: "currency" as const },
+    { header: "Refunded", key: "refund_amount", format: "currency" as const },
     { header: "Cash", key: "cash_revenue", format: "currency" as const },
     { header: "UPI", key: "upi_revenue", format: "currency" as const },
-    { header: "Total", key: "total_revenue", format: "currency" as const },
+    { header: "Net Total", key: "total_revenue", format: "currency" as const },
     { header: "Orders", key: "order_count" },
   ];
 
@@ -61,19 +65,44 @@ export function RevenueView({
     { header: "Order ID", key: "order_id" },
     { header: "Customer", key: "customer_name" },
     { 
+      header: "Type", 
+      key: "payment_type",
+      render: (type: string) => (
+        <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", 
+          type === 'refund' ? "bg-orange-50 text-orange-700 border-orange-200" :
+          type === 'advance' ? "bg-blue-50 text-blue-700 border-blue-100" :
+          "bg-slate-50 text-slate-600 border-slate-100"
+        )}>
+          {type}
+        </Badge>
+      )
+    },
+    { 
       header: "Mode", 
       key: "payment_mode",
       render: (mode: string) => (
         <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", 
           mode === 'cash' ? "bg-sky-50 text-sky-700 border-sky-100" :
           mode === 'upi' ? "bg-violet-50 text-violet-700 border-violet-100" :
+          mode === 'gpay' ? "bg-amber-50 text-amber-700 border-amber-100" :
           "bg-slate-50 text-slate-700"
         )}>
           {mode}
         </Badge>
       )
     },
-    { header: "Amount", key: "amount", format: "currency" as const },
+    { 
+      header: "Amount", 
+      key: "amount",
+      render: (_: any, row: any) => {
+        const isRefund = row?.payment_type === 'refund';
+        return (
+          <span className={cn("font-bold", isRefund ? "text-orange-600" : "text-slate-900")}>
+            {isRefund ? '-' : ''}{formatCurrency(row?.amount || 0)}
+          </span>
+        );
+      }
+    },
     { 
       header: "Order Status", 
       key: "status",
@@ -86,6 +115,7 @@ export function RevenueView({
           delivered: "bg-blue-50 text-blue-700 border-blue-100",
           scheduled: "bg-slate-50 text-slate-700 border-slate-100",
           pending: "bg-slate-50 text-slate-700 border-slate-100",
+          cancelled: "bg-red-50 text-red-700 border-red-100",
         };
         return (
           <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", colors[status] || "bg-slate-50 text-slate-700")}>
@@ -96,22 +126,41 @@ export function RevenueView({
     },
   ];
 
+  const netRevenue = reportSummary ? reportSummary.total_collected - reportSummary.total_refunded : 0;
+
   const pieData = reportSummary ? [
     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },
     { name: "UPI", value: reportSummary.total_upi, color: COLORS.upi },
-    { name: "Card", value: reportSummary.total_card, color: COLORS.card },
+    { name: "GPay", value: reportSummary.total_gpay, color: COLORS.gpay },
   ].filter(d => d.value > 0) : [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {reportSummary && (
         <>
+          {/* Refund Due Warning Banner */}
+          {reportSummary.refund_due > 0 && (
+            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-800">Refund Due</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  {formatCurrency(reportSummary.refund_due)} collected from cancelled orders hasn&apos;t been refunded yet. 
+                  You can refund or mark as &quot;Keep Money&quot; from the order detail page.
+                </p>
+              </div>
+              <div className="text-lg font-black text-amber-700">{formatCurrency(reportSummary.refund_due)}</div>
+            </div>
+          )}
+
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-slate-900">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Collected</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_collected)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(netRevenue)}</p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.details.length} Transactions</p>
               </CardContent>
             </Card>
@@ -119,23 +168,48 @@ export function RevenueView({
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-widest mb-1">Cash Collection</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_cash)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{((reportSummary.total_cash / reportSummary.total_collected) * 100).toFixed(1)}% of total</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_cash / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-violet-500">
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-violet-600/70 uppercase tracking-widest mb-1">UPI Collection</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_upi)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{((reportSummary.total_upi / reportSummary.total_collected) * 100).toFixed(1)}% of total</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_upi / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">Card / Other</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_card)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{((reportSummary.total_card / reportSummary.total_collected) * 100).toFixed(1)}% of total</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay / Other</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_gpay / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
               </CardContent>
             </Card>
+            {reportSummary.total_refunded > 0 ? (
+              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-orange-500">
+                <CardContent className="p-5">
+                  <p className="text-[10px] font-bold text-orange-600/70 uppercase tracking-widest mb-1">Refunded</p>
+                  <p className="text-2xl font-black text-orange-600">-{formatCurrency(reportSummary.total_refunded)}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Returned to customers</p>
+                </CardContent>
+              </Card>
+            ) : reportSummary.cancelled_total > 0 ? (
+              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-red-500">
+                <CardContent className="p-5">
+                  <p className="text-[10px] font-bold text-red-600/70 uppercase tracking-widest mb-1">From Cancelled</p>
+                  <p className="text-2xl font-black text-red-600">{formatCurrency(reportSummary.cancelled_total)}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Included in total</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-500">
+                <CardContent className="p-5">
+                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Total Collected</p>
+                  <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_collected)}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Gross collections</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -184,7 +258,10 @@ export function RevenueView({
                     <Legend verticalAlign="top" align="right" iconType="circle" />
                     <Bar dataKey="cash_revenue" name="Cash" fill={COLORS.cash} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="upi_revenue" name="UPI" fill={COLORS.upi} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="total_revenue" name="Total" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                    {data.some(d => d.cancelled_revenue > 0) && (
+                      <Bar dataKey="cancelled_revenue" name="Cancelled" fill={COLORS.cancelled} radius={[4, 4, 0, 0]} />
+                    )}
+                    <Bar dataKey="total_revenue" name="Net" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -259,4 +336,3 @@ export function RevenueView({
     </div>
   );
 }
-

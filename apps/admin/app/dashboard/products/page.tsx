@@ -15,7 +15,6 @@
 import { useMemo, useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   Trash2,
@@ -24,11 +23,11 @@ import {
   Download,
   Package,
   AlertTriangle,
-  Store,
   Plus,
   ChevronLeft,
   ChevronRight,
   Loader2,
+  Box,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -50,15 +49,7 @@ import {
 import { type Product, type ProductWithRelations } from "@/domain";
 import Image from "next/image";
 
-interface BranchInvRow {
-  id: string;
-  branch_id: string;
-  product_id: string;
-  quantity: number;
-  available_quantity: number;
-  low_stock_threshold: number;
-  branch?: { id: string; name: string };
-}
+
 
 export default function ProductsPage() {
   return (
@@ -139,116 +130,24 @@ function ProductsContent() {
     isDeleteModalOpen,
     currentProduct,
   } = useProductStore();
-  const { showSuccess, showError } = useAppStore();
-  const selectedBranchId = useAppStore((s) => s.selectedBranchId);
+  const { showSuccess, showError, user } = useAppStore();
+  const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
   const bulkOperation = useBulkProductOperation();
 
-  // ── Single batched branch-inventory fetch ────────────────────────
-  const { data: inventoryRows = [], isLoading: isLoadingInventory } = useQuery<
-    BranchInvRow[]
-  >({
-    queryKey: ["branch-inventory", "all"],
-    queryFn: async () => {
-      const res = await fetch("/api/branch-inventory");
-      const json = await res.json();
-      if (json.success && Array.isArray(json.data)) return json.data;
-      return [];
-    },
-    staleTime: 30 * 1000,
-  });
+  // Products are shown directly — no branch filtering needed
+  const visibleProducts = products;
 
-  // Index inventory by product_id once
-  const inventoryByProduct = useMemo(() => {
-    const map: Record<string, BranchInvRow[]> = {};
-    for (const row of inventoryRows) {
-      if (!map[row.product_id]) map[row.product_id] = [];
-      map[row.product_id].push(row);
-    }
-    return map;
-  }, [inventoryRows]);
-
-  // Current branch name
-  const currentBranchName = useMemo(() => {
-    for (const row of inventoryRows) {
-      if (row.branch_id === selectedBranchId && row.branch?.name) {
-        return row.branch.name;
-      }
-    }
-    return null;
-  }, [inventoryRows, selectedBranchId]);
-
-  // Get stock for a product at the current branch
-  const getStockAtBranch = (productId: string) => {
-    const rows = inventoryByProduct[productId] || [];
-    const product = products.find(p => p.id === productId);
-    
-    if (!selectedBranchId) {
-      // No branch selected — aggregate across all branches or fallback
-      if (rows.length === 0) {
-        return { 
-          quantity: product?.quantity || 0, 
-          available: product?.available_quantity || 0, 
-          threshold: product?.low_stock_threshold || 0, 
-          hasStock: true 
-        };
-      }
-      const totalQty = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
-      const totalAvail = rows.reduce((sum, r) => sum + (r.available_quantity || 0), 0);
-      return { quantity: totalQty, available: totalAvail, threshold: 0, hasStock: rows.length > 0 };
-    }
-    
-    const row = rows.find((r) => r.branch_id === selectedBranchId);
-    if (!row) {
-      return { 
-        quantity: product?.quantity || 0, 
-        available: product?.available_quantity || 0, 
-        threshold: product?.low_stock_threshold || 0, 
-        hasStock: true 
-      };
-    }
-    
-    return {
-      quantity: row.quantity ?? 0,
-      available: row.available_quantity ?? 0,
-      threshold: row.low_stock_threshold ?? 0,
-      hasStock: true,
-    };
-  };
-
-  // Filter products to only those with stock at the selected branch
-  const visibleProducts = useMemo(() => {
-    if (!selectedBranchId) return products;
-    if (isLoadingInventory) return [];
-    return products.filter((p) => {
-      const rows = inventoryByProduct[p.id] || [];
-      // If there are explicit inventory rows, check if selected branch is included
-      if (rows.length > 0) {
-        return rows.some((r) => r.branch_id === selectedBranchId);
-      }
-      // If no explicit rows exist yet, show the product (it uses fallback base quantities)
-      return true;
-    });
-  }, [products, inventoryByProduct, selectedBranchId, isLoadingInventory]);
-
-  // Stats for the selected branch
+  // Stats
   const stats = useMemo(() => {
     let totalQty = 0;
-    let lowStock = 0;
-    let outOfStock = 0;
     for (const p of visibleProducts) {
-      const s = getStockAtBranch(p.id);
-      totalQty += s.quantity;
-      if (s.available === 0) outOfStock += 1;
-      else if (s.available <= s.threshold) lowStock += 1;
+      totalQty += p.quantity || 0;
     }
     return {
       count: visibleProducts.length,
       totalQty,
-      lowStock,
-      outOfStock,
     };
-     
-  }, [visibleProducts, inventoryByProduct, selectedBranchId]);
+  }, [visibleProducts]);
 
   // ── Actions ──────────────────────────────────────────────────────
   const handleConfirmDelete = async () => {
@@ -357,7 +256,7 @@ function ProductsContent() {
   };
 
   // ── Render ───────────────────────────────────────────────────────
-  const showShimmer = isLoading || isLoadingInventory;
+  const showShimmer = isLoading;
 
   return (
     <div className="space-y-6 pb-12">
@@ -366,14 +265,8 @@ function ProductsContent() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Products Catalog</h1>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
-            <Store className="w-4 h-4 text-slate-400" />
-            <span>
-              Viewing inventory for
-            </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
-              {currentBranchName || "All Branches"}
-            </span>
-            <span>• {stats.count} total items</span>
+            <Package className="w-4 h-4 text-slate-400" />
+            <span>{stats.count} total items</span>
           </p>
         </div>
         <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
@@ -385,7 +278,7 @@ function ProductsContent() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <StatCard
           label="Catalog Size"
           value={showShimmer ? null : String(stats.count)}
@@ -394,19 +287,7 @@ function ProductsContent() {
         <StatCard
           label="Total Inventory"
           value={showShimmer ? null : String(stats.totalQty)}
-          subtext="Items physically in stock"
-        />
-        <StatCard
-          label="Low Stock Alert"
-          value={showShimmer ? null : String(stats.lowStock)}
-          subtext="Items nearing depletion"
-          alert={stats.lowStock > 0}
-        />
-        <StatCard
-          label="Out of Stock"
-          value={showShimmer ? null : String(stats.outOfStock)}
-          subtext="Zero available quantity"
-          alert={stats.outOfStock > 0}
+          subtext="Total stock across all products"
         />
       </div>
 
@@ -486,7 +367,7 @@ function ProductsContent() {
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
               {searchInput
                 ? `No products matched your search for "${searchInput}".`
-                : `There are no products stocked at ${currentBranchName || "this branch"}.`}
+                : "There are no products in the catalog yet."}
             </p>
             {!searchInput && (
               <Button className="mt-6 bg-slate-900 text-white hover:bg-slate-800" onClick={() => router.push("/dashboard/products/create")}>
@@ -512,22 +393,19 @@ function ProductsContent() {
                   </th>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Pricing</th>
-                  <th className="px-4 py-3">Branch Stock</th>
+                  {isAdmin && <th className="px-4 py-3">Pricing</th>}
+                  <th className="px-4 py-3">Stock</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleProducts.map((product) => {
-                  const stock = getStockAtBranch(product.id);
                   const primaryImage = Array.isArray(product.images) && product.images.length > 0
                     ? typeof product.images[0] === "string"
                       ? product.images[0]
                       : product.images[0]?.url
                     : null;
-                  const isOut = stock.available === 0;
-                  const isLow = !isOut && stock.available <= stock.threshold;
                   const selected = isProductSelected(product.id);
 
                   return (
@@ -574,29 +452,18 @@ function ProductsContent() {
                         </span>
                       </td>
 
-                      <td className="px-4 py-4">
-                        <span className="font-semibold text-slate-900">{formatCurrency(product.price_per_day)}</span>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-4 py-4">
+                          <span className="font-semibold text-slate-900">{formatCurrency(product.price_per_day)}</span>
+                        </td>
+                      )}
 
                       <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-slate-900 font-bold text-base leading-none">
-                              {stock.available}
-                            </span>
-                            <span className="text-[10px] font-medium text-slate-400 mt-0.5 uppercase tracking-wide">
-                              / {stock.quantity} total
-                            </span>
-                          </div>
-                          {isOut ? (
-                            <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider text-red-600 border-red-200 bg-red-50">
-                              Out
-                            </Badge>
-                          ) : isLow ? (
-                            <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider text-amber-600 border-amber-200 bg-amber-50">
-                              Low
-                            </Badge>
-                          ) : null}
+                        <div className="flex items-center gap-1.5">
+                          <Box className="w-4 h-4 text-slate-400" />
+                          <span className="text-slate-900 font-bold">
+                            {product.quantity || 0}
+                          </span>
                         </div>
                       </td>
 
@@ -761,16 +628,11 @@ function StatCard({
 }) {
   return (
     <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
-        </div>
+      <CardContent className="p-5 text-center">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{label}</p>
         <div className="space-y-1">
           {value === null ? (
-            <div className="h-8 w-16 bg-slate-100 animate-pulse rounded" />
+            <div className="h-8 w-16 bg-slate-100 animate-pulse rounded mx-auto" />
           ) : (
             <p className={`text-2xl font-bold tracking-tight ${alert ? "text-red-600" : "text-slate-900"}`}>
               {value}

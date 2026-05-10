@@ -71,6 +71,7 @@ export default function ProductDetailPage() {
   const deleteProduct = useDeleteProduct();
   const { showSuccess, user } = useAppStore();
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
+  const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
 
   const [branchInventory, setBranchInventory] = useState<BranchInventoryRow[]>([]);
   const [isLoadingInventory, setIsLoadingInventory] = useState(false);
@@ -230,11 +231,13 @@ export default function ProductDetailPage() {
 
       {/* ── Key Metrics (Clean, professional look) ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Lifetime Revenue"
-          value={isLoadingAnalytics ? null : formatCurrency(analytics?.totalRevenue || 0)}
-          subtext="Total earnings to date"
-        />
+        {isAdmin && (
+          <StatCard
+            label="Lifetime Revenue"
+            value={isLoadingAnalytics ? null : formatCurrency(analytics?.totalRevenue || 0)}
+            subtext="Total earnings to date"
+          />
+        )}
         <StatCard
           label="Active Rentals"
           value={isLoadingAnalytics ? null : String(analytics?.activeOrders || 0)}
@@ -254,37 +257,39 @@ export default function ProductDetailPage() {
         />
       </div>
 
-      {/* ── Phase 4: Enhanced Analytics Row ───────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          label="Purchase Price"
-          value={isLoadingAnalytics ? null : formatCurrency(analytics?.purchasePrice || 0)}
-          subtext="Original cost"
-        />
-        <StatCard
-          label="ROI"
-          value={isLoadingAnalytics ? null : analytics?.roi != null ? `${analytics.roi}%` : "N/A"}
-          subtext={analytics?.roi != null ? (analytics.roi > 0 ? "Profitable" : "Below cost") : "Set purchase price"}
-          highlight={!!analytics?.roi && analytics.roi > 100}
-          alert={analytics?.roi != null && analytics.roi < 0}
-        />
-        <StatCard
-          label="Usage Rate"
-          value={isLoadingAnalytics ? null : `${analytics?.usageRate || 0}%`}
-          subtext={`${analytics?.totalRentalDays || 0} rental days`}
-        />
-        <StatCard
-          label="Avg Duration"
-          value={isLoadingAnalytics ? null : `${analytics?.avgRentalDuration || 0} days`}
-          subtext="Per rental"
-        />
-        <StatCard
-          label="Cancelled"
-          value={isLoadingAnalytics ? null : String(analytics?.cancelledOrders || 0)}
-          subtext="Orders cancelled"
-          alert={(analytics?.cancelledOrders || 0) > 0}
-        />
-      </div>
+      {/* Phase 4: Enhanced Analytics Row — Admin only */}
+      {isAdmin && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard
+            label="Purchase Price"
+            value={isLoadingAnalytics ? null : formatCurrency(analytics?.purchasePrice || 0)}
+            subtext="Original cost"
+          />
+          <StatCard
+            label="ROI"
+            value={isLoadingAnalytics ? null : analytics?.roi != null ? `${analytics.roi}%` : "N/A"}
+            subtext={analytics?.roi != null ? (analytics.roi > 0 ? "Profitable" : "Below cost") : "Set purchase price"}
+            highlight={!!analytics?.roi && analytics.roi > 100}
+            alert={analytics?.roi != null && analytics.roi < 0}
+          />
+          <StatCard
+            label="Usage Rate"
+            value={isLoadingAnalytics ? null : `${analytics?.usageRate || 0}%`}
+            subtext={`${analytics?.totalRentalDays || 0} rental days`}
+          />
+          <StatCard
+            label="Avg Duration"
+            value={isLoadingAnalytics ? null : `${analytics?.avgRentalDuration || 0} days`}
+            subtext="Per rental"
+          />
+          <StatCard
+            label="Cancelled"
+            value={isLoadingAnalytics ? null : String(analytics?.cancelledOrders || 0)}
+            subtext="Orders cancelled"
+            alert={(analytics?.cancelledOrders || 0) > 0}
+          />
+        </div>
+      )}
 
       {/* ── Main Layout ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -311,18 +316,20 @@ export default function ProductDetailPage() {
 
               {/* Core Details Panel */}
               <div className="flex-1 p-6 flex flex-col">
-                <div className="mb-6">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Rent Price</h3>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold tracking-tight text-slate-900">{formatCurrency(product.price_per_day)}</span>
-                  </div>
-                  {(product as any).purchase_price > 0 && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Purchase:</span>
-                      <span className="text-sm font-semibold text-slate-700">{formatCurrency((product as any).purchase_price)}</span>
+                {isAdmin && (
+                  <div className="mb-6">
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Rent Price</h3>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-bold tracking-tight text-slate-900">{formatCurrency(product.price_per_day)}</span>
                     </div>
-                  )}
-                </div>
+                    {(product as any).purchase_price > 0 && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Purchase:</span>
+                        <span className="text-sm font-semibold text-slate-700">{formatCurrency((product as any).purchase_price)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="h-px w-full bg-slate-100 mb-6" />
 
@@ -418,71 +425,73 @@ export default function ProductDetailPage() {
             </div>
           </Card>
 
-          {/* Phase 4: Monthly Revenue Table */}
-          <Card className="shadow-sm border-slate-200 bg-white">
-            <CardHeader className="border-b border-slate-200 py-4 px-6">
-              <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Monthly Revenue (Last 6 Months)</CardTitle>
-                <CardDescription className="text-sm mt-1">Revenue and rental breakdown by month</CardDescription>
-              </div>
-            </CardHeader>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50/50 text-slate-500">
-                  <tr>
-                    <th className="px-6 py-3 font-medium border-b border-slate-200">Month</th>
-                    <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Rentals</th>
-                    <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {isLoadingAnalytics ? (
+          {/* Phase 4: Monthly Revenue Table — Admin only */}
+          {isAdmin && (
+            <Card className="shadow-sm border-slate-200 bg-white">
+              <CardHeader className="border-b border-slate-200 py-4 px-6">
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">Monthly Revenue (Last 6 Months)</CardTitle>
+                  <CardDescription className="text-sm mt-1">Revenue and rental breakdown by month</CardDescription>
+                </div>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50/50 text-slate-500">
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center">
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900 mx-auto" />
-                      </td>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Month</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Rentals</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Revenue</th>
                     </tr>
-                  ) : analytics?.monthlyRevenue && analytics.monthlyRevenue.length > 0 ? (
-                    <>
-                      {analytics.monthlyRevenue.map((m, i) => {
-                        const maxRev = Math.max(...(analytics.monthlyRevenue || []).map(x => x.revenue), 1);
-                        const pct = (m.revenue / maxRev) * 100;
-                        return (
-                          <tr key={i} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-3.5">
-                              <span className="font-medium text-slate-900">{m.month}</span>
-                            </td>
-                            <td className="px-6 py-3.5 text-right text-slate-600 font-medium">{m.rentals}</td>
-                            <td className="px-6 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-3">
-                                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
-                                  <div className="h-full bg-slate-800 rounded-full" style={{ width: `${pct}%` }} />
-                                </div>
-                                <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(m.revenue)}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      <tr className="bg-slate-50/80 font-semibold">
-                        <td className="px-6 py-3 text-slate-700">Total (6 months)</td>
-                        <td className="px-6 py-3 text-right text-slate-700">
-                          {analytics.monthlyRevenue.reduce((s, m) => s + m.rentals, 0)}
-                        </td>
-                        <td className="px-6 py-3 text-right text-slate-900">
-                          {formatCurrency(analytics.monthlyRevenue.reduce((s, m) => s + m.revenue, 0))}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {isLoadingAnalytics ? (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-8 text-center">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-900 mx-auto" />
                         </td>
                       </tr>
-                    </>
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No revenue data for the last 6 months.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+                    ) : analytics?.monthlyRevenue && analytics.monthlyRevenue.length > 0 ? (
+                      <>
+                        {analytics.monthlyRevenue.map((m, i) => {
+                          const maxRev = Math.max(...(analytics.monthlyRevenue || []).map(x => x.revenue), 1);
+                          const pct = (m.revenue / maxRev) * 100;
+                          return (
+                            <tr key={i} className="hover:bg-slate-50 transition-colors">
+                              <td className="px-6 py-3.5">
+                                <span className="font-medium text-slate-900">{m.month}</span>
+                              </td>
+                              <td className="px-6 py-3.5 text-right text-slate-600 font-medium">{m.rentals}</td>
+                              <td className="px-6 py-3.5 text-right">
+                                <div className="flex items-center justify-end gap-3">
+                                  <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
+                                    <div className="h-full bg-slate-800 rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(m.revenue)}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="bg-slate-50/80 font-semibold">
+                          <td className="px-6 py-3 text-slate-700">Total (6 months)</td>
+                          <td className="px-6 py-3 text-right text-slate-700">
+                            {analytics.monthlyRevenue.reduce((s, m) => s + m.rentals, 0)}
+                          </td>
+                          <td className="px-6 py-3 text-right text-slate-900">
+                            {formatCurrency(analytics.monthlyRevenue.reduce((s, m) => s + m.revenue, 0))}
+                          </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No revenue data for the last 6 months.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* RIGHT COLUMN: Sidebar */}

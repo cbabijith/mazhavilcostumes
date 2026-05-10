@@ -1350,7 +1350,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                         <SelectContent>
                           <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
                           <SelectItem value={PaymentMethod.UPI}>UPI</SelectItem>
-                          <SelectItem value={PaymentMethod.CARD}>Card</SelectItem>
+                          <SelectItem value={PaymentMethod.GPAY}>GPay</SelectItem>
                           <SelectItem value={PaymentMethod.BANK_TRANSFER}>Bank</SelectItem>
                         </SelectContent>
                       </Select>

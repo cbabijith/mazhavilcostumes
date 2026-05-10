@@ -265,7 +265,7 @@ async function runTests() {
 
     // Final payment to clear dues
     const p5 = await paymentService.createPayment({
-        order_id: mainOrderId, amount: 500, payment_type: PaymentType.FINAL, payment_mode: PaymentMode.CARD
+        order_id: mainOrderId, amount: 500, payment_type: PaymentType.FINAL, payment_mode: PaymentMode.GPAY
     });
     const finalTotalPaid = (totalPaid || 0) + 500;
     await orderService.updateOrder(mainOrderId, { 

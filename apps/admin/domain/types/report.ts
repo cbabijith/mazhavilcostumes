@@ -75,9 +75,11 @@ export interface RevenueRow {
   completed_revenue: number;
   ongoing_revenue: number;
   scheduled_revenue: number;
+  cancelled_revenue: number;
+  refund_amount: number;
   cash_revenue: number;
   upi_revenue: number;
-  card_revenue: number;
+  gpay_revenue: number;
   other_revenue: number;
   total_revenue: number;
   order_count: number;
@@ -89,6 +91,7 @@ export interface RevenueDetailRow {
   order_id: string;
   customer_name: string;
   payment_mode: string;
+  payment_type: string;
   amount: number;
   status: string;
 }
@@ -100,8 +103,11 @@ export interface RevenueReportData {
   total_details_count: number;
   total_cash: number;
   total_upi: number;
-  total_card: number;
+  total_gpay: number;
   total_collected: number;
+  total_refunded: number;
+  cancelled_total: number;
+  refund_due: number;
 }
 
 /** R4: Top costumes row */

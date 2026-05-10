@@ -107,7 +107,7 @@ export function ReportFilters({
               <option value="all">All Modes</option>
               <option value="cash">Cash Only</option>
               <option value="upi">UPI Only</option>
-              <option value="card">Card Only</option>
+              <option value="gpay">GPay Only</option>
               <option value="bank_transfer">Bank Transfer Only</option>
             </select>
           </div>
