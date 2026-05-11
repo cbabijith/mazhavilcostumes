@@ -22,6 +22,7 @@ import { startOfDay } from "date-fns";
 import dynamic from 'next/dynamic';
 
 const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
+import DamageAssessmentPanel from './orders/DamageAssessmentPanel';
 
 export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const router = useRouter();
@@ -75,6 +76,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const [returnItems, setReturnItems] = useState<Record<string, {
     status: 'excellent' | 'damaged' | 'missing' | null,
     damage_fee: number,
+    damaged_quantity: number,
     notes: string,
   }>>({});
 
@@ -92,14 +94,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (order && Object.keys(returnItems).length === 0 && isReturnable) {
       const initial: any = {};
       order.items.forEach(item => {
-        initial[item.id] = { status: null, damage_fee: 0, notes: "" };
+        initial[item.id] = { status: null, damage_fee: 0, damaged_quantity: item.quantity, notes: "" };
       });
       setReturnItems(initial);
     }
   }, [order, isReturnable]);
 
-  const amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
+  // Projected amount due including pending return fees (live preview)
   const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
+  const projected_total = order ? order.total_amount + calculatedDamage + lateFee - discount : 0;
+  const amount_due = order ? Math.max(0, projected_total - (order.amount_paid || 0)) : 0;
+  const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
   const totalDeductions = calculatedDamage + lateFee - discount;
 
   const getImageUrl = (product: any) => {
@@ -111,7 +116,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleMarkAllExcellent = () => {
     const updated: any = {};
     Object.keys(returnItems).forEach(key => {
-      updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, notes: "" };
+      updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, damaged_quantity: 0, notes: "" };
     });
     setReturnItems(updated);
   };
@@ -205,10 +210,23 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleItemUpdate = (itemId: string, field: string, value: any) => {
-    setReturnItems(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], [field]: value }
-    }));
+    setReturnItems(prev => {
+      const updated = { ...prev, [itemId]: { ...prev[itemId], [field]: value } };
+      // Auto-set damaged_quantity to full quantity when status changes to damaged
+      if (field === 'status' && value === 'damaged') {
+        const item = order?.items.find(i => i.id === itemId);
+        if (item && !updated[itemId].damaged_quantity) {
+          updated[itemId].damaged_quantity = item.quantity;
+        }
+      }
+      // Auto-set damaged_quantity to 0 when status changes to excellent
+      if (field === 'status' && value === 'excellent') {
+        updated[itemId].damaged_quantity = 0;
+        updated[itemId].damage_fee = 0;
+        updated[itemId].notes = '';
+      }
+      return updated;
+    });
   };
 
   const handleCollectPayment = async () => {
@@ -271,12 +289,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       notes: `Late Fee: ${lateFee}, Discount: ${discount}`,
       items: order.items.map(item => {
         const rItem = returnItems[item.id];
+        const isDamaged = rItem.status === 'damaged';
+        const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
+        // Auto-mark remaining quantity as Good
+        const returnedQty = rItem.status === 'missing' ? 0 : item.quantity;
         return {
           item_id: item.id,
-          returned_quantity: rItem.status === 'missing' ? 0 : item.quantity,
-          condition_rating: rItem.status === 'damaged' ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
+          returned_quantity: returnedQty,
+          condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
           damage_description: rItem.notes,
           damage_charges: rItem.damage_fee,
+          damaged_quantity: damagedQty,
+          // The good quantity is implicitly: item.quantity - damagedQty
         };
       }),
       late_fee: lateFee,
@@ -293,6 +317,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (unmarked.length > 0) {
       showError("Incomplete", "Please mark the condition of all items before settling.");
       return;
+    }
+
+    // Warn if any damaged items have ₹0 damage fee (but don't block)
+    const zeroDamage = Object.entries(returnItems).filter(
+      ([_, val]) => val.status === 'damaged' && (val.damage_fee || 0) <= 0
+    );
+    if (zeroDamage.length > 0) {
+      // Show warning but proceed — user can still complete
+      // The warning is shown via the confirmation modal
     }
 
     setIsReturnConfirmOpen(true);
@@ -569,26 +602,90 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </div>
 
                     {isReturnable && isDamaged && (
-                      <div className="mt-4 p-4 bg-white border-2 border-orange-200 rounded-xl flex flex-col sm:flex-row gap-4 items-start shadow-sm">
-                        <div className="flex-1 space-y-2 w-full">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Damage Notes</label>
-                          <Input
-                            value={rItem.notes}
-                            onChange={(e) => handleItemUpdate(item.id, 'notes', e.target.value)}
-                            placeholder="Describe damage (e.g. Broken clasp)"
-                            className="h-12 border-slate-300 focus:border-orange-400 text-base rounded-lg"
-                          />
+                      <div className="mt-4 p-4 bg-white border-2 border-orange-200 rounded-xl space-y-3 shadow-sm">
+                        <div className="flex flex-col sm:flex-row gap-4 items-start">
+                          <div className="flex-1 space-y-2 w-full">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Damage Notes</label>
+                            <Input
+                              value={rItem.notes}
+                              onChange={(e) => handleItemUpdate(item.id, 'notes', e.target.value)}
+                              placeholder="Describe damage (e.g. Broken clasp)"
+                              className="h-12 border-slate-300 focus:border-orange-400 text-base rounded-lg"
+                            />
+                          </div>
+                          <div className="w-full sm:w-32 space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Damaged Qty</label>
+                            <Input
+                              type="number"
+                              value={rItem.damaged_quantity || ""}
+                              min={1}
+                              max={item.quantity}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                if (raw === '') {
+                                  handleItemUpdate(item.id, 'damaged_quantity', 0);
+                                  return;
+                                }
+                                const parsed = parseInt(raw);
+                                if (!isNaN(parsed)) {
+                                  handleItemUpdate(item.id, 'damaged_quantity', parsed);
+                                }
+                              }}
+                              onBlur={() => {
+                                // Clamp to valid range on blur
+                                const clamped = Math.max(1, Math.min(item.quantity, rItem.damaged_quantity || 1));
+                                handleItemUpdate(item.id, 'damaged_quantity', clamped);
+                              }}
+                              placeholder="0"
+                              className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
+                            />
+                            <p className="text-[10px] text-slate-400">of {item.quantity} total</p>
+                          </div>
+                          <div className="w-full sm:w-40 space-y-2">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fee (₹)</label>
+                            <Input
+                              type="number"
+                              value={rItem.damage_fee || ""}
+                              onChange={(e) => handleItemUpdate(item.id, 'damage_fee', parseFloat(e.target.value) || 0)}
+                              placeholder="0"
+                              className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
+                            />
+                          </div>
                         </div>
-                        <div className="w-full sm:w-40 space-y-2">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fee (₹)</label>
-                          <Input
-                            type="number"
-                            value={rItem.damage_fee || ""}
-                            onChange={(e) => handleItemUpdate(item.id, 'damage_fee', parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                            className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
-                          />
-                        </div>
+                        {/* Auto-good info */}
+                        {rItem.damaged_quantity < item.quantity && (
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{item.quantity - rItem.damaged_quantity} of {item.quantity} units auto-marked as <strong>Good</strong></span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Show damage/return info for already-returned items */}
+                    {!isReturnable && item.is_returned && (
+                      <div className="mt-3 space-y-2">
+                        {item.condition_rating && (
+                          <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded border ${
+                            item.condition_rating === 'damaged' || item.condition_rating === 'fair'
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            Condition: {item.condition_rating.charAt(0).toUpperCase() + item.condition_rating.slice(1)}
+                          </span>
+                        )}
+                        {item.damage_description && (
+                          <div className="px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-0.5">Damage Notes</p>
+                            <p className="text-xs text-orange-700">{item.damage_description}</p>
+                          </div>
+                        )}
+                        {(item.damage_charges || 0) > 0 && (
+                          <div className="flex items-center gap-1.5 text-xs text-orange-700 font-bold">
+                            <AlertTriangle className="w-3 h-3" />
+                            <span>Damage Fee: {formatCurrency(item.damage_charges || 0)}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -596,9 +693,57 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               })}
             </div>
             
+            {/* Damage Assessment Panel — for flagged/returned orders with damage */}
+            {(order.status === OrderStatus.FLAGGED || order.items.some(i => i.condition_rating === 'damaged')) && !isReturnable && (
+              <div className="p-6 border-t border-slate-200">
+                <DamageAssessmentPanel order={order} />
+              </div>
+            )}
+
             {/* Settlement Footer (Only visible when processing returns) */}
             {isReturnable && (
                <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
+                  {/* Live projected total with damage fees */}
+                  {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
+                    <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
+                      <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
+                      <div className="flex justify-between text-sm text-slate-700">
+                        <span>Original Total</span>
+                        <span className="font-bold">{formatCurrency(order.total_amount)}</span>
+                      </div>
+                      {calculatedDamage > 0 && (
+                        <div className="flex justify-between text-sm text-orange-700">
+                          <span>+ Damage Fees</span>
+                          <span className="font-bold">{formatCurrency(calculatedDamage)}</span>
+                        </div>
+                      )}
+                      {lateFee > 0 && (
+                        <div className="flex justify-between text-sm text-red-700">
+                          <span>+ Late Fee</span>
+                          <span className="font-bold">{formatCurrency(lateFee)}</span>
+                        </div>
+                      )}
+                      {discount > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-700">
+                          <span>− Discount</span>
+                          <span className="font-bold">−{formatCurrency(discount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-amber-300">
+                        <span>New Total</span>
+                        <span>{formatCurrency(projected_total)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Less: Paid</span>
+                        <span className="font-bold text-emerald-600">−{formatCurrency(order.amount_paid || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
+                        <span>Balance Due</span>
+                        <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Payment Due Warning */}
                   {amount_due > 0 && (
                     <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
@@ -1382,13 +1527,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
               <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
                 {order.items.map((item) => {
-                  const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: '' };
+                  const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
                   const product = (item as any).product;
                   return (
                     <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
                       <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
                         <span className="text-xs text-slate-400">×{item.quantity}</span>
+                        {rItem.status === 'damaged' && rItem.damaged_quantity < item.quantity && (
+                          <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                            {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity} good
+                          </span>
+                        )}
                       </div>
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
                         rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
@@ -1404,8 +1554,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </div>
             </div>
 
-            {/* Fees Summary */}
-            {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
+            {/* Zero Damage Fee Warning */}
+            {Object.values(returnItems).some(r => r.status === 'damaged' && (r.damage_fee || 0) <= 0) && (
+              <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-amber-800">Warning: ₹0 Damage Fee</p>
+                  <p className="text-xs text-amber-600">One or more damaged items have no damage fee set. You can still complete the return, but the fee won't be charged.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Fees Summary — only show when there's still a balance due */}
+            {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && amount_due > 0 && (
               <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
                 {calculatedDamage > 0 && (
                   <div className="flex justify-between text-sm">
@@ -1425,6 +1586,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <span className="font-bold text-emerald-700">−{formatCurrency(discount)}</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Fully Paid indicator */}
+            {amount_due <= 0 && (
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                  <p className="text-xs text-emerald-600">All charges including fees have been collected.</p>
+                </div>
               </div>
             )}
 

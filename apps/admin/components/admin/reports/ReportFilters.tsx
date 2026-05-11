@@ -84,14 +84,16 @@ export function ReportFilters({
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Order Status</label>
             <select 
-              value={filters.status?.[0] || ""} 
-              onChange={e => setFilters({ ...filters, status: e.target.value ? [e.target.value] : [] })}
+              value={filters.status?.join(',') || ""} 
+              onChange={e => setFilters({ ...filters, status: e.target.value ? e.target.value.split(',') : [], page: 1 })}
               className="w-[180px] h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               <option value="">All Statuses</option>
-              <option value="completed">Completed Only</option>
-              <option value="ongoing">Ongoing Only</option>
-              <option value="scheduled">Scheduled Only</option>
+              <option value="completed,returned">Completed</option>
+              <option value="ongoing,in_use,delivered,late_return">Active</option>
+              <option value="scheduled,pending">Scheduled</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="flagged">Flagged</option>
             </select>
           </div>
         )}

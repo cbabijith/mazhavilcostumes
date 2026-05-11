@@ -73,6 +73,7 @@ function OrdersContent() {
   const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
+  const paymentStatusFilter = searchParams.getAll("payment_status");
 
   // ── Centralised URL updater (idempotent) ───────────────────────────────
   const updateParams = useCallback(
@@ -109,6 +110,7 @@ function OrdersContent() {
     page,
     branch_id: selectedBranchId || undefined,
     status: statusFilter === "ALL" ? undefined : statusFilter,
+    payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter : undefined,
     date_filter:
       dateFilter === "ALL"
         ? undefined

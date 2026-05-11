@@ -16,7 +16,8 @@ import type { ReportType, ReportFilters } from '@/domain';
 const VALID_TYPES: ReportType[] = [
   'day-wise-booking', 'due-overdue', 'revenue', 'top-costumes',
   'top-customers', 'rental-frequency', 'roi', 'dead-stock',
-  'sales-by-staff', 'inventory-revenue', 'enquiry-log', 'gst-filing'
+  'sales-by-staff', 'inventory-revenue', 'enquiry-log', 'gst-filing',
+  'todays-revenue'
 ];
 
 export async function GET(
@@ -53,7 +54,7 @@ export async function GET(
     } else {
       switch (type as ReportType) {
         case 'day-wise-booking': data = await reportService.getDayWiseBooking(filters); break;
-        case 'due-overdue': data = await reportService.getDueOverdue(); break;
+        case 'due-overdue': data = await reportService.getDueOverdue(filters); break;
         case 'revenue': data = await reportService.getRevenue(filters); break;
         case 'top-costumes': data = await reportService.getTopCostumes(filters); break;
         case 'top-customers': data = await reportService.getTopCustomers(filters); break;
@@ -64,6 +65,11 @@ export async function GET(
         case 'inventory-revenue': data = await reportService.getInventoryRevenue(); break;
         case 'enquiry-log': data = await reportService.getEnquiries(filters); break;
         case 'gst-filing': data = await reportService.getGSTFilingReport(filters); break;
+        case 'todays-revenue': {
+          const today = new Date().toLocaleDateString('en-CA');
+          data = await reportService.getRevenue({ ...filters, from_date: today, to_date: today });
+          break;
+        }
       }
     }
 

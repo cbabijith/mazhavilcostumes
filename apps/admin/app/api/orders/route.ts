@@ -49,10 +49,14 @@ export async function GET(request: NextRequest) {
     const statusParams = searchParams.getAll('status');
     const status = statusParams.length > 0 ? (statusParams.length === 1 ? statusParams[0] : statusParams) : undefined;
 
+    const paymentStatusParams = searchParams.getAll('payment_status');
+    const payment_status = paymentStatusParams.length > 0 ? (paymentStatusParams.length === 1 ? paymentStatusParams[0] : paymentStatusParams) : undefined;
+
     const params = {
       customer_id: searchParams.get('customer_id') || undefined,
       branch_id: searchParams.get('branch_id') || undefined,
       status: status as any,
+      payment_status: payment_status as any,
       product_id: searchParams.get('product_id') || undefined,
       query: searchParams.get('query') || undefined,
       date_filter: searchParams.get('date_filter') as any || undefined,

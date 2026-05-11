@@ -21,3 +21,4 @@ export { BranchInventoryService, branchInventoryService } from './branchInventor
 export { StaffService, staffService } from './staffService';
 export { ReportService, reportService } from './reportService';
 export { cleaningService } from './cleaningService';
+export { damageAssessmentService } from './damageAssessmentService';

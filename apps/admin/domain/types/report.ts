@@ -18,7 +18,10 @@ export type ReportType =
   | 'sales-by-staff'      // R9
   | 'inventory-revenue'   // R10
   | 'enquiry-log'         // R11
-  | 'gst-filing';         // R12
+  | 'gst-filing'          // R12
+  | 'todays-revenue';     // R13 — staff/manager only
+
+export type StaffRole = 'super_admin' | 'admin' | 'manager' | 'staff';
 
 export interface ReportMeta {
   id: ReportType;
@@ -26,21 +29,24 @@ export interface ReportMeta {
   description: string;
   category: 'booking' | 'due' | 'sale' | 'inventory' | 'reminder';
   icon: string;
+  /** Roles that can access this report. If omitted, all roles can access. */
+  roles?: StaffRole[];
 }
 
 export const REPORT_LIST: ReportMeta[] = [
   { id: 'day-wise-booking', name: 'Day-wise Booking', description: 'Daily pickups and deliveries schedule', category: 'booking', icon: 'CalendarDays' },
   { id: 'due-overdue', name: 'Due / Overdue Report', description: 'Overdue returns as of today', category: 'due', icon: 'AlertTriangle' },
-  { id: 'revenue', name: 'Revenue Report', description: 'Revenue by status and period', category: 'sale', icon: 'TrendingUp' },
+  { id: 'todays-revenue', name: "Today's Revenue", description: "Today's revenue snapshot", category: 'sale', icon: 'TrendingUp', roles: ['manager', 'staff'] },
   { id: 'top-costumes', name: 'Top Costumes', description: 'Most rented or highest earning', category: 'sale', icon: 'Trophy' },
-  { id: 'top-customers', name: 'Top Customers', description: 'Customers ranked by spend', category: 'sale', icon: 'Users' },
-  { id: 'rental-frequency', name: 'Rental Frequency', description: 'Products by rental count', category: 'sale', icon: 'BarChart3' },
-  { id: 'roi', name: 'ROI / Profit per Costume', description: 'Return on investment per product', category: 'sale', icon: 'PiggyBank' },
   { id: 'dead-stock', name: 'Dead Stock / No-Sale', description: 'Products with zero rentals', category: 'sale', icon: 'PackageX' },
-  { id: 'sales-by-staff', name: 'Sales by Staff', description: 'Staff ranked by order revenue', category: 'sale', icon: 'UserCheck' },
-  { id: 'inventory-revenue', name: 'Inventory + Revenue', description: 'Stock levels and lifetime revenue', category: 'inventory', icon: 'Boxes' },
   { id: 'enquiry-log', name: 'Customer Enquiry Log', description: 'Manual enquiry entries', category: 'reminder', icon: 'MessageSquare' },
-  { id: 'gst-filing', name: 'GST Filing Report', description: 'GSTR-1 friendly tax breakdown', category: 'sale', icon: 'FileText' },
+  { id: 'revenue', name: 'Revenue Report', description: 'Revenue by status and period', category: 'sale', icon: 'TrendingUp', roles: ['super_admin', 'admin'] },
+  { id: 'top-customers', name: 'Top Customers', description: 'Customers ranked by spend', category: 'sale', icon: 'Users', roles: ['super_admin', 'admin'] },
+  { id: 'rental-frequency', name: 'Rental Frequency', description: 'Products by rental count', category: 'sale', icon: 'BarChart3', roles: ['super_admin', 'admin'] },
+  { id: 'roi', name: 'ROI / Profit per Costume', description: 'Return on investment per product', category: 'sale', icon: 'PiggyBank', roles: ['super_admin', 'admin'] },
+  { id: 'sales-by-staff', name: 'Sales by Staff', description: 'Staff ranked by order revenue', category: 'sale', icon: 'UserCheck', roles: ['super_admin', 'admin'] },
+  { id: 'inventory-revenue', name: 'Inventory + Revenue', description: 'Stock levels and lifetime revenue', category: 'inventory', icon: 'Boxes', roles: ['super_admin', 'admin'] },
+  { id: 'gst-filing', name: 'GST Filing Report', description: 'GSTR-1 friendly tax breakdown', category: 'sale', icon: 'FileText', roles: ['super_admin', 'admin'] },
 ];
 
 /** R1: Day-wise booking row */
@@ -108,6 +114,8 @@ export interface RevenueReportData {
   total_refunded: number;
   cancelled_total: number;
   refund_due: number;
+  total_damage_charges: number;
+  total_late_fees: number;
 }
 
 /** R4: Top costumes row */

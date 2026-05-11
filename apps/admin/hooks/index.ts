@@ -137,3 +137,10 @@ export {
   useCalendarView,
   useCalendarNavigation,
 } from './useCalendar';
+
+// Damage Assessment hooks
+export {
+  useDamageAssessments,
+  useCreateDamageAssessments,
+  useAssessDamageUnit,
+} from './useDamageAssessments';

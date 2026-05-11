@@ -12,6 +12,9 @@ import { ReportTable } from "../ReportTable";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
+import Link from "next/link";
+import { AlertTriangle, Settings } from "lucide-react";
+
 interface GSTFilingViewProps {
   data: GSTFilingRow[];
   reportSummary: any;
@@ -71,6 +74,29 @@ export function GSTFilingView({
 
   return (
     <div className="space-y-8">
+      {/* GST Disabled Warning */}
+      {reportSummary && reportSummary.is_gst_enabled === false && (
+        <div className="flex items-start gap-4 p-5 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-800">GST is currently disabled</p>
+            <p className="text-xs text-amber-600 mt-1 leading-relaxed">
+              GST is turned off in your store settings. Orders created while GST is disabled will not have any tax data, 
+              so they won&apos;t appear in this report. To start collecting GST on new orders, enable it from Settings.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/settings"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-lg transition-colors flex-shrink-0"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            Settings
+          </Link>
+        </div>
+      )}
+
       {/* Summary Cards */}
       {reportSummary && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

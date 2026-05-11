@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { type OrderWithRelations } from "@/domain";
 import OrderRow from "./OrderRow";
+import OrderItemsPanel from "./OrderItemsPanel";
 
 type SortField = "customer" | "phone" | "dates" | "items" | "amount" | "status";
 type SortDirection = "asc" | "desc";
@@ -193,6 +194,13 @@ function OrderListTableInner({
     [selectedOrders]
   );
 
+  // Items panel state
+  const [panelOrder, setPanelOrder] = useState<OrderWithRelations | null>(null);
+  const handleViewItems = useCallback((o: OrderWithRelations) => {
+    setPanelOrder(prev => prev?.id === o.id ? null : o);
+  }, []);
+  const handleClosePanel = useCallback(() => setPanelOrder(null), []);
+
   if (isLoading) {
     return (
       <Card className="shadow-sm border-slate-200 overflow-hidden bg-white">
@@ -274,11 +282,15 @@ function OrderListTableInner({
                 selected={isSelected(order.id)}
                 onToggleSelect={onToggleSelect}
                 onCancel={onCancel}
+                onViewItems={handleViewItems}
               />
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Items Side Panel */}
+      <OrderItemsPanel order={panelOrder} onClose={handleClosePanel} />
     </Card>
   );
 }

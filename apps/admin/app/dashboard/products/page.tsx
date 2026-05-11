@@ -487,11 +487,13 @@ function ProductsContent() {
                               <Eye className="w-4 h-4" />
                             </Link>
                           </Button>
-                          <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-400 hover:text-slate-900" asChild>
-                            <Link href={`/dashboard/products/${product.id}/edit`}>
-                              <Edit className="w-4 h-4" />
-                            </Link>
-                          </Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-400 hover:text-slate-900" asChild>
+                              <Link href={`/dashboard/products/${product.id}/edit`}>
+                                <Edit className="w-4 h-4" />
+                              </Link>
+                            </Button>
+                          )}
                           {product.barcode && (
                             <Button
                               variant="ghost"

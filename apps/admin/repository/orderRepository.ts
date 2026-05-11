@@ -90,6 +90,13 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
+    if (params?.payment_status) {
+      if (Array.isArray(params.payment_status)) {
+        query = query.in('payment_status', params.payment_status);
+      } else {
+        query = query.eq('payment_status', params.payment_status);
+      }
+    }
 
     if (searchTerm) {
       const filters: string[] = [];
@@ -1361,6 +1368,7 @@ export class OrderRepository extends BaseRepository {
           condition_rating: item.condition_rating,
           damage_description: item.damage_description || null,
           damage_charges: item.damage_charges || 0,
+          damaged_quantity: item.damaged_quantity || 0,
         })
         .eq('id', item.item_id);
 

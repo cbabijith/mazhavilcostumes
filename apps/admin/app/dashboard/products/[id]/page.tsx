@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Edit, Trash2, Package, AlertTriangle, Store,
-  XCircle, Barcode, Image as ImageIcon, CalendarDays, TrendingUp, Clock, Users, BarChart3
+  XCircle, Barcode, Image as ImageIcon, CalendarDays, TrendingUp, Clock, Users, BarChart3,
+  ShieldAlert, RotateCcw, Trash
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -78,6 +79,8 @@ export default function ProductDetailPage() {
   const [orderItems, setOrderItems] = useState<OrderItemRow[]>([]);
   const [analytics, setAnalytics] = useState<ProductAnalytics | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [damageHistory, setDamageHistory] = useState<any[]>([]);
+  const [isLoadingDamage, setIsLoadingDamage] = useState(false);
 
   const {
     openDeleteModal,
@@ -117,9 +120,25 @@ export default function ProductDetailPage() {
         setIsLoadingAnalytics(false);
       }
     };
+    const loadDamageHistory = async () => {
+      if (!isAdmin) return;
+      setIsLoadingDamage(true);
+      try {
+        const res = await fetch(`/api/products/${productId}/damage-history`);
+        const json = await res.json();
+        if (json.success && Array.isArray(json.assessments)) {
+          setDamageHistory(json.assessments);
+        }
+      } catch (err) {
+        console.error('Failed to load damage history:', err);
+      } finally {
+        setIsLoadingDamage(false);
+      }
+    };
     loadInventory();
     loadAnalytics();
-  }, [productId]);
+    loadDamageHistory();
+  }, [productId, isAdmin]);
 
   const handleDelete = async () => {
     if (!currentProduct) return;
@@ -486,6 +505,107 @@ export default function ProductDetailPage() {
                       <tr>
                         <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No revenue data for the last 6 months.</td>
                       </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Damage History — Admin only */}
+          {isAdmin && damageHistory.length > 0 && (
+            <Card className="shadow-sm border-slate-200 bg-white">
+              <CardHeader className="border-b border-slate-200 py-4 px-6 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-orange-500" />
+                    Damage History
+                  </CardTitle>
+                  <CardDescription className="text-sm mt-1">
+                    {damageHistory.length} damage record{damageHistory.length !== 1 ? 's' : ''} across orders
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50/50 text-slate-500">
+                    <tr>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Date</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Order / Customer</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Unit</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Decision</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {isLoadingDamage ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-slate-900 mx-auto" />
+                        </td>
+                      </tr>
+                    ) : (
+                      damageHistory.map((record: any) => {
+                        const decision = record.decision;
+                        const isPending = decision === 'pending';
+                        const isReuse = decision === 'reuse';
+                        const isWriteOff = decision === 'not_reuse';
+                        const order = record.order;
+                        const customerName = order?.customer?.name || 'Unknown';
+
+                        return (
+                          <tr
+                            key={record.id}
+                            className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                            onClick={() => order?.id && router.push(`/dashboard/orders/${order.id}`)}
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-slate-600">
+                              {new Date(record.assessed_at || record.created_at).toLocaleDateString(undefined, {
+                                month: 'short', day: 'numeric', year: 'numeric'
+                              })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
+                                {customerName}
+                              </div>
+                              <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                {order?.id?.substring(0, 8)}...
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 text-xs font-bold text-slate-700">
+                                {record.unit_index}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              {isPending && (
+                                <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50">
+                                  Pending
+                                </Badge>
+                              )}
+                              {isReuse && (
+                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                                  <RotateCcw className="w-3 h-3 mr-1" /> Reuse
+                                </Badge>
+                              )}
+                              {isWriteOff && (
+                                <Badge variant="secondary" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50">
+                                  <Trash className="w-3 h-3 mr-1" /> Written Off
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {record.notes ? (
+                                <span className="text-sm text-slate-600 italic" title={record.notes}>
+                                  {record.notes.length > 50 ? record.notes.substring(0, 50) + '...' : record.notes}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-slate-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
