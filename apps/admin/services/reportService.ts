@@ -8,6 +8,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server';
+import { settingsService } from './settingsService';
 import type {
   ReportFilters,
   DayWiseBookingRow,
@@ -33,12 +34,14 @@ export class ReportService {
   /** R1: Day-wise booking */
   async getDayWiseBooking(filters: ReportFilters): Promise<DayWiseBookingRow[]> {
     const today = new Date().toLocaleDateString('en-CA');
-    const date = filters.date || today;
+    const fromDate = filters.from_date || today;
+    const toDate = filters.to_date || today;
 
     const { data, error } = await supabase()
       .from('orders')
       .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))')
-      .eq('start_date', date)
+      .gte('start_date', fromDate)
+      .lte('start_date', toDate)
       .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
       .order('created_at', { ascending: false });
 
@@ -60,12 +63,16 @@ export class ReportService {
   }
 
   /** R2: Due / Overdue */
-  async getDueOverdue(): Promise<DueOverdueRow[]> {
+  async getDueOverdue(filters: ReportFilters): Promise<DueOverdueRow[]> {
     const today = new Date().toLocaleDateString('en-CA');
+    const fromDate = filters.from_date || today;
+    const toDate = filters.to_date || today;
+
     const { data } = await supabase()
       .from('orders')
       .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
-      .lt('end_date', today)
+      .lte('end_date', toDate)
+      .gte('end_date', fromDate)
       .in('status', ['ongoing', 'in_use', 'delivered', 'late_return'])
       .order('end_date', { ascending: true });
 
@@ -104,6 +111,9 @@ export class ReportService {
     const limit = filters.limit || 50;
     const page = filters.page || 1;
     const offset = (page - 1) * limit;
+
+    // Resolve status filter for filtering payments by order status
+    const statusFilter = filters.status?.length ? filters.status : null;
 
     // 1. Fetch Aggregation Data — includes refunds so we can track them separately
     let aggQuery = supabase()
@@ -162,15 +172,30 @@ export class ReportService {
       .gt('amount_paid', 0)
       .neq('payment_status', 'refund_waived');
 
+    // 4. Fetch damage charges and late fees from orders in the period
+    const dueChargesQuery = supabase()
+      .from('orders')
+      .select('damage_charges_total, late_fee')
+      .gte('updated_at', `${fromDate}T00:00:00`)
+      .lte('updated_at', `${toDate}T23:59:59`)
+      .or('damage_charges_total.gt.0,late_fee.gt.0');
+
     // Execute in parallel
-    const [aggResult, detailsResult, cancelledResult] = await Promise.all([aggQuery, detailsQuery, cancelledQuery]);
+    const [aggResult, detailsResult, cancelledResult, dueChargesResult] = await Promise.all([aggQuery, detailsQuery, cancelledQuery, dueChargesQuery]);
 
     if (aggResult.error) throw new Error(aggResult.error.message);
     if (detailsResult.error) throw new Error(detailsResult.error.message);
 
-    const allPayments = (aggResult.data || []) as any[];
-    const detailsData = (detailsResult.data || []) as any[];
-    const totalDetailsCount = detailsResult.count || 0;
+    // When status filter is active, filter payments client-side by order status
+    const rawPayments = (aggResult.data || []) as any[];
+    const allPayments = statusFilter
+      ? rawPayments.filter(p => p.order && statusFilter.includes(p.order.status))
+      : rawPayments;
+    const rawDetails = (detailsResult.data || []) as any[];
+    const detailsData = statusFilter
+      ? rawDetails.filter(p => p.order && statusFilter.includes(p.order.status))
+      : rawDetails;
+    const totalDetailsCount = statusFilter ? detailsData.length : (detailsResult.count || 0);
     const cancelledOrders = (cancelledResult.data || []) as any[];
 
     // Process Summary
@@ -277,6 +302,11 @@ export class ReportService {
       status: p.order?.status || 'unknown'
     }));
 
+    // Process damage charges and late fees
+    const dueCharges = (dueChargesResult.data || []) as any[];
+    const totalDamageCharges = dueCharges.reduce((sum, o) => sum + Number(o.damage_charges_total || 0), 0);
+    const totalLateFees = dueCharges.reduce((sum, o) => sum + Number(o.late_fee || 0), 0);
+
     return {
       summary,
       details,
@@ -288,6 +318,8 @@ export class ReportService {
       total_refunded: r(totalRefunded),
       cancelled_total: r(cancelledTotal),
       refund_due: r(refundDue),
+      total_damage_charges: r(totalDamageCharges),
+      total_late_fees: r(totalLateFees),
     };
   }
 
@@ -642,6 +674,10 @@ export class ReportService {
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
     const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
 
+    // Check if GST is currently enabled
+    const gstEnabledResult = await settingsService.getIsGSTEnabled();
+    const isGstEnabled = !!(gstEnabledResult.success && gstEnabledResult.data);
+
     // Fetch invoice prefix from settings
     const { data: settingsData } = await supabase()
       .from('settings')
@@ -666,8 +702,10 @@ export class ReportService {
 
     const totalOrderCount = allOrders?.length || 0;
 
-    // 2. Fetch all order items for the detailed slab breakdown
-    let itemQuery = supabase()
+    // 2. Fetch all order items with their order data
+    //    We fetch without date filter and filter client-side by order.created_at
+    //    because the !inner join syntax with aliases is unreliable
+    const itemQuery = supabase()
       .from('order_items')
       .select(`
         id,
@@ -685,15 +723,21 @@ export class ReportService {
             name
           )
         )
-      `)
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`);
+      `);
 
     const { data, error } = await itemQuery;
 
     if (error) throw new Error(error.message);
 
-    const items = data || [];
+    // Client-side filter: only items whose ORDER was created in the date range
+    const fromTs = new Date(`${fromDate}T00:00:00`).getTime();
+    const toTs = new Date(`${toDate}T23:59:59`).getTime();
+    const items = (data || []).filter((item: any) => {
+      const order = item.order;
+      if (!order || order.status === 'cancelled') return false;
+      const orderTs = new Date(order.created_at).getTime();
+      return orderTs >= fromTs && orderTs <= toTs;
+    });
     
     // Group by GST slab
     const slabs: Record<number, { taxable: number; gst: number }> = {
@@ -794,7 +838,8 @@ export class ReportService {
       total_cgst: Math.round((totalGst / 2) * 100) / 100,
       total_sgst: Math.round((totalGst / 2) * 100) / 100,
       total_gst: Math.round(totalGst * 100) / 100,
-      period: `${fromDate} to ${toDate}`
+      period: `${fromDate} to ${toDate}`,
+      is_gst_enabled: isGstEnabled,
     };
   }
 

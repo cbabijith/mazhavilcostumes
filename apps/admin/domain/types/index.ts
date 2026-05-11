@@ -252,3 +252,15 @@ export {
   CleaningStatus,
   CleaningPriority,
 } from './cleaning';
+
+// Damage Assessment types
+export type {
+  DamageAssessment,
+  DamageAssessmentWithProduct,
+  CreateDamageAssessmentsDTO,
+  UpdateDamageAssessmentDTO,
+} from './damageAssessment';
+
+export {
+  DamageDecision,
+} from './damageAssessment';

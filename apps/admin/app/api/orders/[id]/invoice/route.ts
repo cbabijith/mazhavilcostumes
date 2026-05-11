@@ -34,11 +34,13 @@ export async function GET(
 
     const invoiceNumber = `INV-${id.slice(0, 8).toUpperCase()}-${invoiceType.toUpperCase()}`;
     const filename = `${invoiceNumber}.pdf`;
+    // Support ?disposition=inline for print (iframe) vs attachment for download
+    const disposition = searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment';
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `${disposition}; filename="${filename}"`,
         'Content-Length': String(pdfBuffer.length),
       },
     });

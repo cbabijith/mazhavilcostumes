@@ -19,6 +19,7 @@ import {
 } from '@/domain/types/order';
 import { orderRepository, cleaningRepository } from '@/repository';
 import { settingsService } from './settingsService';
+import { damageAssessmentService } from './damageAssessmentService';
 import { CleaningPriority, CleaningStatus } from '@/domain';
 
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
@@ -808,6 +809,35 @@ export class OrderService {
         }
       } catch (err) {
         console.error('Failed to transition cleaning records:', err);
+      }
+
+      // ─── AUTO-CREATE DAMAGE ASSESSMENTS ────────────────────────────────────
+      // When items are returned with damage, automatically create assessment
+      // rows for each damaged unit. This eliminates the manual "Create
+      // Assessments" button and shows assessments immediately on the order
+      // detail page.
+      try {
+        const damagedItems = returnData.items
+          .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
+          .map(item => {
+            const orderItem = result.data!.items.find(i => i.id === item.item_id);
+            return {
+              order_item_id: item.item_id,
+              product_id: orderItem?.product_id || '',
+              branch_id: result.data!.branch_id,
+              damaged_quantity: item.damaged_quantity || 0,
+            };
+          })
+          .filter(item => item.product_id);
+
+        if (damagedItems.length > 0) {
+          await damageAssessmentService.createAssessments({
+            order_id: orderId,
+            items: damagedItems,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to auto-create damage assessments:', err);
       }
     }
 

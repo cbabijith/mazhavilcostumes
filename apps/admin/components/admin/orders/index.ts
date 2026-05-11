@@ -13,3 +13,4 @@ export { default as OrderFilters } from './OrderFilters';
 export { default as OrderPagination } from './OrderPagination';
 export { default as OrderDeleteModal } from './OrderDeleteModal';
 export { default as OrderCancelModal } from './OrderCancelModal';
+export { default as OrderItemsPanel } from './OrderItemsPanel';

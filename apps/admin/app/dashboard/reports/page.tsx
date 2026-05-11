@@ -23,7 +23,8 @@ import { ReportFilters } from "@/components/admin/reports/ReportFilters";
 import { 
   DayWiseBookingView, DueOverdueView, RevenueView, TopCostumesView,
   TopCustomersView, RentalFrequencyView, ROIView, DeadStockView,
-  SalesByStaffView, InventoryRevenueView, EnquiryLogView, GSTFilingView
+  SalesByStaffView, InventoryRevenueView, EnquiryLogView, GSTFilingView,
+  TodaysRevenueView
 } from "@/components/admin/reports/views";
 
 import { ICONS, CATEGORY_COLORS } from "@/lib/reports-shared";
@@ -38,6 +39,17 @@ function ReportsPageContent() {
   const searchParams = useSearchParams();
   const reportFromUrl = searchParams.get("type") as ReportType | null;
 
+  const { user } = useAppStore();
+  const userRole = user?.role || 'staff';
+
+  // Filter reports by user role
+  const visibleReports = useMemo(() => {
+    return REPORT_LIST.filter(r => {
+      if (!r.roles) return true; // No roles restriction = visible to all
+      return r.roles.includes(userRole as any);
+    });
+  }, [userRole]);
+
   const [data, setData] = useState<any[]>([]);
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [gstDetails, setGstDetails] = useState<any[]>([]);
@@ -46,11 +58,12 @@ function ReportsPageContent() {
   const [filters, setFilters] = useState<FilterType>({
     period: 'month',
     date: new Date().toLocaleDateString('en-CA'),
-    from_date: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA'),
+    from_date: new Date().toLocaleDateString('en-CA'),
     to_date: new Date().toLocaleDateString('en-CA'),
     rank_by: 'count',
     limit: 50,
-    page: 1
+    page: 1,
+    status: ['completed', 'returned'],
   });
 
   const selectedReport = reportFromUrl;
@@ -82,10 +95,10 @@ function ReportsPageContent() {
       // Robust check for rows wrapper (some reports might not have it depending on API version)
       const result = json.data.rows !== undefined ? json.data.rows : json.data;
 
-      if (selectedReport === 'gst-filing' || selectedReport === 'revenue') {
+      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
         setData(result.summary || []);
         setReportSummary(result);
-        setGstDetails(result.details || []); // We can reuse this or add a revenue-specific one, but gstDetails is already being used for 'details'
+        setGstDetails(result.details || []);
       } else {
         setData(result || []);
         setReportSummary(null);
@@ -291,7 +304,6 @@ function ReportsPageContent() {
     exportToPDF(exportData, exportColumns as any, meta.name, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
   };
 
-  const { user } = useAppStore();
 
   const handleLogEnquiry = async (dto: CreateEnquiryDTO) => {
     try {
@@ -328,7 +340,7 @@ function ReportsPageContent() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {REPORT_LIST.map((report) => {
+          {visibleReports.map((report) => {
             const Icon = ICONS[report.icon] || BarChart3;
             return (
               <button
@@ -352,8 +364,9 @@ function ReportsPageContent() {
   }
 
   const meta = REPORT_LIST.find(r => r.id === selectedReport)!;
-  const needsDateFilter = ["day-wise-booking", "due-overdue"].includes(selectedReport);
-  const needsRangeFilter = ["revenue", "dead-stock", "sales-by-staff", "enquiry-log", "gst-filing", "top-customers", "rental-frequency", "roi"].includes(selectedReport);
+  const needsDateFilter = false; // All reports now use range or have no date filter
+  const needsRangeFilter = ["day-wise-booking", "due-overdue", "revenue", "dead-stock", "sales-by-staff", "enquiry-log", "gst-filing", "top-customers", "rental-frequency", "roi"].includes(selectedReport);
+  // Today's Revenue has no date filters — it's always locked to today
   const needsRankBy = selectedReport === "top-costumes";
 
   return (
@@ -373,7 +386,7 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={selectedReport === 'gst-filing'}
+        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue'}
         needsPaymentModeFilter={selectedReport === 'revenue'}
       />
 
@@ -387,6 +400,7 @@ function ReportsPageContent() {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {selectedReport === 'day-wise-booking' && <DayWiseBookingView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'due-overdue' && <DueOverdueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
+        {selectedReport === 'todays-revenue' && <TodaysRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} />}
         {selectedReport === 'revenue' && <RevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
         {selectedReport === 'top-costumes' && <TopCostumesView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} rankBy={filters.rank_by || 'count'} />}
         {selectedReport === 'top-customers' && <TopCustomersView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}

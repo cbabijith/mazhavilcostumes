@@ -37,6 +37,7 @@ import { getPageAuthUser } from "@/lib/pageAuth";
 import Link from "next/link";
 import { DashboardFilter } from "@/components/admin/dashboard/DashboardFilter";
 import { DashboardLocalFilter } from "@/components/admin/dashboard/DashboardLocalFilter";
+import DailyReportToggle from "@/components/admin/dashboard/DailyReportToggle";
 import {
   startOfToday, endOfToday,
   startOfYesterday, endOfYesterday,
@@ -155,6 +156,7 @@ export default async function DashboardPage(props: {
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
+        {isAdmin && <DailyReportToggle />}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -262,7 +264,7 @@ export default async function DashboardPage(props: {
               </CardContent>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Revenue: Completed */}
               <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -304,6 +306,22 @@ export default async function DashboardPage(props: {
                   <p className="text-xs mt-2 text-slate-500">Cash received for future orders</p>
                 </CardContent>
               </Card>
+
+              {/* Pending Amount */}
+              <Link href="/dashboard/orders?status=returned&status=completed&payment_status=partial&payment_status=pending&payment_status=due">
+                <Card className={`border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${metrics.revenueByStatus.pendingAmount > 0 ? 'bg-rose-50/50' : 'bg-white'}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-600">Pending Collection</CardTitle>
+                    <Clock className={`h-4 w-4 ${metrics.revenueByStatus.pendingAmount > 0 ? 'text-rose-400' : 'text-slate-400'}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-3xl font-bold tracking-tight ${metrics.revenueByStatus.pendingAmount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                      {formatCurrency(metrics.revenueByStatus.pendingAmount)}
+                    </div>
+                    <p className="text-xs mt-2 text-slate-500">Returned orders with balance due →</p>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
           </div>
 

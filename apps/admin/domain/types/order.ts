@@ -70,6 +70,7 @@ export interface OrderItem {
   condition_rating?: ConditionRating;
   damage_description?: string;
   damage_charges?: number;
+  damaged_quantity?: number;
   is_returned?: boolean;
   returned_at?: string;
   returned_quantity?: number;
@@ -228,6 +229,7 @@ export interface ReturnOrderDTO {
     condition_rating: ConditionRating;
     damage_description?: string;
     damage_charges?: number;
+    damaged_quantity?: number;
   }[];
   notes?: string;
   late_fee?: number;
@@ -239,6 +241,7 @@ export interface OrderSearchParams {
   customer_id?: string;
   branch_id?: string;
   status?: OrderStatus | OrderStatus[];
+  payment_status?: string | string[];
   product_id?: string;
   query?: string;
   date_filter?: 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';

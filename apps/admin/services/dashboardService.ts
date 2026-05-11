@@ -42,6 +42,7 @@ export interface RevenueByStatus {
   completedRevenue: number;
   ongoingRevenue: number;
   scheduledRevenue: number;
+  pendingAmount: number;
 }
 
 export interface CancellationStats {
@@ -103,6 +104,19 @@ export interface DashboardMetrics {
     severity: 'high' | 'medium';
   }[];
   priorityCleaning: PriorityCleaningOrder[];
+}
+
+// ─── Daily Report Types ────────────────────────────────────────────────────────
+
+export interface DailyReportStats {
+  todaysBookings: number;
+  todaysDelivery: { delivered: number; total: number };
+  todaysReturn: { returned: number; total: number };
+  todaysRevenue: number;
+  damagedOrders: number;
+  todaysRefunds: number;
+  damageIncome: number;
+  lateFeeIncome: number;
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────────
@@ -315,7 +329,8 @@ export class DashboardService {
       catItemsRes,
       recentOrderRes,
       allActiveProductsRes,
-      priorityRes
+      priorityRes,
+      pendingPaymentRes
     ] = await Promise.all([
       // 1. Current Payments
       supabase.from('payments').select('amount, payment_date').gte('payment_date', startDateStr).lte('payment_date', endDateStr).neq('payment_type', 'refund'),
@@ -323,11 +338,13 @@ export class DashboardService {
       // 2. Previous Payments
       supabase.from('payments').select('amount').gte('payment_date', prevStartDateStr).lte('payment_date', prevEndDateStr).neq('payment_type', 'refund'),
       
-      // 3. Completed Orders
-      supabase.from('orders').select('total_amount').eq('status', 'completed').gte('updated_at', startDateStr).lte('updated_at', endDateStr),
+      // 3. Completed Orders — orders that reached returned/completed during this period
+      // Uses amount_paid (actual cash collected) instead of total_amount for accuracy
+      supabase.from('orders').select('amount_paid').in('status', ['returned', 'completed']).gte('updated_at', startDateStr).lte('updated_at', endDateStr),
       
-      // 4. Ongoing Orders
-      supabase.from('orders').select('total_amount').in('status', ['ongoing', 'in_use', 'late_return', 'partial']).gte('start_date', startDateStr.split('T')[0]).lte('start_date', endDateStr.split('T')[0]),
+      // 4. Active Rentals — ALL currently active orders (no date filter)
+      // Shows total contract value of everything currently out with customers
+      supabase.from('orders').select('total_amount').in('status', ['ongoing', 'in_use', 'late_return', 'partial', 'delivered']),
       
       // 5. Scheduled Orders
       supabase.from('orders').select('advance_amount').in('status', ['scheduled', 'pending']).eq('advance_collected', true).gte('created_at', startDateStr).lte('created_at', endDateStr),
@@ -344,8 +361,8 @@ export class DashboardService {
       // 9. Total Products
       supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
       
-      // 10. Rented Items
-      supabase.from('order_items').select('product_id, orders!inner(status)').in('orders.status', ['ongoing', 'in_use', 'late_return']),
+      // 10. Rented Items — includes delivered and partial since products are still out
+      supabase.from('order_items').select('product_id, orders!inner(status)').in('orders.status', ['ongoing', 'in_use', 'late_return', 'delivered', 'partial']),
       
       // 11. Upcoming Orders (Velocity)
       supabase.from('orders').select('start_date').gte('start_date', now.toISOString()).lte('start_date', velocityEndDate).neq('status', 'cancelled'),
@@ -363,7 +380,10 @@ export class DashboardService {
       supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true).limit(100),
       
       // 16. Priority Cleaning (from cleaning_records)
-      supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent').order('expected_return_date', { ascending: true }).limit(5)
+      supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent').order('expected_return_date', { ascending: true }).limit(5),
+
+      // 17. Pending Amount — returned/completed orders where customer still owes money
+      supabase.from('orders').select('total_amount, amount_paid').in('status', ['returned', 'completed']).in('payment_status', ['partial', 'pending', 'due'])
     ]);
 
     // Processing results
@@ -371,7 +391,9 @@ export class DashboardService {
     const prevPayments = prevPaymentsRes.data || [];
     const currentRevenue = currentPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
     const prevRevenue = prevPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const percentageChange = prevRevenue === 0 ? 100 : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+    // Cap growth % at 999% to avoid misleading numbers when previous period is near-zero
+    const rawChange = prevRevenue === 0 ? (currentRevenue > 0 ? 100 : 0) : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
+    const percentageChange = Math.min(Math.abs(rawChange), 999) * (rawChange >= 0 ? 1 : -1);
 
     // Daily Revenue Map
     const dailyRevenueMap = new Map<string, number>();
@@ -387,9 +409,15 @@ export class DashboardService {
       return { date: dateStr, amount: dailyRevenueMap.get(dateStr) || 0 };
     });
 
-    const completedRevenue = completedOrdersRes.data?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
+    const completedRevenue = completedOrdersRes.data?.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0) || 0;
     const ongoingRevenue = ongoingOrdersRes.data?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
     const scheduledRevenue = scheduledOrdersRes.data?.reduce((sum, o) => sum + Number(o.advance_amount || 0), 0) || 0;
+
+    // Pending amount: balance due on returned/completed orders
+    const pendingAmount = (pendingPaymentRes.data || []).reduce((sum, o) => {
+      const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+      return sum + Math.max(0, balance);
+    }, 0);
 
     const cancelCurrent = currentCancelRes.count || 0;
     const cancelPrev = prevCancelRes.count || 0;
@@ -471,7 +499,7 @@ export class DashboardService {
         percentageChange: Math.abs(Math.round(percentageChange)),
         isPositive: percentageChange >= 0,
       },
-      revenueByStatus: { completedRevenue, ongoingRevenue, scheduledRevenue },
+      revenueByStatus: { completedRevenue, ongoingRevenue, scheduledRevenue, pendingAmount },
       cancellationStats: {
         currentCount: cancelCurrent,
         previousCount: cancelPrev,
@@ -505,6 +533,135 @@ export class DashboardService {
           quantity: r.quantity || 0,
         }],
       })),
+    };
+  }
+
+  /**
+   * Daily Report — admin-only today's cash reconciliation stats.
+   * Returns 8 metrics for the "Today's Report" panel.
+   */
+  async getDailyReport(): Promise<DailyReportStats> {
+    const supabase = createAdminClient();
+    const now = new Date();
+    const todayStart = startOfDay(now).toISOString();
+    const todayEnd = endOfDay(now).toISOString();
+    const todayDateStr = now.toISOString().split('T')[0];
+
+    const [
+      bookingsRes,
+      deliveryTotalRes,
+      deliveryDoneRes,
+      returnTotalRes,
+      returnDoneRes,
+      revenueRes,
+      damagedRes,
+      refundRes,
+      damageIncomeRes,
+      lateFeeRes,
+    ] = await Promise.all([
+      // 1. Today's Bookings — orders created today (excluding cancelled)
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd)
+        .neq('status', 'cancelled'),
+
+      // 2a. Today's Delivery TOTAL — orders with start_date = today (all non-cancelled)
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('start_date', todayDateStr)
+        .neq('status', 'cancelled'),
+
+      // 2b. Today's Delivery DONE — start_date = today AND already picked up
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('start_date', todayDateStr)
+        .in('status', ['ongoing', 'in_use', 'delivered', 'late_return', 'partial', 'returned', 'completed']),
+
+      // 3a. Today's Return TOTAL — orders with end_date = today (active + returned)
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('end_date', todayDateStr)
+        .neq('status', 'cancelled'),
+
+      // 3b. Today's Return DONE — end_date = today AND already returned
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('end_date', todayDateStr)
+        .in('status', ['returned', 'completed']),
+
+      // 4. Today's Revenue — total payments collected today (excluding refunds)
+      supabase
+        .from('payments')
+        .select('amount')
+        .gte('payment_date', todayStart)
+        .lte('payment_date', todayEnd)
+        .neq('payment_type', 'refund'),
+
+      // 5. Damaged Orders — currently flagged orders (all time, not just today)
+      supabase
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'flagged'),
+
+      // 6. Today's Refunds — refund payments made today
+      supabase
+        .from('payments')
+        .select('amount')
+        .gte('payment_date', todayStart)
+        .lte('payment_date', todayEnd)
+        .eq('payment_type', 'refund'),
+
+      // 7. Damage Income — damage charges collected today (orders updated today with charges)
+      supabase
+        .from('orders')
+        .select('damage_charges_total')
+        .gt('damage_charges_total', 0)
+        .gte('updated_at', todayStart)
+        .lte('updated_at', todayEnd),
+
+      // 8. Late Fee Income — late fees applied today (orders updated today with late fees)
+      supabase
+        .from('orders')
+        .select('late_fee')
+        .gt('late_fee', 0)
+        .gte('updated_at', todayStart)
+        .lte('updated_at', todayEnd),
+    ]);
+
+    const todaysRevenue = (revenueRes.data || []).reduce(
+      (sum, p) => sum + Number(p.amount || 0), 0
+    );
+    const todaysRefunds = (refundRes.data || []).reduce(
+      (sum, p) => sum + Number(p.amount || 0), 0
+    );
+    const damageIncome = (damageIncomeRes.data || []).reduce(
+      (sum, o) => sum + Number(o.damage_charges_total || 0), 0
+    );
+    const lateFeeIncome = (lateFeeRes.data || []).reduce(
+      (sum, o) => sum + Number(o.late_fee || 0), 0
+    );
+
+    return {
+      todaysBookings: bookingsRes.count || 0,
+      todaysDelivery: {
+        delivered: deliveryDoneRes.count || 0,
+        total: deliveryTotalRes.count || 0,
+      },
+      todaysReturn: {
+        returned: returnDoneRes.count || 0,
+        total: returnTotalRes.count || 0,
+      },
+      todaysRevenue,
+      damagedOrders: damagedRes.count || 0,
+      todaysRefunds,
+      damageIncome,
+      lateFeeIncome,
     };
   }
 }

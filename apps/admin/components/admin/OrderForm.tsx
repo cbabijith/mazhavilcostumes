@@ -948,8 +948,24 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                         )}
                         {avail && (() => {
-                          const actualConflicts = avail.overlappingOrders.filter((o: any) => !o.bufferOnly);
-                          const nearbyBookings = avail.overlappingOrders.filter((o: any) => o.bufferOnly);
+                          // Filter to only show bookings relevant to the selected rental period
+                          const rentalStart = startDate.getTime();
+                          const rentalEnd = endDate.getTime();
+                          const DAY_MS = 86400000;
+                          // Include buffer window (1 day before pickup, 1 day after return)
+                          const windowStart = rentalStart - DAY_MS;
+                          const windowEnd = rentalEnd + DAY_MS;
+
+                          const isRelevant = (o: any) => {
+                            // A booking is relevant if its effective range (including its own buffer)
+                            // overlaps with the rental window (including buffer)
+                            const bStart = new Date(o.bufferStartDate || o.startDate).getTime();
+                            const bEnd = new Date(o.bufferEndDate || o.endDate).getTime();
+                            return bEnd >= windowStart && bStart <= windowEnd;
+                          };
+
+                          const actualConflicts = avail.overlappingOrders.filter((o: any) => !o.bufferOnly && isRelevant(o));
+                          const nearbyBookings = avail.overlappingOrders.filter((o: any) => o.bufferOnly && isRelevant(o));
                           const fmtShort = (d: string) => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
                           return (
                             <>

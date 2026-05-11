@@ -73,6 +73,13 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
         }
       }
       if (params?.product_id) searchParams.append('product_id', params.product_id);
+      if (params?.payment_status) {
+        if (Array.isArray(params.payment_status)) {
+          params.payment_status.forEach(s => searchParams.append('payment_status', s));
+        } else {
+          searchParams.append('payment_status', params.payment_status);
+        }
+      }
       if (params?.query) searchParams.append('query', params.query);
       if (params?.date_filter) searchParams.append('date_filter', params.date_filter);
       if (params?.date_field) searchParams.append('date_field', params.date_field);
