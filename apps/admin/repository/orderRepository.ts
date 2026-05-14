@@ -15,7 +15,8 @@ import {
   CreateOrderDTO,
   UpdateOrderDTO,
   OrderSearchParams,
-  ReturnOrderDTO
+  ReturnOrderDTO,
+  ConditionRating
 } from '@/domain/types/order';
 
 /** Buffer days for cleaning/prep before and after each rental (in milliseconds) */
@@ -77,7 +78,7 @@ export class OrderRepository extends BaseRepository {
     if (params?.status) {
       if ((params.status as string) === 'action_needed') {
         // Virtual status: scheduled orders whose pickup date has passed
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         query = query.eq('status', 'scheduled').lte('start_date', todayStr);
       } else if ((params.status as string) === 'priority_cleaning') {
         // Virtual status: active orders that need priority cleaning
@@ -90,12 +91,28 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
+    if (params?.exclude_status) {
+      if (Array.isArray(params.exclude_status)) {
+        query = query.not('status', 'in', `(${params.exclude_status.join(',')})`);
+      } else {
+        query = query.neq('status', params.exclude_status);
+      }
+    }
+
     if (params?.payment_status) {
       if (Array.isArray(params.payment_status)) {
         query = query.in('payment_status', params.payment_status);
       } else {
         query = query.eq('payment_status', params.payment_status);
       }
+    }
+
+    if (params?.has_damage_charges) {
+      query = query.gt('damage_charges_total', 0);
+    }
+
+    if (params?.has_stock_conflict !== undefined) {
+      query = query.eq('has_stock_conflict', params.has_stock_conflict);
     }
 
     if (searchTerm) {
@@ -134,51 +151,65 @@ export class OrderRepository extends BaseRepository {
         if (params?.date_from) query = query.gte(dateCol, params.date_from);
         if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
-        const now = new Date();
-        let startDate, endDate;
+        const getISTISO = (date: Date) => {
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(date);
+        };
+
         switch (params.date_filter) {
-          case 'today':
+          case 'today': {
+            const todayStr = getISTISO(new Date());
             if (isDateOnly) {
-              const todayStr = now.toISOString().split('T')[0];
               query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
             } else {
-              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+              query = query.gte(dateCol, `${todayStr}T00:00:00+05:30`).lte(dateCol, `${todayStr}T23:59:59+05:30`);
             }
             break;
-          case 'yesterday':
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
+          }
+          case 'yesterday': {
+            const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+            const yStr = getISTISO(yesterday).split('T')[0];
             if (isDateOnly) {
-              const yStr = yesterday.toISOString().split('T')[0];
               query = query.gte(dateCol, yStr).lte(dateCol, yStr);
             } else {
-              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+              query = query.gte(dateCol, `${yStr}T00:00:00+05:30`).lte(dateCol, `${yStr}T23:59:59+05:30`);
             }
             break;
-          case 'this_week':
-            const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
+          }
+          case 'this_week': {
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+            const monday = new Date(now.setDate(diff));
+            const monStr = getISTISO(monday).split('T')[0];
             if (isDateOnly) {
-              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+              query = query.gte(dateCol, monStr);
             } else {
-              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-              query = query.gte(dateCol, startDate);
+              query = query.gte(dateCol, `${monStr}T00:00:00+05:30`);
             }
             break;
-          case 'this_month':
+          }
+          case 'this_month': {
+            const now = new Date();
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const fomStr = getISTISO(monthStart).split('T')[0];
             if (isDateOnly) {
-              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+              query = query.gte(dateCol, fomStr);
             } else {
-              startDate = monthStart.toISOString();
-              query = query.gte(dateCol, startDate);
+              query = query.gte(dateCol, `${fomStr}T00:00:00+05:30`);
             }
             break;
+          }
         }
       }
+    }
+
+    if (params?.has_damage_charges) {
+      query = query.gt('damage_charges_total', 0);
     }
 
     if (params?.limit) {
@@ -436,6 +467,101 @@ export class OrderRepository extends BaseRepository {
       error: null,
       success: true,
     };
+  }
+
+  /**
+   * Recalculate and sync stock conflict flags for a specific order.
+   * Checks ALL items in the order for availability conflicts.
+   *
+   * @param orderId - The order to validate
+   */
+  async validateOrderStockConflicts(orderId: string): Promise<RepositoryResult<boolean>> {
+    // 1. Fetch the order with its items
+    const orderRes = await this.findById(orderId);
+    if (!orderRes.success || !orderRes.data) return { data: false, error: orderRes.error, success: false };
+    const order = orderRes.data;
+
+    // Only active orders can have conflicts
+    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial'];
+    if (!activeStatuses.includes(order.status)) {
+      if (order.has_stock_conflict) {
+        await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
+      }
+      return { data: false, error: null, success: true };
+    }
+
+    const conflicts: any[] = [];
+    let hasConflict = false;
+
+    // 2. Check each item in the order
+    for (const item of order.items || []) {
+      if (!item.product_id) continue;
+      
+      const availRes = await this.checkAvailability(
+        item.product_id, 
+        order.start_date, 
+        order.end_date, 
+        order.branch_id, 
+        orderId // Exclude self from the count
+      );
+
+      if (availRes.success && availRes.data) {
+        const available = availRes.data.availableWithPriority; // Be generous: if priority cleaning helps, it's not a hard conflict yet
+        if (available < item.quantity) {
+          hasConflict = true;
+          conflicts.push({
+            productId: item.product_id,
+            productName: (item as any).product?.name || 'Unknown Product',
+            requested: item.quantity,
+            available: available,
+            shortfall: item.quantity - available
+          });
+        }
+      }
+    }
+
+    // 3. Update order flag and details
+    const { error: updateError } = await this.client
+      .from(this.tableName)
+      .update({ 
+        has_stock_conflict: hasConflict,
+        conflict_details: conflicts
+      })
+      .eq('id', orderId);
+
+    if (updateError) {
+      return { data: hasConflict, error: updateError, success: false };
+    }
+
+    return { data: hasConflict, error: null, success: true };
+  }
+
+  /**
+   * Proactively sync conflicts for ALL orders containing a specific product.
+   * Typically called when product quantity is reduced (damage write-off).
+   *
+   * @param productId - The product whose changes might cause conflicts
+   */
+  async syncProductConflicts(productId: string): Promise<void> {
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    
+    // Find all future active orders containing this product
+    const { data: orderItems, error } = await this.client
+      .from(this.orderItemsTable)
+      .select('order_id, orders!inner(id, status, end_date)')
+      .eq('product_id', productId)
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial'])
+      .gte('orders.end_date', todayStr);
+
+    if (error || !orderItems) return;
+
+    // Deduplicate order IDs
+    const orderIds = Array.from(new Set(orderItems.map(item => item.order_id)));
+
+    // Run validation for each order
+    for (const id of orderIds) {
+      await this.validateOrderStockConflicts(id);
+    }
   }
 
   /**
@@ -1160,6 +1286,18 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
+    if (params?.exclude_status) {
+      if (Array.isArray(params.exclude_status)) {
+        query = query.not('status', 'in', `(${params.exclude_status.join(',')})`);
+      } else {
+        query = query.neq('status', params.exclude_status);
+      }
+    }
+
+    if (params?.has_damage_charges) {
+      query = query.gt('damage_charges_total', 0);
+    }
+
 
 
 
@@ -1199,49 +1337,59 @@ export class OrderRepository extends BaseRepository {
         if (params?.date_from) query = query.gte(dateCol, params.date_from);
         if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
-        const now = new Date();
-        let startDate, endDate;
+        const getISTISO = (date: Date) => {
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+          }).format(date);
+        };
+
         switch (params.date_filter) {
-          case 'today':
+          case 'today': {
+            const todayStr = getISTISO(new Date());
             if (isDateOnly) {
-              const todayStr = now.toISOString().split('T')[0];
               query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
             } else {
-              startDate = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
-              endDate = new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
-              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+              query = query.gte(dateCol, `${todayStr}T00:00:00+05:30`).lte(dateCol, `${todayStr}T23:59:59+05:30`);
             }
             break;
-          case 'yesterday':
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
+          }
+          case 'yesterday': {
+            const yesterday = new Date(new Date().getTime() - 24 * 60 * 60 * 1000);
+            const yStr = getISTISO(yesterday);
             if (isDateOnly) {
-              const yStr = yesterday.toISOString().split('T')[0];
               query = query.gte(dateCol, yStr).lte(dateCol, yStr);
             } else {
-              startDate = new Date(yesterday.setHours(0, 0, 0, 0)).toISOString();
-              endDate = new Date(yesterday.setHours(23, 59, 59, 999)).toISOString();
-              query = query.gte(dateCol, startDate).lte(dateCol, endDate);
+              query = query.gte(dateCol, `${yStr}T00:00:00+05:30`).lte(dateCol, `${yStr}T23:59:59+05:30`);
             }
             break;
-          case 'this_week':
-            const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
+          }
+          case 'this_week': {
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+            const monday = new Date(now.setDate(diff));
+            const monStr = getISTISO(monday);
             if (isDateOnly) {
-              query = query.gte(dateCol, firstDay.toISOString().split('T')[0]);
+              query = query.gte(dateCol, monStr);
             } else {
-              startDate = new Date(firstDay.setHours(0, 0, 0, 0)).toISOString();
-              query = query.gte(dateCol, startDate);
+              query = query.gte(dateCol, `${monStr}T00:00:00+05:30`);
             }
             break;
-          case 'this_month':
+          }
+          case 'this_month': {
+            const now = new Date();
             const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+            const fomStr = getISTISO(monthStart);
             if (isDateOnly) {
-              query = query.gte(dateCol, monthStart.toISOString().split('T')[0]);
+              query = query.gte(dateCol, fomStr);
             } else {
-              startDate = monthStart.toISOString();
-              query = query.gte(dateCol, startDate);
+              query = query.gte(dateCol, `${fomStr}T00:00:00+05:30`);
             }
             break;
+          }
         }
       }
     }
@@ -1420,6 +1568,75 @@ export class OrderRepository extends BaseRepository {
   }
 
   /**
+   * Update damage details for a specific order item incrementally.
+   */
+  async updateOrderItemDamage(itemId: string, data: {
+    condition_rating: ConditionRating;
+    damage_description: string | null;
+    damage_charges: number;
+    damaged_quantity: number;
+  }): Promise<RepositoryResult<OrderItem>> {
+    // 1. Update the order item
+    const itemResponse = await this.client
+      .from(this.orderItemsTable)
+      .update({
+        condition_rating: data.condition_rating,
+        damage_description: data.damage_description,
+        damage_charges: data.damage_charges,
+        damaged_quantity: data.damaged_quantity,
+      })
+      .eq('id', itemId)
+      .select('*, order_id')
+      .single();
+
+    if (itemResponse.error) {
+      return this.handleResponse<OrderItem>(itemResponse);
+    }
+
+    const orderId = itemResponse.data.order_id;
+
+    // 2. Recalculate order total damage
+    const { data: allItems } = await this.client
+      .from(this.orderItemsTable)
+      .select('damage_charges')
+      .eq('order_id', orderId);
+
+    const totalDamageCharges = allItems?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0;
+
+    // 3. Fetch current order to recalculate total_amount
+    const { data: order } = await this.client
+      .from(this.tableName)
+      .select('subtotal, gst_amount, discount, late_fee, amount_paid')
+      .eq('id', orderId)
+      .single();
+
+    if (order) {
+      const newTotalAmount = Math.max(0, 
+        Number(order.subtotal || 0) + 
+        Number(order.gst_amount || 0) + 
+        Number(order.late_fee || 0) + 
+        totalDamageCharges - 
+        Number(order.discount || 0)
+      );
+
+      const amountPaid = Number(order.amount_paid || 0);
+      const paymentStatus = amountPaid >= newTotalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
+
+      // 4. Update the order with new totals
+      await this.client
+        .from(this.tableName)
+        .update({ 
+          damage_charges_total: totalDamageCharges,
+          total_amount: newTotalAmount,
+          payment_status: paymentStatus
+        })
+        .eq('id', orderId);
+    }
+
+    return this.handleResponse<OrderItem>(itemResponse);
+  }
+
+  /**
    * Mark deposit as returned
    */
   async markDepositReturned(orderId: string): Promise<RepositoryResult<OrderWithRelations>> {
@@ -1520,6 +1737,38 @@ export class OrderRepository extends BaseRepository {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'scheduled')
       .lte('start_date', todayStr);
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId);
+    }
+
+    const response = await query;
+
+    if (response.error) {
+      return {
+        success: false,
+        data: null,
+        error: response.error,
+      };
+    }
+
+    return {
+      success: true,
+      data: response.count || 0,
+      error: null,
+    };
+  }
+
+  /**
+   * Count orders with stock conflicts.
+   * This is a lightweight query used for the filter badge count.
+   */
+  async countConflict(branchId?: string): Promise<RepositoryResult<number>> {
+    let query = this.client
+      .from(this.tableName)
+      .select('*', { count: 'exact', head: true })
+      .eq('has_stock_conflict', true)
+      .not('status', 'in', '(completed,cancelled)');
 
     if (branchId) {
       query = query.eq('branch_id', branchId);

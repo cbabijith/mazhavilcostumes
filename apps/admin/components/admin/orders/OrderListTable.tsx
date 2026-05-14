@@ -27,7 +27,7 @@ import { type OrderWithRelations } from "@/domain";
 import OrderRow from "./OrderRow";
 import OrderItemsPanel from "./OrderItemsPanel";
 
-type SortField = "customer" | "phone" | "dates" | "items" | "amount" | "status";
+type SortField = "customer" | "created_at" | "phone" | "dates" | "items" | "amount" | "status";
 type SortDirection = "asc" | "desc";
 
 interface SortState {
@@ -50,9 +50,10 @@ const TableSkeleton = React.memo(function TableSkeleton() {
   return (
     <div className="divide-y divide-slate-100">
       {/* Table header skeleton */}
-      <div className="hidden md:grid grid-cols-[auto_1fr_120px_140px_160px_120px_100px_120px] gap-4 p-4 bg-slate-50/50">
+      <div className="hidden md:grid grid-cols-[auto_1fr_110px_120px_140px_160px_120px_100px_120px] gap-4 p-4 bg-slate-50/50">
         <div className="h-4 w-4 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+        <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-20 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
         <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
@@ -165,6 +166,9 @@ function OrderListTableInner({
         case "customer":
           cmp = (a.customer?.name || "").localeCompare(b.customer?.name || "");
           break;
+        case "created_at":
+          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
         case "phone":
           cmp = (a.customer?.phone || "").localeCompare(b.customer?.phone || "");
           break;
@@ -239,6 +243,12 @@ function OrderListTableInner({
                 <div className="flex items-center gap-1.5">
                   Customer
                   <SortIcon field="customer" sortState={sortState} />
+                </div>
+              </th>
+              <th className={headerClass} onClick={() => toggleSort("created_at")}>
+                <div className="flex items-center gap-1.5">
+                  Booked On
+                  <SortIcon field="created_at" sortState={sortState} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("phone")}>

@@ -13,6 +13,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminOnly } from '@/lib/apiGuard';
 import { dashboardService } from '@/services/dashboardService';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const guard = await adminOnly(request);
   if (guard.error) return guard.error;

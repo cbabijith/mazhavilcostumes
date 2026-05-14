@@ -62,8 +62,11 @@ interface AppUIState {
   globalSearchOpen: boolean;
   globalSearchQuery: string;
 
-  // Branch Switching — always a specific branch id (no 'all' mode)
-  selectedBranchId: string;
+  // Branch Switching — can be a branch id or null (for 'All Branches')
+  selectedBranchId: string | null;
+
+  // Global Store ID context
+  storeId: string | null;
 }
 
 export interface AppStore extends AppUIState {
@@ -123,7 +126,8 @@ const initialState: AppUIState = {
   globalSearchOpen: false,
   globalSearchQuery: '',
 
-  selectedBranchId: '',
+  selectedBranchId: '7671abeb-4b79-47a4-966b-384c1c26b950',
+  storeId: '9403fc00-1042-4770-a64b-08f196a58457',
 };
 
 /**
@@ -192,8 +196,8 @@ export interface AppStore {
   setGlobalSearchQuery: (query: string) => void;
 
   // Branch Actions
-  selectedBranchId: string;
-  setSelectedBranchId: (branchId: string) => void;
+  selectedBranchId: string | null;
+  setSelectedBranchId: (branchId: string | null) => void;
   
   // Reset
   reset: () => void;
@@ -220,7 +224,7 @@ export const useAppStore = create<AppStore>()(
       
       // Notification Actions
       addNotification: (notification) => {
-        const id = Date.now().toString();
+        const id = Math.random().toString(36).substring(2, 9);
         const newNotification = { ...notification, id };
         
         set((state) => ({

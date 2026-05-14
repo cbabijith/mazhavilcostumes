@@ -50,14 +50,11 @@ export function RevenueView({
 }: RevenueViewProps) {
   const summaryColumns = [
     { header: "Period", key: "period" },
-    { header: "Completed", key: "completed_revenue", format: "currency" as const },
-    { header: "Ongoing", key: "ongoing_revenue", format: "currency" as const },
-    { header: "Scheduled", key: "scheduled_revenue", format: "currency" as const },
-    { header: "Cancelled", key: "cancelled_revenue", format: "currency" as const },
+    { header: "Booking Sales", key: "booking_sales", format: "currency" as const },
+    { header: "Amount Collection", key: "amount_collection", format: "currency" as const },
+    { header: "Net Revenue", key: "net_revenue", format: "currency" as const },
+    { header: "GST", key: "gst_collected", format: "currency" as const },
     { header: "Refunded", key: "refund_amount", format: "currency" as const },
-    { header: "Cash", key: "cash_revenue", format: "currency" as const },
-    { header: "UPI", key: "upi_revenue", format: "currency" as const },
-    { header: "Net Total", key: "total_revenue", format: "currency" as const },
     { header: "Orders", key: "order_count" },
   ];
 
@@ -177,60 +174,68 @@ export function RevenueView({
           )}
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-indigo-600">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest mb-1">Total Booking Sales</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_booking_sales)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of business won (Order Creation Date)</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-600">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Amount Collection</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_amount_collection)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Total payments received during this period</p>
+              </CardContent>
+            </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-slate-900">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(netRevenue)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.details.length} Transactions</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-sky-500">
-              <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-widest mb-1">Cash Collection</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_cash)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_cash / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-violet-500">
-              <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-violet-600/70 uppercase tracking-widest mb-1">UPI Collection</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_upi)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_upi / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue (Excl GST)</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_net_revenue)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Actual income after removing 18% GST</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay / Other</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_gpay / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST Collected</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gst_collected)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion to be paid to government</p>
               </CardContent>
             </Card>
-            {reportSummary.total_refunded > 0 ? (
-              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-orange-500">
-                <CardContent className="p-5">
-                  <p className="text-[10px] font-bold text-orange-600/70 uppercase tracking-widest mb-1">Refunded</p>
-                  <p className="text-2xl font-black text-orange-600">-{formatCurrency(reportSummary.total_refunded)}</p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Returned to customers</p>
-                </CardContent>
-              </Card>
-            ) : reportSummary.cancelled_total > 0 ? (
-              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-red-500">
-                <CardContent className="p-5">
-                  <p className="text-[10px] font-bold text-red-600/70 uppercase tracking-widest mb-1">From Cancelled</p>
-                  <p className="text-2xl font-black text-red-600">{formatCurrency(reportSummary.cancelled_total)}</p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Included in total</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-500">
-                <CardContent className="p-5">
-                  <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Total Collected</p>
-                  <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_collected)}</p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-medium">Gross collections</p>
-                </CardContent>
-              </Card>
-            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-sky-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-widest mb-1">Cash</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_cash)}</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-violet-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-violet-600/70 uppercase tracking-widest mb-1">UPI</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_upi)}</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-orange-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-orange-600/70 uppercase tracking-widest mb-1">Refunded</p>
+                <p className="text-xl font-black text-orange-600">-{formatCurrency(reportSummary.total_refunded)}</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-red-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-red-600/70 uppercase tracking-widest mb-1">Cancelled (Keep)</p>
+                <p className="text-xl font-black text-red-600">{formatCurrency(reportSummary.cancelled_total)}</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Due Amount Cards: Damage Charges + Late Fees */}
@@ -307,12 +312,8 @@ export function RevenueView({
                       formatter={(value: any) => formatCurrency(Number(value || 0))} 
                     />
                     <Legend verticalAlign="top" align="right" iconType="circle" />
-                    <Bar dataKey="cash_revenue" name="Cash" fill={COLORS.cash} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="upi_revenue" name="UPI" fill={COLORS.upi} radius={[4, 4, 0, 0]} />
-                    {data.some(d => d.cancelled_revenue > 0) && (
-                      <Bar dataKey="cancelled_revenue" name="Cancelled" fill={COLORS.cancelled} radius={[4, 4, 0, 0]} />
-                    )}
-                    <Bar dataKey="total_revenue" name="Net" fill="#e2e8f0" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="booking_sales" name="Sales (Orders)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="amount_collection" name="Amount (Payments)" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>

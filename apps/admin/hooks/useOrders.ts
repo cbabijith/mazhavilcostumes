@@ -52,6 +52,7 @@ interface PaginatedResponse<T> {
   hasNext?: boolean;
   hasPrev?: boolean;
   actionNeededCount?: number;
+  conflictCount?: number;
   error?: any;
 }
 
@@ -72,6 +73,13 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
           searchParams.append('status', params.status);
         }
       }
+      if (params?.exclude_status) {
+        if (Array.isArray(params.exclude_status)) {
+          params.exclude_status.forEach(s => searchParams.append('exclude_status', s));
+        } else {
+          searchParams.append('exclude_status', params.exclude_status);
+        }
+      }
       if (params?.product_id) searchParams.append('product_id', params.product_id);
       if (params?.payment_status) {
         if (Array.isArray(params.payment_status)) {
@@ -87,6 +95,8 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.date_to) searchParams.append('date_to', params.date_to);
       if (params?.limit) searchParams.append('limit', params.limit.toString());
       if (params?.page) searchParams.append('page', params.page.toString());
+      if (params?.has_damage_charges) searchParams.append('has_damage_charges', 'true');
+      if (params?.has_stock_conflict) searchParams.append('has_stock_conflict', 'true');
       
       const queryString = searchParams.toString();
       const url = `/api/orders${queryString ? `?${queryString}` : ''}`;
@@ -104,6 +114,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
         hasNext: raw.meta?.hasNext ?? false,
         hasPrev: raw.meta?.hasPrev ?? false,
         actionNeededCount: raw.meta?.actionNeededCount ?? 0,
+        conflictCount: raw.meta?.conflictCount ?? 0,
       };
     },
     placeholderData: keepPreviousData,
@@ -258,6 +269,36 @@ export function useProcessOrderReturn() {
     ...mutation,
     processOrderReturn: mutation.mutate,
     isLoading: mutation.isPending,
+  };
+}
+
+/**
+ * Update damage details for a specific order item incrementally
+ */
+export function useUpdateOrderItemDamage() {
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useAppStore();
+
+  const mutation = useMutation({
+    mutationFn: ({ itemId, data }: { itemId: string; data: any }) => 
+      apiFetch<any>(`/api/orders/items/${itemId}/damage`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: async (data) => {
+      // Invalidate the specific order detail and lists
+      if (data.order_id) {
+        await queryClient.invalidateQueries({ queryKey: orderKeys.detail(data.order_id) });
+      }
+      await queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      showSuccess('Item damage saved successfully');
+    },
+    onError: (error) => {
+      showError('Failed to save item damage', error.message);
+    },
+  });
+
+  return {
+    ...mutation,
+    updateOrderItemDamage: mutation.mutate,
+    isUpdating: mutation.isPending,
   };
 }
 

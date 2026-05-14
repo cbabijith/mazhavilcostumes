@@ -21,11 +21,8 @@ export class CleaningService {
   /**
    * Get cleaning queue for a branch
    */
-  async getQueue(branchId: string, status?: CleaningStatus): Promise<RepositoryResult<CleaningRecord[]>> {
-    return cleaningRepository.findMany({ 
-      branch_id: branchId, 
-      status: status || undefined 
-    });
+  async getQueue(params: CleaningSearchParams): Promise<RepositoryResult<CleaningRecord[]>> {
+    return cleaningRepository.findMany(params);
   }
 
   /**

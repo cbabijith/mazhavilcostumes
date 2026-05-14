@@ -195,21 +195,6 @@ export class PaymentService {
     return await paymentRepository.getTotalForOrder(orderId);
   }
 
-  /**
-   * Get deposit payment for an order
-   */
-  async getDepositPayment(orderId: string): Promise<RepositoryResult<Payment | null>> {
-    const result = await paymentRepository.findByOrderId(orderId);
-    if (!result.success) {
-      return { data: null, error: result.error, success: false };
-    }
-
-    const deposit = (result.data || []).find(
-      (p: Payment) => p.payment_type === PaymentType.DEPOSIT
-    );
-
-    return { data: deposit || null, error: null, success: true };
-  }
 
   /**
    * Get final payment for an order

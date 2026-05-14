@@ -50,6 +50,7 @@ interface OrderFiltersProps {
   initialQuery: string;
   selectedCount: number;
   actionNeededCount: number;
+  conflictCount: number;
   onStatusChange: (status: string) => void;
   onDateFilterChange: (filter: string) => void;
   onDateFromChange: (date: string) => void;
@@ -66,6 +67,7 @@ function OrderFiltersInner({
   initialQuery,
   selectedCount,
   actionNeededCount,
+  conflictCount,
   onStatusChange,
   onDateFilterChange,
   onDateFromChange,
@@ -147,6 +149,30 @@ function OrderFiltersInner({
                     : 'bg-amber-200 text-amber-800'
                 }`}>
                   {actionNeededCount}
+                </span>
+              </button>
+            )}
+
+            {/* Stock Conflict chip — only visible when there are conflicts */}
+            {conflictCount > 0 && (
+              <button
+                onClick={() => onStatusChange('stock_conflict')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                  statusFilter === 'stock_conflict'
+                    ? "bg-red-600 text-white border-red-600 shadow-sm"
+                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
+                }`}
+              >
+                <AlertTriangle className={`w-3.5 h-3.5 ${
+                  statusFilter === 'stock_conflict' ? 'fill-white text-white' : 'fill-red-500 text-red-500'
+                } ${statusFilter !== 'stock_conflict' && 'animate-pulse'}`} />
+                Stock Conflict
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                  statusFilter === 'stock_conflict'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-red-200 text-red-800'
+                }`}>
+                  {conflictCount}
                 </span>
               </button>
             )}

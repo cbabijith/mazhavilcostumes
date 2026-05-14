@@ -25,19 +25,37 @@ import {
   Loader2,
   CheckCircle2,
   X,
+  Download,
+  FileText,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface DailyReportStats {
   todaysBookings: number;
+  todaysSales: number;
+  todaysCollection: number;
   todaysDelivery: { delivered: number; total: number };
   todaysReturn: { returned: number; total: number };
-  todaysRevenue: number;
+  todaysRevenue: number; // Legacy alias
   damagedOrders: number;
   todaysRefunds: number;
   damageIncome: number;
   lateFeeIncome: number;
+  mode_breakdown: {
+    cash: number;
+    upi: number;
+    gpay: number;
+    other: number;
+  };
+  details: {
+    bookings: { id: string; customer: string; amount: number }[];
+    deliveries: { id: string; customer: string; status: string }[];
+    returns: { id: string; customer: string; status: string }[];
+    collections: { amount: number; mode: string; customer: string; orderId: string }[];
+  };
 }
 
 const formatCurrency = (amount: number) =>
@@ -89,6 +107,72 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
   const deliveryPending = stats.todaysDelivery.total - stats.todaysDelivery.delivered;
   const returnPending = stats.todaysReturn.total - stats.todaysReturn.returned;
 
+  const downloadPDF = () => {
+    const formatPDFCurrency = (amount: number) => 
+      `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(amount)}`;
+
+    const doc = new jsPDF();
+    const now = new Date();
+    const dateStr = new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(now);
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(15, 23, 42); // slate-900
+    doc.text("Mazhavil Costumes", 14, 20);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.text("Daily Operational Report", 14, 28);
+    doc.text(dateStr, 14, 34);
+
+    // Summary Section
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Business Summary", 14, 48);
+
+    autoTable(doc, {
+      startY: 52,
+      head: [["Metric", "Value", "Status"]],
+      body: [
+        ["Total Bookings Today", String(stats.todaysBookings), `${formatPDFCurrency(stats.todaysSales)} Value`],
+        ["Amount Collection", formatPDFCurrency(stats.todaysCollection), stats.todaysRefunds > 0 ? `Net: ${formatPDFCurrency(stats.todaysCollection - stats.todaysRefunds)} (${formatPDFCurrency(stats.todaysRefunds)} Refund)` : `Net: ${formatPDFCurrency(stats.todaysCollection)}`],
+        ["Deliveries", `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`, stats.todaysDelivery.total - stats.todaysDelivery.delivered > 0 ? "Pending" : "Completed"],
+        ["Returns", `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`, stats.todaysReturn.total - stats.todaysReturn.returned > 0 ? "Pending" : "Completed"],
+        ["Damaged Items Today", String(stats.damagedOrders), stats.damagedOrders > 0 ? "Flagged" : "None"],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [15, 23, 42] },
+    });
+
+    // Collection Breakdown
+    doc.text("Collection Breakdown", 14, (doc as any).lastAutoTable.finalY + 15);
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 20,
+      head: [["Mode", "Amount"]],
+      body: [
+        ["Cash", formatPDFCurrency(stats.mode_breakdown.cash)],
+        ["UPI", formatPDFCurrency(stats.mode_breakdown.upi)],
+        ["GPay", formatPDFCurrency(stats.mode_breakdown.gpay)],
+        ["Other", formatPDFCurrency(stats.mode_breakdown.other)],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [15, 23, 42] },
+    });
+
+    const istIsoDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now);
+    doc.save(`Daily_Report_${istIsoDate}.pdf`);
+  };
+
   const cards = [
     {
       label: "Today's Bookings",
@@ -98,7 +182,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         : `${stats.todaysBookings} order${stats.todaysBookings !== 1 ? "s" : ""} created`,
       icon: CalendarPlus,
       color: "blue",
-      href: "/dashboard/orders?date_filter=today",
+      href: "/dashboard/orders?date_filter=today&exclude_status=cancelled",
       isEmpty: stats.todaysBookings === 0,
     },
     {
@@ -113,7 +197,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
           : "All delivered ✓",
       icon: Truck,
       color: "emerald",
-      href: "/dashboard/orders?status=scheduled&date_filter=today&date_field=start_date",
+      href: "/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled",
       isEmpty: stats.todaysDelivery.total === 0,
       hasWarning: deliveryPending > 0,
     },
@@ -129,29 +213,39 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
           : "All received ✓",
       icon: PackageCheck,
       color: "violet",
-      href: "/dashboard/orders?status=ongoing&date_filter=today&date_field=end_date",
+      href: "/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled",
       isEmpty: stats.todaysReturn.total === 0,
       hasWarning: returnPending > 0,
     },
     {
-      label: "Today's Revenue",
-      value: formatCurrency(stats.todaysRevenue),
-      subtitle: "Total cash collected today",
+      label: "Today's Sales",
+      value: formatCurrency(stats.todaysSales),
+      subtitle: "Total value of bookings today",
       icon: IndianRupee,
+      color: "indigo",
+      href: "/dashboard/orders?date_filter=today&exclude_status=cancelled",
+      isEmpty: stats.todaysSales === 0,
+      isCurrency: true,
+    },
+    {
+      label: "Amount Collection",
+      value: formatCurrency(stats.todaysCollection),
+      subtitle: `C: ${formatCurrency(stats.mode_breakdown.cash)} • U: ${formatCurrency(stats.mode_breakdown.upi)} • G: ${formatCurrency(stats.mode_breakdown.gpay)}`,
+      icon: Banknote,
       color: "green",
-      href: null, // Revenue is from payments, not directly filterable on orders
-      isEmpty: stats.todaysRevenue === 0,
+      href: null,
+      isEmpty: stats.todaysCollection === 0,
       isCurrency: true,
     },
     {
       label: "Damaged Orders",
       value: String(stats.damagedOrders),
       subtitle: stats.damagedOrders === 0
-        ? "No flagged orders"
-        : `${stats.damagedOrders} order${stats.damagedOrders !== 1 ? "s" : ""} flagged`,
+        ? "No new items flagged today"
+        : `${stats.damagedOrders} item${stats.damagedOrders !== 1 ? "s" : ""} flagged today`,
       icon: ShieldAlert,
       color: "rose",
-      href: "/dashboard/orders?status=flagged",
+      href: "/dashboard/orders?status=flagged&date_filter=today&date_field=updated_at",
       isEmpty: stats.damagedOrders === 0,
     },
     {
@@ -162,19 +256,17 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         : "Refunded to customers",
       icon: ArrowDownLeft,
       color: "orange",
-      href: "/dashboard/orders?status=cancelled",
+      href: "/dashboard/orders?status=cancelled&date_filter=today&date_field=cancelled_at",
       isEmpty: stats.todaysRefunds === 0,
       isCurrency: true,
     },
     {
       label: "Damage Income",
       value: formatCurrency(stats.damageIncome),
-      subtitle: stats.damageIncome === 0
-        ? "No damage charges collected"
-        : "From damage charges",
-      icon: Banknote,
+      subtitle: "Collected damage charges",
+      icon: ShieldAlert,
       color: "teal",
-      href: "/dashboard/orders?status=flagged",
+      href: "/dashboard/orders?date_filter=today&date_field=updated_at&has_damage_charges=true",
       isEmpty: stats.damageIncome === 0,
       isCurrency: true,
     },
@@ -186,7 +278,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         : "From late return fees",
       icon: Clock,
       color: "amber",
-      href: "/dashboard/orders?status=late_return",
+      href: "/dashboard/orders?status=late_return&date_filter=today&date_field=updated_at",
       isEmpty: stats.lateFeeIncome === 0,
       isCurrency: true,
     },
@@ -201,6 +293,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
     orange:  { bg: "bg-orange-50",  text: "text-orange-700",  badge: "bg-orange-100",  border: "border-orange-200" },
     teal:    { bg: "bg-teal-50",    text: "text-teal-700",    badge: "bg-teal-100",    border: "border-teal-200" },
     amber:   { bg: "bg-amber-50",   text: "text-amber-700",   badge: "bg-amber-100",   border: "border-amber-200" },
+    indigo:  { bg: "bg-indigo-50",  text: "text-indigo-700",  badge: "bg-indigo-100",  border: "border-indigo-200" },
   };
 
   return (
@@ -213,25 +306,36 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-              Today&apos;s Report
+              Today&apos;s Report (Amount Collection)
             </h3>
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
               {new Date().toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="w-8 h-8 text-slate-400 hover:text-slate-600"
-          onClick={onClose}
-        >
-          <X className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2 border-slate-200 text-slate-600 hover:text-slate-900"
+            onClick={downloadPDF}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download PDF
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-8 h-8 text-slate-400 hover:text-slate-600"
+            onClick={onClose}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Cards Grid */}
-      <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="p-5 grid grid-cols-2 lg:grid-cols-3 gap-3">
         {cards.map((card) => {
           const Icon = card.icon;
           const colors = colorMap[card.color] || colorMap.blue;
@@ -284,11 +388,11 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
       </div>
 
       {/* Revenue Summary Footer */}
-      <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-xs">
+      <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-[10px]">
         <span className="text-slate-500 font-medium">
-          Net Today: <span className="text-slate-900 font-bold">{formatCurrency(stats.todaysRevenue - stats.todaysRefunds)}</span>
+          Net Collection: <span className="text-slate-900 font-bold">{formatCurrency(stats.todaysCollection - stats.todaysRefunds)}</span>
           <span className="text-slate-400 mx-1.5">•</span>
-          Revenue {formatCurrency(stats.todaysRevenue)} − Refunds {formatCurrency(stats.todaysRefunds)}
+          Collected {formatCurrency(stats.todaysCollection)} − Refunds {formatCurrency(stats.todaysRefunds)}
         </span>
         {(stats.damageIncome > 0 || stats.lateFeeIncome > 0) && (
           <span className="text-slate-400">

@@ -78,6 +78,11 @@ export interface DueOverdueRow {
 /** R3: Revenue row (Summary) */
 export interface RevenueRow {
   period: string;
+  booking_sales: number;      // Total value of orders booked (Sales)
+  cash_collection: number;    // Actual cash collected (Cash Flow)
+  amount_collection: number;  // Unified collection (renamed label)
+  net_revenue: number;        // Revenue excluding GST
+  gst_collected: number;      // GST portion
   completed_revenue: number;
   ongoing_revenue: number;
   scheduled_revenue: number;
@@ -87,7 +92,7 @@ export interface RevenueRow {
   upi_revenue: number;
   gpay_revenue: number;
   other_revenue: number;
-  total_revenue: number;
+  total_revenue: number;      // Gross collected
   order_count: number;
 }
 
@@ -107,6 +112,12 @@ export interface RevenueReportData {
   summary: RevenueRow[];
   details: RevenueDetailRow[];
   total_details_count: number;
+  total_booking_sales: number;
+  total_received: number;
+  total_cash_collection: number;
+  total_amount_collection: number;
+  total_net_revenue: number;
+  total_gst_collected: number;
   total_cash: number;
   total_upi: number;
   total_gpay: number;

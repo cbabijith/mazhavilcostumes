@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { startOfDay, endOfDay } from 'date-fns';
 
 export interface TodayOrder {
   id: string;
@@ -19,8 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createAdminClient();
     const now = new Date();
-    const todayStart = startOfDay(now);
-    const todayEnd = endOfDay(now);
+    const todayStr = now.toISOString().split('T')[0];
 
     // Fetch today's pickups
     const { data: pickupOrders } = await supabase
@@ -42,8 +40,7 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-      .gte('start_date', todayStart.toISOString())
-      .lte('start_date', todayEnd.toISOString())
+      .eq('start_date', todayStr)
       .neq('status', 'cancelled')
       .order('start_date', { ascending: true });
 
@@ -67,9 +64,8 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-      .gte('end_date', todayStart.toISOString())
-      .lte('end_date', todayEnd.toISOString())
-      .eq('status', 'picked_up')
+      .eq('end_date', todayStr)
+      .in('status', ['ongoing', 'in_use', 'late_return'])
       .order('end_date', { ascending: true });
 
     const formatOrder = (order: any, type: 'pickup' | 'return'): TodayOrder => {

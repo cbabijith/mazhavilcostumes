@@ -30,10 +30,26 @@ import type {
 const supabase = () => createAdminClient();
 
 export class ReportService {
+  private getISTDateContext() {
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    return {
+      now: istNow,
+      today: istNow.toLocaleDateString('en-CA'), // YYYY-MM-DD
+    };
+  }
+
+  private formatISTQueryRange(fromDate: string, toDate: string) {
+    return {
+      start: `${fromDate}T00:00:00+05:30`,
+      end: `${toDate}T23:59:59+05:30`,
+    };
+  }
 
   /** R1: Day-wise booking */
   async getDayWiseBooking(filters: ReportFilters): Promise<DayWiseBookingRow[]> {
-    const today = new Date().toLocaleDateString('en-CA');
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
@@ -64,7 +80,7 @@ export class ReportService {
 
   /** R2: Due / Overdue */
   async getDueOverdue(filters: ReportFilters): Promise<DueOverdueRow[]> {
-    const today = new Date().toLocaleDateString('en-CA');
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
@@ -103,41 +119,25 @@ export class ReportService {
     });
   }
 
-  /** R3: Revenue report - Scalable Dual-Query Approach */
-  async getRevenue(filters: ReportFilters): Promise<RevenueReportData> {
+  /** R3: Revenue report - "Fair" Version with Sales vs Cash Separation */
+  async getRevenue(filters: ReportFilters, branchId?: string | null, storeId?: string | null): Promise<RevenueReportData> {
     const period = filters.period || 'month';
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(period);
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
     const limit = filters.limit || 50;
     const page = filters.page || 1;
-    const offset = (page - 1) * limit;
-
+    const range = this.formatISTQueryRange(fromDate, toDate);
+    
     // Resolve status filter for filtering payments by order status
     const statusFilter = filters.status?.length ? filters.status : null;
 
-    // 1. Fetch Aggregation Data — includes refunds so we can track them separately
-    let aggQuery = supabase()
-      .from('payments')
-      .select(`
-        amount,
-        payment_mode,
-        payment_type,
-        payment_date,
-        created_at,
-        order:order_id (
-          id,
-          status,
-          payment_status
-        )
-      `)
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`);
+    // Use unified metrics helper for the summary part
+    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter);
+    
+    const offset = (page - 1) * limit;
 
-    if (filters.payment_mode && filters.payment_mode !== 'all') {
-      aggQuery = aggQuery.eq('payment_mode', filters.payment_mode);
-    }
-
-    // 2. Fetch Paginated Details
+    // 3. Fetch Paginated Details for the table
     let detailsQuery = supabase()
       .from('payments')
       .select(`
@@ -147,138 +147,283 @@ export class ReportService {
         payment_type,
         payment_date,
         created_at,
-        order:order_id (
+        order:order_id!inner (
           id,
           status,
+          branch_id,
+          store_id,
           customer:customer_id (
             name
           )
         )
       `, { count: 'exact' })
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
-      .order('created_at', { ascending: false })
+      .gte('payment_date', fromDate)
+      .lte('payment_date', toDate)
+      .order('payment_date', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (branchId) detailsQuery = detailsQuery.eq('order.branch_id', branchId);
+    if (storeId) detailsQuery = detailsQuery.eq('order.store_id', storeId);
 
     if (filters.payment_mode && filters.payment_mode !== 'all') {
       detailsQuery = detailsQuery.eq('payment_mode', filters.payment_mode);
     }
 
-    // 3. Fetch cancelled orders with unrefunded money (for refund_due)
-    const cancelledQuery = supabase()
+    const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsQuery;
+    if (detailsError) throw new Error(detailsError.message);
+
+    const detailsData = (statusFilter && statusFilter.length > 0)
+      ? (rawDetails || []).filter(p => p.order && statusFilter.includes((p.order as any).status))
+      : (rawDetails || []);
+
+    const formattedDetails = detailsData.map((p: any) => ({
+      order_id: p.order?.id,
+      customer_name: p.order?.customer?.name || 'Walk-in',
+      date: p.payment_date,
+      amount: p.payment_type === 'refund' || p.payment_type === 'cancelled_keep' ? -Number(p.amount) : Number(p.amount),
+      payment_mode: p.payment_mode,
+      payment_type: p.payment_type,
+      status: p.order?.status
+    }));
+
+    return {
+      summary: (metrics.summary as any[]),
+      details: formattedDetails as any[],
+      total_booking_sales: metrics.total_booking_sales,
+      total_cash_collection: metrics.total_cash_collection,
+      total_received: metrics.total_received,
+      total_amount_collection: metrics.total_amount_collection,
+      total_collected: metrics.total_amount_collection, // Backward compatibility
+      total_net_revenue: metrics.total_net_revenue,
+      total_gst_collected: metrics.total_gst_collected,
+      total_refunded: metrics.total_refunded,
+      refund_due: metrics.refund_due,
+      cancelled_total: metrics.cancelled_total,
+      total_cash: metrics.total_cash,
+      total_upi: metrics.total_upi,
+      total_gpay: metrics.total_gpay,
+      total_damage_charges: metrics.total_damage_charges,
+      total_late_fees: metrics.total_late_fees,
+      total_details_count: statusFilter ? detailsData.length : (totalDetailsCount || 0),
+    };
+  }
+
+  /**
+   * Unified Revenue Metrics Helper
+   * Shared between getRevenue (Report) and Dashboard
+   */
+  public async getUnifiedRevenueMetrics(
+    fromDate: string, 
+    toDate: string, 
+    branchId?: string | null, 
+    storeId?: string | null,
+    statusFilter?: string[] | null
+  ) {
+    const range = this.formatISTQueryRange(fromDate, toDate);
+
+    // 1. Fetch Aggregation Data — includes refunds and order details for GST calc
+    let aggQuery = supabase()
+      .from('payments')
+      .select(`
+        amount,
+        payment_mode,
+        payment_type,
+        payment_date,
+        created_at,
+        order:order_id!inner (
+          id,
+          status,
+          payment_status,
+          total_amount,
+          gst_amount,
+          branch_id,
+          store_id,
+          customer:customer_id(name)
+        )
+      `)
+      .gte('payment_date', fromDate)
+      .lte('payment_date', toDate);
+
+    if (branchId) aggQuery = aggQuery.eq('order.branch_id', branchId);
+    if (storeId) aggQuery = aggQuery.eq('order.store_id', storeId);
+
+    // 2. Fetch Orders created in this period (for "Booking Sales")
+    let bookingQuery = supabase()
+      .from('orders')
+      .select('id, total_amount, created_at, status')
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
+      .neq('status', 'cancelled'); // Don't count cancelled orders in "won business"
+    
+    if (branchId) bookingQuery = bookingQuery.eq('branch_id', branchId);
+    if (storeId) bookingQuery = bookingQuery.eq('store_id', storeId);
+
+    // 4. Fetch cancelled orders with unrefunded money (for refund_due)
+    let cancelledDueQuery = supabase()
       .from('orders')
       .select('id, amount_paid, payment_status')
       .eq('status', 'cancelled')
       .gt('amount_paid', 0)
       .neq('payment_status', 'refund_waived');
-
-    // 4. Fetch damage charges and late fees from orders in the period
+    
+    if (branchId) cancelledDueQuery = cancelledDueQuery.eq('branch_id', branchId);
+    // 5. Fetch damage charges and late fees (Accrual view)
     const dueChargesQuery = supabase()
       .from('orders')
       .select('damage_charges_total, late_fee')
-      .gte('updated_at', `${fromDate}T00:00:00`)
-      .lte('updated_at', `${toDate}T23:59:59`)
+      .gte('updated_at', range.start)
+      .lte('updated_at', range.end)
       .or('damage_charges_total.gt.0,late_fee.gt.0');
 
+    if (branchId) dueChargesQuery.eq('branch_id', branchId);
+    if (storeId) dueChargesQuery.eq('store_id', storeId);
+
     // Execute in parallel
-    const [aggResult, detailsResult, cancelledResult, dueChargesResult] = await Promise.all([aggQuery, detailsQuery, cancelledQuery, dueChargesQuery]);
+    const [aggResult, bookingResult, cancelledResult, dueChargesResult] = await Promise.all([
+      aggQuery, bookingQuery, cancelledDueQuery, dueChargesQuery
+    ]);
 
     if (aggResult.error) throw new Error(aggResult.error.message);
-    if (detailsResult.error) throw new Error(detailsResult.error.message);
+    if (bookingResult.error) throw new Error(bookingResult.error.message);
 
-    // When status filter is active, filter payments client-side by order status
+    // Filter payments client-side if status filter is active
     const rawPayments = (aggResult.data || []) as any[];
-    const allPayments = statusFilter
-      ? rawPayments.filter(p => p.order && statusFilter.includes(p.order.status))
+    const allPayments = (statusFilter && statusFilter.length > 0)
+      ? rawPayments.filter(p => p.order && statusFilter.includes((p.order as any).status))
       : rawPayments;
-    const rawDetails = (detailsResult.data || []) as any[];
-    const detailsData = statusFilter
-      ? rawDetails.filter(p => p.order && statusFilter.includes(p.order.status))
-      : rawDetails;
-    const totalDetailsCount = statusFilter ? detailsData.length : (detailsResult.count || 0);
+    
+    const bookings = (bookingResult.data || []) as any[];
     const cancelledOrders = (cancelledResult.data || []) as any[];
 
-    // Process Summary
+    // Process Summary Groups
     const summaryGroups: Record<string, RevenueRow> = {};
+    const orderCounts: Record<string, Set<string>> = {};
+    const dailyTrends: Record<string, { date: string; cash: number; sales: number }> = {};
+
+    let totalBookingSales = 0;
+    let totalReceived = 0;
+    let totalRefunded = 0;
+    let totalCancelledKeep = 0;
+    let totalNetRevenue = 0;
+    let totalGstCollected = 0;
     let totalCash = 0;
     let totalUpi = 0;
     let totalGpay = 0;
-    let totalCollected = 0;
-    let totalRefunded = 0;
-    let cancelledTotal = 0;
-    const orderCounts: Record<string, Set<string>> = {};
+    let cancelledNet = 0;
 
+    // A. Process Booking Sales (Business Won)
+    for (const o of bookings) {
+      const key = this.getPeriodKey(o.created_at, 'month');
+      if (!summaryGroups[key]) {
+        summaryGroups[key] = this.initSummaryRow(key);
+        orderCounts[key] = new Set();
+      }
+      
+      const amount = Number(o.total_amount ?? 0);
+      summaryGroups[key].booking_sales += amount;
+      totalBookingSales += amount;
+
+      // For daily trends
+      const dateKey = o.created_at.split('T')[0];
+      if (!dailyTrends[dateKey]) dailyTrends[dateKey] = { date: dateKey, cash: 0, sales: 0 };
+      dailyTrends[dateKey].sales += amount;
+    }
+
+    // B. Process Cash Collections (Money in hand)
     for (const p of allPayments) {
       const order = p.order;
       if (!order) continue;
 
-      const amount = Number(p.amount || 0);
-      const mode = (p.payment_mode || '').toLowerCase();
-      const status = (order.status || '').toLowerCase();
-      const paymentType = (p.payment_type || '').toLowerCase();
-      const date = p.payment_date || p.created_at;
-      const key = this.getPeriodKey(date, period);
-      const isRefund = paymentType === 'refund';
-
+      const date = p.payment_date || p.created_at.split('T')[0];
+      const key = this.getPeriodKey(date, 'month');
       if (!summaryGroups[key]) {
-        summaryGroups[key] = {
-          period: key,
-          completed_revenue: 0,
-          ongoing_revenue: 0,
-          scheduled_revenue: 0,
-          cancelled_revenue: 0,
-          refund_amount: 0,
-          cash_revenue: 0,
-          upi_revenue: 0,
-          gpay_revenue: 0,
-          other_revenue: 0,
-          total_revenue: 0,
-          order_count: 0
-        };
+        summaryGroups[key] = this.initSummaryRow(key);
         orderCounts[key] = new Set();
       }
 
       const g = summaryGroups[key];
+      const amount = Number(p.amount || 0);
+      const isRefund = p.payment_type === 'refund';
+      const isCancelledKeep = p.payment_type === 'cancelled_keep';
+      const mode = (p.payment_mode || '').toLowerCase();
+      const status = (order.status || '').toLowerCase();
+
       orderCounts[key].add(order.id);
 
+      // GST Calculation Ratio
+      const totalOrder = Number(order.total_amount || 0) || 1;
+      const gstRatio = Number(order.gst_amount ?? 0) / totalOrder;
+      const gstPortion = amount * gstRatio;
+      const netPortion = amount - gstPortion;
+
+      // Trends
+      const dateKey = date.split('T')[0];
+      if (!dailyTrends[dateKey]) dailyTrends[dateKey] = { date: dateKey, cash: 0, sales: 0 };
+
       if (isRefund) {
-        // Refund payments: track separately, subtract from net totals
         totalRefunded += amount;
         g.refund_amount += amount;
         g.total_revenue -= amount;
-      } else {
-        // Regular payments: add to totals
-        totalCollected += amount;
+        g.cash_collection -= amount;
+        g.gst_collected -= gstPortion;
+        g.net_revenue -= netPortion;
+        totalNetRevenue -= netPortion;
+        dailyTrends[dateKey].cash -= amount;
+        if (status === 'cancelled') cancelledNet -= amount;
+      } else if (isCancelledKeep) {
+        totalCancelledKeep += amount;
         g.total_revenue += amount;
+        g.net_revenue += netPortion;
+        totalNetRevenue += netPortion;
+        dailyTrends[dateKey].cash += amount;
+      } else {
+        totalReceived += amount;
+        dailyTrends[dateKey].cash += amount;
+        g.total_revenue += amount;
+        g.cash_collection += amount;
+        g.gst_collected += gstPortion;
+        g.net_revenue += netPortion;
+        totalNetRevenue += netPortion;
 
-        // Mode breakdown (only for non-refund payments)
-        if (mode === 'cash') { totalCash += amount; g.cash_revenue += amount; }
-        else if (mode === 'upi') { totalUpi += amount; g.upi_revenue += amount; }
-        else if (mode === 'gpay') { totalGpay += amount; g.gpay_revenue += amount; }
-        else { g.other_revenue += amount; }
+        if (mode === 'cash') { g.cash_revenue += amount; totalCash += amount; }
+        else if (mode === 'upi') { g.upi_revenue += amount; totalUpi += amount; }
+        else if (mode === 'gpay') { g.gpay_revenue += amount; totalGpay += amount; }
 
         // Status breakdown
         if (status === 'cancelled') {
-          g.cancelled_revenue += amount;
-          cancelledTotal += amount;
+           g.cancelled_revenue += amount;
         } else if (['completed', 'returned'].includes(status)) {
-          g.completed_revenue += amount;
+           g.completed_revenue += amount;
         } else if (['ongoing', 'in_use', 'delivered', 'late_return'].includes(status)) {
-          g.ongoing_revenue += amount;
+           g.ongoing_revenue += amount;
         } else {
-          g.scheduled_revenue += amount;
+           g.scheduled_revenue += amount;
         }
       }
     }
 
-    // Compute refund due from cancelled orders with unrefunded money
-    const refundDue = cancelledOrders.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
+    const r = (n: number) => {
+      const val = Math.round(n * 100) / 100;
+      return isNaN(val) ? 0 : val;
+    };
+    const total_amount_collection = totalReceived - (totalRefunded + totalCancelledKeep);
+    
+    console.log('[ReportService] Revenue Calculation:', {
+      totalReceived,
+      totalRefunded,
+      totalCancelledKeep,
+      finalNet: total_amount_collection
+    });
 
     // Finalize summary
-    const r = (n: number) => Math.round(n * 100) / 100;
     const summary = Object.entries(summaryGroups).map(([key, g]) => ({
       ...g,
-      order_count: orderCounts[key].size,
+      order_count: orderCounts[key]?.size || 0,
+      booking_sales: r(g.booking_sales),
+      cash_collection: r(g.cash_collection),
+      amount_collection: r(g.cash_collection),
+      net_revenue: r(g.net_revenue),
+      gst_collected: r(g.gst_collected),
       total_revenue: r(g.total_revenue),
       completed_revenue: r(g.completed_revenue),
       ongoing_revenue: r(g.ongoing_revenue),
@@ -289,39 +434,56 @@ export class ReportService {
       upi_revenue: r(g.upi_revenue),
       gpay_revenue: r(g.gpay_revenue),
       other_revenue: r(g.other_revenue),
-    }));
+    })).sort((a: any, b: any) => b.period.localeCompare(a.period));
 
-    // Process Details (Paginated)
-    const details: RevenueDetailRow[] = detailsData.map(p => ({
-      date: p.payment_date || p.created_at,
-      order_id: p.order?.id || 'Unknown',
-      customer_name: p.order?.customer?.name || 'Unknown',
-      payment_mode: p.payment_mode,
-      payment_type: p.payment_type || 'payment',
-      amount: Number(p.amount || 0),
-      status: p.order?.status || 'unknown'
-    }));
-
-    // Process damage charges and late fees
+    // Process accrual-based charges
     const dueCharges = (dueChargesResult.data || []) as any[];
     const totalDamageCharges = dueCharges.reduce((sum, o) => sum + Number(o.damage_charges_total || 0), 0);
     const totalLateFees = dueCharges.reduce((sum, o) => sum + Number(o.late_fee || 0), 0);
+    const refundDueAmount = cancelledOrders.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
 
     return {
       summary,
-      details,
-      total_details_count: totalDetailsCount,
+      total_booking_sales: r(totalBookingSales),
+      total_received: r(totalReceived),
+      total_amount_collection: r(total_amount_collection),
+      total_cash_collection: r(total_amount_collection),
+      total_net_revenue: r(totalNetRevenue),
+      total_gst_collected: r(totalGstCollected),
       total_cash: r(totalCash),
       total_upi: r(totalUpi),
       total_gpay: r(totalGpay),
-      total_collected: r(totalCollected),
       total_refunded: r(totalRefunded),
-      cancelled_total: r(cancelledTotal),
-      refund_due: r(refundDue),
+      cancelled_total: r(cancelledNet), // Net profit from cancellations
+      refund_due: r(refundDueAmount),
       total_damage_charges: r(totalDamageCharges),
       total_late_fees: r(totalLateFees),
+      dailyTrends: this.padDailyTrends(dailyTrends, fromDate, toDate)
     };
   }
+
+  private initSummaryRow(period: string): RevenueRow {
+    return {
+      period,
+      booking_sales: 0,
+      cash_collection: 0,
+      amount_collection: 0,
+      net_revenue: 0,
+      gst_collected: 0,
+      completed_revenue: 0,
+      ongoing_revenue: 0,
+      scheduled_revenue: 0,
+      cancelled_revenue: 0,
+      refund_amount: 0,
+      cash_revenue: 0,
+      upi_revenue: 0,
+      gpay_revenue: 0,
+      other_revenue: 0,
+      total_revenue: 0,
+      order_count: 0
+    };
+  }
+
 
   /** R4: Top costumes */
   async getTopCostumes(filters: ReportFilters): Promise<TopCostumeRow[]> {
@@ -354,15 +516,17 @@ export class ReportService {
 
   /** R5: Top customers */
   async getTopCustomers(filters: ReportFilters): Promise<TopCustomerRow[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data } = await supabase()
       .from('orders')
       .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
       .neq('status', 'cancelled')
-      .gte('created_at', fromDate)
-      .lte('created_at', toDate + 'T23:59:59');
+      .gte('created_at', range.start)
+      .lte('created_at', range.end);
 
     const map: Record<string, TopCustomerRow> = {};
     for (const o of (data || []) as any[]) {
@@ -385,14 +549,16 @@ export class ReportService {
 
   /** R6: Rental frequency */
   async getRentalFrequency(filters: ReportFilters): Promise<RentalFrequencyRow[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data } = await supabase()
       .from('order_items')
       .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)')
-      .gte('created_at', fromDate)
-      .lte('created_at', toDate + 'T23:59:59')
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
 
     const map: Record<string, RentalFrequencyRow> = {};
@@ -415,8 +581,10 @@ export class ReportService {
 
   /** R7: ROI / Profit per costume */
   async getROI(filters: ReportFilters): Promise<ROIRow[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data: products } = await supabase()
       .from('products')
@@ -429,8 +597,8 @@ export class ReportService {
       .from('order_items')
       .select('product_id, quantity, subtotal, order:order_id(status, created_at)')
       .in('product_id', products.map((p: any) => p.id))
-      .gte('created_at', fromDate)
-      .lte('created_at', toDate + 'T23:59:59')
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
@@ -460,8 +628,10 @@ export class ReportService {
 
   /** R8: Dead stock / No-sale */
   async getDeadStock(filters: ReportFilters): Promise<DeadStockRow[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     // Get all products
     const { data: products } = await supabase()
@@ -472,8 +642,8 @@ export class ReportService {
     const { data: rentedItems } = await supabase()
       .from('order_items')
       .select('product_id, created_at, order:order_id(status)')
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
 
     const rentedIds = new Set((rentedItems || []).filter((i: any) => i.order?.status !== 'cancelled').map((i: any) => i.product_id));
@@ -507,8 +677,10 @@ export class ReportService {
 
   /** R9: Sales by staff */
   async getSalesByStaff(filters: ReportFilters): Promise<SalesByStaffRow[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data, error } = await supabase()
       .from('orders')
@@ -522,8 +694,8 @@ export class ReportService {
         staff:created_by(id, name, email),
         order_items(discount, subtotal)
       `)
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`);
+      .gte('created_at', range.start)
+      .lte('created_at', range.end);
 
     if (error) throw new Error(error.message);
 
@@ -583,8 +755,10 @@ export class ReportService {
 
   /** Fetch order history for a specific staff member */
   async getStaffOrderHistory(staffId: string, filters: ReportFilters): Promise<any[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data, error } = await supabase()
       .from('orders')
@@ -599,8 +773,8 @@ export class ReportService {
         order_items(product:product_id(name), quantity)
       `)
       .eq('created_by', staffId)
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(error.message);
@@ -653,14 +827,16 @@ export class ReportService {
 
   /** R11: Customer enquiry log */
   async getEnquiries(filters: ReportFilters): Promise<CustomerEnquiry[]> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     const { data } = await supabase()
       .from('customer_enquiries')
       .select('*, logged_by_staff:staff!logged_by(name, email)')
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .order('created_at', { ascending: false });
 
     return (data || []).map((d: any) => ({
@@ -671,8 +847,10 @@ export class ReportService {
 
   /** R12: GST Filing report */
   async getGSTFilingReport(filters: ReportFilters): Promise<any> {
+    const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
-    const toDate = filters.to_date || new Date().toLocaleDateString('en-CA');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
 
     // Check if GST is currently enabled
     const gstEnabledResult = await settingsService.getIsGSTEnabled();
@@ -690,8 +868,8 @@ export class ReportService {
     let orderQuery = supabase()
       .from('orders')
       .select('id, gst_amount, status')
-      .gte('created_at', `${fromDate}T00:00:00`)
-      .lte('created_at', `${toDate}T23:59:59`)
+      .gte('created_at', range.start)
+      .lte('created_at', range.end)
       .not('status', 'eq', 'cancelled');
 
     if (filters.status?.length) {
@@ -730,8 +908,8 @@ export class ReportService {
     if (error) throw new Error(error.message);
 
     // Client-side filter: only items whose ORDER was created in the date range
-    const fromTs = new Date(`${fromDate}T00:00:00`).getTime();
-    const toTs = new Date(`${toDate}T23:59:59`).getTime();
+    const fromTs = new Date(range.start).getTime();
+    const toTs = new Date(range.end).getTime();
     const items = (data || []).filter((item: any) => {
       const order = item.order;
       if (!order || order.status === 'cancelled') return false;
@@ -868,7 +1046,7 @@ export class ReportService {
 
   // ── Helpers ──────────────────────────────────────────────
   private getPeriodStart(period: string): string {
-    const now = new Date();
+    const { now } = this.getISTDateContext();
     switch (period) {
       case 'day': return now.toLocaleDateString('en-CA');
       case 'week': { const d = new Date(now); d.setDate(d.getDate() - 7); return d.toLocaleDateString('en-CA'); }
@@ -887,6 +1065,20 @@ export class ReportService {
       case 'year': return String(d.getFullYear());
       default: return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
     }
+  }
+
+  private padDailyTrends(trends: Record<string, any>, fromDate: string, toDate: string) {
+    const start = new Date(fromDate);
+    const end = new Date(toDate);
+    const result = [];
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateKey = d.toISOString().split('T')[0];
+      const data = trends[dateKey] || { date: dateKey, cash: 0, sales: 0 };
+      result.push(data);
+    }
+    
+    return result.sort((a, b) => a.date.localeCompare(b.date));
   }
 }
 

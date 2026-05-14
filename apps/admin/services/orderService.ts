@@ -15,7 +15,8 @@ import {
   CreateOrderDTO,
   UpdateOrderDTO,
   OrderSearchParams,
-  ReturnOrderDTO
+  ReturnOrderDTO,
+  ConditionRating
 } from '@/domain/types/order';
 import { orderRepository, cleaningRepository } from '@/repository';
 import { settingsService } from './settingsService';
@@ -190,6 +191,21 @@ export class OrderService {
    */
   async getProductAvailabilityCalendar(productId: string, rangeStart: string, rangeEnd: string) {
     return await orderRepository.getAvailabilityCalendar(productId, rangeStart, rangeEnd);
+  }
+
+  /**
+   * Proactively sync conflicts for ALL orders containing a specific product.
+   * Called when product quantity changes.
+   */
+  async syncProductConflicts(productId: string): Promise<void> {
+    await orderRepository.syncProductConflicts(productId);
+  }
+
+  /**
+   * Re-validate conflicts for a specific order.
+   */
+  async validateOrderConflicts(orderId: string): Promise<RepositoryResult<boolean>> {
+    return await orderRepository.validateOrderStockConflicts(orderId);
   }
 
   /**
@@ -402,6 +418,7 @@ export class OrderService {
           if (!categoryHasBuffer) continue;
 
           await this.recalculateProductPriorityCleaning(item.product_id, data.branch_id);
+          await this.syncProductConflicts(item.product_id);
         }
       } catch (err) {
         console.error('Failed to schedule cleaning records:', err);
@@ -531,6 +548,7 @@ export class OrderService {
           for (const item of order.items || []) {
             if (!item.product_id) continue;
             await this.recalculateProductPriorityCleaning(item.product_id, branchId);
+            await this.syncProductConflicts(item.product_id);
           }
         } else if (data.start_date || data.end_date) {
           // ─── DATE CHANGE ───────────────────────────────────────────────
@@ -550,6 +568,7 @@ export class OrderService {
             }
 
             await this.recalculateProductPriorityCleaning(item.product_id, branchId);
+            await this.syncProductConflicts(item.product_id);
           }
         }
 
@@ -564,6 +583,7 @@ export class OrderService {
           const allProductIds = new Set([...oldProductIds, ...newProductIds]);
           for (const productId of allProductIds) {
             await this.recalculateProductPriorityCleaning(productId, branchId);
+            await this.syncProductConflicts(productId);
           }
         }
       } catch (err) {
@@ -621,6 +641,7 @@ export class OrderService {
       try {
         for (const productId of affectedProductIds) {
           await this.recalculateProductPriorityCleaning(productId, branchId);
+          await this.syncProductConflicts(productId);
         }
       } catch (err) {
         console.error('Failed to recalculate priority cleaning after delete:', err);
@@ -650,6 +671,14 @@ export class OrderService {
    */
   async countActionNeededOrders(branchId?: string): Promise<RepositoryResult<number>> {
     return await orderRepository.countActionNeeded(branchId);
+  }
+
+  /**
+   * Count orders with stock conflicts.
+   * Used for the filter badge count in the orders list page.
+   */
+  async countConflictOrders(branchId?: string): Promise<RepositoryResult<number>> {
+    return await orderRepository.countConflict(branchId);
   }
 
   /**
@@ -842,6 +871,35 @@ export class OrderService {
     }
 
     return result;
+  }
+
+  /**
+   * Update damage details for a specific order item incrementally.
+   */
+  async updateOrderItemDamage(itemId: string, data: {
+    condition_rating: ConditionRating;
+    damage_description: string | null;
+    damage_charges: number;
+    damaged_quantity: number;
+  }): Promise<RepositoryResult<any>> {
+    // Basic validation
+    if (!itemId) {
+      return {
+        data: null,
+        error: { message: 'Item ID is required', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    if (data.damage_charges < 0) {
+      return {
+        data: null,
+        error: { message: 'Damage charges cannot be negative', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    return await orderRepository.updateOrderItemDamage(itemId, data);
   }
 
   /**

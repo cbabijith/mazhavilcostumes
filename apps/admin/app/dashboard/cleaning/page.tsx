@@ -5,10 +5,10 @@
  *
  * @module app/dashboard/cleaning/page
  */
-
+import { Suspense } from "react";
 import { getPageAuthUser } from "@/lib/pageAuth";
 import { CleaningQueue } from "@/components/admin/dashboard/CleaningQueue";
-import { Sparkles, Info, Package, Link as LinkIcon } from "lucide-react";
+import { Sparkles, Info, Package, Link as LinkIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { dashboardService } from "@/services/dashboardService";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,14 @@ export default async function CleaningPage() {
 
       {/* Main Content — Full Width Table */}
       <div className="w-full">
-        <CleaningQueue branchId={authUser?.branch_id || ''} />
+        <Suspense fallback={
+          <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+            <p className="text-sm text-slate-500 font-medium">Loading cleaning queue...</p>
+          </div>
+        }>
+          <CleaningQueue branchId={authUser?.branch_id || ''} />
+        </Suspense>
       </div>
     </div>
   );

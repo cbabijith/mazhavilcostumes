@@ -39,8 +39,9 @@ function ReportsPageContent() {
   const searchParams = useSearchParams();
   const reportFromUrl = searchParams.get("type") as ReportType | null;
 
-  const { user } = useAppStore();
+  const { user, selectedBranchId } = useAppStore();
   const userRole = user?.role || 'staff';
+  const storeId = user?.store_id;
 
   // Filter reports by user role
   const visibleReports = useMemo(() => {
@@ -55,45 +56,118 @@ function ReportsPageContent() {
   const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<FilterType>({
-    period: 'month',
-    date: new Date().toLocaleDateString('en-CA'),
-    from_date: new Date().toLocaleDateString('en-CA'),
-    to_date: new Date().toLocaleDateString('en-CA'),
-    rank_by: 'count',
-    limit: 50,
-    page: 1,
-    status: ['completed', 'returned'],
+  
+  const [filters, setFilters] = useState<FilterType>(() => {
+    // Determine context (Server vs Client)
+    const isClient = typeof window !== 'undefined';
+    const params = isClient ? new URLSearchParams(window.location.search) : null;
+    
+    const range = params?.get('range');
+    const urlFrom = params?.get('from_date');
+    const urlTo = params?.get('to_date');
+    
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    const todayStr = istNow.toISOString().split('T')[0];
+
+    let from_date = urlFrom || todayStr;
+    let to_date = urlTo || todayStr;
+
+    // Handle range logic if dates not explicitly provided (or to override)
+    if (range && range !== 'custom' && !urlFrom) {
+      let start = new Date(istNow);
+      let end = new Date(istNow);
+
+      switch (range) {
+        case 'yesterday':
+          start.setDate(istNow.getDate() - 1);
+          end.setDate(istNow.getDate() - 1);
+          break;
+        case 'this_week':
+          const day = istNow.getDay();
+          const diff = istNow.getDate() - day + (day === 0 ? -6 : 1);
+          start = new Date(istNow.setDate(diff));
+          end = new Date(now.getTime() + istOffset);
+          break;
+        case 'last_week':
+          const l_day = istNow.getDay();
+          const l_diff = istNow.getDate() - l_day + (l_day === 0 ? -6 : 1) - 7;
+          start = new Date(istNow.setDate(l_diff));
+          end = new Date(start);
+          end.setDate(start.getDate() + 6);
+          break;
+        case 'this_month':
+          start = new Date(istNow.getFullYear(), istNow.getMonth(), 1);
+          end = new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0);
+          break;
+      }
+      from_date = start.toISOString().split('T')[0];
+      to_date = end.toISOString().split('T')[0];
+    }
+
+    return {
+      period: (range as any) || 'month',
+      date: todayStr,
+      from_date,
+      to_date,
+      rank_by: 'count',
+      limit: 50,
+      page: 1,
+      status: reportFromUrl === 'revenue' ? [] : ['completed', 'returned'],
+    };
   });
 
   const selectedReport = reportFromUrl;
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
+  const [isInitial, setIsInitial] = useState(true);
   const fetchReport = useCallback(async () => {
     if (!selectedReport) return;
+    // Don't fetch until we've processed initial URL state
+    if (isInitial && searchParams.get('range')) return;
+
     setLoading(true);
     setError(null);
-    const queryParams = new URLSearchParams();
-    if (filters.date) queryParams.append('date', filters.date);
-    if (filters.from_date) queryParams.append('from_date', filters.from_date);
-    if (filters.to_date) queryParams.append('to_date', filters.to_date);
-    if (filters.period) queryParams.append('period', filters.period);
-    if (filters.rank_by) queryParams.append('rank_by', filters.rank_by);
-    if (filters.limit) queryParams.append('limit', filters.limit.toString());
-    if (filters.page) queryParams.append('page', filters.page.toString());
-    if (filters.status?.length) queryParams.append('status', filters.status.join(','));
-    if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
-
     try {
-      const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
-      const json = await response.json();
-      
-      if (!json.success) {
-        throw new Error(json.error?.message || "Failed to fetch report data");
-      }
+      let result;
+      if (selectedReport === 'revenue') {
+        const params = new URLSearchParams();
+        params.append('fromDate', filters.from_date || '');
+        params.append('toDate', filters.to_date || '');
+        if (selectedBranchId) params.append('branchId', selectedBranchId);
+        if (storeId) params.append('storeId', storeId.toString());
+        if (filters.status?.length) params.append('statusFilter', filters.status.join(','));
 
-      // Robust check for rows wrapper (some reports might not have it depending on API version)
-      const result = json.data.rows !== undefined ? json.data.rows : json.data;
+        console.log('[ReportPage] Fetching revenue with:', params.toString());
+
+        const res = await fetch(`/api/reports/revenue?${params.toString()}`);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Failed to fetch revenue data');
+        }
+        const json = await res.json();
+        result = json.data;
+      } else {
+        const queryParams = new URLSearchParams();
+        if (filters.date) queryParams.append('date', filters.date);
+        if (filters.from_date) queryParams.append('from_date', filters.from_date);
+        if (filters.to_date) queryParams.append('to_date', filters.to_date);
+        if (filters.period) queryParams.append('period', filters.period);
+        if (filters.rank_by) queryParams.append('rank_by', filters.rank_by);
+        if (filters.limit) queryParams.append('limit', filters.limit.toString());
+        if (filters.page) queryParams.append('page', filters.page.toString());
+        if (filters.status?.length) queryParams.append('status', filters.status.join(','));
+        if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
+
+        const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
+        const json = await response.json();
+        
+        if (!json.success) {
+          throw new Error(json.error?.message || "Failed to fetch report data");
+        }
+        result = json.data.rows !== undefined ? json.data.rows : json.data;
+      }
 
       if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
         setData(result.summary || []);
@@ -108,8 +182,9 @@ function ReportsPageContent() {
       setError(err.message || "Failed to fetch report data");
     } finally {
       setLoading(false);
+      setIsInitial(false);
     }
-  }, [selectedReport, filters]);
+  }, [selectedReport, filters, selectedBranchId, storeId, isInitial, searchParams]);
 
   useEffect(() => {
     if (selectedReport) {
@@ -119,7 +194,7 @@ function ReportsPageContent() {
       setReportSummary(null);
       setGstDetails([]);
     }
-  }, [selectedReport, filters]);
+  }, [selectedReport, filters, selectedBranchId, storeId]);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';

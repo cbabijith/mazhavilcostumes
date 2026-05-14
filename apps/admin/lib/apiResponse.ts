@@ -34,6 +34,8 @@ export interface PaginationMeta {
   hasPrev: boolean;
   /** Count of scheduled orders whose pickup date has passed (action needed) */
   actionNeededCount?: number;
+  /** Count of orders with inventory shortages (stock conflicts) */
+  conflictCount?: number;
 }
 
 /** Standard error envelope */

@@ -68,12 +68,13 @@ function OrdersContent() {
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
   const statusFilter =
-    (searchParams.get("status") || "ALL") as OrderStatus | "ALL";
+    (searchParams.get("status") || "ALL") as OrderStatus | "ALL" | "stock_conflict";
   const dateFilter = searchParams.get("date_filter") || "ALL";
   const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
   const paymentStatusFilter = searchParams.getAll("payment_status");
+  const excludeStatusFilter = searchParams.getAll("exclude_status") as OrderStatus[];
 
   // ── Centralised URL updater (idempotent) ───────────────────────────────
   const updateParams = useCallback(
@@ -109,7 +110,8 @@ function OrdersContent() {
     limit: pageSize,
     page,
     branch_id: selectedBranchId || undefined,
-    status: statusFilter === "ALL" ? undefined : statusFilter,
+    status: (statusFilter === "ALL" || statusFilter === "stock_conflict") ? undefined : statusFilter,
+    exclude_status: excludeStatusFilter.length > 0 ? excludeStatusFilter : undefined,
     payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter : undefined,
     date_filter:
       dateFilter === "ALL"
@@ -118,6 +120,8 @@ function OrdersContent() {
     date_field: dateField,
     date_from: dateFilter === "custom" && dateFrom ? dateFrom : undefined,
     date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
+    has_damage_charges: searchParams.get("has_damage_charges") === "true" || undefined,
+    has_stock_conflict: statusFilter === "stock_conflict" ? true : undefined,
   });
 
   const { updateOrder } = useUpdateOrder();
@@ -253,6 +257,7 @@ function OrdersContent() {
         initialQuery={urlQuery}
         selectedCount={selectedOrders.length}
         actionNeededCount={actionNeededCount}
+        conflictCount={ordersResult?.conflictCount || 0}
         onStatusChange={handleStatusChange}
         onDateFilterChange={handleDateFilterChange}
         onDateFromChange={handleDateFromChange}
