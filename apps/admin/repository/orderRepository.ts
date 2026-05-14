@@ -84,6 +84,11 @@ export class OrderRepository extends BaseRepository {
         // Virtual status: active orders that need priority cleaning
         query = query.eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
+      } else if ((params.status as string) === 'partial') {
+        // Virtual status: orders with outstanding balance
+        // We look for orders explicitly marked as partial OR where paid < total
+        // Using .or() for a more robust "partial" check
+        query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
       } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {
@@ -1324,12 +1329,15 @@ export class OrderRepository extends BaseRepository {
     if (params?.status) {
       if ((params.status as string) === 'action_needed') {
         // Virtual status: scheduled orders whose pickup date has passed
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
         query = query.eq('status', 'scheduled').lte('start_date', todayStr);
       } else if ((params.status as string) === 'priority_cleaning') {
         // Virtual status: active orders that need priority cleaning
         query = query.eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
+      } else if ((params.status as string) === 'partial') {
+        // Virtual status: orders with outstanding balance
+        query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
       } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {
