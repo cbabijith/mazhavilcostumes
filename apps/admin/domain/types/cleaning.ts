@@ -68,4 +68,6 @@ export interface CleaningSearchParams {
   priority?: CleaningPriority;
   product_id?: string;
   order_id?: string;
+  sort_by?: 'created_at' | 'expected_return_date' | 'started_at' | 'status' | 'priority' | 'quantity' | 'product_name';
+  sort_order?: 'asc' | 'desc';
 }

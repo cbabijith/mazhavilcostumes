@@ -56,8 +56,10 @@ export function createAdminClient(): SupabaseClient {
 
   if (!serviceRoleKey) {
     console.warn(
-      '[supabase] SUPABASE_SERVICE_ROLE_KEY not found — falling back to anon key.'
+      '[supabase] SUPABASE_SERVICE_ROLE_KEY not found — falling back to anon key. RLS will be enforced!'
     );
+  } else {
+    console.log('[supabase] Admin client initialized with SERVICE_ROLE_KEY (Bypassing RLS)');
   }
 
   _adminClient = createSupabaseClient(url, key, {

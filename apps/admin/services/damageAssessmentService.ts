@@ -8,7 +8,7 @@
  * @module services/damageAssessmentService
  */
 
-import { damageAssessmentRepository } from '@/repository/damageAssessmentRepository';
+import { damageAssessmentRepository, orderRepository } from '@/repository';
 import type { RepositoryResult } from '@/repository/supabaseClient';
 import type { DamageAssessment, DamageAssessmentWithProduct, CreateDamageAssessmentsDTO } from '@/domain';
 import { DamageDecision } from '@/domain';
@@ -87,6 +87,10 @@ export class DamageAssessmentService {
       if (!stockResult.success) {
         console.error('[DamageAssessmentService] Failed to decrement stock:', stockResult.error);
         // Return the assessment result but log the stock error
+      } else {
+        // PROACTIVE CONFLICT DETECTION
+        // Since stock was reduced, re-evaluate all future orders for this product
+        await orderRepository.syncProductConflicts(result.data.product_id);
       }
     }
 

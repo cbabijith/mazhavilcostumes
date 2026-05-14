@@ -1,0 +1,244 @@
+# Dashboard Stats Consistency Fix — Verified Implementation Plan
+
+## Problem
+The "Today's Operations" cards and "Today's Report" panel show different numbers for the same metrics. Clicking stats navigates to the orders page which sometimes shows no data.
+
+## Verified Card-by-Card Analysis
+
+### OVERLAPPING STATS (Must show the same numbers)
+
+#### ✅ Today's Bookings — ALREADY CONSISTENT
+| Source | Query | Count |
+|--------|-------|-------|
+| Operations | `created_at` between today start/end, `status != cancelled` | Total orders |
+| Daily Report | Same query | Same count |
+| Click URL (both) | `/dashboard/orders?date_filter=today` | ✅ Correct |
+
+No fix needed.
+
+---
+
+#### ❌ Today's Delivery — INCONSISTENT (5 bugs)
+
+| Source | Query | What it shows |
+|--------|-------|---------------|
+| **Operations** | `start_date = today` AND `status IN ['scheduled', 'pending']` | Only pending count (e.g., **2**) |
+| **Daily Report** | `start_date = today` AND `status != cancelled` (total) + `status IN [ongoing, in_use, delivered, ...]` (done) | Progress (e.g., **3/5**) |
+
+**Bugs:**
+1. Operations only counts pending deliveries — should show total/progress like Daily Report
+2. Operations click URL has `status=scheduled` — misses `pending` status
+3. Daily Report click URL has `status=scheduled` — misses `pending` and doesn't show all orders
+4. Operations query uses `gte/lte` on date strings — should use `.eq()` like Daily Report for consistency
+5. If user clicks and all matching orders are `pending` status, URL filters by `status=scheduled` → **table shows 0 results**
+
+**Fix:** 
+- Operations: Add 2 new queries (total non-cancelled + done count), show progress like "3/5"
+- Both click URLs: Remove status filter, use only `date_filter=today&date_field=start_date` → shows all orders starting today
+
+---
+
+#### ❌ Today's Return — INCONSISTENT (5 bugs)
+
+| Source | Query | What it shows |
+|--------|-------|---------------|
+| **Operations** | `end_date = today` AND `status IN ['ongoing', 'in_use', 'late_return']` | Only pending count (e.g., **1**) |
+| **Daily Report** | `end_date = today` AND `status != cancelled` (total) + `status IN ['returned', 'completed']` (done) | Progress (e.g., **1/3**) |
+
+**Bugs:**
+1. Operations only counts pending returns — should show total/progress like Daily Report
+2. Operations click URL has `status=ongoing` — misses `in_use` and `late_return`
+3. Daily Report click URL has `status=ongoing` — same problem
+4. If user clicks and matching orders are `in_use` or `late_return`, URL filters by `status=ongoing` → **table shows 0 results**
+5. Operations query uses `gte/lte` on date strings — should use `.eq()` like Daily Report
+
+**Fix:**
+- Operations: Add 2 new queries (total non-cancelled + done count), show progress like "1/3"
+- Both click URLs: Remove status filter, use only `date_filter=today&date_field=end_date` → shows all orders ending today
+
+---
+
+### NON-OVERLAPPING STATS (only in Operations)
+
+#### ❌ Prepare Delivery (5d) — 1 bug
+
+| What | Current | Should be |
+|------|---------|-----------|
+| Query | `status IN ['scheduled', 'pending']` | ✅ Correct |
+| Click URL | `status=scheduled` | `status=scheduled&status=pending` |
+
+**Bug:** URL misses `pending` status.
+
+---
+
+#### ❌ Pending Delivery (overdue) — 2 bugs
+
+| What | Current | Should be |
+|------|---------|-----------|
+| Query | `start_date < today` AND `status IN ['scheduled', 'pending']` | ✅ Correct |
+| Click URL | `status=scheduled&date_to=${todayStr}` | `status=scheduled&status=pending&date_to=${yesterdayStr}` |
+
+**Bugs:**
+1. URL misses `pending` status
+2. URL uses `date_to=today` but query uses `< today` (strictly before). The table would include today's orders which aren't overdue → **inflated count in table**
+
+---
+
+#### ❌ Pending Return (overdue) — 2 bugs
+
+| What | Current | Should be |
+|------|---------|-----------|
+| Query | `end_date < today` AND `status IN ['ongoing', 'in_use', 'late_return']` | ✅ Correct |
+| Click URL | `status=late_return&date_to=${todayStr}` | `status=ongoing&status=in_use&status=late_return&date_to=${yesterdayStr}` |
+
+**Bugs:**
+1. URL misses `ongoing` and `in_use` statuses
+2. URL uses `date_to=today` but query uses `< today` → **inflated count in table**
+
+---
+
+### NON-OVERLAPPING STATS (only in Daily Report)
+
+#### ✅ Today's Revenue — OK (no click-through)
+#### ✅ Damaged Orders — OK (href `/dashboard/orders?status=flagged`, query `status = flagged`)
+#### ✅ Today's Refunds — OK (cosmetic: href shows cancelled orders, which is reasonable)
+#### ✅ Damage Income — OK (href shows flagged orders)
+#### ✅ Late Fee Income — OK (href shows late_return orders)
+
+---
+
+### SEPARATE API — today-orders route (2 bugs)
+
+#### ❌ `/api/dashboard/today-orders` — Pickup query
+
+| What | Current | Problem |
+|------|---------|---------|
+| Pickup filter | `.gte('start_date', todayStart.toISOString())` | Uses full ISO timestamp against DATE column — timezone mismatch for IST users |
+
+**Fix:** Use date-only string: `.eq('start_date', todayStr)`
+
+#### ❌ `/api/dashboard/today-orders` — Return query
+
+| What | Current | Problem |
+|------|---------|---------|
+| Return filter | `.eq('status', 'picked_up')` | `picked_up` is NOT a valid status in the enum! Always returns 0 results. |
+| Date filter | `.gte('end_date', todayStart.toISOString())` | Same timestamp vs DATE mismatch |
+
+**Fix:** Use valid statuses `['ongoing', 'in_use', 'late_return']` and date-only string.
+
+---
+
+## Proposed Changes
+
+### 1. dashboardService.ts — Main Fix
+
+#### [MODIFY] [dashboardService.ts](file:///d:/personal/mazhavilcostumes/apps/admin/services/dashboardService.ts)
+
+**A) Add shared status constants (top of file):**
+```typescript
+const DELIVERY_PENDING_STATUSES = ['scheduled', 'pending'];
+const DELIVERY_DONE_STATUSES = ['ongoing', 'in_use', 'delivered', 'late_return', 'partial', 'returned', 'completed'];
+const RETURN_PENDING_STATUSES = ['ongoing', 'in_use', 'late_return'];
+const RETURN_DONE_STATUSES = ['returned', 'completed'];
+```
+
+**B) Extend `OperationalCard` type — add optional progress fields:**
+```typescript
+export interface OperationalCard {
+  label: string;
+  orderCount: number;
+  productCount: number;
+  icon: string;
+  color: string;
+  filterUrl: string;
+  completedCount?: number;  // NEW: for progress display
+  totalCount?: number;      // NEW: for progress display  
+}
+```
+
+**C) Modify `getOperationalMetrics()` — 4 query changes + 6 URL fixes:**
+
+| Query | Change |
+|-------|--------|
+| Today's Delivery | Replace: query ALL non-cancelled with `start_date=today` (total) + query DONE statuses (completed count) |
+| Today's Return | Replace: query ALL non-cancelled with `end_date=today` (total) + query DONE statuses (completed count) |
+| (other 4 queries) | No change needed |
+
+| URL | Change |
+|-----|--------|
+| Today's Delivery | `→ /dashboard/orders?date_filter=today&date_field=start_date` |
+| Today's Return | `→ /dashboard/orders?date_filter=today&date_field=end_date` |
+| Prepare Delivery | `→ ...status=scheduled&status=pending...` |
+| Pending Delivery | `→ ...status=scheduled&status=pending...&date_to=${yesterdayStr}` |
+| Pending Return | `→ ...status=ongoing&status=in_use&status=late_return...&date_to=${yesterdayStr}` |
+| Today's Bookings | No change |
+
+**D) Verify `getDailyReport()` uses same constants** — currently uses hardcoded arrays, refactor to use shared constants.
+
+---
+
+### 2. Dashboard page — Card rendering update
+
+#### [MODIFY] [page.tsx](file:///d:/personal/mazhavilcostumes/apps/admin/app/dashboard/page.tsx)
+
+Update operational card rendering to show progress when `totalCount` is present:
+- Main value: `completedCount/totalCount` (e.g., "3/5")
+- Subtitle: "2 yet to deliver" or "All delivered ✓"
+- Show warning styling when there are pending items
+
+---
+
+### 3. Daily Report Panel — URL fixes
+
+#### [MODIFY] [DailyReportPanel.tsx](file:///d:/personal/mazhavilcostumes/apps/admin/components/admin/dashboard/DailyReportPanel.tsx)
+
+| Card | Current href | Fixed href |
+|------|-------------|-----------|
+| Today's Delivery | `status=scheduled&date_filter=today&date_field=start_date` | `date_filter=today&date_field=start_date` |
+| Today's Return | `status=ongoing&date_filter=today&date_field=end_date` | `date_filter=today&date_field=end_date` |
+
+---
+
+### 4. today-orders API — Date + status fix
+
+#### [MODIFY] [route.ts](file:///d:/personal/mazhavilcostumes/apps/admin/app/api/dashboard/today-orders/route.ts)
+
+- Pickup: change `.gte/.lte` with ISO timestamps → `.eq('start_date', todayStr)`
+- Return: change `.eq('status', 'picked_up')` → `.in('status', RETURN_PENDING_STATUSES)`
+- Return: change `.gte/.lte` with ISO timestamps → `.eq('end_date', todayStr)`
+
+---
+
+## Summary of All Fixes
+
+| # | File | Bug | Fix |
+|---|------|-----|-----|
+| 1 | dashboardService.ts | Delivery shows only pending count | Show total/progress |
+| 2 | dashboardService.ts | Return shows only pending count | Show total/progress |
+| 3 | dashboardService.ts | Delivery URL: `status=scheduled` only | Remove status filter |
+| 4 | dashboardService.ts | Return URL: `status=ongoing` only | Remove status filter |
+| 5 | dashboardService.ts | Prepare URL: `status=scheduled` only | Add `status=pending` |
+| 6 | dashboardService.ts | Pending Delivery URL: `status=scheduled` | Add `status=pending` |
+| 7 | dashboardService.ts | Pending Delivery URL: `date_to=today` | Use yesterday |
+| 8 | dashboardService.ts | Pending Return URL: `status=late_return` | Add `ongoing`, `in_use` |
+| 9 | dashboardService.ts | Pending Return URL: `date_to=today` | Use yesterday |
+| 10 | page.tsx | Card renders only a number | Show progress for delivery/return |
+| 11 | DailyReportPanel.tsx | Delivery click URL mismatch | Remove status filter |
+| 12 | DailyReportPanel.tsx | Return click URL mismatch | Remove status filter |
+| 13 | today-orders/route.ts | ISO timestamp vs DATE column | Use date-only string |
+| 14 | today-orders/route.ts | `status='picked_up'` invalid | Use correct statuses |
+
+## Verification Plan
+
+### Build Check
+```bash
+cd apps/admin && pnpm run build
+```
+
+### Manual Verification
+1. Open dashboard → Operations delivery/return cards should show same numbers as Daily Report
+2. Click Today's Delivery → orders table shows all orders starting today (same count as card)
+3. Click Today's Return → orders table shows all orders ending today (same count as card)
+4. Click Pending Delivery → table shows only overdue orders (count matches card)
+5. Click Pending Return → table shows only overdue orders (count matches card)
+6. Click Prepare Delivery → table shows all scheduled/pending orders in next 5 days

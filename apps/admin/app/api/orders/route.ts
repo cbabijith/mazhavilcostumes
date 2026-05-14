@@ -52,10 +52,14 @@ export async function GET(request: NextRequest) {
     const paymentStatusParams = searchParams.getAll('payment_status');
     const payment_status = paymentStatusParams.length > 0 ? (paymentStatusParams.length === 1 ? paymentStatusParams[0] : paymentStatusParams) : undefined;
 
+    const excludeStatusParams = searchParams.getAll('exclude_status');
+    const exclude_status = excludeStatusParams.length > 0 ? (excludeStatusParams.length === 1 ? excludeStatusParams[0] : excludeStatusParams) : undefined;
+
     const params = {
       customer_id: searchParams.get('customer_id') || undefined,
       branch_id: searchParams.get('branch_id') || undefined,
       status: status as any,
+      exclude_status: exclude_status as any,
       payment_status: payment_status as any,
       product_id: searchParams.get('product_id') || undefined,
       query: searchParams.get('query') || undefined,
@@ -63,14 +67,17 @@ export async function GET(request: NextRequest) {
       date_field: searchParams.get('date_field') as any || undefined,
       date_from: searchParams.get('date_from') || undefined,
       date_to: searchParams.get('date_to') || undefined,
+      has_damage_charges: searchParams.get('has_damage_charges') === 'true' || undefined,
+      has_stock_conflict: searchParams.get('has_stock_conflict') === 'true' || undefined,
       limit,
       offset: (page - 1) * limit,
     };
 
-    const [result, countResult, actionNeededResult] = await Promise.all([
+    const [result, countResult, actionNeededResult, conflictResult] = await Promise.all([
       orderService.getAllOrders(params),
       orderService.countOrders(params),
       orderService.countActionNeededOrders(params.branch_id),
+      orderService.countConflictOrders(params.branch_id),
     ]);
 
     if (!result.success || !countResult.success) {
@@ -89,6 +96,7 @@ export async function GET(request: NextRequest) {
         hasNext: page < totalPages,
         hasPrev: page > 1,
         actionNeededCount: actionNeededResult.data || 0,
+        conflictCount: conflictResult.data || 0,
       },
     });
   } catch (err) {

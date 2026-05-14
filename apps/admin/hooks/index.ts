@@ -103,6 +103,7 @@ export {
   useUpdateOrder,
   useDeleteOrder,
   useProcessOrderReturn,
+  useUpdateOrderItemDamage,
 } from './useOrders';
 
 // Settings hooks

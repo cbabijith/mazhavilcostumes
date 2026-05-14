@@ -11,8 +11,10 @@ import {
   productRepository,
   categoryRepository,
   uploadRepository,
+  orderRepository,
   RepositoryResult
 } from '@/repository';
+import { orderService } from './orderService';
 import { 
   Product, 
   CreateProductDTO, 
@@ -325,6 +327,12 @@ export class ProductService {
         .upsert(upsertPayload, { onConflict: 'product_id, branch_id' });
     }
 
+    // PROACTIVE CONFLICT DETECTION
+    // If quantity was updated, re-evaluate all future orders for this product
+    if (data.quantity !== undefined && data.quantity !== existingProduct.data.quantity) {
+      await orderService.syncProductConflicts(id);
+    }
+
     // Return updated product with relations
     return await productRepository.findById(id);
   }
@@ -483,7 +491,14 @@ export class ProductService {
       };
     }
 
-    return await productRepository.updateInventory(productId, availableQuantity);
+    const result = await productRepository.updateInventory(productId, availableQuantity);
+    
+    // Sync conflicts if quantity changed
+    if (result.success) {
+      await orderService.syncProductConflicts(productId);
+    }
+
+    return result;
   }
 
   /**

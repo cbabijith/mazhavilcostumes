@@ -66,7 +66,10 @@ export async function GET(
         case 'enquiry-log': data = await reportService.getEnquiries(filters); break;
         case 'gst-filing': data = await reportService.getGSTFilingReport(filters); break;
         case 'todays-revenue': {
-          const today = new Date().toLocaleDateString('en-CA');
+          const now = new Date();
+          const istOffset = 5.5 * 60 * 60 * 1000;
+          const istNow = new Date(now.getTime() + istOffset);
+          const today = istNow.toISOString().split('T')[0];
           data = await reportService.getRevenue({ ...filters, from_date: today, to_date: today });
           break;
         }

@@ -60,7 +60,8 @@ export interface TallyInvoiceProps {
   damageCharges: number;
   securityDeposit: number;
   totalAmount: number;
-  totalPaid: number;
+   totalPaid: number;
+  advancePaid?: number;
   balanceDue: number;
 
   termsAndConditions?: string;
@@ -367,7 +368,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
     rentalStart, rentalEnd, eventDate,
     items,
     subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
-    totalAmount, totalPaid, balanceDue,
+    totalAmount, totalPaid, advancePaid, balanceDue,
     termsAndConditions, authorizedSignature,
   } = props;
 
@@ -509,12 +510,25 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               <Text style={s.totalValueBold}>{rs(totalAmount)}</Text>
             </View>
 
-            {invoiceType === 'final' && totalPaid > 0 ? (
+            {advancePaid && advancePaid > 0 ? (
               <View style={s.totalRow}>
-                <Text style={s.totalLabel}>Amount Paid</Text>
-                <Text style={s.totalValue}>(-) {rs(totalPaid)}</Text>
+                <Text style={s.totalLabel}>Advance Paid</Text>
+                <Text style={s.totalValue}>(-) {rs(advancePaid)}</Text>
               </View>
             ) : null}
+
+            {(() => {
+              const otherPaid = totalPaid - (advancePaid || 0);
+              if (otherPaid > 0) {
+                return (
+                  <View style={s.totalRow}>
+                    <Text style={s.totalLabel}>Additional Paid</Text>
+                    <Text style={s.totalValue}>(-) {rs(otherPaid)}</Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
 
             {invoiceType === 'final' && balanceDue > 0 ? (
               <View style={s.totalRowGrand}>

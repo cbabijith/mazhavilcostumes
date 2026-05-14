@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { 
   Table, 
   TableBody, 
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { useCleaningQueue } from "@/hooks/useCleaning";
 import { CleaningStatus, CleaningPriority } from "@/domain";
-import { Package, Sparkles, CheckCircle2, ExternalLink } from "lucide-react";
+import { Package, Sparkles, CheckCircle2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
@@ -23,8 +24,64 @@ interface CleaningQueueProps {
 }
 
 export function CleaningQueue({ branchId }: CleaningQueueProps) {
-  const { data: queue, isLoading } = useCleaningQueue(branchId);
-  const [filter, setFilter] = useState<'all' | 'priority'>('all');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const filter = (searchParams.get("filter") || "all") as "all" | "priority";
+  const sortBy = searchParams.get("sort_by") || "";
+  const sortOrder = searchParams.get("sort_order") || "desc";
+
+  const { data: queue, isLoading } = useCleaningQueue(branchId, {
+    sort_by: sortBy || undefined,
+    sort_order: sortOrder || undefined,
+  });
+
+  const updateParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === null) {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, pathname, router]
+  );
+
+  const toggleSort = (field: string) => {
+    if (sortBy === field) {
+      updateParams({ sort_order: sortOrder === "asc" ? "desc" : "asc" });
+    } else {
+      updateParams({ sort_by: field, sort_order: "asc" });
+    }
+  };
+
+  const SortHeader = ({ field, label }: { field: string; label: string }) => {
+    const isActive = sortBy === field;
+    return (
+      <TableHead 
+        className="text-[11px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors group"
+        onClick={() => toggleSort(field)}
+      >
+        <div className="flex items-center gap-1">
+          {label}
+          {isActive ? (
+            sortOrder === "asc" ? (
+              <ArrowUp className="w-3 h-3 text-blue-600" />
+            ) : (
+              <ArrowDown className="w-3 h-3 text-blue-600" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400" />
+          )}
+        </div>
+      </TableHead>
+    );
+  };
 
   const activeItems = useMemo(() => {
     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];
@@ -70,7 +127,7 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
             <Button 
               variant={filter === 'all' ? 'secondary' : 'ghost'} 
               size="sm" 
-              onClick={() => setFilter('all')}
+              onClick={() => updateParams({ filter: 'all' })}
               className={`h-8 text-xs px-3 ${filter === 'all' ? 'bg-white shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
             >
               All Items
@@ -78,7 +135,7 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
             <Button 
               variant={filter === 'priority' ? 'secondary' : 'ghost'} 
               size="sm" 
-              onClick={() => setFilter('priority')}
+              onClick={() => updateParams({ filter: 'priority' })}
               className={`h-8 text-xs px-3 ${filter === 'priority' ? 'bg-white shadow-sm text-amber-700' : 'text-slate-500 hover:text-slate-900'}`}
             >
               <Sparkles className="w-3 h-3 mr-1.5" />
@@ -93,11 +150,11 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
           <Table>
             <TableHeader className="bg-slate-50/50">
               <TableRow>
-                <TableHead className="w-[300px] text-[11px] font-bold uppercase tracking-wider">Product</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Qty</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Status</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Return / Time</TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider">Urgency</TableHead>
+                <SortHeader field="product_name" label="Product" />
+                <SortHeader field="quantity" label="Qty" />
+                <SortHeader field="status" label="Status" />
+                <SortHeader field="expected_return_date" label="Return / Time" />
+                <SortHeader field="priority" label="Urgency" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -208,7 +265,7 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
               <Button 
                 variant="link" 
                 className="mt-2 text-blue-600 text-xs"
-                onClick={() => setFilter('all')}
+                onClick={() => updateParams({ filter: 'all' })}
               >
                 Clear priority filter
               </Button>

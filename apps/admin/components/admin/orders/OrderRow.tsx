@@ -27,6 +27,8 @@ import {
   Calendar,
   Package,
   Sparkles,
+  Clock,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -107,6 +109,14 @@ function OrderRowInner({
         </div>
       </td>
 
+      {/* Created Date */}
+      <td className="px-4 py-4">
+        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          {format(new Date(order.created_at), "MMM d, yyyy")}
+        </div>
+      </td>
+
       {/* Phone - Clickable Badge */}
       <td className="px-4 py-4">
         {order.customer?.phone ? (
@@ -183,6 +193,14 @@ function OrderRowInner({
             <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none">
               <Sparkles className="w-3 h-3 fill-amber-500" />
               Priority Cleaning
+            </Badge>
+          )}
+          
+          {/* Stock Conflict badge */}
+          {order.has_stock_conflict && (
+            <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none animate-pulse">
+              <AlertTriangle className="w-3 h-3 fill-red-500" />
+              Stock Conflict
             </Badge>
           )}
 
@@ -398,6 +416,7 @@ const OrderRow = React.memo(OrderRowInner, (prev, next) => {
     prev.order.total_amount === next.order.total_amount &&
     prev.order.amount_paid === next.order.amount_paid &&
     prev.order.has_priority_cleaning === next.order.has_priority_cleaning &&
+    prev.order.has_stock_conflict === next.order.has_stock_conflict &&
     prev.selected === next.selected &&
     prev.onViewItems === next.onViewItems
   );

@@ -133,10 +133,15 @@ export class InvoiceService {
     const totalPaid = payments
       .filter((p) => p.payment_type !== 'refund')
       .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+    
+    const advancePaid = payments
+      .filter((p) => p.payment_type === 'deposit' || p.payment_type === 'advance')
+      .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+
     const balanceDue = Math.max(0, Number(order.total_amount || 0) - totalPaid);
 
     // Find payment mode
-    const depositPayment = payments.find((p) => p.payment_type === 'deposit');
+    const depositPayment = payments.find((p) => p.payment_type === 'deposit' || p.payment_type === 'advance');
     const paymentMode = depositPayment?.payment_mode?.toUpperCase() || undefined;
 
 
@@ -175,6 +180,7 @@ export class InvoiceService {
       securityDeposit: 0,
       totalAmount: Number(order.total_amount) || 0,
       totalPaid,
+      advancePaid,
       balanceDue,
 
       termsAndConditions: settings.paymentTerms || undefined,

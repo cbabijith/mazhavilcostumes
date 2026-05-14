@@ -10,6 +10,7 @@
  * @module app/dashboard/page
  */
 
+import { Suspense } from "react";
 import {
   TrendingUp,
   DollarSign,
@@ -38,7 +39,9 @@ import Link from "next/link";
 import { DashboardFilter } from "@/components/admin/dashboard/DashboardFilter";
 import { DashboardLocalFilter } from "@/components/admin/dashboard/DashboardLocalFilter";
 import DailyReportToggle from "@/components/admin/dashboard/DailyReportToggle";
+import BranchSwitcher from "@/components/admin/BranchSwitcher";
 import {
+  format,
   startOfToday, endOfToday,
   startOfYesterday, endOfYesterday,
   startOfWeek, endOfWeek, subWeeks,
@@ -88,7 +91,9 @@ export default async function DashboardPage(props: {
   let endDate = new Date();
   let prevStartDate = startOfMonth(subMonths(new Date(), 1));
   let prevEndDate = endOfMonth(subMonths(new Date(), 1));
-  const now = new Date();
+  const rawNow = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const now = new Date(rawNow.getTime() + istOffset);
 
   switch (range) {
     case "today":
@@ -138,12 +143,23 @@ export default async function DashboardPage(props: {
   const catPeriod = (searchParams.cat_period as any) || 'month';
   const roiLimit = searchParams.roi_limit ? parseInt(searchParams.roi_limit) : 3;
 
+  const selectedBranchId = (searchParams.branch_id as string) || '7671abeb-4b79-47a4-966b-384c1c26b950';
+  const storeId = searchParams.store_id as string | undefined;
+
   const [operational, metrics] = await Promise.all([
     dashboardService.getOperationalMetrics(),
-    isAdmin ? dashboardService.getMetrics(startDate, endDate, prevStartDate, prevEndDate, {
-      categoryPeriod: catPeriod,
-      roiLimit: roiLimit,
-    }) : null,
+    isAdmin ? dashboardService.getMetrics(
+      startDate, 
+      endDate, 
+      prevStartDate, 
+      prevEndDate, 
+      selectedBranchId,
+      storeId,
+      {
+        categoryPeriod: catPeriod,
+        roiLimit: roiLimit,
+      }
+    ) : null,
   ]);
 
   return (
@@ -156,7 +172,9 @@ export default async function DashboardPage(props: {
             {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        {isAdmin && <DailyReportToggle />}
+        <div className="flex items-center gap-4">
+          {isAdmin && <DailyReportToggle />}
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════════
@@ -172,32 +190,57 @@ export default async function DashboardPage(props: {
             const Icon = iconMap[card.icon] || Package;
             const colors = colorMap[card.color] || colorMap.blue;
             const hasIssues = card.orderCount > 0 && (card.icon === 'alert-triangle' || card.icon === 'clock-alert');
+            const isProgressCard = card.totalCount !== undefined && card.completedCount !== undefined;
+            const pendingCount = isProgressCard ? (card.totalCount! - card.completedCount!) : 0;
+            const hasWarning = isProgressCard ? pendingCount > 0 : hasIssues;
 
             return (
               <Link key={card.label} href={card.filterUrl}>
-                <Card className={`border shadow-sm hover:shadow-md transition-all cursor-pointer ${hasIssues ? `${colors.bg} ${colors.border}` : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                <Card className={`border shadow-sm hover:shadow-md transition-all cursor-pointer ${hasWarning ? `${colors.bg} ${colors.border}` : 'bg-white border-slate-200 hover:border-slate-300'}`}>
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between">
                       <div className={`p-2.5 rounded-xl ${colors.badge}`}>
                         <Icon className={`w-5 h-5 ${colors.text}`} />
                       </div>
-                      {card.orderCount > 0 && (
-                        <span className={`text-3xl font-black ${hasIssues ? colors.text : 'text-slate-900'} tabular-nums`}>
-                          {card.orderCount}
-                        </span>
-                      )}
-                      {card.orderCount === 0 && (
-                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      {isProgressCard ? (
+                        card.totalCount! > 0 ? (
+                          <span className={`text-3xl font-black ${hasWarning ? colors.text : 'text-slate-900'} tabular-nums`}>
+                            {card.completedCount}/{card.totalCount}
+                          </span>
+                        ) : (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                        )
+                      ) : (
+                        <>
+                          {card.orderCount > 0 && (
+                            <span className={`text-3xl font-black ${hasIssues ? colors.text : 'text-slate-900'} tabular-nums`}>
+                              {card.orderCount}
+                            </span>
+                          )}
+                          {card.orderCount === 0 && (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                          )}
+                        </>
                       )}
                     </div>
                     <div className="mt-3">
-                      <h3 className={`text-sm font-semibold ${hasIssues ? colors.text : 'text-slate-900'}`}>
+                      <h3 className={`text-sm font-semibold ${hasWarning ? colors.text : 'text-slate-900'}`}>
                         {card.label}
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {card.orderCount === 0
-                          ? 'All clear'
-                          : `${card.orderCount} Invoice${card.orderCount !== 1 ? 's' : ''} · ${card.productCount} Product${card.productCount !== 1 ? 's' : ''}`}
+                      <p className={`text-xs mt-0.5 ${hasWarning ? `${colors.text} font-bold` : 'text-slate-500'}`}>
+                        {isProgressCard ? (
+                          card.totalCount === 0
+                            ? 'All clear'
+                            : pendingCount > 0
+                              ? `${pendingCount} yet to ${card.label.includes('Delivery') ? 'deliver' : 'receive'}`
+                              : `All ${card.label.includes('Delivery') ? 'delivered' : 'received'} ✓`
+                        ) : (
+                          card.orderCount === 0
+                            ? 'All clear'
+                            : card.label.includes('Booking')
+                              ? `${card.orderCount} Booking${card.orderCount !== 1 ? 's' : ''}`
+                              : `${card.orderCount} Order${card.orderCount !== 1 ? 's' : ''}`
+                        )}
                       </p>
                     </div>
                   </CardContent>
@@ -220,29 +263,104 @@ export default async function DashboardPage(props: {
                 <BarChart3 className="w-5 h-5 text-slate-400" />
                 Revenue &amp; Analytics
               </h2>
-              <DashboardFilter />
+              <Suspense fallback={<div className="h-9 w-32 bg-slate-100 animate-pulse rounded-lg" />}>
+                <DashboardFilter />
+              </Suspense>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Sales Pacing (Booking Value) */}
+              <Link
+                href={`/dashboard/orders?${
+                  range === 'custom'
+                    ? `date_from=${startDate.toISOString().split('T')[0]}&date_to=${endDate.toISOString().split('T')[0]}`
+                    : `date_filter=${range}`
+                }&date_field=created_at&exclude_status=cancelled`}
+                className="block"
+              >
+                <Card className="border-0 shadow-sm bg-white overflow-hidden hover:ring-2 hover:ring-indigo-500/20 transition-all cursor-pointer">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle className="text-base font-bold">Booking Sales</CardTitle>
+                      <CardDescription>Total value of orders booked</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-indigo-600 tabular-nums">
+                        {formatCurrency(metrics.salesPacing.current)}
+                      </div>
+                      <p className="text-[10px] font-bold flex items-center justify-end gap-1 mt-0.5 uppercase tracking-wider">
+                        {metrics.salesPacing.isPositive
+                          ? <TrendingUp className="h-3 w-3 text-emerald-500" />
+                          : <ArrowDownRight className="h-3 w-3 text-rose-500" />}
+                        <span className={metrics.salesPacing.isPositive ? "text-emerald-600" : "text-rose-600"}>
+                          {Math.abs(Math.round(metrics.salesPacing.percentageChange))}% vs {prevLabel}
+                        </span>
+                      </p>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <p className="text-xs text-slate-500">
+                      Value of new orders placed this period (Creation Date).
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+
+              {/* Cash Pacing (Liquidity) */}
+              <Link
+                href={`/dashboard/reports/transactions?range=${range}&from_date=${format(startDate, 'yyyy-MM-dd')}&to_date=${format(endDate, 'yyyy-MM-dd')}&branchId=${selectedBranchId}`}
+                className="block"
+              >
+                <Card className="border-0 shadow-sm bg-white overflow-hidden hover:ring-2 hover:ring-emerald-500/20 transition-all cursor-pointer">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div>
+                      <CardTitle className="text-base font-bold text-emerald-700">Amount Collection</CardTitle>
+                      <CardDescription className="text-[10px]">Actual cash flow received</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-emerald-600 tabular-nums">
+                        {formatCurrency(metrics.total_amount_collection || 0)}
+                      </div>
+                      <p className="text-[10px] font-bold flex items-center justify-end gap-1 mt-0.5 uppercase tracking-wider">
+                        {metrics.revenuePacing.isPositive
+                          ? <TrendingUp className="h-3 w-3 text-emerald-500" />
+                          : <ArrowDownRight className="h-3 w-3 text-rose-500" />}
+                        <span className={metrics.revenuePacing.isPositive ? "text-emerald-600" : "text-rose-600"}>
+                          {Math.abs(Math.round(metrics.revenuePacing.percentageChange))}% vs {prevLabel}
+                        </span>
+                      </p>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <p className="text-xs text-slate-500 mb-3">
+                      Total money actually received (Advance + Final) during this period across all payment modes.
+                    </p>
+                    <div className="flex items-center gap-4 mt-1 bg-slate-50 p-2 rounded-lg">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">Cash</span>
+                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_cash)}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-200" />
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">UPI</span>
+                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_upi)}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-200" />
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">GPay</span>
+                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_gpay)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
 
             {/* Revenue Trends Chart (Full Width) */}
             <Card className="border-0 shadow-sm bg-white overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <div>
-                  <CardTitle className="text-base font-bold">Revenue Trends</CardTitle>
-                  <CardDescription>Daily collections for the selected period</CardDescription>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black text-slate-900 tabular-nums">
-                    {formatCurrency(metrics.revenuePacing.current)}
-                  </div>
-                  <p className="text-[10px] font-bold flex items-center justify-end gap-1 mt-0.5 uppercase tracking-wider">
-                    {metrics.revenuePacing.isPositive
-                      ? <TrendingUp className="h-3 w-3 text-emerald-500" />
-                      : <ArrowDownRight className="h-3 w-3 text-rose-500" />}
-                    <span className={metrics.revenuePacing.isPositive ? "text-emerald-600" : "text-rose-600"}>
-                      {metrics.revenuePacing.percentageChange}% {metrics.revenuePacing.isPositive ? 'Growth' : 'Decline'}
-                    </span>
-                  </p>
-                </div>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-bold">Collection Trends</CardTitle>
+                <CardDescription>Daily cash flow breakdown</CardDescription>
               </CardHeader>
               <CardContent className="h-[200px] flex items-end gap-1.5 pt-6 px-6">
                 {metrics.dailyRevenue.map((day, i) => {
@@ -265,84 +383,68 @@ export default async function DashboardPage(props: {
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Revenue: Completed */}
+              {/* Realized Income */}
               <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Completed Revenue</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">Realized Income</CardTitle>
                   <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold tracking-tight text-emerald-700">
                     {formatCurrency(metrics.revenueByStatus.completedRevenue)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Orders finished in this period</p>
+                  <p className="text-xs mt-2 text-slate-500">Revenue from orders that are fully returned and closed.</p>
                 </CardContent>
               </Card>
 
-              {/* Revenue: Ongoing */}
+              {/* Active Balance */}
               <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Active Rentals Value</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">Active Balance</CardTitle>
                   <TrendingUp className="h-4 w-4 text-blue-400" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold tracking-tight text-blue-700">
-                    {formatCurrency(metrics.revenueByStatus.ongoingRevenue)}
+                    {formatCurrency(metrics.revenueByStatus.activeBalance || 0)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Contract value of active bookings</p>
+                  <p className="text-xs mt-2 text-slate-500">Uncollected money from orders currently out with customers.</p>
                 </CardContent>
               </Card>
 
-              {/* Revenue: Scheduled (Advance) */}
+              {/* Future Advances */}
               <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-shadow">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-600">Advances Collected</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-600">Future Advances</CardTitle>
                   <CalendarDays className="h-4 w-4 text-amber-400" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold tracking-tight text-amber-700">
                     {formatCurrency(metrics.revenueByStatus.scheduledRevenue)}
                   </div>
-                  <p className="text-xs mt-2 text-slate-500">Cash received for future orders</p>
+                  <p className="text-xs mt-2 text-slate-500">Advance payments received for upcoming bookings.</p>
                 </CardContent>
               </Card>
 
-              {/* Pending Amount */}
+              {/* Due from Returned */}
               <Link href="/dashboard/orders?status=returned&status=completed&payment_status=partial&payment_status=pending&payment_status=due">
                 <Card className={`border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${metrics.revenueByStatus.pendingAmount > 0 ? 'bg-rose-50/50' : 'bg-white'}`}>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium text-slate-600">Pending Collection</CardTitle>
+                    <CardTitle className="text-sm font-medium text-slate-600">Due from Returned</CardTitle>
                     <Clock className={`h-4 w-4 ${metrics.revenueByStatus.pendingAmount > 0 ? 'text-rose-400' : 'text-slate-400'}`} />
                   </CardHeader>
                   <CardContent>
                     <div className={`text-3xl font-bold tracking-tight ${metrics.revenueByStatus.pendingAmount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
                       {formatCurrency(metrics.revenueByStatus.pendingAmount)}
                     </div>
-                    <p className="text-xs mt-2 text-slate-500">Returned orders with balance due →</p>
+                    <p className="text-xs mt-2 text-slate-500">Unpaid balance for items already returned →</p>
                   </CardContent>
                 </Card>
               </Link>
             </div>
           </div>
 
-          {/* Utilization + Cancellations Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Inventory Utilization */}
-            <Card className="border-0 shadow-sm bg-white">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">Inventory Utilization</CardTitle>
-                <Package className="h-4 w-4 text-slate-400" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold tracking-tight text-slate-900">
-                  {metrics.utilization.percentage}%
-                </div>
-                <p className="text-xs mt-2 text-slate-500">
-                  {metrics.utilization.rentedOut} of {metrics.utilization.totalProducts} products rented
-                </p>
-              </CardContent>
-            </Card>
-
+          {/* Cancellations + Overdue Returns Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Cancellations */}
             <Card className={`border-0 shadow-sm ${metrics.cancellationStats.currentCount > 0 ? 'bg-rose-50/50' : 'bg-white'}`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -365,18 +467,18 @@ export default async function DashboardPage(props: {
               </CardContent>
             </Card>
 
-            {/* Action Required */}
-            <Card className={`border-0 shadow-sm ${metrics.actionRequired.totalIssues > 0 ? 'bg-rose-50/50' : 'bg-white'}`}>
+            {/* Overdue Returns */}
+            <Card className={`border-0 shadow-sm ${metrics.actionRequired.overdueCount > 0 ? 'bg-rose-50/50' : 'bg-white'}`}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">Action Required</CardTitle>
-                <AlertCircle className={`h-4 w-4 ${metrics.actionRequired.totalIssues > 0 ? 'text-rose-500' : 'text-slate-400'}`} />
+                <CardTitle className="text-sm font-medium text-slate-600">Overdue Returns</CardTitle>
+                <AlertCircle className={`h-4 w-4 ${metrics.actionRequired.overdueCount > 0 ? 'text-rose-500' : 'text-slate-400'}`} />
               </CardHeader>
               <CardContent>
-                <div className={`text-3xl font-bold tracking-tight ${metrics.actionRequired.totalIssues > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
-                  {metrics.actionRequired.totalIssues} Issues
+                <div className={`text-3xl font-bold tracking-tight ${metrics.actionRequired.overdueCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
+                  {metrics.actionRequired.overdueCount} Orders
                 </div>
-                <p className={`text-xs mt-2 ${metrics.actionRequired.totalIssues > 0 ? 'text-rose-600 font-medium' : 'text-slate-500'}`}>
-                  {metrics.actionRequired.overdueCount} overdue orders
+                <p className={`text-xs mt-2 ${metrics.actionRequired.overdueCount > 0 ? 'text-rose-600 font-medium' : 'text-slate-500'}`}>
+                  {metrics.actionRequired.overdueCount} orders past their return date.
                 </p>
               </CardContent>
             </Card>
@@ -457,15 +559,17 @@ export default async function DashboardPage(props: {
                   <CardTitle className="text-base font-bold text-slate-900">Inventory ROI</CardTitle>
                   <CardDescription className="text-[10px]">Top {roiLimit} revenue contributors</CardDescription>
                 </div>
-                <DashboardLocalFilter 
-                  paramName="roi_limit"
-                  defaultValue="3"
-                  options={[
-                    { label: "Top 3", value: "3" },
-                    { label: "Top 5", value: "5" },
-                    { label: "Top 10", value: "10" },
-                  ]}
-                />
+                <Suspense fallback={<div className="h-8 w-24 bg-slate-50 animate-pulse rounded-lg" />}>
+                  <DashboardLocalFilter 
+                    paramName="roi_limit"
+                    defaultValue="3"
+                    options={[
+                      { label: "Top 3", value: "3" },
+                      { label: "Top 5", value: "5" },
+                      { label: "Top 10", value: "10" },
+                    ]}
+                  />
+                </Suspense>
               </CardHeader>
               <div className="flex-1 p-0 flex flex-col">
                 {metrics.topPerformers.length > 0 ? (

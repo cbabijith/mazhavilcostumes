@@ -10,17 +10,37 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server';
-import { format, differenceInDays, addDays, startOfDay, endOfDay } from 'date-fns';
+import { format, differenceInDays, addDays, startOfDay, endOfDay, subDays } from 'date-fns';
+import { reportService } from './reportService';
+
+// ─── Shared Status Constants ────────────────────────────────────────────────────
+// Single source of truth for which statuses count as "delivered" or "returned".
+// Used by getOperationalMetrics(), getDailyReport(), and click-through URLs.
+
+/** Statuses meaning delivery is still pending (order not yet picked up) */
+const DELIVERY_PENDING_STATUSES = ['scheduled', 'pending', 'confirmed'];
+
+/** Statuses meaning delivery was completed (order has been picked up / is active or done) */
+const DELIVERY_DONE_STATUSES = ['ongoing', 'in_use', 'delivered', 'late_return', 'partial', 'returned', 'completed', 'flagged'];
+
+/** Statuses meaning return is still pending (order is active with customer) */
+const RETURN_PENDING_STATUSES = ['ongoing', 'in_use', 'late_return'];
+
+/** Statuses meaning return was completed */
+const RETURN_DONE_STATUSES = ['returned', 'completed', 'flagged'];
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface OperationalCard {
   label: string;
   orderCount: number;
-  productCount: number;
   icon: string;
   color: string;
   filterUrl: string;
+  /** For progress cards (delivery/return): how many are completed */
+  completedCount?: number;
+  /** For progress cards (delivery/return): total expected */
+  totalCount?: number;
 }
 
 export interface PriorityCleaningOrder {
@@ -43,6 +63,7 @@ export interface RevenueByStatus {
   ongoingRevenue: number;
   scheduledRevenue: number;
   pendingAmount: number;
+  activeBalance?: number;
 }
 
 export interface CancellationStats {
@@ -59,6 +80,12 @@ export interface DashboardMetrics {
     percentageChange: number;
     isPositive: boolean;
   };
+  salesPacing: {
+    current: number;
+    previous: number;
+    percentageChange: number;
+    isPositive: boolean;
+  };
   revenueByStatus: RevenueByStatus;
   cancellationStats: CancellationStats;
   utilization: {
@@ -69,13 +96,17 @@ export interface DashboardMetrics {
   actionRequired: {
     totalIssues: number;
     overdueCount: number;
-    damagedCount: number;
+    maintenanceCount: number;
     pendingApprovalCount: number;
   };
   dailyRevenue: {
     date: string;
     amount: number;
   }[];
+  total_cash: number;
+  total_upi: number;
+  total_gpay: number;
+  total_amount_collection: number;
   bookingVelocity: {
     date: string;
     count: number;
@@ -110,18 +141,60 @@ export interface DashboardMetrics {
 
 export interface DailyReportStats {
   todaysBookings: number;
+  todaysSales: number;           // Total value of orders booked today
+  todaysCollection: number;      // Total cash collected today
   todaysDelivery: { delivered: number; total: number };
   todaysReturn: { returned: number; total: number };
-  todaysRevenue: number;
+  todaysRevenue: number;         // Deprecated alias for todaysCollection
   damagedOrders: number;
   todaysRefunds: number;
   damageIncome: number;
   lateFeeIncome: number;
+  mode_breakdown: {
+    cash: number;
+    upi: number;
+    gpay: number;
+    other: number;
+  };
+  details: {
+    bookings: { id: string; customer: string; amount: number }[];
+    deliveries: { id: string; customer: string; status: string }[];
+    returns: { id: string; customer: string; status: string }[];
+    collections: { amount: number; mode: string; customer: string; orderId: string }[];
+  };
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 export class DashboardService {
+  private getISTDateContext() {
+    // 1. Get current time in IST
+    const now = new Date();
+    // Use Intl to get the current date string in IST
+    const istDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now); // "YYYY-MM-DD"
+
+    // 2. Create the Start and End of that date in IST
+    // 00:00:00 IST is 18:30:00 UTC of previous day
+    const todayStart = new Date(`${istDateStr}T00:00:00+05:30`).toISOString();
+    const todayEnd = new Date(`${istDateStr}T23:59:59+05:30`).toISOString();
+
+    const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+    return {
+      now: istNow,
+      todayStart,
+      todayEnd,
+      todayStr: istDateStr,
+      yesterdayStr: format(subDays(istNow, 1), 'yyyy-MM-dd'),
+      tomorrowStr: format(addDays(istNow, 1), 'yyyy-MM-dd'),
+      next5DaysStr: format(addDays(istNow, 5), 'yyyy-MM-dd'),
+    };
+  }
 
   /**
    * Operational Metrics — visible to ALL roles.
@@ -130,130 +203,117 @@ export class DashboardService {
    */
   async getOperationalMetrics(): Promise<OperationalMetrics> {
     const supabase = createAdminClient();
-    const now = new Date();
-    const todayStart = startOfDay(now).toISOString();
-    const todayEnd = endOfDay(now).toISOString();
-    const next5Days = endOfDay(addDays(now, 5)).toISOString();
+    const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
 
     // 1. Today's Bookings — orders created today
     const { data: todaysBookings } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
+      .select('id')
       .gte('created_at', todayStart)
       .lte('created_at', todayEnd)
       .neq('status', 'cancelled');
 
-    const todaysBookingProducts = (todaysBookings || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
-
-    // 2. Today's Delivery — orders starting today (pickup/delivery)
-    const { data: todaysDeliveries } = await supabase
+    // 2a. Today's Delivery TOTAL — all non-cancelled orders with start_date = today
+    const { data: todaysDeliveryTotal } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
-      .gte('start_date', todayStart.split('T')[0])
-      .lte('start_date', todayEnd.split('T')[0])
-      .in('status', ['scheduled', 'pending']);
+      .select('id')
+      .eq('start_date', todayStr)
+      .neq('status', 'cancelled');
 
-    const todaysDeliveryProducts = (todaysDeliveries || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
-
-    // 3. Today's Return — orders ending today
-    const { data: todaysReturns } = await supabase
+    // 2b. Today's Delivery DONE — start_date = today AND already picked up/active
+    const { count: todaysDeliveryDoneCount } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
-      .gte('end_date', todayStart.split('T')[0])
-      .lte('end_date', todayEnd.split('T')[0])
-      .in('status', ['ongoing', 'in_use', 'late_return']);
+      .select('id', { count: 'exact', head: true })
+      .eq('start_date', todayStr)
+      .in('status', DELIVERY_DONE_STATUSES);
 
-    const todaysReturnProducts = (todaysReturns || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
+    // 3a. Today's Return TOTAL — all non-cancelled orders with end_date = today
+    const { data: todaysReturnTotal } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('end_date', todayStr)
+      .neq('status', 'cancelled');
 
-    // 4. Prepare Delivery — scheduled orders starting within next 5 days
-    const tomorrowStart = startOfDay(addDays(now, 1)).toISOString().split('T')[0];
+    // 3b. Today's Return DONE — end_date = today AND already returned
+    const { count: todaysReturnDoneCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('end_date', todayStr)
+      .in('status', RETURN_DONE_STATUSES);
+
+    // 4. Prepare Delivery — scheduled/pending orders starting within next 5 days
     const { data: prepareDeliveries } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
-      .gte('start_date', tomorrowStart)
-      .lte('start_date', next5Days.split('T')[0])
-      .in('status', ['scheduled', 'pending']);
-
-    const prepareDeliveryProducts = (prepareDeliveries || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
+      .select('id')
+      .gte('start_date', tomorrowStr)
+      .lte('start_date', next5DaysStr)
+      .in('status', DELIVERY_PENDING_STATUSES);
 
     // 5. Pending Delivery (overdue) — orders past start_date still in scheduled/pending
     const { data: pendingDeliveries } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
-      .lt('start_date', todayStart.split('T')[0])
-      .in('status', ['scheduled', 'pending']);
+      .select('id')
+      .lt('start_date', todayStr)
+      .in('status', DELIVERY_PENDING_STATUSES);
 
-    const pendingDeliveryProducts = (pendingDeliveries || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
-
-    // 6. Pending Return (overdue) — orders past end_date still in ongoing/in_use
+    // 6. Pending Return (overdue) — orders past end_date still in ongoing/in_use/late_return
     const { data: pendingReturns } = await supabase
       .from('orders')
-      .select('id, order_items(quantity)')
-      .lt('end_date', todayStart.split('T')[0])
-      .in('status', ['ongoing', 'in_use', 'late_return']);
+      .select('id')
+      .lt('end_date', todayStr)
+      .in('status', RETURN_PENDING_STATUSES);
 
-    const pendingReturnProducts = (pendingReturns || []).reduce((sum, o: any) =>
-      sum + (o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0), 0);
+    const deliveryTotal = todaysDeliveryTotal?.length || 0;
+    const deliveryDone = todaysDeliveryDoneCount || 0;
+    const returnTotal = todaysReturnTotal?.length || 0;
+    const returnDone = todaysReturnDoneCount || 0;
 
-    const next5Start = new Date(now); next5Start.setDate(next5Start.getDate() + 1);
-    const next5End = new Date(now); next5End.setDate(next5End.getDate() + 5);
-    const next5StartStr = next5Start.toISOString().split('T')[0];
-    const next5EndStr = next5End.toISOString().split('T')[0];
-    const todayStr = now.toISOString().split('T')[0];
-
-    const cards = [
+    const cards: OperationalCard[] = [
         {
           label: "Today's Bookings",
           orderCount: todaysBookings?.length || 0,
-          productCount: todaysBookingProducts,
           icon: 'calendar-plus',
           color: 'blue',
-          filterUrl: '/dashboard/orders?date_filter=today',
+          filterUrl: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
         },
         {
           label: "Today's Delivery",
-          orderCount: todaysDeliveries?.length || 0,
-          productCount: todaysDeliveryProducts,
+          orderCount: deliveryTotal,
           icon: 'truck',
           color: 'emerald',
-          filterUrl: '/dashboard/orders?status=scheduled&date_filter=today&date_field=start_date',
+          completedCount: deliveryDone,
+          totalCount: deliveryTotal,
+          filterUrl: '/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled',
         },
         {
           label: "Today's Return",
-          orderCount: todaysReturns?.length || 0,
-          productCount: todaysReturnProducts,
+          orderCount: returnTotal,
           icon: 'package-check',
           color: 'violet',
-          filterUrl: '/dashboard/orders?status=ongoing&date_filter=today&date_field=end_date',
+          completedCount: returnDone,
+          totalCount: returnTotal,
+          filterUrl: '/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled',
         },
         {
           label: "Prepare Delivery (5d)",
           orderCount: prepareDeliveries?.length || 0,
-          productCount: prepareDeliveryProducts,
           icon: 'boxes',
           color: 'amber',
-          filterUrl: `/dashboard/orders?status=scheduled&date_filter=custom&date_field=start_date&date_from=${next5StartStr}&date_to=${next5EndStr}`,
+          filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}`,
         },
         {
           label: "Pending Delivery",
           orderCount: pendingDeliveries?.length || 0,
-          productCount: pendingDeliveryProducts,
           icon: 'alert-triangle',
           color: 'rose',
-          filterUrl: `/dashboard/orders?status=scheduled&date_filter=custom&date_field=start_date&date_to=${todayStr}`,
+          filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_to=${yesterdayStr}`,
         },
         {
           label: "Pending Return",
           orderCount: pendingReturns?.length || 0,
-          productCount: pendingReturnProducts,
           icon: 'clock-alert',
           color: 'red',
-          filterUrl: `/dashboard/orders?status=late_return&date_filter=custom&date_field=end_date&date_to=${todayStr}`,
+          filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}`,
         },
       ];
 
@@ -289,19 +349,22 @@ export class DashboardService {
   async getMetrics(
     startDate: Date, endDate: Date, 
     prevStartDate: Date, prevEndDate: Date,
+    branchId?: string | null,
+    storeId?: string | null,
     overrides?: {
       categoryPeriod?: 'month' | 'year' | 'all';
       roiLimit?: number;
     }
   ): Promise<DashboardMetrics> {
     const supabase = createAdminClient();
-    const now = new Date();
+    const { now, todayStr } = this.getISTDateContext();
     const startDateStr = startDate.toISOString();
     const endDateStr = endDate.toISOString();
     const prevStartDateStr = prevStartDate.toISOString();
     const prevEndDateStr = prevEndDate.toISOString();
-    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const ninetyDaysAgo = subDays(now, 90).toISOString();
     const velocityEndDate = addDays(now, 15).toISOString();
+    const velocityEndDateStr = format(addDays(now, 15), 'yyyy-MM-dd');
 
     const roiLimit = overrides?.roiLimit || 3;
     let catStartDate = startDate;
@@ -312,10 +375,58 @@ export class DashboardService {
     }
     const catStartDateStr = catStartDate.toISOString();
 
+    // Prepare optimized queries with branch filtering
+    let completedQuery = supabase.from('orders').select('amount_paid').in('status', ['returned', 'completed']).gte('updated_at', startDateStr).lte('updated_at', endDateStr);
+    if (branchId) completedQuery = completedQuery.eq('branch_id', branchId);
+    
+    let activeRentalsQuery = supabase.from('orders').select('total_amount, amount_paid').in('status', ['ongoing', 'in_use', 'late_return', 'partial', 'delivered']);
+    if (branchId) activeRentalsQuery = activeRentalsQuery.eq('branch_id', branchId);
+    
+    let scheduledQuery = supabase.from('orders').select('advance_amount').in('status', ['scheduled', 'pending']).eq('advance_collected', true).gte('created_at', startDateStr).lte('created_at', endDateStr);
+    if (branchId) scheduledQuery = scheduledQuery.eq('branch_id', branchId);
+    
+    let currentCancellationsQuery = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', startDateStr).lte('cancelled_at', endDateStr);
+    if (branchId) currentCancellationsQuery = currentCancellationsQuery.eq('branch_id', branchId);
+    
+    let prevCancellationsQuery = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', prevStartDateStr).lte('cancelled_at', prevEndDateStr);
+    if (branchId) prevCancellationsQuery = prevCancellationsQuery.eq('branch_id', branchId);
+    
+    let activeOrdersQuery = supabase.from('orders').select('id, status, end_date').in('status', ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending']);
+    if (branchId) activeOrdersQuery = activeOrdersQuery.eq('branch_id', branchId);
+    
+    let totalProductsQuery = supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true);
+    if (branchId) totalProductsQuery = totalProductsQuery.eq('branch_id', branchId);
+    
+    let rentedItemsQuery = supabase.from('order_items').select('product_id, orders!inner(status, branch_id)').in('orders.status', ['ongoing', 'in_use', 'late_return', 'delivered', 'partial']);
+    if (branchId) rentedItemsQuery = rentedItemsQuery.eq('orders.branch_id', branchId);
+    
+    let upcomingOrdersQuery = supabase.from('orders').select('start_date').gte('start_date', todayStr).lte('start_date', velocityEndDateStr).neq('status', 'cancelled');
+    if (branchId) upcomingOrdersQuery = upcomingOrdersQuery.eq('branch_id', branchId);
+    
+    let roiItemsQuery = supabase.from('order_items').select('product_id, quantity, price_per_day, orders!inner(status, created_at, branch_id), products(name)').neq('orders.status', 'cancelled').gte('orders.created_at', startDateStr).lte('orders.created_at', endDateStr);
+    if (branchId) roiItemsQuery = roiItemsQuery.eq('orders.branch_id', branchId);
+    
+    let catItemsQuery = supabase.from('order_items').select('quantity, price_per_day, orders!inner(status, created_at, branch_id), products(categories:category_id(name))').neq('orders.status', 'cancelled').gte('orders.created_at', catStartDateStr).lte('orders.created_at', endDateStr);
+    if (branchId) catItemsQuery = catItemsQuery.eq('orders.branch_id', branchId);
+    
+    let deadStockQuery = supabase.from('order_items').select('product_id, orders!inner(created_at, branch_id)').gte('orders.created_at', ninetyDaysAgo);
+    if (branchId) deadStockQuery = deadStockQuery.eq('orders.branch_id', branchId);
+    
+    let activeProductsQuery = supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true);
+    if (branchId) activeProductsQuery = activeProductsQuery.eq('branch_id', branchId);
+    activeProductsQuery = activeProductsQuery.limit(100);
+    
+    let priorityCleaningQuery = supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name, branch_id)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent');
+    if (branchId) priorityCleaningQuery = priorityCleaningQuery.eq('products.branch_id', branchId);
+    priorityCleaningQuery = priorityCleaningQuery.order('expected_return_date', { ascending: true }).limit(5);
+    
+    let pendingPaymentQuery = supabase.from('orders').select('total_amount, amount_paid').in('status', ['returned', 'completed']).in('payment_status', ['partial', 'pending', 'due']);
+    if (branchId) pendingPaymentQuery = pendingPaymentQuery.eq('branch_id', branchId);
+
     // Kick off all queries in parallel
     const [
-      currentPaymentsRes,
-      prevPaymentsRes,
+      currentMetrics,
+      prevMetrics,
       completedOrdersRes,
       ongoingOrdersRes,
       scheduledOrdersRes,
@@ -332,88 +443,69 @@ export class DashboardService {
       priorityRes,
       pendingPaymentRes
     ] = await Promise.all([
-      // 1. Current Payments
-      supabase.from('payments').select('amount, payment_date').gte('payment_date', startDateStr).lte('payment_date', endDateStr).neq('payment_type', 'refund'),
-      
-      // 2. Previous Payments
-      supabase.from('payments').select('amount').gte('payment_date', prevStartDateStr).lte('payment_date', prevEndDateStr).neq('payment_type', 'refund'),
-      
-      // 3. Completed Orders — orders that reached returned/completed during this period
-      // Uses amount_paid (actual cash collected) instead of total_amount for accuracy
-      supabase.from('orders').select('amount_paid').in('status', ['returned', 'completed']).gte('updated_at', startDateStr).lte('updated_at', endDateStr),
-      
-      // 4. Active Rentals — ALL currently active orders (no date filter)
-      // Shows total contract value of everything currently out with customers
-      supabase.from('orders').select('total_amount').in('status', ['ongoing', 'in_use', 'late_return', 'partial', 'delivered']),
-      
-      // 5. Scheduled Orders
-      supabase.from('orders').select('advance_amount').in('status', ['scheduled', 'pending']).eq('advance_collected', true).gte('created_at', startDateStr).lte('created_at', endDateStr),
-      
-      // 6. Current Cancellations
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', startDateStr).lte('cancelled_at', endDateStr),
-      
-      // 7. Previous Cancellations
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', prevStartDateStr).lte('cancelled_at', prevEndDateStr),
-      
-      // 8. Active Orders (for Overdue)
-      supabase.from('orders').select('id, status, end_date').in('status', ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending']),
-      
-      // 9. Total Products
-      supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
-      
-      // 10. Rented Items — includes delivered and partial since products are still out
-      supabase.from('order_items').select('product_id, orders!inner(status)').in('orders.status', ['ongoing', 'in_use', 'late_return', 'delivered', 'partial']),
-      
-      // 11. Upcoming Orders (Velocity)
-      supabase.from('orders').select('start_date').gte('start_date', now.toISOString()).lte('start_date', velocityEndDate).neq('status', 'cancelled'),
-      
-      // 12. ROI Items
-      supabase.from('order_items').select('product_id, quantity, price_per_day, orders!inner(status, created_at), products(name)').neq('orders.status', 'cancelled').gte('orders.created_at', startDateStr).lte('orders.created_at', endDateStr).returns<any[]>(),
-      
-      // 13. Category Items
-      supabase.from('order_items').select('quantity, price_per_day, orders!inner(status, created_at), products(categories:category_id(name))').neq('orders.status', 'cancelled').gte('orders.created_at', catStartDateStr).lte('orders.created_at', endDateStr).returns<any[]>(),
-      
-      // 14. Dead Stock (Recent Orders)
-      supabase.from('order_items').select('product_id, orders!inner(created_at)').gte('orders.created_at', ninetyDaysAgo).returns<any[]>(),
-      
-      // 15. Active Products (Dead Stock check)
-      supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true).limit(100),
-      
-      // 16. Priority Cleaning (from cleaning_records)
-      supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent').order('expected_return_date', { ascending: true }).limit(5),
-
-      // 17. Pending Amount — returned/completed orders where customer still owes money
-      supabase.from('orders').select('total_amount, amount_paid').in('status', ['returned', 'completed']).in('payment_status', ['partial', 'pending', 'due'])
+      (async () => {
+        console.log(`[DashboardService] Fetching metrics for branch:`, branchId);
+        return reportService.getUnifiedRevenueMetrics(format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'), branchId);
+      })(),
+      reportService.getUnifiedRevenueMetrics(format(prevStartDate, 'yyyy-MM-dd'), format(prevEndDate, 'yyyy-MM-dd'), branchId),
+      completedQuery,
+      activeRentalsQuery,
+      scheduledQuery,
+      currentCancellationsQuery,
+      prevCancellationsQuery,
+      activeOrdersQuery,
+      totalProductsQuery,
+      rentedItemsQuery,
+      upcomingOrdersQuery,
+      roiItemsQuery.returns<any[]>(),
+      catItemsQuery.returns<any[]>(),
+      deadStockQuery.returns<any[]>(),
+      activeProductsQuery,
+      priorityCleaningQuery,
+      pendingPaymentQuery
     ]);
 
     // Processing results
-    const currentPayments = currentPaymentsRes.data || [];
-    const prevPayments = prevPaymentsRes.data || [];
-    const currentRevenue = currentPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
-    const prevRevenue = prevPayments.reduce((sum, p) => sum + Number(p.amount), 0) || 0;
+    // Processing results from Unified Metrics
+    const currentRevenue = currentMetrics.total_amount_collection || 0;
+    const prevRevenue = prevMetrics.total_amount_collection || 0;
+    const currentSales = currentMetrics.total_booking_sales || 0;
+    const prevSales = prevMetrics.total_booking_sales || 0;
+
+    console.log('[DashboardMetrics] FINAL MAPPING:', { 
+      currentRevenue, 
+      currentSales,
+      branchId
+    });
+
     // Cap growth % at 999% to avoid misleading numbers when previous period is near-zero
-    const rawChange = prevRevenue === 0 ? (currentRevenue > 0 ? 100 : 0) : ((currentRevenue - prevRevenue) / prevRevenue) * 100;
-    const percentageChange = Math.min(Math.abs(rawChange), 999) * (rawChange >= 0 ? 1 : -1);
+    const calculateChange = (curr: number, prev: number) => {
+      if (isNaN(curr) || isNaN(prev)) return 0;
+      const raw = prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100;
+      return Math.min(Math.abs(raw), 999) * (raw >= 0 ? 1 : -1);
+    };
 
-    // Daily Revenue Map
-    const dailyRevenueMap = new Map<string, number>();
-    currentPayments.forEach(p => {
-      const dateStr = format(new Date(p.payment_date), 'MMM dd');
-      dailyRevenueMap.set(dateStr, (dailyRevenueMap.get(dateStr) || 0) + Number(p.amount));
-    });
+    const revenueChange = calculateChange(currentRevenue, prevRevenue);
+    const salesChange = calculateChange(currentSales, prevSales);
 
-    const diffDays = differenceInDays(endDate, startDate);
-    const dailyRevenue = Array.from({ length: diffDays + 1 }).map((_, i) => {
-      const d = addDays(startDate, i);
-      const dateStr = format(d, 'MMM dd');
-      return { date: dateStr, amount: dailyRevenueMap.get(dateStr) || 0 };
-    });
+    // Use daily trends from unified metrics
+    const dailyTrends = currentMetrics.dailyTrends;
+    const total_cash = currentMetrics.total_cash;
+    const total_upi = currentMetrics.total_upi;
+    const total_gpay = currentMetrics.total_gpay;
+
+    const dailyRevenue = dailyTrends.map(t => ({
+      date: format(new Date(t.date), 'MMM dd'),
+      amount: t.cash
+    }));
 
     const completedRevenue = completedOrdersRes.data?.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0) || 0;
-    const ongoingRevenue = ongoingOrdersRes.data?.reduce((sum, o) => sum + Number(o.total_amount || 0), 0) || 0;
-    const scheduledRevenue = scheduledOrdersRes.data?.reduce((sum, o) => sum + Number(o.advance_amount || 0), 0) || 0;
+    // Uncollected Active: money currently in the hands of customers for ongoing rentals
+    const activeBalance = (ongoingOrdersRes.data || []).reduce((sum, o) => {
+      const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+      return sum + Math.max(0, balance);
+    }, 0);
 
-    // Pending amount: balance due on returned/completed orders
     const pendingAmount = (pendingPaymentRes.data || []).reduce((sum, o) => {
       const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
       return sum + Math.max(0, balance);
@@ -424,7 +516,7 @@ export class DashboardService {
     const cancelChange = cancelPrev === 0 ? 0 : ((cancelCurrent - cancelPrev) / cancelPrev) * 100;
 
     const overdueOrders = activeOrdersRes.data?.filter(o =>
-      ['ongoing', 'in_use', 'late_return'].includes(o.status) && new Date(o.end_date) < now
+      ['ongoing', 'in_use', 'late_return'].includes(o.status) && o.end_date < todayStr
     ) || [];
 
     const totalProducts = totalProductsRes.count || 0;
@@ -496,10 +588,16 @@ export class DashboardService {
       revenuePacing: {
         current: currentRevenue,
         previous: prevRevenue,
-        percentageChange: Math.abs(Math.round(percentageChange)),
-        isPositive: percentageChange >= 0,
+        percentageChange: revenueChange,
+        isPositive: revenueChange >= 0,
       },
-      revenueByStatus: { completedRevenue, ongoingRevenue, scheduledRevenue, pendingAmount },
+      salesPacing: {
+        current: currentSales,
+        previous: prevSales,
+        percentageChange: salesChange,
+        isPositive: salesChange >= 0,
+      },
+      revenueByStatus: { completedRevenue, ongoingRevenue: 0, scheduledRevenue: 0, pendingAmount, activeBalance },
       cancellationStats: {
         currentCount: cancelCurrent,
         previousCount: cancelPrev,
@@ -508,12 +606,16 @@ export class DashboardService {
       },
       utilization: { percentage: utilizationPercentage, rentedOut, totalProducts },
       actionRequired: {
-        totalIssues: overdueOrders.length,
+        totalIssues: overdueOrders.length + (priorityRes.data?.length || 0),
         overdueCount: overdueOrders.length,
-        damagedCount: 0,
+        maintenanceCount: priorityRes.data?.length || 0,
         pendingApprovalCount: 0,
       },
       dailyRevenue,
+      total_cash,
+      total_upi,
+      total_gpay,
+      total_amount_collection: currentRevenue,
       bookingVelocity,
       topPerformers,
       deadStock,
@@ -542,13 +644,11 @@ export class DashboardService {
    */
   async getDailyReport(): Promise<DailyReportStats> {
     const supabase = createAdminClient();
-    const now = new Date();
-    const todayStart = startOfDay(now).toISOString();
-    const todayEnd = endOfDay(now).toISOString();
-    const todayDateStr = now.toISOString().split('T')[0];
+    const { todayStart, todayEnd, todayStr: todayDateStr } = this.getISTDateContext();
 
     const [
       bookingsRes,
+      todaySalesRes,
       deliveryTotalRes,
       deliveryDoneRes,
       returnTotalRes,
@@ -559,57 +659,67 @@ export class DashboardService {
       damageIncomeRes,
       lateFeeRes,
     ] = await Promise.all([
-      // 1. Today's Bookings — orders created today (excluding cancelled)
+      // 1. Today's Bookings — count of orders created today
       supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
+        .select('id, total_amount, customer:customer_id(name)')
         .gte('created_at', todayStart)
         .lte('created_at', todayEnd)
         .neq('status', 'cancelled'),
 
-      // 2a. Today's Delivery TOTAL — orders with start_date = today (all non-cancelled)
+      // 2. Today's Sales — total value of orders created today
+      supabase
+        .from('orders')
+        .select('total_amount')
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd)
+        .neq('status', 'cancelled'),
+
+      // 3. Today's Delivery TOTAL
+      supabase
+        .from('orders')
+        .select('id, status, customer:customer_id(name)')
+        .eq('start_date', todayDateStr)
+        .neq('status', 'cancelled'),
+
+      // 4. Today's Delivery DONE
       supabase
         .from('orders')
         .select('id', { count: 'exact', head: true })
         .eq('start_date', todayDateStr)
-        .neq('status', 'cancelled'),
+        .in('status', DELIVERY_DONE_STATUSES),
 
-      // 2b. Today's Delivery DONE — start_date = today AND already picked up
+      // 5. Today's Return TOTAL
       supabase
         .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('start_date', todayDateStr)
-        .in('status', ['ongoing', 'in_use', 'delivered', 'late_return', 'partial', 'returned', 'completed']),
+        .select('id, status, customer:customer_id(name)')
+        .eq('end_date', todayDateStr)
+        .neq('status', 'cancelled'),
 
-      // 3a. Today's Return TOTAL — orders with end_date = today (active + returned)
+      // 6. Today's Return DONE
       supabase
         .from('orders')
         .select('id', { count: 'exact', head: true })
         .eq('end_date', todayDateStr)
-        .neq('status', 'cancelled'),
+        .in('status', RETURN_DONE_STATUSES),
 
-      // 3b. Today's Return DONE — end_date = today AND already returned
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('end_date', todayDateStr)
-        .in('status', ['returned', 'completed']),
-
-      // 4. Today's Revenue — total payments collected today (excluding refunds)
+      // 7. Today's Payments (Cash Collection)
       supabase
         .from('payments')
-        .select('amount')
+        .select('amount, payment_date, payment_mode, orders(id, customer:customer_id(name))')
         .gte('payment_date', todayStart)
         .lte('payment_date', todayEnd)
         .neq('payment_type', 'refund'),
 
-      // 5. Damaged Orders — currently flagged orders (all time, not just today)
+      // 8. Damaged Orders (Today only)
       supabase
-        .from('orders')
+        .from('order_status_history')
         .select('id', { count: 'exact', head: true })
-        .eq('status', 'flagged'),
+        .eq('status', 'flagged')
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd),
 
-      // 6. Today's Refunds — refund payments made today
+      // 9. Today's Refunds
       supabase
         .from('payments')
         .select('amount')
@@ -617,7 +727,7 @@ export class DashboardService {
         .lte('payment_date', todayEnd)
         .eq('payment_type', 'refund'),
 
-      // 7. Damage Income — damage charges collected today (orders updated today with charges)
+      // 10. Damage Income (Accrual)
       supabase
         .from('orders')
         .select('damage_charges_total')
@@ -625,7 +735,7 @@ export class DashboardService {
         .gte('updated_at', todayStart)
         .lte('updated_at', todayEnd),
 
-      // 8. Late Fee Income — late fees applied today (orders updated today with late fees)
+      // 11. Late Fee Income (Accrual)
       supabase
         .from('orders')
         .select('late_fee')
@@ -634,8 +744,27 @@ export class DashboardService {
         .lte('updated_at', todayEnd),
     ]);
 
-    const todaysRevenue = (revenueRes.data || []).reduce(
+    const bookingList = (bookingsRes.data || []) as any[];
+    const deliveryList = (deliveryTotalRes.data || []) as any[];
+    const returnList = (returnTotalRes.data || []) as any[];
+    const revenueList = (revenueRes.data || []) as any[];
+
+    const todaysCollection = revenueList.reduce(
       (sum, p) => sum + Number(p.amount || 0), 0
+    );
+
+    const mode_breakdown = { cash: 0, upi: 0, gpay: 0, other: 0 };
+    revenueList.forEach(p => {
+      const mode = (p.payment_mode || '').toLowerCase();
+      const amount = Number(p.amount || 0);
+      if (mode === 'cash') mode_breakdown.cash += amount;
+      else if (mode === 'upi') mode_breakdown.upi += amount;
+      else if (mode === 'gpay') mode_breakdown.gpay += amount;
+      else mode_breakdown.other += amount;
+    });
+
+    const todaysSales = bookingList.reduce(
+      (sum, o) => sum + Number(o.total_amount || 0), 0
     );
     const todaysRefunds = (refundRes.data || []).reduce(
       (sum, p) => sum + Number(p.amount || 0), 0
@@ -648,20 +777,34 @@ export class DashboardService {
     );
 
     return {
-      todaysBookings: bookingsRes.count || 0,
+      todaysBookings: bookingList.length,
+      todaysSales,
+      todaysCollection,
       todaysDelivery: {
         delivered: deliveryDoneRes.count || 0,
-        total: deliveryTotalRes.count || 0,
+        total: deliveryList.length,
       },
       todaysReturn: {
         returned: returnDoneRes.count || 0,
-        total: returnTotalRes.count || 0,
+        total: returnList.length,
       },
-      todaysRevenue,
+      todaysRevenue: todaysCollection,
       damagedOrders: damagedRes.count || 0,
       todaysRefunds,
       damageIncome,
       lateFeeIncome,
+      mode_breakdown,
+      details: {
+        bookings: bookingList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', amount: o.total_amount })),
+        deliveries: deliveryList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', status: o.status })),
+        returns: returnList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', status: o.status })),
+        collections: revenueList.map(p => ({
+          amount: p.amount,
+          mode: p.payment_mode,
+          customer: p.orders?.customer?.name || 'Walk-in',
+          orderId: p.orders?.id?.substring(0, 8) || 'N/A'
+        }))
+      }
     };
   }
 }

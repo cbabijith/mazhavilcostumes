@@ -38,14 +38,27 @@ export class CleaningRepository extends BaseRepository {
       let query = this.client
         .from(this.TABLE)
         .select('*, product:products(name, images)')
-        .order('priority', { ascending: false })
-        .order('created_at', { ascending: true });
-
       if (params.branch_id) query = query.eq('branch_id', params.branch_id);
       if (params.status) query = query.eq('status', params.status);
       if (params.priority) query = query.eq('priority', params.priority);
       if (params.product_id) query = query.eq('product_id', params.product_id);
       if (params.order_id) query = query.eq('order_id', params.order_id);
+
+      // Apply sorting
+      if (params.sort_by) {
+        const ascending = params.sort_order === 'asc';
+        if (params.sort_by === 'product_name') {
+          // Join-based sorting for product name
+          query = query.order('name', { referencedTable: 'products', ascending });
+        } else {
+          query = query.order(params.sort_by, { ascending });
+        }
+      } else {
+        // Default sort: Urgent first, then oldest first
+        query = query
+          .order('priority', { ascending: false })
+          .order('created_at', { ascending: true });
+      }
 
       return query;
     });

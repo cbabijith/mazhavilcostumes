@@ -36,7 +36,7 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 
 // ── Raw data hook ─────────────────────────────────────────────────────
 interface CalendarFetchParams {
-  branch_id?: string;
+  branch_id?: string | null;
   start_date: string;
   end_date: string;
 }
@@ -51,7 +51,7 @@ export function useCalendarOrders(params: CalendarFetchParams, options?: { enabl
       if (params.branch_id) searchParams.append('branch_id', params.branch_id);
       return apiFetch(`/api/calendar?${searchParams.toString()}`);
     },
-    enabled: options?.enabled !== false && !!params.branch_id,
+    enabled: options?.enabled !== false,
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
@@ -158,7 +158,7 @@ export function useCalendarNavigation() {
 }
 
 // ── Main composite hook ───────────────────────────────────────────────
-export function useCalendarView(branchId: string) {
+export function useCalendarView(branchId: string | null) {
   const nav = useCalendarNavigation();
 
   // Fetch range: current month ± 1 month for smooth navigation

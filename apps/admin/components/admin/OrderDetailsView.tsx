@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Package, CheckCircle2, AlertTriangle, Loader2, Info,
-  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode
+  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode, Save
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Modal from "@/components/admin/Modal";
-import { useOrder, useOrderStatusHistory, useProcessOrderReturn, useUpdateOrder, useCreatePayment, useOrderPayments, useLookupProductByBarcode } from "@/hooks";
+import { 
+  useOrder, 
+  useOrderStatusHistory, 
+  useProcessOrderReturn, 
+  useUpdateOrder, 
+  useCreatePayment, 
+  useOrderPayments, 
+  useLookupProductByBarcode,
+  useUpdateOrderItemDamage
+} from "@/hooks";
 import { useAppStore } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { OrderStatus, ConditionRating, PaymentStatus } from "@/domain/types/order";
@@ -34,6 +43,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
   const { showSuccess, showError } = useAppStore();
   const { lookupByBarcode } = useLookupProductByBarcode();
+  const { updateOrderItemDamage, isUpdating: isSavingItem } = useUpdateOrderItemDamage();
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
@@ -94,7 +104,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (order && Object.keys(returnItems).length === 0 && isReturnable) {
       const initial: any = {};
       order.items.forEach(item => {
-        initial[item.id] = { status: null, damage_fee: 0, damaged_quantity: item.quantity, notes: "" };
+        // Pre-fill from existing data if it exists (for incremental save recovery)
+        let status: any = null;
+        if (item.condition_rating === 'damaged') status = 'damaged';
+        else if (item.condition_rating === 'excellent') status = 'excellent';
+        
+        initial[item.id] = { 
+          status: status, 
+          damage_fee: item.damage_charges || 0, 
+          damaged_quantity: item.damaged_quantity || item.quantity, 
+          notes: item.damage_description || "" 
+        };
       });
       setReturnItems(initial);
     }
@@ -229,6 +249,21 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     });
   };
 
+  const handleSaveItemDamage = (itemId: string) => {
+    const rItem = returnItems[itemId];
+    if (!rItem) return;
+
+    updateOrderItemDamage({
+      itemId,
+      data: {
+        condition_rating: rItem.status === 'damaged' ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
+        damage_description: rItem.notes || null,
+        damage_charges: rItem.damage_fee || 0,
+        damaged_quantity: rItem.damaged_quantity || 0,
+      }
+    });
+  };
+
   const handleCollectPayment = async () => {
     const amountVal = parseFloat(paymentForm.amount) || 0;
     const maxAmount = amount_due;
@@ -356,6 +391,50 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
+      {/* STOCK CONFLICT ALERT */}
+      {order?.has_stock_conflict && (
+        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 animate-in slide-in-from-top duration-300">
+          <div className="flex items-start gap-4">
+            <div className="bg-red-100 p-2.5 rounded-xl shrink-0">
+              <AlertTriangle className="w-6 h-6 text-red-600 animate-pulse" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">
+                Inventory Fulfillment Conflict Detected
+              </h3>
+              <p className="text-sm text-red-700 mt-1 font-medium leading-relaxed">
+                Total inventory for one or more items in this order has dropped below required levels due to damage or write-offs. 
+                This order is currently at risk of incomplete fulfillment.
+              </p>
+              
+              {order.conflict_details && Array.isArray(order.conflict_details) && order.conflict_details.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {order.conflict_details.map((conflict: any, idx: number) => (
+                    <div key={idx} className="bg-white/80 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-3 shadow-sm">
+                      <div className="bg-red-50 px-2 py-0.5 rounded text-[10px] font-black text-red-700 uppercase tracking-wider">Conflict</div>
+                      <span className="text-xs font-bold text-red-900 uppercase tracking-tight">{conflict.productName}</span>
+                      <div className="w-px h-3 bg-red-200" />
+                      <span className="text-xs text-red-700 font-bold">
+                        Shortfall: {conflict.shortfall} unit(s)
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="bg-white border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 h-10 font-black uppercase tracking-wider text-xs rounded-xl"
+                onClick={() => router.push(`/dashboard/orders/${orderId}/edit`)}
+              >
+                Modify Order
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* 1. Hero Banner (The 2-Second Glance) */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
@@ -397,11 +476,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             const isEarlyStart = today < rentalStart;
             return (
               <>
-                <Button onClick={handleStartOrder} disabled={isUpdating || isCheckingStock} className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed">
+                <Button 
+                  onClick={handleStartOrder} 
+                  disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict} 
+                  className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   {isCheckingStock ? (
                     <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Checking...</>
                   ) : (
-                    'Start Rental'
+                    order.has_stock_conflict ? 'Stock Conflict (Blocked)' : 'Start Rental'
                   )}
                 </Button>
                 <Button
@@ -650,6 +733,60 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                               placeholder="0"
                               className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
                             />
+                          </div>
+                          <div className="w-full sm:w-32 space-y-2">
+                            <label className="text-xs font-bold text-transparent select-none uppercase tracking-widest">Save</label>
+                            {(() => {
+                              const dbItem = order.items.find(i => i.id === item.id);
+                              if (!dbItem) return null;
+
+                              const dbStatus = dbItem.condition_rating === 'damaged' ? 'damaged' : (dbItem.condition_rating === 'excellent' ? 'excellent' : null);
+                              const dbDamagedQty = dbItem.condition_rating === 'damaged' ? (dbItem.damaged_quantity || 0) : 0;
+                              const currentDamagedQty = rItem.status === 'damaged' ? (rItem.damaged_quantity || 0) : 0;
+                              
+                              const isDirty = 
+                                rItem.status !== dbStatus ||
+                                rItem.damage_fee !== (dbItem.damage_charges || 0) ||
+                                currentDamagedQty !== dbDamagedQty ||
+                                rItem.notes !== (dbItem.damage_description || "");
+
+                              if (isDirty) {
+                                return (
+                                  <Button
+                                    type="button"
+                                    onClick={() => handleSaveItemDamage(item.id)}
+                                    disabled={isSavingItem}
+                                    className="h-12 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-sm flex items-center justify-center gap-2"
+                                  >
+                                    {isSavingItem ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Save className="w-4 h-4" />
+                                    )}
+                                    <span>Save</span>
+                                  </Button>
+                                );
+                              }
+
+                              if (rItem.status === null) {
+                                return (
+                                  <Button
+                                    type="button"
+                                    disabled
+                                    className="h-12 w-full bg-slate-100 text-slate-400 font-bold rounded-lg border border-slate-200 flex items-center justify-center gap-2"
+                                  >
+                                    <span>Pending</span>
+                                  </Button>
+                                );
+                              }
+
+                              return (
+                                <div className="h-12 w-full bg-emerald-50 text-emerald-700 font-bold rounded-lg border-2 border-emerald-200 flex items-center justify-center gap-2 shadow-sm animate-in fade-in zoom-in duration-300">
+                                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                  <span>Saved</span>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                         {/* Auto-good info */}

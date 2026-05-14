@@ -108,6 +108,8 @@ export interface Order {
   amount_paid: number;
   payment_status: PaymentStatus;
   has_priority_cleaning?: boolean;
+  has_stock_conflict?: boolean;
+  conflict_details?: any[] | null;
   notes: string | null;
   delivery_method?: DeliveryMethod;
   delivery_address?: string;
@@ -241,6 +243,7 @@ export interface OrderSearchParams {
   customer_id?: string;
   branch_id?: string;
   status?: OrderStatus | OrderStatus[];
+  exclude_status?: OrderStatus | OrderStatus[];
   payment_status?: string | string[];
   product_id?: string;
   query?: string;
@@ -248,6 +251,8 @@ export interface OrderSearchParams {
   date_field?: 'created_at' | 'start_date' | 'end_date';
   date_from?: string;
   date_to?: string;
+  has_damage_charges?: boolean;
+  has_stock_conflict?: boolean;
   limit?: number;
   offset?: number;
 }

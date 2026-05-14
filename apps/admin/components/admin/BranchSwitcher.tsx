@@ -5,12 +5,18 @@ import { useAppStore } from "@/stores";
 import { useBranches } from "@/hooks";
 import { usePermissions } from "@/hooks";
 import { useState, useRef, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { BranchWithStaffCount } from "@/domain/types/branch";
 
 export default function BranchSwitcher() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
   const { branches } = useBranches();
   const selectedBranchId = useAppStore((s) => s.selectedBranchId);
   const setSelectedBranchId = useAppStore((s) => s.setSelectedBranchId);
+  const user = useAppStore((s) => s.user);
   const { can, isStaff } = usePermissions();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,20 +30,35 @@ export default function BranchSwitcher() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Auto-select the first (or main) branch if no valid branch is selected.
-  // "all" is no longer a valid option.
-  useEffect(() => {
-    if (branches.length === 0) return;
-    const valid = branches.find((b: BranchWithStaffCount) => b.id === selectedBranchId);
-    if (!valid) {
-      const main = branches.find((b: BranchWithStaffCount) => b.is_main) || branches[0];
-      setSelectedBranchId(main.id);
-    }
-  }, [branches, selectedBranchId, setSelectedBranchId]);
-
   const canSwitch = can("switch_branches");
+
+  // Auto-select based on user home branch only if nothing is selected yet
+  useEffect(() => {
+    if (branches.length === 0 || selectedBranchId !== null) return;
+    
+    // For Staff, we MUST force their branch
+    if (!canSwitch && user?.branch_id) {
+      setSelectedBranchId(user.branch_id);
+    }
+  }, [branches, selectedBranchId, setSelectedBranchId, canSwitch, user]);
+
   const selected = branches.find((b: BranchWithStaffCount) => b.id === selectedBranchId);
-  const label = selected?.name || "Select Branch";
+  const label = selectedBranchId === null ? "All Branches" : (selected?.name || "Select Branch");
+
+  const handleBranchChange = (id: string | null) => {
+    setSelectedBranchId(id);
+    setOpen(false);
+
+    // Sync with URL for server-side pages (like Dashboard)
+    const params = new URLSearchParams(searchParams.toString());
+    if (id) {
+      params.set("branch_id", id);
+    } else {
+      params.delete("branch_id");
+    }
+    
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Staff can't switch — show locked indicator
   if (isStaff) {
@@ -67,11 +88,27 @@ export default function BranchSwitcher() {
             <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Switch Branch</p>
           </div>
 
+          {/* All Branches Option */}
+          <button
+            onClick={() => handleBranchChange(null)}
+            className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
+              selectedBranchId === null ? "bg-violet-50 text-violet-700" : "text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+              <Building2 className="w-3.5 h-3.5 text-violet-500" />
+            </div>
+            <div className="flex-1 text-left">
+              <span className="font-medium">All Branches</span>
+            </div>
+            {selectedBranchId === null && <Check className="w-4 h-4 text-violet-500" />}
+          </button>
+
           {/* Individual branches */}
           {branches.map((branch: BranchWithStaffCount) => (
             <button
               key={branch.id}
-              onClick={() => { setSelectedBranchId(branch.id); setOpen(false); }}
+              onClick={() => handleBranchChange(branch.id)}
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-sm transition-colors ${
                 selectedBranchId === branch.id ? "bg-violet-50 text-violet-700" : "text-slate-700 hover:bg-slate-50"
               }`}

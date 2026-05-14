@@ -50,8 +50,8 @@ export default function CalendarPage() {
     ? calendar.daySummaryMap.get(selectedDate) || null
     : null;
 
-  // No branch selected — show prompt
-  if (!selectedBranchId) {
+  // No branch selected — show prompt (only if not "All Branches")
+  if (selectedBranchId === "") {
     return (
       <div className="h-[calc(100vh-3.5rem)] -m-8 p-8 overflow-hidden flex flex-col">
         <div className="shrink-0">
