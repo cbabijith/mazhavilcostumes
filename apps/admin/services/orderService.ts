@@ -21,7 +21,7 @@ import {
 import { orderRepository, cleaningRepository } from '@/repository';
 import { settingsService } from './settingsService';
 import { damageAssessmentService } from './damageAssessmentService';
-import { CleaningPriority, CleaningStatus } from '@/domain';
+import { CleaningPriority, CleaningStatus, DamageDecision } from '@/domain';
 
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
 const BUFFER_DAYS = 1;
@@ -129,6 +129,10 @@ export class OrderService {
       const cleaningResult = await cleaningRepository.findByOrderAndProduct(order.orderId, productId);
       if (cleaningResult.success && cleaningResult.data) {
         const record = cleaningResult.data;
+        
+        // Skip if cleaning is already done
+        if (record.status === CleaningStatus.COMPLETED) continue;
+
         const currentlyUrgent = record.priority === CleaningPriority.URGENT;
 
         // Only update if priority state actually changed
@@ -147,12 +151,28 @@ export class OrderService {
               : 'Priority removed — no longer needed',
           });
         }
+      } else {
+        // HEALING LOGIC: Recreate missing cleaning record
+        // Status: IN_PROGRESS if order is returned/flagged, else SCHEDULED
+        const isAlreadyBack = ['returned', 'flagged'].includes(order.status);
+        
+        await cleaningRepository.create({
+          product_id: productId,
+          order_id: order.orderId,
+          branch_id: order.branchId,
+          store_id: order.storeId,
+          quantity: order.quantity || 1,
+          status: isAlreadyBack ? CleaningStatus.IN_PROGRESS : CleaningStatus.SCHEDULED,
+          priority: shouldBeUrgent ? CleaningPriority.URGENT : CleaningPriority.NORMAL,
+          priority_order_id: shouldBeUrgent ? priorityForOrderId! : undefined,
+          expected_return_date: order.endDate,
+          started_at: isAlreadyBack ? new Date().toISOString() : undefined,
+          notes: `Auto-healed record during priority recalculation. ${shouldBeUrgent ? 'Marked as URGENT.' : ''}`
+        });
       }
 
-      // Update order's has_priority_cleaning flag
-      await orderRepository.update(order.orderId, {
-        has_priority_cleaning: shouldBeUrgent,
-      } as any);
+      // Sync order's has_priority_cleaning flag based on ALL its cleaning records
+      await orderRepository.syncOrderPriorityFlag(order.orderId);
     }
   }
 
@@ -918,13 +938,30 @@ export class OrderService {
 
     const order = orderResult.data;
 
-    const itemsDone = order.status === OrderStatus.RETURNED;
     const paymentDone = order.payment_status === PaymentStatus.PAID;
+    
+    // Status-based "items done" check
+    let itemsDone = order.status === OrderStatus.RETURNED;
+
+    // If flagged, check if all damage assessments are resolved as reuse
+    if (order.status === OrderStatus.FLAGGED) {
+      const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
+      if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
+        const assessments = assessmentResult.data;
+        const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
+        const anyWriteOff = assessments.some(a => a.decision === DamageDecision.NOT_REUSE);
+        
+        // If all are assessed and NO write-offs, then items are fully processed and back in inventory
+        if (allDone && !anyWriteOff) {
+          itemsDone = true;
+        }
+      }
+    }
 
     if (itemsDone && paymentDone) {
       await orderRepository.update(orderId, { status: OrderStatus.COMPLETED } as any);
       // Add status history entry
-      await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned + payment settled');
+      await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned/reused + payment settled');
     }
   }
 

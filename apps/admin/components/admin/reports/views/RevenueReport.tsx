@@ -34,6 +34,7 @@ const COLORS = {
   cash: "#0ea5e9",      // Sky 500
   upi: "#8b5cf6",       // Violet 500
   gpay: "#f59e0b",      // Amber 500
+  bank_transfer: "#10b981", // Emerald 500
   other: "#64748b"      // Slate 500
 };
 
@@ -150,6 +151,7 @@ export function RevenueView({
     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },
     { name: "UPI", value: reportSummary.total_upi, color: COLORS.upi },
     { name: "GPay", value: reportSummary.total_gpay, color: COLORS.gpay },
+    { name: "Bank Transfer", value: reportSummary.total_bank_transfer, color: COLORS.bank_transfer || "#10b981" },
   ].filter(d => d.value > 0) : [];
 
   return (
@@ -222,6 +224,12 @@ export function RevenueView({
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay</p>
                 <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Bank Transfer</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_bank_transfer)}</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-orange-500">

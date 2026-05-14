@@ -188,13 +188,27 @@ function OrdersContent() {
 
   // ── Filter callbacks (stable references) ───────────────────────────────
   const handleStatusChange = useCallback(
-    (status: string) => updateParams({ status, page: "1" }),
+    (status: string) => updateParams({ 
+      status, 
+      date_filter: "ALL", 
+      date_field: null,
+      date_from: null,
+      date_to: null,
+      exclude_status: null,
+      page: "1" 
+    }),
     [updateParams]
   );
 
   const handleDateFilterChange = useCallback(
-    (filter: string) => updateParams({ date_filter: filter, page: "1" }),
-    [updateParams]
+    (filter: string) => updateParams({ 
+      date_filter: filter, 
+      date_field: filter === 'ALL' ? null : (dateField || null), 
+      date_from: null, 
+      date_to: null,
+      page: "1" 
+    }),
+    [dateField, updateParams]
   );
 
   const handleDateFromChange = useCallback(
@@ -210,6 +224,14 @@ function OrdersContent() {
   const handleSearchChange = useCallback(
     (query: string) => updateParams({ query, page: "1" }),
     [updateParams]
+  );
+  
+  const handleResetFilters = useCallback(
+    () => {
+      // Clear all URL params by navigating to the base pathname
+      router.replace(pathname, { scroll: false });
+    },
+    [router, pathname]
   );
 
   const handlePageChange = useCallback(
@@ -264,6 +286,7 @@ function OrdersContent() {
         onDateToChange={handleDateToChange}
         onSearchChange={handleSearchChange}
         onClearSelection={clearSelection}
+        onResetFilters={handleResetFilters}
       />
 
       {/* Table */}

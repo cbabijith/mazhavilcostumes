@@ -34,6 +34,7 @@ const COLORS = {
   cash: "#0ea5e9",
   upi: "#8b5cf6",
   gpay: "#f59e0b",
+  bank_transfer: "#10b981",
   other: "#64748b",
 };
 
@@ -137,6 +138,7 @@ export function TodaysRevenueView({
     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },
     { name: "UPI", value: reportSummary.total_upi, color: COLORS.upi },
     { name: "GPay", value: reportSummary.total_gpay, color: COLORS.gpay },
+    { name: "Bank Transfer", value: reportSummary.total_bank_transfer, color: COLORS.bank_transfer },
   ].filter(d => d.value > 0) : [];
 
   const todayStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -173,7 +175,7 @@ export function TodaysRevenueView({
           )}
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-slate-900">
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue</p>
@@ -197,9 +199,16 @@ export function TodaysRevenueView({
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay / Other</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_gpay / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-500">
+              <CardContent className="p-5">
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Bank Transfer</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_bank_transfer)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">{reportSummary.total_collected > 0 ? ((reportSummary.total_bank_transfer / reportSummary.total_collected) * 100).toFixed(1) : '0.0'}% of collected</p>
               </CardContent>
             </Card>
           </div>

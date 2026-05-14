@@ -149,9 +149,9 @@ export class InvoiceService {
     const totalDiscount = (Number(order.discount) || 0) + itemDiscountTotal;
 
     return {
-      companyName: order.store?.name || 'Mazhavil Costumes',
-      companyAddress: order.store?.address,
-      companyPhone: order.store?.phone,
+      companyName: order.store?.name || 'Mazhavil Dance Costumes',
+      companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
+      companyPhone: order.store?.phone || '9446961765, 9447961765',
       companyEmail: order.store?.email,
       companyGstin: order.store?.gstin,
 

@@ -57,6 +57,7 @@ interface OrderFiltersProps {
   onDateToChange: (date: string) => void;
   onSearchChange: (query: string) => void;
   onClearSelection: () => void;
+  onResetFilters: () => void;
 }
 
 function OrderFiltersInner({
@@ -74,6 +75,7 @@ function OrderFiltersInner({
   onDateToChange,
   onSearchChange,
   onClearSelection,
+  onResetFilters,
 }: OrderFiltersProps) {
   const [searchInput, setSearchInput] = useState(initialQuery);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -243,15 +245,29 @@ function OrderFiltersInner({
             />
           </div>
 
-          {selectedCount > 0 && (
+          {(selectedCount > 0 || statusFilter !== "ALL" || dateFilter !== "ALL" || initialQuery !== "") && (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">
-                {selectedCount} selected
-              </span>
+              {selectedCount > 0 && (
+                <span className="text-sm font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">
+                  {selectedCount} selected
+                </span>
+              )}
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="ghost" onClick={onClearSelection}>
-                  Clear
-                </Button>
+                {selectedCount > 0 && (
+                  <Button size="sm" variant="ghost" onClick={onClearSelection}>
+                    Clear Selection
+                  </Button>
+                )}
+                {(statusFilter !== "ALL" || dateFilter !== "ALL" || initialQuery !== "") && (
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={onResetFilters}
+                    className="text-xs border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    Reset Filters
+                  </Button>
+                )}
               </div>
             </div>
           )}
