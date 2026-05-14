@@ -56,9 +56,17 @@ export class OrderService {
 
     const orders = activeResult.data;
 
-    // 2. Get product total stock quantity
-    const totalStock = await orderRepository.getProductTotalQuantity(productId);
+    // 2. Get product total stock quantity and category buffer setting
+    const productInfo = await orderRepository.getProductBufferInfo(productId);
+    if (!productInfo.success || !productInfo.data) return;
+    
+    const { quantity: totalStock, has_buffer: categoryHasBuffer } = productInfo.data;
+
     if (totalStock === 0) return;
+
+    // The cleaning buffer is 1 day unless disabled at category level
+    const currentBufferDays = categoryHasBuffer ? BUFFER_DAYS : 0;
+    const currentBufferMs = currentBufferDays * 24 * 60 * 60 * 1000;
 
     // 3. Determine which orders need priority cleaning using stock-aware logic.
     //    An order needs priority cleaning ONLY if the total units in use on
@@ -77,7 +85,7 @@ export class OrderService {
 
       // Buffer boundary: current end + buffer days
       const bufferEnd = new Date(currentEndDate);
-      bufferEnd.setDate(bufferEnd.getDate() + BUFFER_DAYS);
+      bufferEnd.setDate(bufferEnd.getDate() + currentBufferDays);
 
       // Find ALL orders that start within this buffer boundary
       for (let j = 0; j < orders.length; j++) {
@@ -100,7 +108,7 @@ export class OrderService {
           if (otherOrder.orderId === next.orderId) continue; // Don't count the order that needs the units
           const otherStart = new Date(otherOrder.startDate).getTime();
           const otherEnd = new Date(otherOrder.endDate).getTime();
-          const otherBufferEnd = otherEnd + BUFFER_DAYS * 24 * 60 * 60 * 1000;
+          const otherBufferEnd = otherEnd + currentBufferMs;
 
           // Is this order's rental or cleaning period active on the buffer day?
           const isRentalDay = otherStart <= bufferDayMs && otherEnd >= bufferDayMs;

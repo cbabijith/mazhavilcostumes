@@ -303,15 +303,31 @@ export default function OrderForm({ initialData }: OrderFormProps) {
 
   // Handlers
   const addToCart = (product: any) => {
-    if (product.available_quantity !== undefined && product.available_quantity < 1) {
-      showError("Out of Stock", "This product is currently out of stock.");
+    console.log('--- Add to Cart Debug ---');
+    console.log('Product:', product.name);
+    console.log('Current shelf stock (available_quantity):', product.available_quantity);
+    console.log('Total stock (quantity):', product.quantity);
+    
+    // Use total quantity to check for absolute out-of-stock. 
+    // In rental, available_quantity < 1 just means it's currently with a customer, 
+    // but it can still be booked for future dates.
+    const totalQty = product.quantity ?? product.available_quantity ?? 0;
+    if (totalQty < 1) {
+      showError("Out of Stock", "This product has no stock assigned to this branch.");
       return;
     }
 
     const searchAvail = searchAvailabilityMap.get(product.id);
     const searchMaxAvail = (searchAvail as any)?.availableWithPriority ?? searchAvail?.available ?? 0;
+    
+    console.log('Search Availability:', searchAvail);
+    console.log('Max Available for Dates:', searchMaxAvail);
+
     if (searchAvail && searchMaxAvail < 1) {
-      showError("Unavailable for Dates", `0 available for the selected dates (even with priority cleaning).`);
+      const cData = product.category;
+      const cat = Array.isArray(cData) ? cData[0] : cData;
+      const hasBuffer = cat?.has_buffer ?? true;
+      showError("Unavailable for Dates", hasBuffer ? `0 available for the selected dates (even with priority cleaning).` : `0 available for the selected dates.`);
       return;
     }
 
@@ -344,7 +360,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       
       const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
       if (cartAvail && itemToUpdate && itemToUpdate.quantity >= maxQty) {
-        showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
+        const cData = itemToUpdate.product.category;
+        const cat = Array.isArray(cData) ? cData[0] : cData;
+        const hasBuffer = cat?.has_buffer ?? true;
+        
+        const msg = hasBuffer 
+          ? `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`
+          : `Maximum ${maxQty} available for these dates.`;
+          
+        showError("Unavailable for Dates", msg);
         return;
       }
     }
@@ -856,7 +880,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                       {isCheckingSearch 
                                         ? "Checking dates..." 
                                         : sAvail 
-                                          ? (sAvail.available > 0 ? `${sAvail.available} free for dates` : `0 free (${sMaxAvail} with priority cleaning)`)
+                                          ? (sAvail.available > 0 
+                                              ? `${sAvail.available} free for dates` 
+                                              : (() => {
+                                                  const cData = p.category;
+                                                  const cat = Array.isArray(cData) ? cData[0] : cData;
+                                                  const hasBuffer = cat?.has_buffer ?? true;
+                                                  return hasBuffer ? `0 free (${sMaxAvail} with priority cleaning)` : `0 free (Unavailable)`;
+                                                })()
+                                            )
                                           : `${p.available_quantity} in stock`}
                                     </span>
                                   </div>
@@ -940,11 +972,21 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           <div className={`mt-2 px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 ${isItemUnavailable ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                             {isCheckingAvailability ? (
                               <><Loader2 className="w-3 h-3 animate-spin" /> Checking...</>
-                            ) : isItemUnavailable ? (
-                              <><AlertTriangle className="w-3 h-3 flex-shrink-0" /> <span>Unavailable — only <strong>{avail.available}</strong> free for these dates (need {item.quantity})</span></>
-                            ) : (
-                              <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.available + avail.peakReserved} free for this period{(avail as any).priorityCleaningNeeded ? <span className="text-amber-600 ml-1">({(avail as any).availableWithPriority} with priority cleaning)</span> : null}</span></>
-                            )}
+                            ) : (() => {
+                               const cData = item.product.category;
+                               const cat = Array.isArray(cData) ? cData[0] : cData;
+                               const hasBuffer = cat?.has_buffer ?? true;
+                               
+                               if (isItemUnavailable) {
+                                 return (
+                                   <><AlertTriangle className="w-3 h-3 flex-shrink-0" /> <span>Unavailable — only <strong>{avail.available}</strong> free for these dates (need {item.quantity})</span></>
+                                 );
+                               }
+
+                               return (
+                                <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.available + avail.peakReserved} free for this period{hasBuffer && (avail as any).priorityCleaningNeeded ? <span className="text-amber-600 ml-1">({(avail as any).availableWithPriority} with priority cleaning)</span> : null}</span></>
+                               );
+                            })()}
                           </div>
                         )}
                         {avail && (() => {
@@ -1046,8 +1088,13 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           );
                         })()}
 
-                        {/* Auto Priority Cleaning Warning Banner — only when qty exceeds free stock */}
+                        {/* Auto Priority Cleaning Warning Banner — only when qty exceeds free stock and product has buffer */}
                         {avail && (avail as any).priorityCleaningNeeded && item.quantity > avail.available && (() => {
+                          const cData = item.product.category;
+                          const cat = Array.isArray(cData) ? cData[0] : cData;
+                          const hasBuffer = cat?.has_buffer ?? true;
+                          if (!hasBuffer) return null;
+
                           const neededExtra = item.quantity - avail.available;
                           const allInfo = (avail as any).priorityCleaningInfo || [];
                           // Accumulate from sorted list until we have enough
@@ -1101,7 +1148,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 const cartAvail = availabilityMap.get(item.product.id);
                                 const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
                                 if (cartAvail && val > maxQty) {
-                                  showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
+                                  const cData = item.product.category;
+                                  const cat = Array.isArray(cData) ? cData[0] : cData;
+                                  const hasBuffer = cat?.has_buffer ?? true;
+                                  
+                                  const msg = hasBuffer 
+                                    ? `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`
+                                    : `Maximum ${maxQty} available for these dates.`;
+                                    
+                                  showError("Unavailable for Dates", msg);
                                   e.target.value = String(item.quantity);
                                   return;
                                 }
@@ -1118,7 +1173,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 const cartAvail = availabilityMap.get(item.product.id);
                                 const maxQty = (cartAvail as any)?.availableWithPriority ?? cartAvail?.available ?? 0;
                                 if (cartAvail && clamped > maxQty) {
-                                  showError("Unavailable for Dates", `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`);
+                                  const cData = item.product.category;
+                                  const cat = Array.isArray(cData) ? cData[0] : cData;
+                                  const hasBuffer = cat?.has_buffer ?? true;
+                                  
+                                  const msg = hasBuffer 
+                                    ? `Maximum ${maxQty} available for these dates (${cartAvail.available} free + ${maxQty - cartAvail.available} with priority cleaning).`
+                                    : `Maximum ${maxQty} available for these dates.`;
+                                    
+                                  showError("Unavailable for Dates", msg);
                                   e.target.value = String(item.quantity);
                                   return;
                                 }

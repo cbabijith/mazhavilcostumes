@@ -257,6 +257,33 @@ export class OrderRepository extends BaseRepository {
    *
    * @param excludeOrderId - Exclude this order from the count (for edit scenarios)
    */
+  /**
+   * Get product total quantity and category buffer setting.
+   * Used for internal calculations.
+   */
+  async getProductBufferInfo(productId: string): Promise<RepositoryResult<{ quantity: number; has_buffer: boolean }>> {
+    const response = await this.client
+      .from('products')
+      .select('quantity, category:category_id(has_buffer)')
+      .eq('id', productId)
+      .single();
+      
+    if (response.error) return this.handleResponse(response as any);
+    
+    const data = response.data as any;
+    const categoryData = data.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    
+    return {
+      success: true,
+      error: null,
+      data: {
+        quantity: data.quantity || 0,
+        has_buffer: category?.has_buffer ?? true
+      }
+    };
+  }
+
   async checkAvailability(
     productId: string,
     startDate: string,
@@ -277,7 +304,11 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || 'Unknown';
-    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // Handle Supabase join ambiguity (could be object or array)
+    const categoryData = productResponse.data?.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    const categoryHasBuffer = category?.has_buffer ?? true;
     
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
@@ -591,7 +622,12 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || '';
-    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // Handle Supabase join ambiguity (could be object or array)
+    const categoryData = productResponse.data?.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    const categoryHasBuffer = category?.has_buffer ?? true;
+    
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
@@ -621,8 +657,8 @@ export class OrderRepository extends BaseRepository {
       const bookingEnd = new Date(order.end_date);
 
       // Include if the booking's buffered range overlaps with our view range
-      const bufferedStart = new Date(bookingStart.getTime() - BUFFER_MS);
-      const bufferedEnd = new Date(bookingEnd.getTime() + BUFFER_MS);
+      const bufferedStart = new Date(bookingStart.getTime() - effectiveBuffer);
+      const bufferedEnd = new Date(bookingEnd.getTime() + effectiveBuffer);
       if (bufferedStart <= viewEnd && bufferedEnd >= viewStart) {
         const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
         bookings.push({
