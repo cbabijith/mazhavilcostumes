@@ -86,7 +86,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <img src="/logo.jpeg" alt="Mazhavil Costumes" className="w-10 h-10 rounded-lg object-contain" />
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Mazhavil Costumes</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">Mazhavil Dance Costumes</h1>
             <p className="text-xs text-slate-400">Admin Dashboard</p>
           </div>
         </div>

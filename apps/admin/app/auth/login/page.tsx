@@ -54,7 +54,7 @@ export default function LoginPage() {
              <img src="/logo.jpeg" alt="Mazhavil Costumes Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-white uppercase tracking-widest">
-            Mazhavil Costumes
+            Mazhavil Dance Costumes
           </span>
         </div>
 

@@ -48,6 +48,7 @@ export interface CreateCleaningRecordDTO {
   priority?: CleaningPriority;
   priority_order_id?: string;
   expected_return_date?: string;
+  started_at?: string | null;
   notes?: string;
 }
 

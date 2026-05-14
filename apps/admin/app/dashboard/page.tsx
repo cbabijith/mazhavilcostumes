@@ -335,22 +335,27 @@ export default async function DashboardPage(props: {
                     <p className="text-xs text-slate-500 mb-3">
                       Total money actually received (Advance + Final) during this period across all payment modes.
                     </p>
-                    <div className="flex items-center gap-4 mt-1 bg-slate-50 p-2 rounded-lg">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">Cash</span>
-                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_cash)}</span>
+                      <div className="flex items-center gap-4 mt-1 bg-slate-50 p-2 rounded-lg overflow-x-auto scrollbar-hide">
+                        <div className="flex flex-col min-w-fit">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">Cash</span>
+                          <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_cash)}</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200 shrink-0" />
+                        <div className="flex flex-col min-w-fit">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">UPI</span>
+                          <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_upi)}</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200 shrink-0" />
+                        <div className="flex flex-col min-w-fit">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">GPay</span>
+                          <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_gpay)}</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200 shrink-0" />
+                        <div className="flex flex-col min-w-fit">
+                          <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">Bank</span>
+                          <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_bank_transfer)}</span>
+                        </div>
                       </div>
-                      <div className="w-px h-6 bg-slate-200" />
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">UPI</span>
-                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_upi)}</span>
-                      </div>
-                      <div className="w-px h-6 bg-slate-200" />
-                      <div className="flex flex-col">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold leading-none mb-1">GPay</span>
-                        <span className="text-xs font-black text-slate-900">{formatCurrency(metrics.total_gpay)}</span>
-                      </div>
-                    </div>
                   </CardContent>
                 </Card>
               </Link>

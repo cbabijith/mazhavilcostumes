@@ -91,6 +91,7 @@ export interface RevenueRow {
   cash_revenue: number;
   upi_revenue: number;
   gpay_revenue: number;
+  bank_transfer_revenue: number;
   other_revenue: number;
   total_revenue: number;      // Gross collected
   order_count: number;
@@ -121,6 +122,7 @@ export interface RevenueReportData {
   total_cash: number;
   total_upi: number;
   total_gpay: number;
+  total_bank_transfer: number;
   total_collected: number;
   total_refunded: number;
   cancelled_total: number;

@@ -106,6 +106,7 @@ export interface DashboardMetrics {
   total_cash: number;
   total_upi: number;
   total_gpay: number;
+  total_bank_transfer: number;
   total_amount_collection: number;
   bookingVelocity: {
     date: string;
@@ -154,6 +155,7 @@ export interface DailyReportStats {
     cash: number;
     upi: number;
     gpay: number;
+    bank_transfer: number;
     other: number;
   };
   details: {
@@ -493,6 +495,7 @@ export class DashboardService {
     const total_cash = currentMetrics.total_cash;
     const total_upi = currentMetrics.total_upi;
     const total_gpay = currentMetrics.total_gpay;
+    const total_bank_transfer = currentMetrics.total_bank_transfer;
 
     const dailyRevenue = dailyTrends.map(t => ({
       date: format(new Date(t.date), 'MMM dd'),
@@ -615,6 +618,7 @@ export class DashboardService {
       total_cash,
       total_upi,
       total_gpay,
+      total_bank_transfer,
       total_amount_collection: currentRevenue,
       bookingVelocity,
       topPerformers,
@@ -753,15 +757,31 @@ export class DashboardService {
       (sum, p) => sum + Number(p.amount || 0), 0
     );
 
-    const mode_breakdown = { cash: 0, upi: 0, gpay: 0, other: 0 };
+    // 8. Breakdown calculations
+    const r = (n: number) => {
+      const val = Math.round(n * 100) / 100;
+      return isNaN(val) ? 0 : val;
+    };
+
+    const mode_breakdown = { cash: 0, upi: 0, gpay: 0, bank_transfer: 0, other: 0 };
     revenueList.forEach(p => {
       const mode = (p.payment_mode || '').toLowerCase();
       const amount = Number(p.amount || 0);
+      if (isNaN(amount)) return;
+
       if (mode === 'cash') mode_breakdown.cash += amount;
       else if (mode === 'upi') mode_breakdown.upi += amount;
       else if (mode === 'gpay') mode_breakdown.gpay += amount;
+      else if (mode === 'bank_transfer') mode_breakdown.bank_transfer += amount;
       else mode_breakdown.other += amount;
     });
+
+    // Sanitize breakdown with rounding
+    mode_breakdown.cash = r(mode_breakdown.cash);
+    mode_breakdown.upi = r(mode_breakdown.upi);
+    mode_breakdown.gpay = r(mode_breakdown.gpay);
+    mode_breakdown.bank_transfer = r(mode_breakdown.bank_transfer);
+    mode_breakdown.other = r(mode_breakdown.other);
 
     const todaysSales = bookingList.reduce(
       (sum, o) => sum + Number(o.total_amount || 0), 0

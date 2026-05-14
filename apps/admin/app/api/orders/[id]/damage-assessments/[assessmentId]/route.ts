@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { damageAssessmentService } from '@/services/damageAssessmentService';
+import { orderService } from '@/services/orderService';
 import { DamageDecision } from '@/domain';
 
 export async function PATCH(
@@ -15,7 +16,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; assessmentId: string }> }
 ) {
   try {
-    const { assessmentId } = await params;
+    const { id: orderId, assessmentId } = await params;
     const body = await request.json();
 
     const { decision, notes } = body;
@@ -39,6 +40,10 @@ export async function PATCH(
         { status: 500 }
       );
     }
+
+    // After successful assessment, check if order can be auto-completed
+    // (if all assessments done and all were reuse)
+    await orderService.checkAndAutoComplete(orderId);
 
     return NextResponse.json({
       success: true,

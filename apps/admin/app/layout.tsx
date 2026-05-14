@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Costumes Admin",
-  description: "Admin dashboard for Mazhavil Costumes costumes rental system",
+  title: "Mazhavil Dance Costumes Admin",
+  description: "Admin dashboard for Mazhavil Dance Costumes costumes rental system",
   icons: {
     icon: "/logo.jpeg",
     apple: "/logo.jpeg",

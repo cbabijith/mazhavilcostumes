@@ -32,11 +32,17 @@ const supabase = () => createAdminClient();
 export class ReportService {
   private getISTDateContext() {
     const now = new Date();
-    const istOffset = 5.5 * 60 * 60 * 1000;
-    const istNow = new Date(now.getTime() + istOffset);
+    // Use Intl to get the current date string in IST consistently
+    const istDateStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now); // "YYYY-MM-DD"
+
     return {
-      now: istNow,
-      today: istNow.toLocaleDateString('en-CA'), // YYYY-MM-DD
+      now,
+      today: istDateStr,
     };
   }
 
@@ -157,8 +163,8 @@ export class ReportService {
           )
         )
       `, { count: 'exact' })
-      .gte('payment_date', fromDate)
-      .lte('payment_date', toDate)
+      .gte('payment_date', range.start)
+      .lte('payment_date', range.end)
       .order('payment_date', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -202,6 +208,7 @@ export class ReportService {
       total_cash: metrics.total_cash,
       total_upi: metrics.total_upi,
       total_gpay: metrics.total_gpay,
+      total_bank_transfer: metrics.total_bank_transfer,
       total_damage_charges: metrics.total_damage_charges,
       total_late_fees: metrics.total_late_fees,
       total_details_count: statusFilter ? detailsData.length : (totalDetailsCount || 0),
@@ -241,8 +248,8 @@ export class ReportService {
           customer:customer_id(name)
         )
       `)
-      .gte('payment_date', fromDate)
-      .lte('payment_date', toDate);
+      .gte('payment_date', range.start)
+      .lte('payment_date', range.end);
 
     if (branchId) aggQuery = aggQuery.eq('order.branch_id', branchId);
     if (storeId) aggQuery = aggQuery.eq('order.store_id', storeId);
@@ -309,6 +316,7 @@ export class ReportService {
     let totalCash = 0;
     let totalUpi = 0;
     let totalGpay = 0;
+    let totalBankTransfer = 0;
     let cancelledNet = 0;
 
     // A. Process Booking Sales (Business Won)
@@ -388,6 +396,8 @@ export class ReportService {
         if (mode === 'cash') { g.cash_revenue += amount; totalCash += amount; }
         else if (mode === 'upi') { g.upi_revenue += amount; totalUpi += amount; }
         else if (mode === 'gpay') { g.gpay_revenue += amount; totalGpay += amount; }
+        else if (mode === 'bank_transfer') { g.bank_transfer_revenue += amount; totalBankTransfer += amount; }
+        else { g.other_revenue += amount; }
 
         // Status breakdown
         if (status === 'cancelled') {
@@ -433,6 +443,7 @@ export class ReportService {
       cash_revenue: r(g.cash_revenue),
       upi_revenue: r(g.upi_revenue),
       gpay_revenue: r(g.gpay_revenue),
+      bank_transfer_revenue: r(g.bank_transfer_revenue),
       other_revenue: r(g.other_revenue),
     })).sort((a: any, b: any) => b.period.localeCompare(a.period));
 
@@ -453,6 +464,7 @@ export class ReportService {
       total_cash: r(totalCash),
       total_upi: r(totalUpi),
       total_gpay: r(totalGpay),
+      total_bank_transfer: r(totalBankTransfer),
       total_refunded: r(totalRefunded),
       cancelled_total: r(cancelledNet), // Net profit from cancellations
       refund_due: r(refundDueAmount),
@@ -478,6 +490,7 @@ export class ReportService {
       cash_revenue: 0,
       upi_revenue: 0,
       gpay_revenue: 0,
+      bank_transfer_revenue: 0,
       other_revenue: 0,
       total_revenue: 0,
       order_count: 0

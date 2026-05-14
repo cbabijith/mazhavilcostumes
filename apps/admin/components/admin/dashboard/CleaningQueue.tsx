@@ -29,8 +29,8 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
   const pathname = usePathname();
 
   const filter = (searchParams.get("filter") || "all") as "all" | "priority";
-  const sortBy = searchParams.get("sort_by") || "";
-  const sortOrder = searchParams.get("sort_order") || "desc";
+  const sortBy = searchParams.get("sort_by") || "expected_return_date";
+  const sortOrder = searchParams.get("sort_order") || "asc";
 
   const { data: queue, isLoading } = useCleaningQueue(branchId, {
     sort_by: sortBy || undefined,

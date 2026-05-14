@@ -334,7 +334,7 @@ function ReportsPageContent() {
     let exportData = sortedData;
     let exportColumns = getExportColumns();
     
-    if ((selectedReport === 'gst-filing' || selectedReport === 'revenue') && gstDetails.length > 0) {
+    if ((selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
       exportData = gstDetails;
       if (selectedReport === 'gst-filing') {
         exportColumns = [
@@ -461,8 +461,8 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue'}
-        needsPaymentModeFilter={selectedReport === 'revenue'}
+        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
+        needsPaymentModeFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
       />
 
       {error && (
@@ -475,7 +475,7 @@ function ReportsPageContent() {
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
         {selectedReport === 'day-wise-booking' && <DayWiseBookingView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'due-overdue' && <DueOverdueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'todays-revenue' && <TodaysRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} />}
+        {selectedReport === 'todays-revenue' && <TodaysRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
         {selectedReport === 'revenue' && <RevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
         {selectedReport === 'top-costumes' && <TopCostumesView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} rankBy={filters.rank_by || 'count'} />}
         {selectedReport === 'top-customers' && <TopCustomersView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}

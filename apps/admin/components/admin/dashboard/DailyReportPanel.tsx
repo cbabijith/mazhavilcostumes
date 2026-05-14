@@ -48,6 +48,7 @@ interface DailyReportStats {
     cash: number;
     upi: number;
     gpay: number;
+    bank_transfer: number;
     other: number;
   };
   details: {
@@ -123,7 +124,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
     // Header
     doc.setFontSize(22);
     doc.setTextColor(15, 23, 42); // slate-900
-    doc.text("Mazhavil Costumes", 14, 20);
+    doc.text("Mazhavil Dance Costumes", 14, 20);
     
     doc.setFontSize(12);
     doc.setTextColor(100, 116, 139); // slate-500
@@ -140,7 +141,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
       head: [["Metric", "Value", "Status"]],
       body: [
         ["Total Bookings Today", String(stats.todaysBookings), `${formatPDFCurrency(stats.todaysSales)} Value`],
-        ["Amount Collection", formatPDFCurrency(stats.todaysCollection), stats.todaysRefunds > 0 ? `Net: ${formatPDFCurrency(stats.todaysCollection - stats.todaysRefunds)} (${formatPDFCurrency(stats.todaysRefunds)} Refund)` : `Net: ${formatPDFCurrency(stats.todaysCollection)}`],
+        ["Amount Collection (Net)", formatPDFCurrency(stats.todaysCollection - stats.todaysRefunds), `Gross: ${formatPDFCurrency(stats.todaysCollection)}${stats.todaysRefunds > 0 ? ` (Refund: ${formatPDFCurrency(stats.todaysRefunds)})` : ""}`],
         ["Deliveries", `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`, stats.todaysDelivery.total - stats.todaysDelivery.delivered > 0 ? "Pending" : "Completed"],
         ["Returns", `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`, stats.todaysReturn.total - stats.todaysReturn.returned > 0 ? "Pending" : "Completed"],
         ["Damaged Items Today", String(stats.damagedOrders), stats.damagedOrders > 0 ? "Flagged" : "None"],
@@ -158,7 +159,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         ["Cash", formatPDFCurrency(stats.mode_breakdown.cash)],
         ["UPI", formatPDFCurrency(stats.mode_breakdown.upi)],
         ["GPay", formatPDFCurrency(stats.mode_breakdown.gpay)],
-        ["Other", formatPDFCurrency(stats.mode_breakdown.other)],
+        ["Bank Transfer", formatPDFCurrency(stats.mode_breakdown.bank_transfer)],
       ],
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42] },
@@ -229,12 +230,14 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
     },
     {
       label: "Amount Collection",
-      value: formatCurrency(stats.todaysCollection),
-      subtitle: `C: ${formatCurrency(stats.mode_breakdown.cash)} • U: ${formatCurrency(stats.mode_breakdown.upi)} • G: ${formatCurrency(stats.mode_breakdown.gpay)}`,
+      value: formatCurrency(stats.todaysCollection - stats.todaysRefunds),
+      subtitle: stats.todaysRefunds > 0 
+        ? `Net of ${formatCurrency(stats.todaysRefunds)} refund (Gross: ${formatCurrency(stats.todaysCollection)})`
+        : `C: ${formatCurrency(stats.mode_breakdown.cash)} • U: ${formatCurrency(stats.mode_breakdown.upi)} • G: ${formatCurrency(stats.mode_breakdown.gpay)} • B: ${formatCurrency(stats.mode_breakdown.bank_transfer)}`,
       icon: Banknote,
       color: "green",
       href: null,
-      isEmpty: stats.todaysCollection === 0,
+      isEmpty: stats.todaysCollection === 0 && stats.todaysRefunds === 0,
       isCurrency: true,
     },
     {

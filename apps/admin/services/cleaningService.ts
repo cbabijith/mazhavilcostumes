@@ -15,6 +15,7 @@ import {
   CleaningPriority
 } from '@/domain';
 import { cleaningRepository } from '@/repository/cleaningRepository';
+import { orderRepository } from '@/repository/orderRepository';
 import { RepositoryResult } from '@/repository/supabaseClient';
 
 export class CleaningService {
@@ -55,20 +56,32 @@ export class CleaningService {
    * Complete cleaning
    */
   async completeCleaning(id: string): Promise<RepositoryResult<CleaningRecord>> {
-    return cleaningRepository.update(id, {
+    const result = await cleaningRepository.update(id, {
       status: CleaningStatus.COMPLETED,
       completed_at: new Date().toISOString()
     });
+
+    if (result.success && result.data) {
+      await orderRepository.syncOrderPriorityFlag(result.data.order_id);
+    }
+
+    return result;
   }
 
   /**
    * Update priority
    */
   async updatePriority(id: string, priority: CleaningPriority, priorityOrderId?: string): Promise<RepositoryResult<CleaningRecord>> {
-    return cleaningRepository.update(id, {
+    const result = await cleaningRepository.update(id, {
       priority,
       priority_order_id: priorityOrderId
     });
+
+    if (result.success && result.data) {
+      await orderRepository.syncOrderPriorityFlag(result.data.order_id);
+    }
+
+    return result;
   }
 
   /**
@@ -110,7 +123,10 @@ export class CleaningService {
         status: CleaningStatus.COMPLETED,
         completed_at: new Date().toISOString(),
       });
-      if (result.success) count++;
+      if (result.success && result.data) {
+        await orderRepository.syncOrderPriorityFlag(result.data.order_id);
+        count++;
+      }
     }
 
     console.log(`[Cleaning Cron] Auto-completed ${count} cleaning records (buffer: ${bufferDays} day(s))`);

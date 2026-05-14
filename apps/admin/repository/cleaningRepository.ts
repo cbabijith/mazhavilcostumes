@@ -54,13 +54,15 @@ export class CleaningRepository extends BaseRepository {
           query = query.order(params.sort_by, { ascending });
         }
       } else {
-        // Default sort: Urgent first, then oldest first
+        // Default sort: Urgent first, then returning soonest first
         query = query
           .order('priority', { ascending: false })
-          .order('created_at', { ascending: true });
+          .order('expected_return_date', { ascending: true })
+          .order('created_at', { ascending: false });
       }
 
-      return query;
+      const response = await query;
+      return response;
     });
   }
 

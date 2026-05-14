@@ -122,7 +122,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   // Projected amount due including pending return fees (live preview)
   const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
-  const projected_total = order ? order.total_amount + calculatedDamage + lateFee - discount : 0;
+  
+  // To avoid double-counting, we calculate the projected total by starting from the "clean" base 
+  // (Order Total - Persisted Damage - Persisted Late Fee + Persisted Discount) 
+  // and then adding our local return-time adjustments.
+  const baseTotalBeforeReturn = order 
+    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0) + (order.discount || 0)) 
+    : 0;
+
+  const projected_total = order ? baseTotalBeforeReturn + calculatedDamage + lateFee - discount : 0;
   const amount_due = order ? Math.max(0, projected_total - (order.amount_paid || 0)) : 0;
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
   const totalDeductions = calculatedDamage + lateFee - discount;
@@ -845,8 +853,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
                       <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
                       <div className="flex justify-between text-sm text-slate-700">
-                        <span>Original Total</span>
-                        <span className="font-bold">{formatCurrency(order.total_amount)}</span>
+                        <span>Base Order Total</span>
+                        <span className="font-bold">{formatCurrency(baseTotalBeforeReturn)}</span>
                       </div>
                       {calculatedDamage > 0 && (
                         <div className="flex justify-between text-sm text-orange-700">

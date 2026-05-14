@@ -34,8 +34,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const json = await response.json();
-          const authUser = json.data?.user || json.user; // Handle apiSuccess envelope
-          console.log('[AuthProvider] authUser from /api/auth/me:', authUser);
+          const authUser = json.data?.user || json.user; 
           if (authUser) {
             setUser({
               ...authUser,
@@ -43,8 +42,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             });
             setAuthenticated(true);
           }
+        } else if (response.status === 401) {
+          // Session expired or invalid
+          setAuthenticated(false);
+          setUser(null);
+          if (!pathname.startsWith('/auth')) {
+            router.push('/auth/login');
+          }
+          return;
         } else {
-          // If profile fetch fails, user might not be in staff table
+          // If profile fetch fails for other reasons (e.g. not in staff table yet)
           // but we still have an auth session.
           setUser({
             id: session.user.id,
@@ -67,6 +74,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     initAuth();
 
+    // 3. Global Fetch Interceptor for 401s
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      if (response.status === 401) {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0] as Request).url;
+        // Don't intercept the me call or auth calls to avoid loops
+        if (!url.includes('/api/auth/me') && !url.includes('/auth/')) {
+          setAuthenticated(false);
+          setUser(null);
+          router.push('/auth/login');
+        }
+      }
+      return response;
+    };
+
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
@@ -79,6 +102,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     });
 
     return () => {
+      window.fetch = originalFetch; // Cleanup
       subscription.unsubscribe();
     };
   }, [setUser, setAuthenticated, setLoading, router, pathname, supabase]);

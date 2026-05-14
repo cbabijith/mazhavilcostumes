@@ -386,7 +386,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
             <View style={s.halfLeft}>
               <Text style={s.companyName}>{companyName}</Text>
               {companyAddress ? <Text style={s.infoText}>{companyAddress}</Text> : null}
-              {companyPhone ? <Text style={s.infoText}>Phone: {companyPhone}</Text> : null}
+              {companyPhone ? <Text style={s.infoText}>Mobile: {companyPhone}</Text> : null}
               {companyEmail ? <Text style={s.infoText}>Email: {companyEmail}</Text> : null}
               {companyGstin ? <Text style={s.infoTextBold}>GSTIN: {companyGstin}</Text> : null}
             </View>
@@ -554,9 +554,16 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
           {/* ── Footer ── */}
           <View style={s.footerRow}>
             <View style={s.termsCol}>
-              <Text style={s.footerLabel}>Payment Terms</Text>
+              <Text style={s.footerLabel}>Terms & Conditions</Text>
+              <Text style={s.footerTerms}>1) Rent will be charged on daily basis.</Text>
+              <Text style={s.footerTerms}>2) Damages / shortages will be charged extra.</Text>
+              <Text style={s.footerTerms}>3) Advance paid will not be refunded on cancellation of order.</Text>
+              <Text style={s.footerTerms}>4) While taking delivery of goods security deposits and copy of ID card is mandatory.</Text>
+              
               {termsAndConditions ? (
-                <Text style={s.footerTerms}>{termsAndConditions}</Text>
+                <View style={{ marginTop: 4 }}>
+                  <Text style={s.footerTerms}>{termsAndConditions}</Text>
+                </View>
               ) : null}
             </View>
             <View style={s.signatureCol}>

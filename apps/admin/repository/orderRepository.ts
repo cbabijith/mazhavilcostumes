@@ -237,7 +237,7 @@ export class OrderRepository extends BaseRepository {
         branch:branch_id(id, name)
       `)
       .eq('branch_id', branchId)
-      .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged'])
+      .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .order('start_date', { ascending: true });
@@ -257,6 +257,33 @@ export class OrderRepository extends BaseRepository {
    *
    * @param excludeOrderId - Exclude this order from the count (for edit scenarios)
    */
+  /**
+   * Get product total quantity and category buffer setting.
+   * Used for internal calculations.
+   */
+  async getProductBufferInfo(productId: string): Promise<RepositoryResult<{ quantity: number; has_buffer: boolean }>> {
+    const response = await this.client
+      .from('products')
+      .select('quantity, category:category_id(has_buffer)')
+      .eq('id', productId)
+      .single();
+      
+    if (response.error) return this.handleResponse(response as any);
+    
+    const data = response.data as any;
+    const categoryData = data.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    
+    return {
+      success: true,
+      error: null,
+      data: {
+        quantity: data.quantity || 0,
+        has_buffer: category?.has_buffer ?? true
+      }
+    };
+  }
+
   async checkAvailability(
     productId: string,
     startDate: string,
@@ -277,7 +304,11 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || 'Unknown';
-    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // Handle Supabase join ambiguity (could be object or array)
+    const categoryData = productResponse.data?.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    const categoryHasBuffer = category?.has_buffer ?? true;
     
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
@@ -287,7 +318,7 @@ export class OrderRepository extends BaseRepository {
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
 
     if (ordersResponse.error) {
       return this.handleResponse<any>(ordersResponse);
@@ -482,7 +513,7 @@ export class OrderRepository extends BaseRepository {
     const order = orderRes.data;
 
     // Only active orders can have conflicts
-    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial'];
+    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'];
     if (!activeStatuses.includes(order.status)) {
       if (order.has_stock_conflict) {
         await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
@@ -550,7 +581,7 @@ export class OrderRepository extends BaseRepository {
       .from(this.orderItemsTable)
       .select('order_id, orders!inner(id, status, end_date)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial'])
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
       .gte('orders.end_date', todayStr);
 
     if (error || !orderItems) return;
@@ -591,7 +622,12 @@ export class OrderRepository extends BaseRepository {
 
     const totalQuantity = productResponse.data?.quantity || 0;
     const productName = productResponse.data?.name || '';
-    const categoryHasBuffer = (productResponse.data as any)?.category?.has_buffer ?? true;
+    
+    // Handle Supabase join ambiguity (could be object or array)
+    const categoryData = productResponse.data?.category;
+    const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+    const categoryHasBuffer = category?.has_buffer ?? true;
+    
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
@@ -599,7 +635,7 @@ export class OrderRepository extends BaseRepository {
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
 
     if (ordersResponse.error) {
       return this.handleResponse<any>(ordersResponse);
@@ -621,8 +657,8 @@ export class OrderRepository extends BaseRepository {
       const bookingEnd = new Date(order.end_date);
 
       // Include if the booking's buffered range overlaps with our view range
-      const bufferedStart = new Date(bookingStart.getTime() - BUFFER_MS);
-      const bufferedEnd = new Date(bookingEnd.getTime() + BUFFER_MS);
+      const bufferedStart = new Date(bookingStart.getTime() - effectiveBuffer);
+      const bufferedEnd = new Date(bookingEnd.getTime() + effectiveBuffer);
       if (bufferedStart <= viewEnd && bufferedEnd >= viewStart) {
         const customer = Array.isArray(order.customer) ? order.customer[0] : order.customer;
         bookings.push({
@@ -1176,12 +1212,20 @@ export class OrderRepository extends BaseRepository {
   async findActiveOrdersForProduct(
     productId: string,
     branchId?: string,
-  ): Promise<RepositoryResult<{ orderId: string; startDate: string; endDate: string; quantity: number }[]>> {
+  ): Promise<RepositoryResult<{ 
+    orderId: string; 
+    startDate: string; 
+    endDate: string; 
+    quantity: number;
+    branchId: string;
+    storeId: string;
+    status: string;
+  }[]>> {
     let query = this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id)')
+      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
 
     const response = await query;
 
@@ -1198,8 +1242,15 @@ export class OrderRepository extends BaseRepository {
         endDate: order.end_date,
         quantity: unreturned,
         branchId: order.branch_id,
+        storeId: order.store_id,
+        status: order.status
       };
-    }).filter((r: any) => r.quantity > 0);
+    }).filter((r: any) => {
+      // Include if either:
+      // 1. Item is still with the customer (quantity > 0)
+      // 2. Order is in a status where items might be in the cleaning room
+      return r.quantity > 0 || ['returned', 'flagged', 'partial', 'late_return'].includes(r.status);
+    });
 
     // Filter by branch if specified
     if (branchId) {
@@ -1417,9 +1468,6 @@ export class OrderRepository extends BaseRepository {
   async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
     // Determine final status based on return condition
     let newStatus = 'returned';
-    let hasMissing = false;
-    let hasDamage = false;
-    let totalDamageCharges = 0;
 
     // Fetch existing order items to check for partial returns
     const { data: existingItems } = await this.client
@@ -1427,75 +1475,8 @@ export class OrderRepository extends BaseRepository {
       .select('id, quantity, returned_quantity')
       .eq('order_id', orderId);
 
-    for (const item of returnData.items) {
-      if (item.damage_charges && item.damage_charges > 0) {
-        hasDamage = true;
-        totalDamageCharges += item.damage_charges;
-      }
-      if (item.condition_rating === 'damaged') hasDamage = true;
-      
-      const existingItem = existingItems?.find(i => i.id === item.item_id);
-      if (existingItem) {
-         const oldReturned = existingItem.returned_quantity || 0;
-         // If what we are returning now + what was previously returned is less than the total quantity ordered
-         if ((item.returned_quantity) < existingItem.quantity) {
-           hasMissing = true;
-         }
-      } else if (item.returned_quantity === 0) {
-         hasMissing = true;
-      }
-    }
-
-    if (hasDamage) {
-      newStatus = 'flagged';
-    } else if (hasMissing) {
-      newStatus = 'partial';
-    }
-
-    // Get current order to calculate new total
-    const { data: currentOrder } = await this.client
-      .from(this.tableName)
-      .select('total_amount, amount_paid')
-      .eq('id', orderId)
-      .single();
-
-    let newTotalAmount = Number(currentOrder?.total_amount || 0);
-    
-    // Add late fee and damage charges, subtract discounts
-    const lateFee = Number(returnData.late_fee || 0);
-    const discount = Number(returnData.discount || 0);
-    const totalDeductions = lateFee + totalDamageCharges - discount;
-
-    newTotalAmount = Math.max(0, newTotalAmount + totalDeductions);
-    
-    // Update payment status if the new total changed and is not fully paid anymore
-    let paymentStatus = undefined;
-    const amountPaid = Number(currentOrder?.amount_paid || 0);
-    console.log(`processReturn: newTotalAmount=${newTotalAmount}, amountPaid=${amountPaid}, totalDeductions=${totalDeductions}`);
-    if (currentOrder && newTotalAmount > amountPaid) {
-       paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
-    }
-
-    // Update order status and totals
-    const orderResponse = await this.client
-      .from(this.tableName)
-      .update({
-        status: newStatus,
-        total_amount: newTotalAmount,
-        late_fee: lateFee,
-        discount: discount,
-        damage_charges_total: totalDamageCharges,
-        ...(paymentStatus ? { payment_status: paymentStatus } : {})
-      })
-      .eq('id', orderId)
-      .select()
-      .single();
-
-    if (orderResponse.error) {
-      return this.handleResponse<OrderWithRelations>(orderResponse);
-    }
-
-    // Update order items with condition and damage info
+    // 1. First, update all order items with their condition and damage info
+    // This must happen before recalculating order totals
     for (const item of returnData.items) {
       // Get existing order item to prevent double-counting inventory on partial returns
       const { data: orderItem } = await this.client
@@ -1505,7 +1486,7 @@ export class OrderRepository extends BaseRepository {
         .single();
         
       const oldReturnedQuantity = orderItem?.returned_quantity || 0;
-      const quantityToIncrement = item.returned_quantity - oldReturnedQuantity;
+      const quantityToIncrement = Math.max(0, (item.returned_quantity || 0) - oldReturnedQuantity);
 
       await this.client
         .from(this.orderItemsTable)
@@ -1552,6 +1533,69 @@ export class OrderRepository extends BaseRepository {
             .eq('id', orderItem.product_id);
         }
       }
+    }
+
+    // 2. Now recalculate totals from source of truth
+    const { data: allItems } = await this.client
+      .from(this.orderItemsTable)
+      .select('damage_charges, condition_rating, quantity, returned_quantity')
+      .eq('order_id', orderId);
+
+    const totalDamageCharges = allItems?.reduce((sum, i) => sum + (i.damage_charges || 0), 0) || 0;
+    const hasDamage = allItems?.some(i => i.condition_rating === 'damaged') || false;
+    const hasMissing = allItems?.some(i => (i.returned_quantity || 0) < i.quantity) || false;
+
+    if (hasDamage) {
+      newStatus = 'flagged';
+    } else if (hasMissing) {
+      newStatus = 'partial';
+    }
+
+    // 3. Fetch current order to get the clean base (subtotal + gst)
+    const { data: currentOrder } = await this.client
+      .from(this.tableName)
+      .select('subtotal, gst_amount, amount_paid')
+      .eq('id', orderId)
+      .single();
+
+    const lateFee = Number(returnData.late_fee || 0);
+    const discount = Number(returnData.discount || 0);
+    
+    // Total amount = Subtotal + GST + Total Item Damage + Late Fee - Discount
+    const newTotalAmount = Math.max(0, 
+      Number(currentOrder?.subtotal || 0) + 
+      Number(currentOrder?.gst_amount || 0) + 
+      lateFee + 
+      totalDamageCharges - 
+      discount
+    );
+    
+    // Update payment status if the new total changed and is not fully paid anymore
+    let paymentStatus = undefined;
+    const amountPaid = Number(currentOrder?.amount_paid || 0);
+    if (newTotalAmount > amountPaid) {
+       paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
+    } else {
+       paymentStatus = 'paid';
+    }
+
+    // 4. Update order status and totals
+    const orderResponse = await this.client
+      .from(this.tableName)
+      .update({
+        status: newStatus,
+        total_amount: newTotalAmount,
+        late_fee: lateFee,
+        discount: discount,
+        damage_charges_total: totalDamageCharges,
+        payment_status: paymentStatus
+      })
+      .eq('id', orderId)
+      .select()
+      .single();
+
+    if (orderResponse.error) {
+      return this.handleResponse<OrderWithRelations>(orderResponse);
     }
 
     // Add to status history
@@ -1789,6 +1833,29 @@ export class OrderRepository extends BaseRepository {
       data: response.count || 0,
       error: null,
     };
+  }
+
+  /**
+   * Sync an order's has_priority_cleaning flag based on its cleaning records.
+   * An order is marked as "Priority Cleaning" if ANY of its cleaning records
+   * are marked as URGENT and are not yet completed.
+   */
+  async syncOrderPriorityFlag(orderId: string): Promise<void> {
+    const { data: cleaningRecords } = await this.client
+      .from('cleaning_records')
+      .select('priority, status')
+      .eq('order_id', orderId);
+
+    if (!cleaningRecords) return;
+
+    const hasUrgentCleaning = cleaningRecords.some(
+      record => record.priority === 'urgent' && record.status !== 'completed'
+    );
+
+    await this.client
+      .from(this.tableName)
+      .update({ has_priority_cleaning: hasUrgentCleaning })
+      .eq('id', orderId);
   }
 }
 

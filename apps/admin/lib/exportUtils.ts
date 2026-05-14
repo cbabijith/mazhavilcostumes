@@ -73,7 +73,7 @@ export function exportToPDF(
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 24);
-  doc.text(`Mazhavil Costumes`, 14, 29);
+  doc.text(`Mazhavil Dance Costumes`, 14, 29);
   doc.setTextColor(0, 0, 0);
 
   // Table
