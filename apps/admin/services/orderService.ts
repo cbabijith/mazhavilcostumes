@@ -968,6 +968,8 @@ export class OrderService {
 
     if (itemsDone && paymentDone) {
       await orderRepository.update(orderId, { status: OrderStatus.COMPLETED } as any);
+      // Sync priority flag (clears it for completed orders)
+      await orderRepository.syncOrderPriorityFlag(orderId);
       // Add status history entry
       await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned/reused + payment settled');
     }

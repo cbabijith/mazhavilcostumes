@@ -118,42 +118,24 @@ function OrderFiltersInner({
               <button
                 key={chip.value}
                 onClick={() => onStatusChange(chip.value)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
                   statusFilter === chip.value
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
                 }`}
               >
                 {chip.label}
+                {chip.value === OrderStatus.PENDING && actionNeededCount > 0 && (
+                  <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                    statusFilter === OrderStatus.PENDING
+                      ? 'bg-white/20 text-white'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {actionNeededCount}
+                  </span>
+                )}
               </button>
             ))}
-
-            {/* Action Needed chip — only visible when there are overdue scheduled orders */}
-            {actionNeededCount > 0 && (
-              <button
-                onClick={() => onStatusChange('action_needed')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-                  statusFilter === 'action_needed'
-                    ? "bg-amber-500 text-white border-amber-500"
-                    : "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:border-amber-400"
-                }`}
-              >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                    statusFilter === 'action_needed' ? 'bg-white' : 'bg-amber-500'
-                  }`}></span>
-                </span>
-                Action Needed
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
-                  statusFilter === 'action_needed'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-amber-200 text-amber-800'
-                }`}>
-                  {actionNeededCount}
-                </span>
-              </button>
-            )}
 
             {/* Stock Conflict chip — only visible when there are conflicts */}
             {conflictCount > 0 && (

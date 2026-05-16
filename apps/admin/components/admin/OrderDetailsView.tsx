@@ -1118,7 +1118,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                       {/* Cancellation info */}
                       <div className="pt-2 space-y-2">
-                        <span className="text-lg font-black text-slate-400">Order Cancelled</span>
+                        <span className="text-lg font-black text-slate-400 uppercase tracking-wider text-xs">Order Cancelled</span>
                         {order.cancellation_reason && (
                           <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                             <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
@@ -1132,40 +1132,29 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         )}
                       </div>
                     </div>
+                  ) : order.status === OrderStatus.COMPLETED ? (
+                    <div className="pt-6 mt-4 border-t-2 border-slate-100 flex justify-between items-center">
+                      <span className="text-lg font-black text-emerald-700">Total Settled</span>
+                      <span className="text-2xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
+                    </div>
                   ) : (
                     <div className="pt-4 space-y-2.5">
                       <div className="flex justify-between text-emerald-600 font-bold text-sm p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <span className="flex items-center gap-1">Less: Advance Paid</span>
+                        <span className="flex items-center gap-1">Less: Amount Paid</span>
                         <span>- {formatCurrency(order.amount_paid || 0)}</span>
                       </div>
                       
-                      <div className="flex justify-between text-slate-900 font-black text-lg px-1">
-                        <span>Balance Due</span>
-                        <span>{formatCurrency(Math.max(0, order.total_amount - (order.amount_paid || 0)))}</span>
+                      <div className="flex justify-between items-center pt-2 px-1">
+                        <span className="text-lg font-black text-slate-900">Balance Due</span>
+                        <span className={`text-2xl font-black ${amount_due > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {formatCurrency(amount_due)}
+                        </span>
                       </div>
                     </div>
                   )}
                 </div>
               );
             })()}
-            
-            <div className="flex justify-between items-center pt-2">
-                {order.status === OrderStatus.CANCELLED ? (
-                  <></> /* Cancellation info already shown inside the financial receipt */
-                ) : order.status === OrderStatus.COMPLETED ? (
-                  <>
-                    <span className="text-lg font-black text-emerald-700">Settled</span>
-                    <span className="text-2xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-lg font-black text-slate-900">Remaining Due</span>
-                    <span className={`text-2xl font-black ${amount_due > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                      {formatCurrency(amount_due)}
-                    </span>
-                  </>
-                )}
-              </div>
             </div>
 
             {/* Record Payment — only for active orders */}

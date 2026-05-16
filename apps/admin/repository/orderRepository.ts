@@ -84,6 +84,14 @@ export class OrderRepository extends BaseRepository {
         // Virtual status: active orders that need priority cleaning
         query = query.eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
+      } else if ((params.status as string) === 'revenue_due') {
+        // Virtual status: returned/partial/flagged but not fully paid
+        query = query.in('status', ['returned', 'partial', 'flagged', 'late_return'])
+          .neq('payment_status', 'paid');
+      } else if ((params.status as string) === 'pending') {
+        // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        query = query.or(`status.eq.pending,and(status.eq.scheduled,start_date.lte.${todayStr})`);
       } else if ((params.status as string) === 'partial') {
         // Virtual status: orders with outstanding balance
         // We look for orders explicitly marked as partial OR where paid < total
@@ -1335,6 +1343,14 @@ export class OrderRepository extends BaseRepository {
         // Virtual status: active orders that need priority cleaning
         query = query.eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
+      } else if ((params.status as string) === 'revenue_due') {
+        // Virtual status: returned/partial/flagged but not fully paid
+        query = query.in('status', ['returned', 'partial', 'flagged', 'late_return'])
+          .neq('payment_status', 'paid');
+      } else if ((params.status as string) === 'pending') {
+        // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        query = query.or(`status.eq.pending,and(status.eq.scheduled,start_date.lte.${todayStr})`);
       } else if ((params.status as string) === 'partial') {
         // Virtual status: orders with outstanding balance
         query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
@@ -1787,8 +1803,7 @@ export class OrderRepository extends BaseRepository {
     let query = this.client
       .from(this.tableName)
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'scheduled')
-      .lte('start_date', todayStr);
+      .or(`status.eq.pending,and(status.eq.scheduled,start_date.lte.${todayStr})`);
 
     if (branchId) {
       query = query.eq('branch_id', branchId);
@@ -1849,6 +1864,23 @@ export class OrderRepository extends BaseRepository {
    * are marked as URGENT and are not yet completed.
    */
   async syncOrderPriorityFlag(orderId: string): Promise<void> {
+    // 1. Get current order status
+    const { data: order } = await this.client
+      .from(this.tableName)
+      .select('status')
+      .eq('id', orderId)
+      .single();
+
+    // 2. If order is terminal (Completed/Cancelled), always clear the flag
+    if (order?.status === 'completed' || order?.status === 'cancelled') {
+      await this.client
+        .from(this.tableName)
+        .update({ has_priority_cleaning: false })
+        .eq('id', orderId);
+      return;
+    }
+
+    // 3. Otherwise, check cleaning records as before
     const { data: cleaningRecords } = await this.client
       .from('cleaning_records')
       .select('priority, status')

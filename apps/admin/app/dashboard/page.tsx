@@ -30,6 +30,7 @@ import {
   XCircle,
   BarChart3,
   Zap,
+  Banknote,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ const iconMap: Record<string, any> = {
   'boxes': Boxes,
   'alert-triangle': AlertTriangle,
   'clock-alert': ClockAlert,
+  'banknote': Banknote,
 };
 
 const colorMap: Record<string, { bg: string; text: string; border: string; badge: string }> = {
@@ -213,9 +215,16 @@ export default async function DashboardPage(props: {
                       ) : (
                         <>
                           {card.orderCount > 0 && (
-                            <span className={`text-3xl font-black ${hasIssues ? colors.text : 'text-slate-900'} tabular-nums`}>
-                              {card.orderCount}
-                            </span>
+                            <div className="flex flex-col items-end">
+                              <span className={`text-3xl font-black ${hasIssues ? colors.text : 'text-slate-900'} tabular-nums`}>
+                                {card.orderCount}
+                              </span>
+                              {card.amount !== undefined && card.amount > 0 && (
+                                <span className={`text-sm font-bold ${colors.text} mt-0.5`}>
+                                  ₹{card.amount.toLocaleString('en-IN')}
+                                </span>
+                              )}
+                            </div>
                           )}
                           {card.orderCount === 0 && (
                             <CheckCircle2 className="w-5 h-5 text-emerald-400" />

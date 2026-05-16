@@ -83,6 +83,7 @@ export interface RevenueRow {
   amount_collection: number;  // Unified collection (renamed label)
   net_revenue: number;        // Revenue excluding GST
   gst_collected: number;      // GST portion
+  revenue_due: number;        // Outstanding balance for orders in this period
   completed_revenue: number;
   ongoing_revenue: number;
   scheduled_revenue: number;
@@ -127,6 +128,8 @@ export interface RevenueReportData {
   total_refunded: number;
   cancelled_total: number;
   refund_due: number;
+  revenue_due: number;
+  revenue_due_count: number;
   total_damage_charges: number;
   total_late_fees: number;
 }
