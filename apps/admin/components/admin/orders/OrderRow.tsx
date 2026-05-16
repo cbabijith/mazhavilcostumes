@@ -188,8 +188,10 @@ function OrderRowInner({
         <div className="flex flex-col items-start gap-1">
           <OrderStatusBadge status={order.status} />
 
-          {/* Priority Cleaning badge */}
-          {order.has_priority_cleaning && (
+          {/* Priority Cleaning badge - only show for non-terminal orders */}
+          {order.has_priority_cleaning && 
+           order.status !== OrderStatus.COMPLETED && 
+           order.status !== OrderStatus.CANCELLED && (
             <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none">
               <Sparkles className="w-3 h-3 fill-amber-500" />
               Priority Cleaning

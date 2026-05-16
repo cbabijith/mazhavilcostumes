@@ -15,7 +15,7 @@ async function run() {
   if (cErr) {
     const { data: orders } = await supabase.from('orders').select('branch_id');
     const bCounts: any = {};
-    orders?.forEach(o => {
+    orders?.forEach((o: any) => {
       bCounts[o.branch_id] = (bCounts[o.branch_id] || 0) + 1;
     });
     console.log('Order Counts per Branch ID:', bCounts);

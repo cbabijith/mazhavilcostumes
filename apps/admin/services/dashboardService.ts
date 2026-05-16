@@ -41,6 +41,8 @@ export interface OperationalCard {
   completedCount?: number;
   /** For progress cards (delivery/return): total expected */
   totalCount?: number;
+  /** For revenue-related cards: total currency amount */
+  amount?: number;
 }
 
 export interface PriorityCleaningOrder {
@@ -112,6 +114,7 @@ export interface DashboardMetrics {
     date: string;
     count: number;
   }[];
+  total_booking_sales?: number;
   topPerformers: {
     id: string;
     name: string;
@@ -200,8 +203,8 @@ export class DashboardService {
 
   /**
    * Operational Metrics — visible to ALL roles.
-   * Returns 6 cards: Today's Booking, Today's Delivery, Today's Return,
-   * Prepare Delivery (next 5 days), Pending Delivery, Pending Return.
+   * Returns 7 cards: Today's Booking, Today's Delivery, Today's Return,
+   * Prepare Delivery (next 5 days), Pending Delivery, Pending Return, Revenue Due.
    */
   async getOperationalMetrics(): Promise<OperationalMetrics> {
     const supabase = createAdminClient();
@@ -265,10 +268,25 @@ export class DashboardService {
       .lt('end_date', todayStr)
       .in('status', RETURN_PENDING_STATUSES);
 
+    // 7. Revenue Due — orders returned/partial/flagged with balance
+    const { data: revenueDueOrders } = await supabase
+      .from('orders')
+      .select('total_amount, amount_paid')
+      .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+      .neq('payment_status', 'paid');
+
     const deliveryTotal = todaysDeliveryTotal?.length || 0;
     const deliveryDone = todaysDeliveryDoneCount || 0;
     const returnTotal = todaysReturnTotal?.length || 0;
     const returnDone = todaysReturnDoneCount || 0;
+
+    const revenueDueTotalAmount = (revenueDueOrders || []).reduce(
+      (sum, o) => {
+        const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+        return sum + (due > 0 ? due : 0);
+      }, 
+      0
+    );
 
     const cards: OperationalCard[] = [
         {
@@ -308,7 +326,7 @@ export class DashboardService {
           orderCount: pendingDeliveries?.length || 0,
           icon: 'alert-triangle',
           color: 'rose',
-          filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_to=${yesterdayStr}`,
+          filterUrl: '/dashboard/orders?status=pending',
         },
         {
           label: "Pending Return",
@@ -316,6 +334,14 @@ export class DashboardService {
           icon: 'clock-alert',
           color: 'red',
           filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}`,
+        },
+        {
+          label: "Revenue Due",
+          orderCount: revenueDueOrders?.length || 0,
+          amount: revenueDueTotalAmount,
+          icon: 'banknote',
+          color: 'indigo',
+          filterUrl: '/dashboard/orders?status=revenue_due',
         },
       ];
 

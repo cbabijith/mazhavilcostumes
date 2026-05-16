@@ -204,6 +204,8 @@ export class ReportService {
       total_gst_collected: metrics.total_gst_collected,
       total_refunded: metrics.total_refunded,
       refund_due: metrics.refund_due,
+      revenue_due: metrics.revenue_due,
+      revenue_due_count: metrics.revenue_due_count,
       cancelled_total: metrics.cancelled_total,
       total_cash: metrics.total_cash,
       total_upi: metrics.total_upi,
@@ -274,7 +276,20 @@ export class ReportService {
       .neq('payment_status', 'refund_waived');
     
     if (branchId) cancelledDueQuery = cancelledDueQuery.eq('branch_id', branchId);
-    // 5. Fetch damage charges and late fees (Accrual view)
+
+    // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance)
+    let revenueDueQuery = supabase()
+      .from('orders')
+      .select('id, total_amount, amount_paid, start_date, status, payment_status')
+      .gte('start_date', fromDate)
+      .lte('start_date', toDate)
+      .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+      .neq('payment_status', 'paid');
+
+    if (branchId) revenueDueQuery = revenueDueQuery.eq('branch_id', branchId);
+    if (storeId) revenueDueQuery = revenueDueQuery.eq('store_id', storeId);
+
+    // 6. Fetch damage charges and late fees (Accrual view)
     const dueChargesQuery = supabase()
       .from('orders')
       .select('damage_charges_total, late_fee')
@@ -286,8 +301,8 @@ export class ReportService {
     if (storeId) dueChargesQuery.eq('store_id', storeId);
 
     // Execute in parallel
-    const [aggResult, bookingResult, cancelledResult, dueChargesResult] = await Promise.all([
-      aggQuery, bookingQuery, cancelledDueQuery, dueChargesQuery
+    const [aggResult, bookingResult, cancelledResult, revenueDueResult, dueChargesResult] = await Promise.all([
+      aggQuery, bookingQuery, cancelledDueQuery, revenueDueQuery, dueChargesQuery
     ]);
 
     if (aggResult.error) throw new Error(aggResult.error.message);
@@ -301,6 +316,7 @@ export class ReportService {
     
     const bookings = (bookingResult.data || []) as any[];
     const cancelledOrders = (cancelledResult.data || []) as any[];
+    const revenueDueData = (revenueDueResult.data || []) as any[];
 
     // Process Summary Groups
     const summaryGroups: Record<string, RevenueRow> = {};
@@ -318,6 +334,7 @@ export class ReportService {
     let totalGpay = 0;
     let totalBankTransfer = 0;
     let cancelledNet = 0;
+    let totalRevenueDue = 0;
 
     // A. Process Booking Sales (Business Won)
     for (const o of bookings) {
@@ -337,7 +354,22 @@ export class ReportService {
       dailyTrends[dateKey].sales += amount;
     }
 
-    // B. Process Cash Collections (Money in hand)
+    // B. Process Revenue Due (Outstanding)
+    for (const o of revenueDueData) {
+      const key = this.getPeriodKey(o.start_date, 'month');
+      if (!summaryGroups[key]) {
+        summaryGroups[key] = this.initSummaryRow(key);
+        orderCounts[key] = new Set();
+      }
+      
+      const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+      if (due > 0) {
+        summaryGroups[key].revenue_due += due;
+        totalRevenueDue += due;
+      }
+    }
+
+    // C. Process Cash Collections (Money in hand)
     for (const p of allPayments) {
       const order = p.order;
       if (!order) continue;
@@ -418,13 +450,6 @@ export class ReportService {
     };
     const total_amount_collection = totalReceived - (totalRefunded + totalCancelledKeep);
     
-    console.log('[ReportService] Revenue Calculation:', {
-      totalReceived,
-      totalRefunded,
-      totalCancelledKeep,
-      finalNet: total_amount_collection
-    });
-
     // Finalize summary
     const summary = Object.entries(summaryGroups).map(([key, g]) => ({
       ...g,
@@ -434,6 +459,7 @@ export class ReportService {
       amount_collection: r(g.cash_collection),
       net_revenue: r(g.net_revenue),
       gst_collected: r(g.gst_collected),
+      revenue_due: r(g.revenue_due),
       total_revenue: r(g.total_revenue),
       completed_revenue: r(g.completed_revenue),
       ongoing_revenue: r(g.ongoing_revenue),
@@ -468,6 +494,8 @@ export class ReportService {
       total_refunded: r(totalRefunded),
       cancelled_total: r(cancelledNet), // Net profit from cancellations
       refund_due: r(refundDueAmount),
+      revenue_due: r(totalRevenueDue),
+      revenue_due_count: revenueDueData.length,
       total_damage_charges: r(totalDamageCharges),
       total_late_fees: r(totalLateFees),
       dailyTrends: this.padDailyTrends(dailyTrends, fromDate, toDate)
@@ -482,6 +510,7 @@ export class ReportService {
       amount_collection: 0,
       net_revenue: 0,
       gst_collected: 0,
+      revenue_due: 0,
       completed_revenue: 0,
       ongoing_revenue: 0,
       scheduled_revenue: 0,

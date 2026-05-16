@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -12,7 +13,7 @@ import { ReportTable } from "../ReportTable";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RevenueReportData, RevenueRow, RevenueDetailRow } from "@/domain";
-import { AlertTriangle, ShieldAlert, Clock } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Clock, ArrowUpRight } from "lucide-react";
 
 interface RevenueViewProps {
   data: RevenueRow[];
@@ -49,10 +50,12 @@ export function RevenueView({
   filters,
   setFilters
 }: RevenueViewProps) {
+  const router = useRouter();
   const summaryColumns = [
     { header: "Period", key: "period" },
     { header: "Booking Sales", key: "booking_sales", format: "currency" as const },
     { header: "Amount Collection", key: "amount_collection", format: "currency" as const },
+    { header: "Revenue Due", key: "revenue_due", format: "currency" as const },
     { header: "Net Revenue", key: "net_revenue", format: "currency" as const },
     { header: "GST", key: "gst_collected", format: "currency" as const },
     { header: "Refunded", key: "refund_amount", format: "currency" as const },
@@ -154,55 +157,111 @@ export function RevenueView({
     { name: "Bank Transfer", value: reportSummary.total_bank_transfer, color: COLORS.bank_transfer || "#10b981" },
   ].filter(d => d.value > 0) : [];
 
+  const handleNavigate = (status?: string) => {
+    const from = filters.from_date;
+    const to = filters.to_date;
+    const query = new URLSearchParams();
+    if (from) {
+      query.set('date_from', from);
+      query.set('date_filter', 'custom');
+    }
+    if (to) query.set('date_to', to);
+    query.set('date_field', 'start_date');
+    if (status) query.set('status', status);
+    
+    router.push(`/dashboard/orders?${query.toString()}`);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {reportSummary && (
         <>
-          {/* Refund Due Warning Banner */}
-          {reportSummary.refund_due > 0 && (
-            <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
+          {/* Refund & Revenue Due Banners */}
+          <div className="space-y-3">
+            {reportSummary.refund_due > 0 && (
+              <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-amber-800">Refund Due</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    {formatCurrency(reportSummary.refund_due)} collected from cancelled orders hasn&apos;t been refunded yet. 
+                  </p>
+                </div>
+                <div className="text-lg font-black text-amber-700">{formatCurrency(reportSummary.refund_due)}</div>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-amber-800">Refund Due</p>
-                <p className="text-xs text-amber-600 mt-0.5">
-                  {formatCurrency(reportSummary.refund_due)} collected from cancelled orders hasn&apos;t been refunded yet. 
-                  You can refund or mark as &quot;Keep Money&quot; from the order detail page.
-                </p>
+            )}
+
+            {reportSummary.revenue_due > 0 && (
+              <div 
+                className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/50 transition-colors group"
+                onClick={() => handleNavigate('revenue_due')}
+              >
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                  <Clock className="w-5 h-5 text-rose-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-rose-800">Revenue Due (Outstanding)</p>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <p className="text-xs text-rose-600 mt-0.5">
+                    {formatCurrency(reportSummary.revenue_due)} is still pending from {reportSummary.revenue_due_count} orders in this period.
+                  </p>
+                </div>
+                <div className="text-lg font-black text-rose-700">{formatCurrency(reportSummary.revenue_due)}</div>
               </div>
-              <div className="text-lg font-black text-amber-700">{formatCurrency(reportSummary.refund_due)}</div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-indigo-600">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <Card 
+              className="shadow-sm border-slate-200 bg-white border-l-4 border-l-indigo-600 cursor-pointer hover:bg-slate-50 transition-colors group"
+              onClick={() => handleNavigate()}
+            >
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest mb-1">Total Booking Sales</p>
+                <div className="flex justify-between items-start mb-1">
+                  <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest">Total Booking Sales</p>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_booking_sales)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of business won (Order Creation Date)</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of business won</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-600">
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Amount Collection</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_amount_collection)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Total payments received during this period</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Actual money received</p>
+              </CardContent>
+            </Card>
+            <Card 
+              className="shadow-sm border-slate-200 bg-white border-l-4 border-l-rose-600 cursor-pointer hover:bg-rose-50 transition-colors group"
+              onClick={() => handleNavigate('revenue_due')}
+            >
+              <CardContent className="p-5">
+                <div className="flex justify-between items-start mb-1">
+                  <p className="text-[10px] font-bold text-rose-600/70 uppercase tracking-widest">Revenue Due</p>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.revenue_due)}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Money yet to be collected</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-slate-900">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net Revenue (Excl GST)</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net (Excl GST)</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_net_revenue)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Actual income after removing 18% GST</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">After 18% GST removal</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST Collected</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gst_collected)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion to be paid to government</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion</p>
               </CardContent>
             </Card>
           </div>
