@@ -1,0 +1,594 @@
+[
+  {
+    "id": "46055af8-d1b1-444d-a1b1-c0e91ff7fd79",
+    "order_id": "7256bfec-2a98-40b0-96ac-59d68b4ab6e1",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T08:33:01.542746+00:00"
+  },
+  {
+    "id": "285a59da-e2a9-4851-b7b8-b13c7019c272",
+    "order_id": "7256bfec-2a98-40b0-96ac-59d68b4ab6e1",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T08:49:39.549162+00:00"
+  },
+  {
+    "id": "f3bbe418-be0a-4969-b894-e8754a8fb4c9",
+    "order_id": "801492d8-d389-4aac-8673-3106b9994b42",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T08:50:05.646476+00:00"
+  },
+  {
+    "id": "95910c32-231e-498c-b829-65ef5a69d400",
+    "order_id": "43de5cc5-e3d4-44ca-bf5a-98ed39cb65cf",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T09:39:47.073719+00:00"
+  },
+  {
+    "id": "b114770d-1ded-45b4-be79-1ee752e13193",
+    "order_id": "290e8a40-c8e5-48f3-a8fb-d9ffc3a652e1",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T09:42:39.217158+00:00"
+  },
+  {
+    "id": "f38dd1c7-7a52-4869-aed6-e2c0b66fd91b",
+    "order_id": "5c32ba5c-0c62-479a-99ea-653b06a13681",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T09:45:58.015895+00:00"
+  },
+  {
+    "id": "12cedfb2-bb13-4103-a890-5d76c7053b7a",
+    "order_id": "7efa5e00-aabd-44b7-a357-4f5136fe7745",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T09:47:59.135945+00:00"
+  },
+  {
+    "id": "8b711ef3-a2c7-4d58-ba75-cc3f71129727",
+    "order_id": "801492d8-d389-4aac-8673-3106b9994b42",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T10:12:07.073346+00:00"
+  },
+  {
+    "id": "3a4fdb95-47ad-4228-aa1b-d7973a66c758",
+    "order_id": "43de5cc5-e3d4-44ca-bf5a-98ed39cb65cf",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T10:12:19.253925+00:00"
+  },
+  {
+    "id": "d27055e8-f3a3-44ab-9147-83c745464ba0",
+    "order_id": "290e8a40-c8e5-48f3-a8fb-d9ffc3a652e1",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T10:12:30.195718+00:00"
+  },
+  {
+    "id": "010d3d63-f705-48f2-b66e-76bd87d8e484",
+    "order_id": "5c32ba5c-0c62-479a-99ea-653b06a13681",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T10:12:35.848544+00:00"
+  },
+  {
+    "id": "4bf5d12c-781d-4c75-a6a7-bcf1b3e113de",
+    "order_id": "7efa5e00-aabd-44b7-a357-4f5136fe7745",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T10:13:02.473581+00:00"
+  },
+  {
+    "id": "a189cb8b-ac99-4222-a464-59c483c922e6",
+    "order_id": "a76354d8-f722-4b8b-9ea5-d852293a385e",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T15:27:57.269038+00:00"
+  },
+  {
+    "id": "882cf9df-f1fd-460f-86a2-82b81ee51c8b",
+    "order_id": "c075f651-8b5f-465c-9805-26ca38dc59b7",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T15:41:41.883301+00:00"
+  },
+  {
+    "id": "4a407c1a-4006-49d3-a979-a3e2591a0555",
+    "order_id": "2cccaa7b-e1f4-4fa6-b5c8-92029d8adfe8",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T17:21:26.262776+00:00"
+  },
+  {
+    "id": "7bf9ffff-6fe2-4788-a3ac-a2a7243c217f",
+    "order_id": "2cccaa7b-e1f4-4fa6-b5c8-92029d8adfe8",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T17:30:14.439135+00:00"
+  },
+  {
+    "id": "3879ea98-45b5-47d1-8ba8-a9ee427ced49",
+    "order_id": "486c5ad2-4cdd-4846-bddc-ee6034597d5c",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T17:45:36.768364+00:00"
+  },
+  {
+    "id": "13377be6-75a3-4927-922e-e4856ff90338",
+    "order_id": "486c5ad2-4cdd-4846-bddc-ee6034597d5c",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T17:46:19.168612+00:00"
+  },
+  {
+    "id": "0351fe08-3b0a-47e2-bf97-5857c4f7e5e9",
+    "order_id": "ceb374e7-aac3-4882-9933-a5925225d870",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-09T17:47:06.992015+00:00"
+  },
+  {
+    "id": "ee3f5599-3c2e-4848-a26c-9ba5b0fb9b5c",
+    "order_id": "c075f651-8b5f-465c-9805-26ca38dc59b7",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-10T01:36:57.245315+00:00"
+  },
+  {
+    "id": "9bb2a37a-f930-4a69-be6d-808116c0c192",
+    "order_id": "106ca49d-357f-40c7-a0ca-94d7cdcde0de",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-10T06:13:11.078109+00:00"
+  },
+  {
+    "id": "fbf95ab4-e931-42c0-b74e-6335c201224d",
+    "order_id": "00a8a262-73c2-4606-9d16-d65f47dbb4c5",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-10T06:14:41.805584+00:00"
+  },
+  {
+    "id": "1acf1f68-aeb7-4d03-af71-d74fe6a2afd6",
+    "order_id": "00a8a262-73c2-4606-9d16-d65f47dbb4c5",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-10T06:15:18.572266+00:00"
+  },
+  {
+    "id": "134d2c44-d933-46ac-ac4a-c833a51ba75a",
+    "order_id": "2288c95f-fe0d-454c-8379-6f83f45ada43",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T03:18:41.767575+00:00"
+  },
+  {
+    "id": "e33f3171-92bd-4902-bfe3-48c5390c0934",
+    "order_id": "d1bae94f-756d-4402-a2aa-f27b5b002cf7",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T03:21:32.497956+00:00"
+  },
+  {
+    "id": "b5576c75-6b09-4182-ac80-4bc79af44094",
+    "order_id": "1ab10b3e-ead6-4bf4-b84e-459db4cf8269",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T03:26:34.016261+00:00"
+  },
+  {
+    "id": "c3a4e72d-739f-4ada-9af1-1ccf10d596ac",
+    "order_id": "c075f651-8b5f-465c-9805-26ca38dc59b7",
+    "status": "returned",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T05:44:16.778217+00:00"
+  },
+  {
+    "id": "04d08174-2f7b-4491-b2c6-672f3a1d0161",
+    "order_id": "7efa5e00-aabd-44b7-a357-4f5136fe7745",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T06:08:15.076869+00:00"
+  },
+  {
+    "id": "697d5c68-41ce-40ba-ac9c-eb6b30551b26",
+    "order_id": "2288c95f-fe0d-454c-8379-6f83f45ada43",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T06:42:20.904826+00:00"
+  },
+  {
+    "id": "36d085a3-6c53-4a70-9b57-0f2e5efcf61a",
+    "order_id": "2288c95f-fe0d-454c-8379-6f83f45ada43",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T06:47:09.127088+00:00"
+  },
+  {
+    "id": "3d98ba08-256b-40e6-b0e5-cae7e356b832",
+    "order_id": "106ca49d-357f-40c7-a0ca-94d7cdcde0de",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T06:49:44.792962+00:00"
+  },
+  {
+    "id": "85d1f081-ee21-44b9-bb40-200bc533852d",
+    "order_id": "a778c338-f1e1-42f2-a28f-a92ee5ba0325",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T07:04:23.245207+00:00"
+  },
+  {
+    "id": "96e111ad-cc07-4eec-9e33-53ad4e4fbb87",
+    "order_id": "106ca49d-357f-40c7-a0ca-94d7cdcde0de",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T13:27:19.022865+00:00"
+  },
+  {
+    "id": "1df4a8fb-e6d0-4096-b194-3041df4ea27f",
+    "order_id": "bcd8d424-eb84-4fbf-94bb-1d8adc73d9ec",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T16:59:36.171646+00:00"
+  },
+  {
+    "id": "e8ee7ca4-85d0-470c-b839-02c7b8858aa1",
+    "order_id": "bcd8d424-eb84-4fbf-94bb-1d8adc73d9ec",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T17:00:30.12932+00:00"
+  },
+  {
+    "id": "f17d8b83-371c-42e3-9c80-82aa8c11a976",
+    "order_id": "bcd8d424-eb84-4fbf-94bb-1d8adc73d9ec",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T17:02:14.387165+00:00"
+  },
+  {
+    "id": "beebd336-f6c1-460e-b303-69faaec47198",
+    "order_id": "ceb374e7-aac3-4882-9933-a5925225d870",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-11T19:12:25.564239+00:00"
+  },
+  {
+    "id": "2006e9ca-58e3-43c5-a396-d6b52704736a",
+    "order_id": "ceb374e7-aac3-4882-9933-a5925225d870",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-11T19:27:21.534602+00:00"
+  },
+  {
+    "id": "6ac9c485-c7a2-4e76-bad6-93650f2be375",
+    "order_id": "efbbfedf-663f-4847-bfd3-63917975931a",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-12T01:29:45.507577+00:00"
+  },
+  {
+    "id": "7a94bad4-e93a-4fba-aba9-309b2bbd8c0e",
+    "order_id": "efbbfedf-663f-4847-bfd3-63917975931a",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-12T01:35:00.48502+00:00"
+  },
+  {
+    "id": "35f01706-e789-47bb-b0f2-6acfd71be7d2",
+    "order_id": "efbbfedf-663f-4847-bfd3-63917975931a",
+    "status": "returned",
+    "notes": "Late Fee: 0, Discount: 1500",
+    "changed_by": null,
+    "created_at": "2026-05-12T01:36:36.547933+00:00"
+  },
+  {
+    "id": "462c9e4b-b335-4f60-b821-cbff4deca05b",
+    "order_id": "58e23374-fb2b-4904-b066-0a2d548534b8",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-13T14:49:20.703873+00:00"
+  },
+  {
+    "id": "2594f192-ac53-49d4-a4fc-f1f601a287ec",
+    "order_id": "58e23374-fb2b-4904-b066-0a2d548534b8",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T00:07:43.1796+00:00"
+  },
+  {
+    "id": "cf05fb2c-85e9-41de-9224-438582a94273",
+    "order_id": "92feb80b-844f-45e4-8da8-535e3efb8a0d",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T11:09:32.515458+00:00"
+  },
+  {
+    "id": "531929a9-309b-40b8-81ea-5c01d5a6d75f",
+    "order_id": "92feb80b-844f-45e4-8da8-535e3efb8a0d",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T12:04:24.858804+00:00"
+  },
+  {
+    "id": "aefa8145-224b-4ca3-a5eb-ae703bfde9cb",
+    "order_id": "92feb80b-844f-45e4-8da8-535e3efb8a0d",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-14T12:23:37.800645+00:00"
+  },
+  {
+    "id": "08df02b2-8dc5-42e7-bf0e-33473c1801f9",
+    "order_id": "27097f24-afc1-4490-898e-e464ebaa4554",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T14:25:04.215381+00:00"
+  },
+  {
+    "id": "425c3670-3a4d-4257-93f9-b44186c03f8c",
+    "order_id": "864be28e-2a28-4762-9e96-d9ffcca645c9",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T14:26:37.034247+00:00"
+  },
+  {
+    "id": "6e2abc4a-2b5c-42c4-831f-b4e993ae6c3e",
+    "order_id": "27097f24-afc1-4490-898e-e464ebaa4554",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T14:29:43.00261+00:00"
+  },
+  {
+    "id": "e818664f-8ae3-45f1-afa1-57f554e52847",
+    "order_id": "27097f24-afc1-4490-898e-e464ebaa4554",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-14T14:35:36.949859+00:00"
+  },
+  {
+    "id": "34abcc8d-d680-4805-b1b2-ddfe516030e1",
+    "order_id": "7fb76dfc-0894-4a1e-9269-20530bc0d6c1",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T14:44:24.699912+00:00"
+  },
+  {
+    "id": "8b27971a-d31b-4bfb-8b46-ee8d4ea9cf90",
+    "order_id": "7fb76dfc-0894-4a1e-9269-20530bc0d6c1",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T14:44:36.880525+00:00"
+  },
+  {
+    "id": "b61854fb-7fbb-4a03-8f07-7272f4204bfc",
+    "order_id": "7f7589db-bfc2-47e9-9fbd-0f23e281136d",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T15:13:26.811753+00:00"
+  },
+  {
+    "id": "7703ae02-a1ab-416f-8ad6-f8c65e7baead",
+    "order_id": "0d6edb06-8ee9-4af3-9a6a-f93e2b3233ca",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T15:17:34.716065+00:00"
+  },
+  {
+    "id": "6ef88cbc-d91e-4220-ae78-e9419b7eb954",
+    "order_id": "46e06810-27d0-448b-bfba-d2200688b2e2",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T16:08:06.490906+00:00"
+  },
+  {
+    "id": "63ca0962-2d65-476c-9a50-451908b9106e",
+    "order_id": "46e06810-27d0-448b-bfba-d2200688b2e2",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T16:08:29.097706+00:00"
+  },
+  {
+    "id": "ae94bb43-3c21-4967-8c06-db7386cf5e63",
+    "order_id": "46e06810-27d0-448b-bfba-d2200688b2e2",
+    "status": "flagged",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-14T16:22:59.260993+00:00"
+  },
+  {
+    "id": "8f6df4c2-48d7-4829-b878-4b94839a843a",
+    "order_id": "46e06810-27d0-448b-bfba-d2200688b2e2",
+    "status": "completed",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T16:39:10.540724+00:00"
+  },
+  {
+    "id": "a7901ad7-4336-469e-b590-8e18b8007e36",
+    "order_id": "46e06810-27d0-448b-bfba-d2200688b2e2",
+    "status": "completed",
+    "notes": "Auto-completed: items returned/reused + payment settled",
+    "changed_by": null,
+    "created_at": "2026-05-14T16:39:11.139325+00:00"
+  },
+  {
+    "id": "6cf43a0f-4549-480a-96fc-611f43f74ae7",
+    "order_id": "20cc96f4-d388-4a0b-a95f-7332b6ef8ba5",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T17:12:43.325681+00:00"
+  },
+  {
+    "id": "82a3085f-56b6-4de5-bacc-9f02c2ae1ada",
+    "order_id": "0d6edb06-8ee9-4af3-9a6a-f93e2b3233ca",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T18:11:31.588851+00:00"
+  },
+  {
+    "id": "ca5947b8-96fb-4968-a48a-a1456e932dd5",
+    "order_id": "295d63bb-d94f-44a7-8f66-cf6874843bef",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T18:12:54.442909+00:00"
+  },
+  {
+    "id": "4db37300-759d-405a-ab1f-934c920a5988",
+    "order_id": "295d63bb-d94f-44a7-8f66-cf6874843bef",
+    "status": "cancelled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T18:28:14.399739+00:00"
+  },
+  {
+    "id": "c51e8949-0e59-4822-88a6-1f97450a4acd",
+    "order_id": "c4280b66-44a4-4b3c-ab45-98810ea6e9ec",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T18:28:56.381214+00:00"
+  },
+  {
+    "id": "36d48a08-6b23-4a6e-b073-674b308bbd71",
+    "order_id": "5aea6f76-a0f1-48f0-bacd-68e3eee8eb8c",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T18:57:43.377061+00:00"
+  },
+  {
+    "id": "5239fb62-4ee0-4824-81be-07940d416540",
+    "order_id": "393cf313-9d0c-44f9-a387-bf8357e9def0",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T19:02:30.723115+00:00"
+  },
+  {
+    "id": "1be48c81-a099-411b-8c39-f62408994405",
+    "order_id": "cce5f6d4-70eb-4f99-bdf5-b4f4ffcc9a30",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T20:06:12.853249+00:00"
+  },
+  {
+    "id": "46b9ba68-24be-4d2e-ace7-1ff556084168",
+    "order_id": "47372a79-81f0-48c7-a0b8-a4bdfdccd6eb",
+    "status": "scheduled",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T20:07:12.161142+00:00"
+  },
+  {
+    "id": "6512a645-55e5-4329-89c1-daf60f8120d9",
+    "order_id": "efbbfedf-663f-4847-bfd3-63917975931a",
+    "status": "completed",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T20:34:17.748355+00:00"
+  },
+  {
+    "id": "7ecc0d06-8e45-4992-ab7b-6a94b8d3a5b1",
+    "order_id": "efbbfedf-663f-4847-bfd3-63917975931a",
+    "status": "completed",
+    "notes": "Auto-completed: items returned/reused + payment settled",
+    "changed_by": null,
+    "created_at": "2026-05-14T20:34:18.242508+00:00"
+  },
+  {
+    "id": "f480861d-7aa4-4715-bd3e-e9843d91aaac",
+    "order_id": "5aea6f76-a0f1-48f0-bacd-68e3eee8eb8c",
+    "status": "ongoing",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-14T20:38:51.060565+00:00"
+  },
+  {
+    "id": "000f7174-5a5c-4c77-b260-07ecfe63b5f1",
+    "order_id": "c075f651-8b5f-465c-9805-26ca38dc59b7",
+    "status": "completed",
+    "notes": null,
+    "changed_by": null,
+    "created_at": "2026-05-15T00:48:10.218884+00:00"
+  },
+  {
+    "id": "1ca56602-3052-4c65-bb12-94e152c0f2c7",
+    "order_id": "c075f651-8b5f-465c-9805-26ca38dc59b7",
+    "status": "completed",
+    "notes": "Auto-completed: items returned/reused + payment settled",
+    "changed_by": null,
+    "created_at": "2026-05-15T00:48:10.710621+00:00"
+  },
+  {
+    "id": "6f9ceac5-382e-40d3-aeb9-e7862e116fdd",
+    "order_id": "5aea6f76-a0f1-48f0-bacd-68e3eee8eb8c",
+    "status": "returned",
+    "notes": "Late Fee: 0, Discount: 0",
+    "changed_by": null,
+    "created_at": "2026-05-16T08:21:00.042329+00:00"
+  }
+]
