@@ -209,6 +209,9 @@ export interface UpdateOrderDTO {
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
+  has_priority_cleaning?: boolean;
+  has_stock_conflict?: boolean;
+  conflict_details?: any[] | null;
 
   items?: {
     product_id: string;
@@ -321,6 +324,7 @@ export interface ItemAvailabilityResult {
   overlappingOrders: DayBookingInfo[];
   priorityCleaningNeeded: boolean;
   priorityCleaningInfo?: PriorityCleaningInfo[];
+  total: number;
 }
 
 /** Batch availability check response */

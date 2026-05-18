@@ -199,7 +199,9 @@ function OrderRowInner({
           )}
           
           {/* Stock Conflict badge */}
-          {order.has_stock_conflict && (
+          {order.has_stock_conflict && 
+           order.status !== OrderStatus.COMPLETED && 
+           order.status !== OrderStatus.CANCELLED && (
             <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none animate-pulse">
               <AlertTriangle className="w-3 h-3 fill-red-500" />
               Stock Conflict

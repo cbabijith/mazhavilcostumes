@@ -480,7 +480,9 @@ export class OrderRepository extends BaseRepository {
     // Sort by start date for chronological display
     const allOverlapping = [
       ...actualOverlaps.map(b => ({ ...b, bufferOnly: false })),
-      ...bufferOnlyOverlaps.map(b => ({ ...b, bufferOnly: true })),
+      ...bufferOnlyOverlaps
+        .filter(b => blockedBufferOrderIds.has(b.orderId))
+        .map(b => ({ ...b, bufferOnly: true })),
     ].sort((a, b) => a.start - b.start);
 
     return {
@@ -1562,7 +1564,7 @@ export class OrderRepository extends BaseRepository {
     // 2. Now recalculate totals from source of truth
     const { data: allItems } = await this.client
       .from(this.orderItemsTable)
-      .select('damage_charges, condition_rating, quantity, returned_quantity')
+      .select('damage_charges, condition_rating, quantity, returned_quantity, base_amount, gst_amount')
       .eq('order_id', orderId);
 
     const totalDamageCharges = allItems?.reduce((sum, i) => sum + (i.damage_charges || 0), 0) || 0;
@@ -1575,23 +1577,28 @@ export class OrderRepository extends BaseRepository {
       newStatus = 'partial';
     }
 
-    // 3. Fetch current order to get the clean base (subtotal + gst)
+    const itemTotalAfterDiscounts = allItems?.reduce((sum, i) => sum + (i.base_amount || 0) + (i.gst_amount || 0), 0) || 0;
+
+    // 3. Fetch current order to get the clean base (original discount, amount paid)
     const { data: currentOrder } = await this.client
       .from(this.tableName)
-      .select('subtotal, gst_amount, amount_paid')
+      .select('discount, amount_paid')
       .eq('id', orderId)
       .single();
 
-    const lateFee = Number(returnData.late_fee || 0);
-    const discount = Number(returnData.discount || 0);
+    const additionalLateFee = Number(returnData.late_fee || 0);
+    const additionalDiscount = Number(returnData.discount || 0);
+    const originalOrderDiscount = Number(currentOrder?.discount || 0);
+
+    const newDiscountTotal = originalOrderDiscount + additionalDiscount;
     
-    // Total amount = Subtotal + GST + Total Item Damage + Late Fee - Discount
+    // Total amount = Item Total After Item Discounts - Original Order Discount + Additional Late Fee + Total Item Damage - Additional Discount
     const newTotalAmount = Math.max(0, 
-      Number(currentOrder?.subtotal || 0) + 
-      Number(currentOrder?.gst_amount || 0) + 
-      lateFee + 
+      itemTotalAfterDiscounts - 
+      originalOrderDiscount + 
+      additionalLateFee + 
       totalDamageCharges - 
-      discount
+      additionalDiscount
     );
     
     // Update payment status if the new total changed and is not fully paid anymore
@@ -1609,8 +1616,8 @@ export class OrderRepository extends BaseRepository {
       .update({
         status: newStatus,
         total_amount: newTotalAmount,
-        late_fee: lateFee,
-        discount: discount,
+        late_fee: additionalLateFee,
+        discount: newDiscountTotal,
         damage_charges_total: totalDamageCharges,
         payment_status: paymentStatus
       })
@@ -1663,25 +1670,25 @@ export class OrderRepository extends BaseRepository {
 
     const orderId = itemResponse.data.order_id;
 
-    // 2. Recalculate order total damage
+    // 2. Recalculate order total damage and item totals
     const { data: allItems } = await this.client
       .from(this.orderItemsTable)
-      .select('damage_charges')
+      .select('damage_charges, base_amount, gst_amount')
       .eq('order_id', orderId);
 
     const totalDamageCharges = allItems?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0;
+    const itemTotalAfterDiscounts = allItems?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) || 0;
 
     // 3. Fetch current order to recalculate total_amount
     const { data: order } = await this.client
       .from(this.tableName)
-      .select('subtotal, gst_amount, discount, late_fee, amount_paid')
+      .select('discount, late_fee, amount_paid')
       .eq('id', orderId)
       .single();
 
     if (order) {
       const newTotalAmount = Math.max(0, 
-        Number(order.subtotal || 0) + 
-        Number(order.gst_amount || 0) + 
+        itemTotalAfterDiscounts + 
         Number(order.late_fee || 0) + 
         totalDamageCharges - 
         Number(order.discount || 0)

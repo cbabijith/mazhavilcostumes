@@ -558,9 +558,13 @@ export class OrderService {
 
         if (data.status === OrderStatus.CANCELLED) {
           // ─── CANCELLATION ──────────────────────────────────────────────
-          // 1. Clear priority flag on the cancelled order itself
+          // 1. Clear priority flag and stock conflict flags on the cancelled order itself
           //    (recalculate only processes active orders, so this order would be skipped)
-          await orderRepository.update(id, { has_priority_cleaning: false } as any);
+          await orderRepository.update(id, { 
+            has_priority_cleaning: false,
+            has_stock_conflict: false,
+            conflict_details: []
+          } as any);
 
           // 2. Delete this cancelled order's own scheduled cleaning records
           const ownRecords = await cleaningRepository.findByOrderId(id);
@@ -949,18 +953,23 @@ export class OrderService {
     const paymentDone = order.payment_status === PaymentStatus.PAID;
     
     // Status-based "items done" check
-    let itemsDone = order.status === OrderStatus.RETURNED;
+    let itemsDone = order.status === OrderStatus.RETURNED || order.status === OrderStatus.COMPLETED;
 
-    // If flagged, check if all damage assessments are resolved as reuse
+    // If flagged, check if all damage assessments are resolved
     if (order.status === OrderStatus.FLAGGED) {
       const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
       if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
         const assessments = assessmentResult.data;
         const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
-        const anyWriteOff = assessments.some(a => a.decision === DamageDecision.NOT_REUSE);
         
-        // If all are assessed and NO write-offs, then items are fully processed and back in inventory
-        if (allDone && !anyWriteOff) {
+        // If all are assessed, transition order from FLAGGED to RETURNED status
+        if (allDone) {
+          await orderRepository.update(orderId, { status: OrderStatus.RETURNED } as any);
+          // Sync priority flag (clears it for returned/completed orders)
+          await orderRepository.syncOrderPriorityFlag(orderId);
+          // Add status history entry
+          await orderRepository.addStatusHistory(orderId, OrderStatus.RETURNED, 'Damage assessment complete: all units resolved');
+          order.status = OrderStatus.RETURNED;
           itemsDone = true;
         }
       }
