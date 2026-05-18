@@ -558,9 +558,13 @@ export class OrderService {
 
         if (data.status === OrderStatus.CANCELLED) {
           // ─── CANCELLATION ──────────────────────────────────────────────
-          // 1. Clear priority flag on the cancelled order itself
+          // 1. Clear priority flag and stock conflict flags on the cancelled order itself
           //    (recalculate only processes active orders, so this order would be skipped)
-          await orderRepository.update(id, { has_priority_cleaning: false } as any);
+          await orderRepository.update(id, { 
+            has_priority_cleaning: false,
+            has_stock_conflict: false,
+            conflict_details: []
+          } as any);
 
           // 2. Delete this cancelled order's own scheduled cleaning records
           const ownRecords = await cleaningRepository.findByOrderId(id);

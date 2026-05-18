@@ -253,7 +253,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   );
 
   const searchAvailabilityMap = useMemo(() => {
-    const map = new Map<string, { available: number; isAvailable: boolean; peakReserved: number; overlappingOrders: any[] }>();
+    const map = new Map<string, { available: number; isAvailable: boolean; peakReserved: number; overlappingOrders: any[]; total: number }>();
     if (searchAvailabilityData?.data?.items) {
       for (const item of searchAvailabilityData.data.items) {
         map.set(item.product_id, item);
@@ -288,7 +288,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   );
 
   const availabilityMap = useMemo(() => {
-    const map = new Map<string, { available: number; isAvailable: boolean; peakReserved: number; overlappingOrders: any[] }>();
+    const map = new Map<string, { available: number; isAvailable: boolean; peakReserved: number; overlappingOrders: any[]; total: number }>();
     if (availabilityData?.data?.items) {
       for (const item of availabilityData.data.items) {
         map.set(item.product_id, item);
@@ -984,7 +984,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                }
 
                                return (
-                                <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.available + avail.peakReserved} free for this period{hasBuffer && (avail as any).priorityCleaningNeeded ? <span className="text-amber-600 ml-1">({(avail as any).availableWithPriority} with priority cleaning)</span> : null}</span></>
+                                <><CheckCircle2 className="w-3 h-3 flex-shrink-0" /> <span>{avail.available} of {avail.total} free for this period{hasBuffer && (avail as any).priorityCleaningNeeded ? <span className="text-amber-600 ml-1">({(avail as any).availableWithPriority} with priority cleaning)</span> : null}</span></>
                                );
                             })()}
                           </div>

@@ -480,7 +480,9 @@ export class OrderRepository extends BaseRepository {
     // Sort by start date for chronological display
     const allOverlapping = [
       ...actualOverlaps.map(b => ({ ...b, bufferOnly: false })),
-      ...bufferOnlyOverlaps.map(b => ({ ...b, bufferOnly: true })),
+      ...bufferOnlyOverlaps
+        .filter(b => blockedBufferOrderIds.has(b.orderId))
+        .map(b => ({ ...b, bufferOnly: true })),
     ].sort((a, b) => a.start - b.start);
 
     return {

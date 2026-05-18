@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
           isAvailable: false,
           peakReserved: 0,
           overlappingOrders: [],
+          total: 0,
           error: availResult.error?.message || 'Failed to check availability',
         });
         allAvailable = false;
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
         overlappingOrders: availResult.data.overlappingOrders,
         priorityCleaningNeeded: availResult.data.priorityCleaningNeeded,
         priorityCleaningInfo: availResult.data.priorityCleaningInfo || [],
+        total: availResult.data.total,
       });
     }
 
