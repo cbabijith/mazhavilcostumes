@@ -97,6 +97,9 @@ export class OrderRepository extends BaseRepository {
         // We look for orders explicitly marked as partial OR where paid < total
         // Using .or() for a more robust "partial" check
         query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
+      } else if ((params.status as string) === 'damaged') {
+        // Virtual status: orders currently flagged OR that have damage charges total > 0
+        query = query.or('status.eq.flagged,damage_charges_total.gt.0');
       } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {
@@ -1356,6 +1359,9 @@ export class OrderRepository extends BaseRepository {
       } else if ((params.status as string) === 'partial') {
         // Virtual status: orders with outstanding balance
         query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
+      } else if ((params.status as string) === 'damaged') {
+        // Virtual status: orders currently flagged OR that have damage charges total > 0
+        query = query.or('status.eq.flagged,damage_charges_total.gt.0');
       } else if (Array.isArray(params.status)) {
         query = query.in('status', params.status);
       } else {

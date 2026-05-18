@@ -265,7 +265,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         : `${stats.damagedOrders} item${stats.damagedOrders !== 1 ? "s" : ""} flagged today`,
       icon: ShieldAlert,
       color: "rose",
-      href: "/dashboard/orders?status=flagged&date_filter=today&date_field=updated_at",
+      href: "/dashboard/orders?status=damaged&date_filter=today&date_field=updated_at",
       isEmpty: stats.damagedOrders === 0,
     },
     {
