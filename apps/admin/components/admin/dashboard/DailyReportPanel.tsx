@@ -44,6 +44,10 @@ interface DailyReportStats {
   todaysRefunds: number;
   damageIncome: number;
   lateFeeIncome: number;
+  revenueDue: {
+    amount: number;
+    orderCount: number;
+  };
   mode_breakdown: {
     cash: number;
     upi: number;
@@ -145,6 +149,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         ["Deliveries", `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`, stats.todaysDelivery.total - stats.todaysDelivery.delivered > 0 ? "Pending" : "Completed"],
         ["Returns", `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`, stats.todaysReturn.total - stats.todaysReturn.returned > 0 ? "Pending" : "Completed"],
         ["Damaged Items Today", String(stats.damagedOrders), stats.damagedOrders > 0 ? "Flagged" : "None"],
+        ["Revenue Due (All Outstanding)", formatPDFCurrency(stats.revenueDue.amount), stats.revenueDue.amount > 0 ? `${stats.revenueDue.orderCount} Order(s) with Balance` : "Fully Settled"],
       ],
       theme: 'striped',
       headStyles: { fillColor: [15, 23, 42] },
@@ -238,6 +243,18 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
       color: "green",
       href: null,
       isEmpty: stats.todaysCollection === 0 && stats.todaysRefunds === 0,
+      isCurrency: true,
+    },
+    {
+      label: "Revenue Due",
+      value: formatCurrency(stats.revenueDue.amount),
+      subtitle: stats.revenueDue.amount === 0
+        ? "No outstanding dues ✓"
+        : `${stats.revenueDue.orderCount} order${stats.revenueDue.orderCount !== 1 ? "s" : ""} pending balance`,
+      icon: Banknote,
+      color: "indigo",
+      href: "/dashboard/orders?status=revenue_due",
+      isEmpty: stats.revenueDue.amount === 0,
       isCurrency: true,
     },
     {

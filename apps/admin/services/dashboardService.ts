@@ -154,6 +154,10 @@ export interface DailyReportStats {
   todaysRefunds: number;
   damageIncome: number;
   lateFeeIncome: number;
+  revenueDue: {
+    amount: number;
+    orderCount: number;
+  };
   mode_breakdown: {
     cash: number;
     upi: number;
@@ -688,6 +692,7 @@ export class DashboardService {
       refundRes,
       damageIncomeRes,
       lateFeeRes,
+      revenueDueRes,
     ] = await Promise.all([
       // 1. Today's Bookings — count of orders created today
       supabase
@@ -772,12 +777,20 @@ export class DashboardService {
         .gt('late_fee', 0)
         .gte('updated_at', todayStart)
         .lte('updated_at', todayEnd),
+
+      // 12. Revenue Due (all outstanding balance across history, to remind daily)
+      supabase
+        .from('orders')
+        .select('total_amount, amount_paid')
+        .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+        .neq('payment_status', 'paid'),
     ]);
 
     const bookingList = (bookingsRes.data || []) as any[];
     const deliveryList = (deliveryTotalRes.data || []) as any[];
     const returnList = (returnTotalRes.data || []) as any[];
     const revenueList = (revenueRes.data || []) as any[];
+    const revenueDueOrders = (revenueDueRes.data || []) as any[];
 
     const todaysCollection = revenueList.reduce(
       (sum, p) => sum + Number(p.amount || 0), 0
@@ -821,6 +834,14 @@ export class DashboardService {
     const lateFeeIncome = (lateFeeRes.data || []).reduce(
       (sum, o) => sum + Number(o.late_fee || 0), 0
     );
+    
+    const revenueDueTotalAmount = revenueDueOrders.reduce(
+      (sum, o) => {
+        const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+        return sum + (due > 0 ? due : 0);
+      }, 
+      0
+    );
 
     return {
       todaysBookings: bookingList.length,
@@ -839,6 +860,10 @@ export class DashboardService {
       todaysRefunds,
       damageIncome,
       lateFeeIncome,
+      revenueDue: {
+        amount: revenueDueTotalAmount,
+        orderCount: revenueDueOrders.length,
+      },
       mode_breakdown,
       details: {
         bookings: bookingList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', amount: o.total_amount })),

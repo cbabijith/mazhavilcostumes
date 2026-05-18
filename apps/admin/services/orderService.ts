@@ -953,18 +953,23 @@ export class OrderService {
     const paymentDone = order.payment_status === PaymentStatus.PAID;
     
     // Status-based "items done" check
-    let itemsDone = order.status === OrderStatus.RETURNED;
+    let itemsDone = order.status === OrderStatus.RETURNED || order.status === OrderStatus.COMPLETED;
 
-    // If flagged, check if all damage assessments are resolved as reuse
+    // If flagged, check if all damage assessments are resolved
     if (order.status === OrderStatus.FLAGGED) {
       const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
       if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
         const assessments = assessmentResult.data;
         const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
-        const anyWriteOff = assessments.some(a => a.decision === DamageDecision.NOT_REUSE);
         
-        // If all are assessed and NO write-offs, then items are fully processed and back in inventory
-        if (allDone && !anyWriteOff) {
+        // If all are assessed, transition order from FLAGGED to RETURNED status
+        if (allDone) {
+          await orderRepository.update(orderId, { status: OrderStatus.RETURNED } as any);
+          // Sync priority flag (clears it for returned/completed orders)
+          await orderRepository.syncOrderPriorityFlag(orderId);
+          // Add status history entry
+          await orderRepository.addStatusHistory(orderId, OrderStatus.RETURNED, 'Damage assessment complete: all units resolved');
+          order.status = OrderStatus.RETURNED;
           itemsDone = true;
         }
       }

@@ -123,17 +123,57 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   // Projected amount due including pending return fees (live preview)
   const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
   
-  // To avoid double-counting, we calculate the projected total by starting from the "clean" base 
-  // (Order Total - Persisted Damage - Persisted Late Fee + Persisted Discount) 
-  // and then adding our local return-time adjustments.
-  const baseTotalBeforeReturn = order 
-    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0) + (order.discount || 0)) 
+  // Calculate if the order is overdue based on current date vs end_date
+  const todayStr = typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '';
+  const isOverdue = order ? todayStr > order.end_date : false;
+
+  // Base order total before any return-time adjustments (damage, late fee)
+  const originalOrderTotalBeforeReturn = order 
+    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0)) 
     : 0;
 
-  const projected_total = order ? baseTotalBeforeReturn + calculatedDamage + lateFee - discount : 0;
-  const amount_due = order ? Math.max(0, projected_total - (order.amount_paid || 0)) : 0;
+  const projected_total = order 
+    ? (isReturnable 
+        ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount 
+        : order.total_amount)
+    : 0;
+
+  const amount_due = order 
+    ? (isReturnable 
+        ? Math.max(0, projected_total - (order.amount_paid || 0)) 
+        : Math.max(0, order.total_amount - (order.amount_paid || 0)))
+    : 0;
+
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
   const totalDeductions = calculatedDamage + lateFee - discount;
+
+  // Reactive settlement variables for the receipt sidebar
+  const displayLateFee = isReturnable ? (order ? order.late_fee + lateFee : 0) : (order ? order.late_fee : 0);
+  const displayOrderDiscount = isReturnable ? (order ? order.discount + discount : 0) : (order ? order.discount : 0);
+  const displayDamageCharges = isReturnable ? calculatedDamage : (order ? order.damage_charges_total : 0);
+  const displayGrandTotal = projected_total;
+  const displayBalanceDue = amount_due;
+
+  // Console log for financial calculations to help debugging as requested by user
+  useEffect(() => {
+    if (isReturnable && order) {
+      console.log("[Return Financial Live Calculation]:", {
+        orderId: order.id,
+        status: order.status,
+        persistedTotal: order.total_amount,
+        persistedAmountPaid: order.amount_paid,
+        persistedLateFee: order.late_fee,
+        persistedDiscount: order.discount,
+        persistedDamageCharges: order.damage_charges_total,
+        isOverdue,
+        localCalculatedDamage: calculatedDamage,
+        localAdditionalLateFee: lateFee,
+        localAdditionalDiscount: discount,
+        liveProjectedTotal: projected_total,
+        liveAmountDue: amount_due
+      });
+    }
+  }, [isReturnable, order, calculatedDamage, lateFee, discount, projected_total, amount_due, isOverdue]);
 
   const getImageUrl = (product: any) => {
     if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) return null;
@@ -331,7 +371,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       order_id: order.id,
       notes: `Late Fee: ${lateFee}, Discount: ${discount}`,
       items: order.items.map(item => {
-        const rItem = returnItems[item.id];
+        const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "" };
         const isDamaged = rItem.status === 'damaged';
         const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
         // Auto-mark remaining quantity as Good
@@ -340,8 +380,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           item_id: item.id,
           returned_quantity: returnedQty,
           condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
-          damage_description: rItem.notes,
-          damage_charges: rItem.damage_fee,
+          damage_description: rItem.notes || "",
+          damage_charges: rItem.damage_fee || 0,
           damaged_quantity: damagedQty,
           // The good quantity is implicitly: item.quantity - damagedQty
         };
@@ -356,9 +396,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleReturnClick = () => {
     if (!order) return;
 
-    const unmarked = Object.entries(returnItems).filter(([_, val]) => val.status === null);
+    // Bulletproof validation check across all order items
+    const unmarked = order.items.filter(item => {
+      const rItem = returnItems[item.id];
+      return !rItem || rItem.status === null;
+    });
+
     if (unmarked.length > 0) {
-      showError("Incomplete", "Please mark the condition of all items before settling.");
+      showError("Incomplete Checkup", "Please mark the condition of all items before settling.");
       return;
     }
 
@@ -856,7 +901,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
                       <div className="flex justify-between text-sm text-slate-700">
                         <span>Base Order Total</span>
-                        <span className="font-bold">{formatCurrency(baseTotalBeforeReturn)}</span>
+                        <span className="font-bold">{formatCurrency(originalOrderTotalBeforeReturn)}</span>
                       </div>
                       {calculatedDamage > 0 && (
                         <div className="flex justify-between text-sm text-orange-700">
@@ -887,6 +932,20 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
                         <span>Balance Due</span>
                         <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Warning banner if late fee is added but the order is not late */}
+                  {lateFee > 0 && !isOverdue && (
+                    <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold shadow-sm transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">On-Time Return Warning</p>
+                        <p className="mt-0.5 leading-relaxed text-amber-850">
+                          This order is being returned on-time (due by {order ? format(new Date(order.end_date), "dd MMM yyyy") : ""}). 
+                          Are you sure you want to charge a late fee of {formatCurrency(lateFee)}?
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1012,9 +1071,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               const totalBaseExclGst = order.items.reduce((sum, item) => sum + (item.base_amount || 0), 0);
               const totalGst = order.items.reduce((sum, item) => sum + (item.gst_amount || 0), 0);
               
-              // The order-level discount is applied on the afterItemDiscountTotal
-              const orderLevelDiscount = Math.max(0, afterItemDiscountTotal - order.total_amount);
-
               return (
                 <div className="space-y-4">
                   {/* 1. Raw Subtotal */}
@@ -1065,24 +1121,69 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   </div>
 
                   {/* 4. Order-Level Discount */}
-                  {orderLevelDiscount > 0 && (
-                    <div className="flex justify-between text-purple-600 font-bold text-sm pt-2 border-t border-slate-50">
-                      <span className="uppercase text-[10px] tracking-wider">Order Discount</span>
-                      <span>- {formatCurrency(orderLevelDiscount)}</span>
+                  {displayOrderDiscount > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-slate-50">
+                      <div className="flex justify-between text-purple-600 font-bold text-sm">
+                        <span className="uppercase text-[10px] tracking-wider">Order Discount</span>
+                        <span>- {formatCurrency(displayOrderDiscount)}</span>
+                      </div>
+                      {isReturnable && order.discount > 0 && discount > 0 && (
+                        <div className="pl-4 space-y-0.5">
+                          <div className="flex justify-between text-[11px] text-purple-500 font-medium italic">
+                            <span>Initial Discount</span>
+                            <span>- {formatCurrency(order.discount)}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] text-purple-500 font-medium italic">
+                            <span>Return Settlement Disc.</span>
+                            <span>- {formatCurrency(discount)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* 5. Extra Fees (Late/Damage) */}
-                  {(order.late_fee || 0) > 0 && (
-                    <div className="flex justify-between text-red-600 font-bold text-sm pt-2 border-t border-slate-50">
-                      <span className="uppercase text-[10px] tracking-wider">Late Fee</span>
-                      <span>+ {formatCurrency(order.late_fee)}</span>
+                  {displayLateFee > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-slate-50">
+                      <div className="flex justify-between text-red-600 font-bold text-sm">
+                        <span className="uppercase text-[10px] tracking-wider">Late Fee</span>
+                        <span>+ {formatCurrency(displayLateFee)}</span>
+                      </div>
+                      {isReturnable && order.late_fee > 0 && lateFee > 0 && (
+                        <div className="pl-4 space-y-0.5">
+                          <div className="flex justify-between text-[11px] text-red-500 font-medium italic">
+                            <span>Initial Late Fee</span>
+                            <span>+ {formatCurrency(order.late_fee)}</span>
+                          </div>
+                          <div className="flex justify-between text-[11px] text-red-500 font-medium italic">
+                            <span>Additional Late Fee</span>
+                            <span>+ {formatCurrency(lateFee)}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {(order.damage_charges_total || 0) > 0 && (
-                    <div className="flex justify-between text-amber-600 font-bold text-sm">
-                      <span className="uppercase text-[10px] tracking-wider">Damage Charges</span>
-                      <span>+ {formatCurrency(order.damage_charges_total)}</span>
+                  
+                  {displayDamageCharges > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-slate-50">
+                      <div className="flex justify-between text-amber-600 font-bold text-sm">
+                        <span className="uppercase text-[10px] tracking-wider">Damage Charges</span>
+                        <span>+ {formatCurrency(displayDamageCharges)}</span>
+                      </div>
+                      {isReturnable && order.items.some(item => (returnItems[item.id]?.damage_fee || 0) > 0) && (
+                        <div className="pl-4 space-y-0.5">
+                          {order.items.map((item) => {
+                            const fee = returnItems[item.id]?.damage_fee || 0;
+                            if (fee <= 0) return null;
+                            return (
+                              <div key={item.id} className="flex justify-between text-[11px] text-amber-500 font-medium italic">
+                                <span className="truncate max-w-[150px]">{item.product?.name}</span>
+                                <span>+ {formatCurrency(fee)}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1094,7 +1195,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         <span className="block text-[10px] text-slate-400 font-medium mt-0.5">Inclusive of GST</span>
                       )}
                     </div>
-                    <span className="text-2xl">{formatCurrency(order.total_amount)}</span>
+                    <span className="text-2xl">{formatCurrency(displayGrandTotal)}</span>
                   </div>
 
                   {/* 7. Payments & Balance — contextual based on order status */}
@@ -1164,21 +1265,53 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       </div>
                     </div>
                   ) : order.status === OrderStatus.COMPLETED ? (
-                    <div className="pt-6 mt-4 border-t-2 border-slate-100 flex justify-between items-center">
-                      <span className="text-lg font-black text-emerald-700">Total Settled</span>
-                      <span className="text-2xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
+                    <div className="pt-4 space-y-2.5">
+                      <div className="space-y-1.5 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="flex justify-between text-emerald-800 font-extrabold text-sm">
+                          <span className="flex items-center gap-1">Total Settled</span>
+                          <span className="text-xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
+                        </div>
+                        {payments.length > 0 && (
+                          <div className="pl-4 space-y-1 border-t border-emerald-200/40 pt-2 mt-2">
+                            {payments.map((p: any) => (
+                              <div key={p.id} className="flex justify-between text-[11px] text-emerald-600 font-medium italic">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                                  {p.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} ({p.payment_mode})
+                                </span>
+                                <span>{formatCurrency(p.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="pt-4 space-y-2.5">
-                      <div className="flex justify-between text-emerald-600 font-bold text-sm p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                        <span className="flex items-center gap-1">Less: Amount Paid</span>
-                        <span>- {formatCurrency(order.amount_paid || 0)}</span>
+                      <div className="space-y-1.5 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div className="flex justify-between text-emerald-800 font-extrabold text-sm">
+                          <span className="flex items-center gap-1">Less: Amount Paid</span>
+                          <span>- {formatCurrency(order.amount_paid || 0)}</span>
+                        </div>
+                        {payments.length > 0 && (
+                          <div className="pl-4 space-y-1 border-t border-emerald-200/40 pt-2 mt-2">
+                            {payments.map((p: any) => (
+                              <div key={p.id} className="flex justify-between text-[11px] text-emerald-600 font-medium italic">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                                  {p.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} ({p.payment_mode})
+                                </span>
+                                <span>- {formatCurrency(p.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex justify-between items-center pt-2 px-1">
                         <span className="text-lg font-black text-slate-900">Balance Due</span>
-                        <span className={`text-2xl font-black ${amount_due > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                          {formatCurrency(amount_due)}
+                        <span className={`text-2xl font-black ${displayBalanceDue > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {formatCurrency(displayBalanceDue)}
                         </span>
                       </div>
                     </div>

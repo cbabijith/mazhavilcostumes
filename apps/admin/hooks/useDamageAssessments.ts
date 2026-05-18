@@ -109,9 +109,8 @@ export function useAssessDamageUnit() {
     },
     onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY, variables.orderId] });
-      // Also invalidate the order to reflect stock changes
-      queryClient.invalidateQueries({ queryKey: ['orders', variables.orderId] });
-      queryClient.invalidateQueries({ queryKey: ['order', variables.orderId] });
+      // Also invalidate all order queries (details and list) to reflect status changes
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       const label = variables.decision === 'reuse' ? 'Reuse' : 'Write Off';
       showSuccess('Assessment Updated', `Unit marked as "${label}".`);
     },
