@@ -54,8 +54,16 @@ function ReportsPageContent() {
   const [data, setData] = useState<any[]>([]);
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [gstDetails, setGstDetails] = useState<any[]>([]);
+  const [gstSlabFilter, setGstSlabFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const filteredGstDetails = useMemo(() => {
+    if (gstSlabFilter === 'all') return gstDetails;
+    return gstDetails.filter((inv: any) => {
+      return inv.slabs && inv.slabs.includes(gstSlabFilter + '%');
+    });
+  }, [gstDetails, gstSlabFilter]);
   
   const [filters, setFilters] = useState<FilterType>(() => {
     // Determine context (Server vs Client)
@@ -114,11 +122,32 @@ function ReportsPageContent() {
       rank_by: 'count',
       limit: 50,
       page: 1,
-      status: reportFromUrl === 'revenue' ? [] : ['completed', 'returned'],
+      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue' || reportFromUrl === 'gst-filing') ? [] : ['completed', 'returned'],
     };
   });
 
   const selectedReport = reportFromUrl;
+
+  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters
+  useEffect(() => {
+    if (!selectedReport) return;
+    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'gst-filing') ? [] : ['completed', 'returned'];
+    
+    setFilters(prev => {
+      const currentJoined = prev.status?.join(',') || '';
+      const targetJoined = targetStatus.join(',');
+      if (currentJoined === targetJoined) {
+        return prev;
+      }
+      return {
+        ...prev,
+        status: targetStatus,
+        page: 1
+      };
+    });
+    setGstSlabFilter('all');
+  }, [selectedReport]);
+
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const [isInitial, setIsInitial] = useState(true);
@@ -334,30 +363,29 @@ function ReportsPageContent() {
     let exportData = sortedData;
     let exportColumns = getExportColumns();
     
-    if ((selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
+    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
+      exportData = filteredGstDetails;
+      exportColumns = [
+        { header: "Invoice No", key: "invoice_no" },
+        { header: "Date", key: "date", format: "date" as const },
+        { header: "Customer", key: "customer_name" },
+        { header: "Items & Qty", key: "items_summary" },
+        { header: "Total Value", key: "total_value", format: "currency" as const },
+        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+        { header: "GST Slabs", key: "slabs" },
+        { header: "Total GST", key: "gst_amount", format: "currency" as const },
+      ];
+    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
       exportData = gstDetails;
-      if (selectedReport === 'gst-filing') {
-        exportColumns = [
-          { header: "Order ID", key: "order_id" },
-          { header: "Invoice No", key: "invoice_no" },
-          { header: "Date", key: "date", format: "date" as const },
-          { header: "Customer", key: "customer_name" },
-          { header: "Total Value", key: "total_value", format: "currency" as const },
-          { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-          { header: "GST Slabs", key: "slabs" },
-          { header: "Total GST", key: "gst_amount", format: "currency" as const },
-        ];
-      } else {
-        exportColumns = [
-          { header: "Date", key: "date", format: "date" as const },
-          { header: "Order ID", key: "order_id" },
-          { header: "Customer", key: "customer_name" },
-          { header: "Type", key: "payment_type" },
-          { header: "Payment Mode", key: "payment_mode" },
-          { header: "Amount", key: "amount", format: "currency" as const },
-          { header: "Order Status", key: "status" },
-        ];
-      }
+      exportColumns = [
+        { header: "Date", key: "date", format: "date" as const },
+        { header: "Order ID", key: "order_id" },
+        { header: "Customer", key: "customer_name" },
+        { header: "Type", key: "payment_type" },
+        { header: "Payment Mode", key: "payment_mode" },
+        { header: "Amount", key: "amount", format: "currency" as const },
+        { header: "Order Status", key: "status" },
+      ];
     } else if (selectedReport === 'enquiry-log') {
       exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
     }
@@ -372,7 +400,30 @@ function ReportsPageContent() {
     let exportData = sortedData;
     let exportColumns = getExportColumns();
     
-    if (selectedReport === 'enquiry-log') {
+    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
+      exportData = filteredGstDetails;
+      exportColumns = [
+        { header: "Invoice No", key: "invoice_no" },
+        { header: "Date", key: "date", format: "date" as const },
+        { header: "Customer", key: "customer_name" },
+        { header: "Items & Qty", key: "items_summary" },
+        { header: "Total Value", key: "total_value", format: "currency" as const },
+        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+        { header: "GST Slabs", key: "slabs" },
+        { header: "Total GST", key: "gst_amount", format: "currency" as const },
+      ];
+    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
+      exportData = gstDetails;
+      exportColumns = [
+        { header: "Date", key: "date", format: "date" as const },
+        { header: "Order ID", key: "order_id" },
+        { header: "Customer", key: "customer_name" },
+        { header: "Type", key: "payment_type" },
+        { header: "Payment Mode", key: "payment_mode" },
+        { header: "Amount", key: "amount", format: "currency" as const },
+        { header: "Order Status", key: "status" },
+      ];
+    } else if (selectedReport === 'enquiry-log') {
       exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
     }
     
@@ -485,7 +536,21 @@ function ReportsPageContent() {
         {selectedReport === 'sales-by-staff' && <SalesByStaffView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'inventory-revenue' && <InventoryRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'enquiry-log' && <EnquiryLogView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} onLogEnquiry={handleLogEnquiry} />}
-        {selectedReport === 'gst-filing' && <GSTFilingView data={sortedData} reportSummary={reportSummary} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} gstDetails={gstDetails} />}
+        {selectedReport === 'gst-filing' && (
+          <GSTFilingView 
+            data={sortedData} 
+            reportSummary={reportSummary} 
+            loading={loading} 
+            error={error} 
+            sortConfig={sortConfig} 
+            onSort={handleSort} 
+            formatCell={formatCell} 
+            gstDetails={gstDetails} 
+            gstSlabFilter={gstSlabFilter}
+            setGstSlabFilter={setGstSlabFilter}
+            filteredGstDetails={filteredGstDetails}
+          />
+        )}
       </div>
     </div>
   );

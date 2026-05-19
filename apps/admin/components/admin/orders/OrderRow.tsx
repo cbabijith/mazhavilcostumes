@@ -305,10 +305,12 @@ function OrderRowInner({
             className="w-8 h-8 text-slate-400 hover:text-slate-900"
             onClick={(e) => {
               e.stopPropagation();
-              window.open(
-                `/api/orders/${order.id}/invoice?type=final`,
-                "_blank"
-              );
+              const link = document.createElement("a");
+              link.href = `/api/orders/${order.id}/invoice?type=final`;
+              link.setAttribute("download", `INV-${order.id.slice(0, 8).toUpperCase()}.pdf`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
             }}
             title="Download Invoice"
           >

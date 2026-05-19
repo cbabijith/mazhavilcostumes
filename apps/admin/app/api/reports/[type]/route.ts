@@ -9,6 +9,8 @@
 
 import { NextRequest } from 'next/server';
 import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { settingsService } from '@/services/settingsService';
 import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 import { reportService } from '@/services/reportService';
 import type { ReportType, ReportFilters } from '@/domain';
@@ -27,6 +29,12 @@ export async function GET(
   try {
     const guard = await apiGuard(request, 'reports');
     if (guard.error) return guard.error;
+
+    // Set the real store_id from the authenticated user
+    const authUser = await getAuthUser(request);
+    if (authUser?.store_id) {
+      settingsService.setStoreId(authUser.store_id);
+    }
 
     const { type } = await params;
     if (!VALID_TYPES.includes(type as ReportType)) {

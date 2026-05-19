@@ -32,7 +32,9 @@ export async function GET(
     // generateInvoice now returns a Buffer (from @react-pdf/renderer)
     const pdfBuffer = await invoiceService.generateInvoice(id, invoiceType as 'deposit' | 'final');
 
-    const invoiceNumber = `INV-${id.slice(0, 8).toUpperCase()}-${invoiceType.toUpperCase()}`;
+    const invoiceNumber = invoiceType === 'final'
+      ? `INV-${id.slice(0, 8).toUpperCase()}`
+      : `INV-${id.slice(0, 8).toUpperCase()}-DEPOSIT`;
     const filename = `${invoiceNumber}.pdf`;
     // Support ?disposition=inline for print (iframe) vs attachment for download
     const disposition = searchParams.get('disposition') === 'inline' ? 'inline' : 'attachment';

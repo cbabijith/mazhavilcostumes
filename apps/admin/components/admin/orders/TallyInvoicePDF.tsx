@@ -27,6 +27,22 @@ export interface InvoiceItem {
   gstRate?: number;
   gstAmount?: number;
   discount?: number;
+  discountType?: string;
+  discountTotal?: number;
+}
+
+export interface InvoicePayment {
+  id: string;
+  payment_type: string;
+  payment_mode: string;
+  amount: number;
+  created_at: string;
+  notes?: string | null;
+}
+
+export interface InvoiceDamageChargesBreakdown {
+  productName: string;
+  charges: number;
 }
 
 export interface TallyInvoiceProps {
@@ -60,9 +76,18 @@ export interface TallyInvoiceProps {
   damageCharges: number;
   securityDeposit: number;
   totalAmount: number;
-   totalPaid: number;
+  totalPaid: number;
   advancePaid?: number;
   balanceDue: number;
+
+  // New detailed breakdowns
+  itemDiscountsTotal?: number;
+  orderDiscount?: number;
+  returnDiscount?: number;
+  initialLateFee?: number;
+  additionalLateFee?: number;
+  damageChargesBreakdown?: InvoiceDamageChargesBreakdown[];
+  paymentsList?: InvoicePayment[];
 
   termsAndConditions?: string;
   authorizedSignature?: string;
@@ -223,9 +248,10 @@ const s = StyleSheet.create({
 
   // Column widths — Description gets the lion's share
   colSno:  { width: '6%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
-  colDesc: { width: '52%', textAlign: 'left' as const,   borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colDesc: { width: '44%', textAlign: 'left' as const,   borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
   colQty:  { width: '8%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
-  colRate: { width: '15%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colRate: { width: '13%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colGst:  { width: '10%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 4, fontSize: 8 },
   colAmt:  { width: '19%', textAlign: 'right' as const,  paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
 
   thText: { fontFamily: 'Helvetica-Bold', fontSize: 9 },
@@ -369,8 +395,19 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
     items,
     subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
     totalAmount, totalPaid, advancePaid, balanceDue,
+    itemDiscountsTotal, orderDiscount, returnDiscount,
+    initialLateFee, additionalLateFee, damageChargesBreakdown, paymentsList,
     termsAndConditions, authorizedSignature,
   } = props;
+
+  const hasGst = items.some((item) => (item.gstRate || 0) > 0) || (gstAmount || 0) > 0;
+
+  const colSnoStyle = s.colSno;
+  const colDescStyle = hasGst ? s.colDesc : { ...s.colDesc, width: '52%' };
+  const colQtyStyle = s.colQty;
+  const colRateStyle = hasGst ? s.colRate : { ...s.colRate, width: '15%' };
+  const colGstStyle = s.colGst;
+  const colAmtStyle = s.colAmt;
 
   return (
     <Document>
@@ -430,72 +467,118 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
 
           {/* ── Items Table Header ── */}
           <View style={s.tableHeader}>
-            <Text style={{ ...s.colSno, ...s.thText }}>S.No</Text>
-            <Text style={{ ...s.colDesc, ...s.thText }}>Description of Goods</Text>
-            <Text style={{ ...s.colQty, ...s.thText }}>Qty</Text>
-            <Text style={{ ...s.colRate, ...s.thText }}>Rate</Text>
-            <Text style={{ ...s.colAmt, ...s.thText }}>Amount</Text>
+            <Text style={{ ...colSnoStyle, ...s.thText }}>S.No</Text>
+            <Text style={{ ...colDescStyle, ...s.thText }}>Description of Goods</Text>
+            <Text style={{ ...colQtyStyle, ...s.thText }}>Qty</Text>
+            <Text style={{ ...colRateStyle, ...s.thText }}>Rate</Text>
+            {hasGst ? <Text style={{ ...colGstStyle, ...s.thText }}>GST</Text> : null}
+            <Text style={{ ...colAmtStyle, ...s.thText }}>Amount</Text>
           </View>
 
           {/* ── Items Table Body ── */}
           {items.map((item) => (
             <View key={item.sno} style={s.tableRow}>
-              <Text style={s.colSno}>{item.sno}</Text>
-              <View style={s.colDesc}>
+              <Text style={colSnoStyle}>{item.sno}</Text>
+              <View style={colDescStyle}>
                 <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold' }}>{item.name}</Text>
                 <View style={{ flexDirection: 'row' as const, gap: 4 }}>
-                  {item.gstRate && item.gstRate > 0 ? (
-                    <Text style={s.itemSubText}>
-                      [GST: {item.gstRate}% ({rs(item.gstAmount || 0)})]
-                    </Text>
-                  ) : null}
                   {item.discount && item.discount > 0 ? (
                     <Text style={s.itemSubText}>
-                      [Disc: {rs(item.discount)}]
+                      {item.discountType === 'percent' ? (
+                        `[Disc: ${item.discount}% (-${rs(item.discountTotal || 0)})]`
+                      ) : (
+                        `[Disc: ${rs(item.discount)} x ${item.quantity} = -${rs(item.discountTotal || (item.discount * item.quantity))}]`
+                      )}
                     </Text>
                   ) : null}
                 </View>
               </View>
-              <Text style={s.colQty}>{item.quantity}</Text>
-              <Text style={s.colRate}>{rs(item.rate)}</Text>
-              <Text style={s.colAmt}>{rs(item.amount)}</Text>
+              <Text style={colQtyStyle}>{item.quantity}</Text>
+              <Text style={colRateStyle}>{rs(item.rate)}</Text>
+              {hasGst ? (
+                <View style={colGstStyle}>
+                  {item.gstRate && item.gstRate > 0 ? (
+                    <>
+                      <Text style={{ fontSize: 7, textAlign: 'right' as const, fontFamily: 'Helvetica-Bold' }}>{item.gstRate}%</Text>
+                      <Text style={{ fontSize: 6.5, color: '#444', textAlign: 'right' as const, marginTop: 1 }}>{rs(item.gstAmount || 0)}</Text>
+                    </>
+                  ) : (
+                    <Text style={{ fontSize: 7, color: '#888', textAlign: 'right' as const }}>0%</Text>
+                  )}
+                </View>
+              ) : null}
+              <Text style={colAmtStyle}>{rs(item.amount)}</Text>
             </View>
           ))}
 
           {/* ── Totals ── */}
           <View style={s.totalsBlock}>
-            <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Subtotal</Text>
-              <Text style={s.totalValue}>{rs(subtotal)}</Text>
-            </View>
+            {items.map((item) => (
+              item.discountTotal && item.discountTotal > 0 ? (
+                <View key={`disc-${item.sno}`} style={s.totalRow}>
+                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>
+                    {item.name} Discount
+                  </Text>
+                  <Text style={s.totalValue}>(-) {rs(item.discountTotal)}</Text>
+                </View>
+              ) : null
+            ))}
 
-            {gstAmount > 0 ? (
+            {orderDiscount && orderDiscount > 0 ? (
               <View style={s.totalRow}>
-                <Text style={s.totalLabel}>GST</Text>
-                <Text style={s.totalValue}>{rs(gstAmount)}</Text>
+                <Text style={s.totalLabel}>Order Discount</Text>
+                <Text style={s.totalValue}>(-) {rs(orderDiscount)}</Text>
               </View>
             ) : null}
 
-            {discount > 0 ? (
+            {returnDiscount && returnDiscount > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Return Settlement Discount</Text>
+                <Text style={s.totalValue}>(-) {rs(returnDiscount)}</Text>
+              </View>
+            ) : null}
+
+            {(!orderDiscount && !returnDiscount && discount > 0) ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Discount</Text>
                 <Text style={s.totalValue}>(-) {rs(discount)}</Text>
               </View>
             ) : null}
 
-            {lateFee > 0 ? (
+            {initialLateFee && initialLateFee > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Initial Late Fee</Text>
+                <Text style={s.totalValue}>{rs(initialLateFee)}</Text>
+              </View>
+            ) : null}
+
+            {additionalLateFee && additionalLateFee > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Return Late Fee</Text>
+                <Text style={s.totalValue}>{rs(additionalLateFee)}</Text>
+              </View>
+            ) : null}
+
+            {(!initialLateFee && !additionalLateFee && lateFee > 0) ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Late Fee</Text>
                 <Text style={s.totalValue}>{rs(lateFee)}</Text>
               </View>
             ) : null}
 
-            {damageCharges > 0 ? (
+            {damageChargesBreakdown && damageChargesBreakdown.length > 0 ? (
+              damageChargesBreakdown.map((dmg, idx) => (
+                <View key={`dmg-${idx}`} style={s.totalRow}>
+                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>Damage Fee: {dmg.productName}</Text>
+                  <Text style={s.totalValue}>{rs(dmg.charges)}</Text>
+                </View>
+              ))
+            ) : (damageCharges > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Damage Charges</Text>
                 <Text style={s.totalValue}>{rs(damageCharges)}</Text>
               </View>
-            ) : null}
+            ) : null)}
 
             {securityDeposit > 0 ? (
               <View style={s.totalRow}>
@@ -510,25 +593,49 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               <Text style={s.totalValueBold}>{rs(totalAmount)}</Text>
             </View>
 
-            {advancePaid && advancePaid > 0 ? (
-              <View style={s.totalRow}>
-                <Text style={s.totalLabel}>Advance Paid</Text>
-                <Text style={s.totalValue}>(-) {rs(advancePaid)}</Text>
-              </View>
-            ) : null}
-
-            {(() => {
-              const otherPaid = totalPaid - (advancePaid || 0);
-              if (otherPaid > 0) {
+            {paymentsList && paymentsList.length > 0 ? (
+              paymentsList.map((payment, idx) => {
+                let dateStr = '';
+                try {
+                  dateStr = new Date(payment.created_at).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  }).replace(/ /g, '-');
+                } catch {
+                  dateStr = String(payment.created_at || '').slice(0, 10);
+                }
+                
+                const label = `${dateStr} | ${payment.payment_type?.toUpperCase() === 'DEPOSIT' || payment.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} (${payment.payment_mode})`;
                 return (
-                  <View style={s.totalRow}>
-                    <Text style={s.totalLabel}>Additional Paid</Text>
-                    <Text style={s.totalValue}>(-) {rs(otherPaid)}</Text>
+                  <View key={payment.id || idx} style={s.totalRow}>
+                    <Text style={{ ...s.totalLabel, fontSize: 8, color: '#444' }}>{label}</Text>
+                    <Text style={{ ...s.totalValue, fontSize: 8, color: '#444' }}>(-) {rs(payment.amount)}</Text>
                   </View>
                 );
-              }
-              return null;
-            })()}
+              })
+            ) : (
+              <>
+                {advancePaid && advancePaid > 0 ? (
+                  <View style={s.totalRow}>
+                    <Text style={s.totalLabel}>Advance Paid</Text>
+                    <Text style={s.totalValue}>(-) {rs(advancePaid)}</Text>
+                  </View>
+                ) : null}
+                {(() => {
+                  const otherPaid = totalPaid - (advancePaid || 0);
+                  if (otherPaid > 0) {
+                    return (
+                      <View style={s.totalRow}>
+                        <Text style={s.totalLabel}>Additional Paid</Text>
+                        <Text style={s.totalValue}>(-) {rs(otherPaid)}</Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
+            )}
 
             {invoiceType === 'final' && balanceDue > 0 ? (
               <View style={s.totalRowGrand}>
