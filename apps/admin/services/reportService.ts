@@ -566,7 +566,7 @@ export class ReportService {
     const { data } = await supabase()
       .from('orders')
       .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
-      .neq('status', 'cancelled')
+      .eq('status', 'completed')
       .gte('created_at', range.start)
       .lte('created_at', range.end);
 
@@ -933,6 +933,10 @@ export class ReportService {
         base_amount,
         gst_amount,
         subtotal,
+        quantity,
+        product:product_id (
+          name
+        ),
         order:order_id (
           id,
           status,
@@ -985,7 +989,7 @@ export class ReportService {
       const taxable = Number(item.base_amount || 0);
       const gst = Number(item.gst_amount || 0);
 
-      if (slab > 0) {
+      if (gst > 0) {
         if (!slabs[slab]) slabs[slab] = { taxable: 0, gst: 0 };
         slabs[slab].taxable += taxable;
         slabs[slab].gst += gst;
@@ -995,7 +999,7 @@ export class ReportService {
       }
 
       // Track details for the invoice list (Include if order has GST OR item has GST)
-      const hasGst = Number(order.gst_amount) > 0 || gst > 0 || slab > 0;
+      const hasGst = Number(order.gst_amount) > 0 || gst > 0;
       if (hasGst) {
         if (!invoiceMap[order.id]) {
           invoiceMap[order.id] = {
@@ -1009,14 +1013,22 @@ export class ReportService {
             gst_amount: 0,
             cgst: 0,
             sgst: 0,
-            slabs: new Set()
+            slabs: new Set(),
+            items: [] as string[]
           };
         }
-        invoiceMap[order.id].taxable_value += taxable;
-        invoiceMap[order.id].gst_amount += gst;
-        invoiceMap[order.id].cgst += (gst / 2);
-        invoiceMap[order.id].sgst += (gst / 2);
-        if (slab > 0) invoiceMap[order.id].slabs.add(slab);
+        
+        const pName = item.product?.name || 'Unknown';
+        const qty = Number(item.quantity || 1);
+        invoiceMap[order.id].items.push(`${pName} x${qty}`);
+
+        if (gst > 0) {
+          invoiceMap[order.id].taxable_value += taxable;
+          invoiceMap[order.id].gst_amount += gst;
+          invoiceMap[order.id].cgst += (gst / 2);
+          invoiceMap[order.id].sgst += (gst / 2);
+          invoiceMap[order.id].slabs.add(slab);
+        }
       }
     });
 
@@ -1039,7 +1051,8 @@ export class ReportService {
         gst_amount: Math.round(inv.gst_amount * 100) / 100,
         cgst: Math.round(inv.cgst * 100) / 100,
         sgst: Math.round(inv.sgst * 100) / 100,
-        slabs: inv.slabs.size > 0 ? Array.from(inv.slabs).sort().join(', ') + '%' : '-'
+        slabs: inv.slabs.size > 0 ? Array.from(inv.slabs).sort().map(s => `${s}%`).join(', ') : '-',
+        items_summary: inv.items.join(', ') || '-'
       })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Correct the GST order count based on actual items processed

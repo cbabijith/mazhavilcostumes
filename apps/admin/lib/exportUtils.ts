@@ -82,7 +82,7 @@ export function exportToPDF(
     columns.map(col => {
       const val = row[col.key];
       if (val == null) return '';
-      if (col.format === 'currency') return `₹${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (col.format === 'currency') return `Rs. ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
       if (col.format === 'date' && val) {
         try { 

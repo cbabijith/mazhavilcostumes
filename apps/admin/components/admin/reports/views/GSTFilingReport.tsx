@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { 
   PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer
@@ -24,6 +24,9 @@ interface GSTFilingViewProps {
   onSort: (key: string) => void;
   formatCell: (value: any, format?: string) => any;
   gstDetails: any[];
+  gstSlabFilter: string;
+  setGstSlabFilter: (slab: string) => void;
+  filteredGstDetails: any[];
 }
 
 export function GSTFilingView({ 
@@ -34,8 +37,46 @@ export function GSTFilingView({
   sortConfig, 
   onSort, 
   formatCell,
-  gstDetails
+  gstDetails,
+  gstSlabFilter,
+  setGstSlabFilter,
+  filteredGstDetails
 }: GSTFilingViewProps) {
+  const stableChartData = useMemo(() => {
+    return [...data].sort((a, b) => a.slab - b.slab);
+  }, [data]);
+
+  const [gstSortConfig, setGstSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const handleGstSort = (key: string) => {
+    setGstSortConfig(prev => {
+      if (prev && prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { key, direction: 'desc' };
+    });
+  };
+
+  const sortedGstDetails = useMemo(() => {
+    if (!gstSortConfig) return filteredGstDetails;
+    const { key, direction } = gstSortConfig;
+    return [...filteredGstDetails].sort((a: any, b: any) => {
+      let aVal = a[key];
+      let bVal = b[key];
+      
+      if (key === 'date') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      }
+      
+      if (typeof aVal === 'string') {
+        return direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      
+      return direction === 'asc' ? (Number(aVal || 0) - Number(bVal || 0)) : (Number(bVal || 0) - Number(aVal || 0));
+    });
+  }, [filteredGstDetails, gstSortConfig]);
+
   const GST_DETAILED_COLUMNS = [
     { header: "Date", key: "date", format: "date" as const },
     { header: "Invoice No", key: "invoice_no" },
@@ -49,6 +90,7 @@ export function GSTFilingView({
           ongoing: "bg-blue-50 text-blue-700 border-blue-100",
           scheduled: "bg-amber-50 text-amber-700 border-amber-100",
           cancelled: "bg-rose-50 text-rose-700 border-rose-100",
+          returned: "bg-emerald-50 text-emerald-700 border-emerald-100",
         };
         return (
           <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", colors[status] || "bg-slate-50 text-slate-700")}>
@@ -57,10 +99,10 @@ export function GSTFilingView({
         );
       }
     },
+    { header: "Items & Qty", key: "items_summary" },
+    { header: "Total Value", key: "total_value", format: "currency" as const },
     { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
     { header: "GST Slab", key: "slabs" },
-    { header: "CGST", key: "cgst", format: "currency" as const },
-    { header: "SGST", key: "sgst", format: "currency" as const },
     { header: "Total GST", key: "gst_amount", format: "currency" as const },
   ];
 
@@ -162,7 +204,7 @@ export function GSTFilingView({
       )}
 
       {/* Charts */}
-      {data.length > 0 && (
+      {stableChartData.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="shadow-sm border-slate-200 bg-white">
             <CardHeader className="py-3 px-6 border-b border-slate-100">
@@ -172,7 +214,7 @@ export function GSTFilingView({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={data}
+                    data={stableChartData}
                     cx="50%"
                     cy="50%"
                     innerRadius={60}
@@ -182,7 +224,7 @@ export function GSTFilingView({
                     nameKey="slab"
                     label={(props: any) => `${props.name}% Slab`}
                   >
-                    {data.map((entry, index) => (
+                    {stableChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={["#10b981", "#3b82f6", "#f59e0b", "#ef4444"][index % 4]} />
                     ))}
                   </Pie>
@@ -199,7 +241,7 @@ export function GSTFilingView({
             </CardHeader>
             <CardContent className="p-6 h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
+                <BarChart data={stableChartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="slab" tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} />
@@ -237,21 +279,33 @@ export function GSTFilingView({
       {/* Detailed Invoice List */}
       {gstDetails.length > 0 && (
         <div className="mt-8 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              Detailed Invoice List (GSTR-1 B2C)
-            </h3>
-            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none">
-              {gstDetails.length} Invoices
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                Detailed Invoice List (GSTR-1 B2C)
+              </h3>
+              <select
+                value={gstSlabFilter}
+                onChange={e => setGstSlabFilter(e.target.value)}
+                className="h-8 border border-slate-200 rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
+              >
+                <option value="all">All Slabs</option>
+                <option value="5">5% Slab Only</option>
+                <option value="12">12% Slab Only</option>
+                <option value="18">18% Slab Only</option>
+              </select>
+            </div>
+            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-semibold text-xs">
+              {filteredGstDetails.length} {filteredGstDetails.length === 1 ? 'Invoice' : 'Invoices'}
             </Badge>
           </div>
           <ReportTable 
             columns={GST_DETAILED_COLUMNS}
-            data={gstDetails}
+            data={sortedGstDetails}
             loading={false}
             error={null}
-            sortConfig={null}
-            onSort={() => {}}
+            sortConfig={gstSortConfig}
+            onSort={handleGstSort}
             formatCell={formatCell}
           />
         </div>

@@ -10,6 +10,7 @@
 import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { OrderWithRelations } from '@/domain/types/order';
+import { orderRepository } from '@/repository';
 import { settingsService } from './settingsService';
 import { paymentService } from './paymentService';
 import { orderService } from './orderService';
@@ -52,12 +53,18 @@ export class InvoiceService {
     const paymentsResult = await paymentService.getPaymentsByOrder(orderId);
     const payments = paymentsResult.success ? paymentsResult.data || [] : [];
 
+    // Fetch order status history to parse splits
+    const historyResult = await orderRepository.getStatusHistory(orderId);
+    const history = historyResult.success ? historyResult.data || [] : [];
+
     // Generate invoice number
-    const invoiceNumber = `${settings.invoicePrefix}${order.id.slice(0, 8).toUpperCase()}-${invoiceType.toUpperCase()}`;
+    const invoiceNumber = invoiceType === 'final'
+      ? `${settings.invoicePrefix}${order.id.slice(0, 8).toUpperCase()}`
+      : `${settings.invoicePrefix}${order.id.slice(0, 8).toUpperCase()}-DEPOSIT`;
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 
     // Build props for the React PDF component
-    const props = this.buildInvoiceProps(order, invoiceType, invoiceNumber, invoiceDate, payments, settings);
+    const props = this.buildInvoiceProps(order, invoiceType, invoiceNumber, invoiceDate, payments, settings, history);
 
     // Render the React component to a PDF buffer
     // Cast needed because renderToBuffer expects ReactElement<DocumentProps>
@@ -116,18 +123,31 @@ export class InvoiceService {
     invoiceDate: string,
     payments: any[],
     settings: { invoicePrefix: string; paymentTerms: string; authorizedSignature: string },
+    history: any[] = [],
   ): TallyInvoiceProps {
     // Build line items
-    const items: InvoiceItem[] = order.items.map((item, idx) => ({
-      sno: idx + 1,
-      name: this.getItemProductName(item),
-      quantity: item.quantity || 0,
-      rate: item.price_per_day || 0,
-      amount: item.total_price || (item.price_per_day || 0) * (item.quantity || 0),
-      gstRate: item.gst_percentage || 0,
-      gstAmount: item.gst_amount || 0,
-      discount: item.discount || 0,
-    }));
+    const items: InvoiceItem[] = order.items.map((item, idx) => {
+      const quantity = item.quantity || 0;
+      const rate = item.price_per_day || 0;
+      const lineTotal = rate * quantity;
+      
+      const discountTotal = (item.discount_type || 'flat') === 'percent'
+        ? lineTotal * ((item.discount || 0) / 100)
+        : (item.discount || 0) * quantity;
+
+      return {
+        sno: idx + 1,
+        name: this.getItemProductName(item),
+        quantity,
+        rate,
+        amount: lineTotal,
+        gstRate: item.gst_percentage || 0,
+        gstAmount: item.gst_amount || 0,
+        discount: item.discount || 0,
+        discountType: item.discount_type || 'flat',
+        discountTotal,
+      };
+    });
 
     // Payment calculations
     const totalPaid = payments
@@ -144,9 +164,45 @@ export class InvoiceService {
     const depositPayment = payments.find((p) => p.payment_type === 'deposit' || p.payment_type === 'advance');
     const paymentMode = depositPayment?.payment_mode?.toUpperCase() || undefined;
 
-
-    const itemDiscountTotal = order.items.reduce((sum, item) => sum + Number(item.discount || 0), 0);
+    // Granular calculations
+    const itemDiscountTotal = items.reduce((sum, item) => sum + (item.discountTotal || 0), 0);
     const totalDiscount = (Number(order.discount) || 0) + itemDiscountTotal;
+
+    // Parse discount and late fee splits from return history notes
+    let returnDiscount = 0;
+    let additionalLateFee = 0;
+
+    const returnHistory = history.find((h) => 
+      (h.status === 'returned' || h.status === 'flagged' || h.status === 'partial') && 
+      h.notes?.includes('Discount:')
+    );
+    if (returnHistory && returnHistory.notes) {
+      const matchDiscount = returnHistory.notes.match(/Discount:\s*([\d.]+)/);
+      const matchLateFee = returnHistory.notes.match(/Late Fee:\s*([\d.]+)/);
+      if (matchDiscount) returnDiscount = Number(matchDiscount[1]) || 0;
+      if (matchLateFee) additionalLateFee = Number(matchLateFee[1]) || 0;
+    }
+
+    const orderDiscount = Math.max(0, (Number(order.discount) || 0) - returnDiscount);
+    const initialLateFee = Math.max(0, (Number(order.late_fee) || 0) - additionalLateFee);
+
+    // Build damage charges breakdown
+    const damageChargesBreakdown = order.items
+      .filter((item) => (item.damage_charges || 0) > 0)
+      .map((item) => ({
+        productName: this.getItemProductName(item),
+        charges: Number(item.damage_charges || 0),
+      }));
+
+    // Detailed transaction ledger
+    const paymentsList = payments.map((p) => ({
+      id: p.id,
+      payment_type: p.payment_type,
+      payment_mode: p.payment_mode,
+      amount: Number(p.amount || 0),
+      created_at: p.created_at,
+      notes: p.notes,
+    }));
 
     return {
       companyName: order.store?.name || 'Mazhavil Dance Costumes',
@@ -182,6 +238,15 @@ export class InvoiceService {
       totalPaid,
       advancePaid,
       balanceDue,
+
+      // New breakdowns
+      itemDiscountsTotal: itemDiscountTotal,
+      orderDiscount,
+      returnDiscount,
+      initialLateFee,
+      additionalLateFee,
+      damageChargesBreakdown,
+      paymentsList,
 
       termsAndConditions: settings.paymentTerms || undefined,
       authorizedSignature: settings.authorizedSignature || undefined,
