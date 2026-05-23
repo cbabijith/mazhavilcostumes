@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode } from "@/hooks";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { PaymentMethod } from "@/domain/types/order";
 import dynamic from 'next/dynamic';
@@ -27,8 +27,9 @@ interface OrderFormProps {
 export default function OrderForm({ initialData }: OrderFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { showSuccess, showError } = useAppStore();
-  const selectedBranchId = useAppStore((s: any) => s.selectedBranchId);
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
+  const selectedBranchId = useAppSelectors.selectedBranchId();
   const isEditing = !!initialData;
 
   const { createOrder, isPending: isCreating } = useCreateOrder();

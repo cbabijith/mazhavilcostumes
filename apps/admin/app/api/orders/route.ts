@@ -33,14 +33,12 @@ export async function GET(request: NextRequest) {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    // Lazy on-read: auto-transition overdue orders before fetching.
-    // Awaited so the response reflects correct statuses immediately.
-    // The cron job handles the daily bulk update; this catches any stragglers.
-    try {
-      await orderService.transitionOverdueOrders();
-    } catch (err) {
+    // Lazy on-read: auto-transition overdue orders in the background.
+    // The cron job handles the daily bulk update; this catches any stragglers
+    // asynchronously to avoid blocking user read requests.
+    orderService.transitionOverdueOrders().catch(err => {
       console.error('Lazy overdue transition failed:', err);
-    }
+    });
 
     const searchParams = request.nextUrl.searchParams;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
@@ -73,28 +71,26 @@ export async function GET(request: NextRequest) {
       offset: (page - 1) * limit,
     };
 
-    const [result, countResult, actionNeededResult, conflictResult] = await Promise.all([
+    const [result, actionNeededResult, conflictResult] = await Promise.all([
       orderService.getAllOrders(params),
-      orderService.countOrders(params),
       orderService.countActionNeededOrders(params.branch_id),
       orderService.countConflictOrders(params.branch_id),
     ]);
 
-    if (!result.success || !countResult.success) {
+    if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to fetch orders');
     }
 
-    const total = countResult.data || 0;
-    const totalPages = Math.ceil(total / limit);
+    const { orders, total, total_pages, has_next, has_prev } = result.data;
 
-    return apiSuccess(result.data, {
+    return apiSuccess(orders, {
       meta: {
         total,
-        totalPages,
+        totalPages: total_pages,
         page,
         limit,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        hasNext: has_next,
+        hasPrev: has_prev,
         actionNeededCount: actionNeededResult.data || 0,
         conflictCount: conflictResult.data || 0,
       },

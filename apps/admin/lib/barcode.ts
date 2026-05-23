@@ -7,9 +7,6 @@
  * @module lib/barcode
  */
 
-import JsBarcode from 'jsbarcode';
-import html2canvas from 'html2canvas';
-
 /**
  * Generate a random barcode number
  */
@@ -30,11 +27,12 @@ export function validateBarcode(barcode: string): boolean {
 /**
  * Generate barcode SVG as data URL
  */
-export function generateBarcodeSVG(barcode: string, options?: {
+export async function generateBarcodeSVG(barcode: string, options?: {
   width?: number;
   height?: number;
   format?: string;
-}): string {
+}): Promise<string> {
+  const JsBarcode = (await import('jsbarcode')).default;
   const canvas = document.createElement('canvas');
   JsBarcode(canvas, barcode, {
     width: options?.width || 2,
@@ -57,6 +55,7 @@ export async function downloadBarcode(
   options?: { width?: number; height?: number; }
 ): Promise<void> {
   try {
+    const JsBarcode = (await import('jsbarcode')).default;
     const barcodeCanvas = document.createElement('canvas');
     JsBarcode(barcodeCanvas, barcode, {
       width: options?.width || 2,

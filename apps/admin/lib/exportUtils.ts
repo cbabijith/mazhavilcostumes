@@ -8,9 +8,6 @@
  * @module lib/exportUtils
  */
 
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-
 interface ExportColumn {
   header: string;
   key: string;
@@ -55,12 +52,15 @@ export function exportToExcel(
 /**
  * Export data to PDF
  */
-export function exportToPDF(
+export async function exportToPDF(
   data: Record<string, any>[],
   columns: ExportColumn[],
   title: string,
   filename: string
 ) {
+  const jsPDF = (await import('jspdf')).default;
+  const autoTable = (await import('jspdf-autotable')).default;
+
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
   // Title

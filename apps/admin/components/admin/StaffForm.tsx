@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { useCreateStaff, useUpdateStaff, useSimpleBranches as useBranches } from "@/hooks";
 import type { StaffWithBranch, StaffRole } from "@/domain/types/branch";
 
@@ -82,8 +82,8 @@ function getPasswordStrength(password: string): { level: number; label: string; 
 export default function StaffForm({ staff }: StaffFormProps) {
   const router = useRouter();
   const isEdit = !!staff;
-  const { showError } = useAppStore();
-  const currentUser = useAppStore((s) => s.user);
+  const showError = useAppSelectors.showError();
+  const currentUser = useAppSelectors.user();
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const { branches, isLoading: isBranchesLoading } = useBranches();

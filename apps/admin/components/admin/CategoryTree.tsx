@@ -55,7 +55,7 @@ import { type Category } from "@/domain/types/category";
 import CategoryTreeActions from "@/components/admin/CategoryTreeActions";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-client";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 
 /** Thumbnail or fallback icon for a category row. */
 function CategoryImage({ url, name }: { url: string | null; name: string }) {
@@ -137,7 +137,8 @@ interface CategoryTreeProps {
 export default function CategoryTree({ categories }: CategoryTreeProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { showSuccess, showError } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
   const { mains, subs, variants } = buildHierarchy(categories);
 
   // Set of category ids that are currently EXPANDED.

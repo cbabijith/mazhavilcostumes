@@ -277,7 +277,18 @@ export const useAppStore = create<AppStore>()(
     }
   )
 );
-
+export const useAppSelectors = {
+  user: () => useAppStore((s) => s.user),
+  isAuthenticated: () => useAppStore((s) => s.isAuthenticated),
+  isLoading: () => useAppStore((s) => s.isLoading),
+  sidebarCollapsed: () => useAppStore((s) => s.sidebarCollapsed),
+  notifications: () => useAppStore((s) => s.notifications),
+  globalLoading: () => useAppStore((s) => s.globalLoading),
+  selectedBranchId: () => useAppStore((s) => s.selectedBranchId),
+  storeId: () => useAppStore((s) => s.storeId),
+  showSuccess: () => useAppStore((s) => s.showSuccess),
+  showError: () => useAppStore((s) => s.showError),
+};
 
 // Utility functions for common operations
 export const appUtils = {

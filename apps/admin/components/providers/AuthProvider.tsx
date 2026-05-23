@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useAppStore } from "@/stores/appStore";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname } from "next/navigation";
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setUser, setAuthenticated, setLoading } = useAppStore();
+  const setUser = useAppStore((state) => state.setUser);
+  const setAuthenticated = useAppStore((state) => state.setAuthenticated);
+  const setLoading = useAppStore((state) => state.setLoading);
+  
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  const supabase = createClient();
+  
+  const supabase = useMemo(() => createClient(), []);
+  
+  const pathnameRef = useRef(pathname);
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     async function initAuth() {
@@ -24,7 +33,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setAuthenticated(false);
           setUser(null);
           // Only redirect to login if not already on an auth page
-          if (!pathname.startsWith('/auth')) {
+          if (!pathnameRef.current.startsWith('/auth')) {
             router.push('/auth/login');
           }
           return;
@@ -46,7 +55,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           // Session expired or invalid
           setAuthenticated(false);
           setUser(null);
-          if (!pathname.startsWith('/auth')) {
+          if (!pathnameRef.current.startsWith('/auth')) {
             router.push('/auth/login');
           }
           return;
@@ -105,7 +114,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       window.fetch = originalFetch; // Cleanup
       subscription.unsubscribe();
     };
-  }, [setUser, setAuthenticated, setLoading, router, pathname, supabase]);
+  }, [setUser, setAuthenticated, setLoading, router, supabase]);
 
   return (
     <>

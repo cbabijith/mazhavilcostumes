@@ -40,7 +40,7 @@ import {
   useDeleteProduct,
   useBulkProductOperation,
 } from "@/hooks";
-import { useProductStore, useAppStore } from "@/stores";
+import { useProductStore, useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import {
   downloadBarcode,
@@ -130,7 +130,9 @@ function ProductsContent() {
     isDeleteModalOpen,
     currentProduct,
   } = useProductStore();
-  const { showSuccess, showError, user } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
+  const user = useAppSelectors.user();
   const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
   const bulkOperation = useBulkProductOperation();
 

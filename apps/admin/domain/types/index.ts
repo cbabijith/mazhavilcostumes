@@ -174,6 +174,7 @@ export type {
   ReturnOrderDTO,
   OrderSearchParams,
   OrderValidationResult,
+  OrderSearchResult,
 } from './order';
 
 export {

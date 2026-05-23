@@ -23,7 +23,7 @@ import {
   useLookupProductByBarcode,
   useUpdateOrderItemDamage
 } from "@/hooks";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { OrderStatus, ConditionRating, PaymentStatus } from "@/domain/types/order";
 import { PaymentType, PaymentMode } from "@/domain/types/payment";
@@ -31,7 +31,8 @@ import { startOfDay } from "date-fns";
 import dynamic from 'next/dynamic';
 
 const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
-import DamageAssessmentPanel from './orders/DamageAssessmentPanel';
+const DamageAssessmentPanel = dynamic(() => import('./orders/DamageAssessmentPanel'), { ssr: false });
+
 
 export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const router = useRouter();
@@ -41,7 +42,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { processOrderReturn, isPending: isReturning } = useProcessOrderReturn();
   const { updateOrder, isLoading: isUpdating } = useUpdateOrder();
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
-  const { showSuccess, showError } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
   const { lookupByBarcode } = useLookupProductByBarcode();
   const { updateOrderItemDamage, isUpdating: isSavingItem } = useUpdateOrderItemDamage();
 

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReportTable } from "../ReportTable";
 import { CreateEnquiryDTO } from "@/domain";
-import { useAppStore } from "@/stores/appStore";
+import { useAppStore, useAppSelectors } from "@/stores";
 
 interface EnquiryLogViewProps {
   data: any[];
@@ -49,7 +49,8 @@ export function EnquiryLogView({
     { header: "Notes", key: "notes" },
   ];
 
-  const { showSuccess, showError } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
 
   const mappedData = data.map(d => ({
     ...d,

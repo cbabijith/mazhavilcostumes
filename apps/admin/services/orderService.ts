@@ -16,7 +16,8 @@ import {
   UpdateOrderDTO,
   OrderSearchParams,
   ReturnOrderDTO,
-  ConditionRating
+  ConditionRating,
+  OrderSearchResult
 } from '@/domain/types/order';
 import { orderRepository, cleaningRepository } from '@/repository';
 import { settingsService } from './settingsService';
@@ -76,7 +77,7 @@ export class OrderService {
     //    Example: 10 total, Order A (5 units, ends May 14, buffer May 15),
     //    Order B (1 unit, starts May 15). On May 15: 5 in cleaning + 1 needed
     //    = 6. Stock = 10. 10 - 5 = 5 free >= 1 needed → NO priority.
-    //    But if Order A had 10 units → 10 - 10 = 0 free < 1 needed → PRIORITY.
+    //    But if Order A had 10 units → 10 - 10 = 0 free < 1 needed → URGENT/PRIORITY.
     const needsPriority = new Map<string, string>();
 
     for (let i = 0; i < orders.length; i++) {
@@ -129,15 +130,21 @@ export class OrderService {
     }
 
     // 4. Update cleaning records and order flags for ALL active orders
+    // Fetch all cleaning records for this product at once to avoid N database queries in the loop
+    const cleaningRecordsRes = await cleaningRepository.findMany({ product_id: productId });
+    const cleaningRecords = cleaningRecordsRes.success && cleaningRecordsRes.data ? cleaningRecordsRes.data : [];
+
+    const priorityTrueIds: string[] = [];
+    const priorityFalseIds: string[] = [];
+
     for (const order of orders) {
       const priorityForOrderId = needsPriority.get(order.orderId);
       const shouldBeUrgent = !!priorityForOrderId;
+      let flagChanged = false;
 
-      // Find cleaning record for this order+product
-      const cleaningResult = await cleaningRepository.findByOrderAndProduct(order.orderId, productId);
-      if (cleaningResult.success && cleaningResult.data) {
-        const record = cleaningResult.data;
-        
+      // Find cleaning record for this order+product in-memory
+      const record = cleaningRecords.find(r => r.order_id === order.orderId);
+      if (record) {
         // Skip if cleaning is already done
         if (record.status === CleaningStatus.COMPLETED) continue;
 
@@ -150,6 +157,7 @@ export class OrderService {
             priority_order_id: priorityForOrderId!,
             notes: `Priority cleaning — needed for Order #${priorityForOrderId!.substring(0, 8)}`,
           });
+          flagChanged = true;
         } else if (!shouldBeUrgent && currentlyUrgent) {
           await cleaningRepository.update(record.id, {
             priority: CleaningPriority.NORMAL,
@@ -158,6 +166,7 @@ export class OrderService {
               ? `${record.notes} — priority removed (recalculated)`
               : 'Priority removed — no longer needed',
           });
+          flagChanged = true;
         }
       } else {
         // HEALING LOGIC: Recreate missing cleaning record
@@ -177,11 +186,24 @@ export class OrderService {
           started_at: isAlreadyBack ? new Date().toISOString() : undefined,
           notes: `Auto-healed record during priority recalculation. ${shouldBeUrgent ? 'Marked as URGENT.' : ''}`
         });
+        flagChanged = true;
       }
 
-      // Sync order's has_priority_cleaning flag based on ALL its cleaning records
-      await orderRepository.syncOrderPriorityFlag(order.orderId);
+      // Collect order IDs for bulk sync instead of calling syncOrderPriorityFlag sequentially
+      if (flagChanged) {
+        if (shouldBeUrgent) {
+          priorityTrueIds.push(order.orderId);
+        } else {
+          priorityFalseIds.push(order.orderId);
+        }
+      }
     }
+
+    // Execute bulk updates in parallel to dramatically reduce DB round-trips
+    await Promise.all([
+      priorityTrueIds.length > 0 ? orderRepository.updateOrderPriorityFlags(priorityTrueIds, true) : Promise.resolve(),
+      priorityFalseIds.length > 0 ? orderRepository.updateOrderPriorityFlags(priorityFalseIds, false) : Promise.resolve(),
+    ]);
   }
 
   /**
@@ -196,7 +218,7 @@ export class OrderService {
   /**
    * Get all orders
    */
-  async getAllOrders(params?: OrderSearchParams): Promise<RepositoryResult<OrderWithRelations[]>> {
+  async getAllOrders(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
     return await orderRepository.findAll(params);
   }
 
@@ -240,6 +262,9 @@ export class OrderService {
    * Create a new order
    */
   async createOrder(data: CreateOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+    const totalStart = performance.now();
+    console.log('[OrderService.createOrder] Starting order creation flow...');
+
     // Validate required fields
     if (!data.customer_id) {
       return {
@@ -399,26 +424,32 @@ export class OrderService {
       }
     }
 
+    const dbStart = performance.now();
     const result = await orderRepository.create(data, isGstEnabled, perItemGstRates);
+    const dbDuration = performance.now() - dbStart;
+    console.log(`[OrderService.createOrder] DB save duration: ${dbDuration.toFixed(2)}ms`);
 
-    // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS ────────────────────────────────
+    // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS (BACKGROUND NON-BLOCKING) ──────
     // Every order pre-creates cleaning records so the cleaning queue has
     // full visibility of upcoming workload before items are even returned.
+    // Done in background to keep HTTP save response under 1.5 seconds.
     if (result.success && result.data) {
-      try {
-        const newOrder = result.data;
+      (async () => {
+        const recalcStart = performance.now();
+        const newOrder = result.data!;
         const newOrderId = newOrder.id;
         const storeId = newOrder.store_id;
         const endDateStr = new Date(newOrder.end_date).toISOString().split('T')[0];
 
-        for (const item of newOrder.items || []) {
-          if (!item.product_id) continue;
+        // 1. Auto-schedule cleaning records in parallel
+        await Promise.all((newOrder.items || []).map(async (item) => {
+          if (!item.product_id) return;
 
           // Check if the product's category requires a buffer
           const product = (item as any).product;
           const category = Array.isArray(product?.category) ? product.category[0] : product?.category;
           const categoryHasBuffer = category?.has_buffer ?? true;
-          if (!categoryHasBuffer) continue;
+          if (!categoryHasBuffer) return;
 
           // Create a scheduled cleaning record for this item
           await cleaningRepository.create({
@@ -432,27 +463,38 @@ export class OrderService {
             expected_return_date: endDateStr,
             notes: `Scheduled at order creation — expected return ${endDateStr}`,
           });
-        }
+        }));
 
-        // ─── RECALCULATE PRIORITY CLEANING ────────────────────────────────────
-        // Instead of inline priority tracking, recalculate from scratch for
-        // each product. This handles all edge cases: direction, date changes,
-        // multi-priority, item changes, etc.
-        for (const item of newOrder.items || []) {
-          if (!item.product_id) continue;
+        // 2. Recalculate priority cleaning and sync conflicts in parallel
+        await Promise.all((newOrder.items || []).map(async (item) => {
+          if (!item.product_id) return;
           const product = (item as any).product;
           const category = Array.isArray(product?.category) ? product.category[0] : product?.category;
           const categoryHasBuffer = category?.has_buffer ?? true;
-          if (!categoryHasBuffer) continue;
+          if (!categoryHasBuffer) return;
 
           await this.recalculateProductPriorityCleaning(item.product_id, data.branch_id);
-          await this.syncProductConflicts(item.product_id);
-        }
+          await orderRepository.syncProductConflictsForRange(item.product_id, newOrder.start_date, newOrder.end_date);
+        }));
+
+        const recalcDuration = performance.now() - recalcStart;
+        console.log(`[OrderService.createOrder] Background cleaning auto-schedule & priority recalc finished in ${recalcDuration.toFixed(2)}ms`);
+      })().catch(err => {
+        console.error('[OrderService.createOrder] Background auto-schedule/recalculation failed:', err);
+      });
+    }
+
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
       } catch (err) {
-        console.error('Failed to schedule cleaning records:', err);
+        console.error('Failed to clear dashboard cache:', err);
       }
     }
 
+    const totalDuration = performance.now() - totalStart;
+    console.log(`[OrderService.createOrder] Total createOrder flow duration: ${totalDuration.toFixed(2)}ms`);
     return result;
   }
 
@@ -461,6 +503,9 @@ export class OrderService {
    * Update an existing order
    */
   async updateOrder(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+    const totalStart = performance.now();
+    console.log(`[OrderService.updateOrder] Starting order update flow for ID: ${id}...`);
+
     // Check if order exists
     const existingOrder = await orderRepository.findById(id);
     if (!existingOrder.success || !existingOrder.data) {
@@ -541,7 +586,10 @@ export class OrderService {
       }
     }
 
+    const dbStart = performance.now();
     const result = await orderRepository.update(id, data);
+    const dbDuration = performance.now() - dbStart;
+    console.log(`[OrderService.updateOrder] DB update duration: ${dbDuration.toFixed(2)}ms`);
 
     // After any update that changes payment_status or status, check auto-complete
     if (result.success && (data.payment_status || data.status)) {
@@ -552,8 +600,11 @@ export class OrderService {
     // Recalculate priority cleaning when dates, items, or status change.
     // This replaces the old incremental approach that caused edge-case bugs.
     if (result.success) {
-      try {
-        const order = existingOrder.data;
+      // Execute priority recalculation and conflict synchronization asynchronously in the background.
+      // This completely removes the 3.5s+ blocking lag from the user's save transaction!
+      (async () => {
+        const recalcStart = performance.now();
+        const order = existingOrder.data!;
         const branchId = order.branch_id;
 
         if (data.status === OrderStatus.CANCELLED) {
@@ -576,20 +627,20 @@ export class OrderService {
             }
           }
 
-          // 3. Recalculate for each product in the order
-          for (const item of order.items || []) {
-            if (!item.product_id) continue;
+          // 3. Recalculate for each product in the order in parallel
+          await Promise.all((order.items || []).map(async (item) => {
+            if (!item.product_id) return;
             await this.recalculateProductPriorityCleaning(item.product_id, branchId);
-            await this.syncProductConflicts(item.product_id);
-          }
+            await orderRepository.syncProductConflictsForRange(item.product_id, order.start_date, order.end_date);
+          }));
         } else if (data.start_date || data.end_date) {
           // ─── DATE CHANGE ───────────────────────────────────────────────
-          // Update expected_return_date on cleaning records, then recalculate
+          // Update expected_return_date on cleaning records, then recalculate in parallel
           const newEndDate = data.end_date || order.end_date;
           const endDateStr = new Date(newEndDate).toISOString().split('T')[0];
 
-          for (const item of order.items || []) {
-            if (!item.product_id) continue;
+          await Promise.all((order.items || []).map(async (item) => {
+            if (!item.product_id) return;
 
             // Update the expected return date on this order's cleaning record
             const cleaningRecord = await cleaningRepository.findByOrderAndProduct(id, item.product_id);
@@ -600,29 +651,50 @@ export class OrderService {
             }
 
             await this.recalculateProductPriorityCleaning(item.product_id, branchId);
-            await this.syncProductConflicts(item.product_id);
-          }
+            await orderRepository.syncProductConflictsForRange(item.product_id, order.start_date, order.end_date);
+            await orderRepository.syncProductConflictsForRange(
+              item.product_id,
+              data.start_date || order.start_date,
+              data.end_date || order.end_date
+            );
+          }));
         }
 
         if (data.items) {
           // ─── ITEM CHANGE ───────────────────────────────────────────────
           // Recalculate for BOTH old products (might lose priority) and
-          // new products (might gain priority)
+          // new products (might gain priority) in parallel
           const oldProductIds = new Set((order.items || []).map((i: any) => i.product_id).filter(Boolean));
           const newProductIds = new Set(data.items.map((i: any) => i.product_id).filter(Boolean));
 
           // All affected products = union of old and new
           const allProductIds = new Set([...oldProductIds, ...newProductIds]);
-          for (const productId of allProductIds) {
+          const finalStart = data.start_date || order.start_date;
+          const finalEnd = data.end_date || order.end_date;
+          
+          await Promise.all(Array.from(allProductIds).map(async (productId) => {
             await this.recalculateProductPriorityCleaning(productId, branchId);
-            await this.syncProductConflicts(productId);
-          }
+            await orderRepository.syncProductConflictsForRange(productId, finalStart, finalEnd);
+          }));
         }
+        const recalcDuration = performance.now() - recalcStart;
+        console.log(`[OrderService.updateOrder] Background priority recalculation & conflict sync finished in ${recalcDuration.toFixed(2)}ms`);
+      })().catch(err => {
+        console.error('[OrderService.updateOrder] Background priority recalculation failed:', err);
+      });
+    }
+
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
       } catch (err) {
-        console.error('Failed to recalculate priority cleaning:', err);
+        console.error('Failed to clear dashboard cache:', err);
       }
     }
 
+    const totalDuration = performance.now() - totalStart;
+    console.log(`[OrderService.updateOrder] Total updateOrder flow duration: ${totalDuration.toFixed(2)}ms`);
     return result;
   }
 
@@ -667,16 +739,23 @@ export class OrderService {
     // 2. Delete the order itself
     const deleteResult = await orderRepository.delete(id);
 
-    // 3. Recalculate priority cleaning for each affected product
+    // 3. Recalculate priority cleaning for each affected product in parallel in the background (non-blocking)
     //    (runs AFTER delete so the deleted order won't appear in active orders)
     if (deleteResult.success) {
+      Promise.all(affectedProductIds.map(async (productId) => {
+        await this.recalculateProductPriorityCleaning(productId, branchId);
+        await orderRepository.syncProductConflictsForRange(productId, order.start_date, order.end_date);
+      })).catch(err => {
+        console.error('[OrderService.deleteOrder] Background priority recalculation failed:', err);
+      });
+    }
+
+    if (deleteResult.success) {
       try {
-        for (const productId of affectedProductIds) {
-          await this.recalculateProductPriorityCleaning(productId, branchId);
-          await this.syncProductConflicts(productId);
-        }
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
       } catch (err) {
-        console.error('Failed to recalculate priority cleaning after delete:', err);
+        console.error('Failed to clear dashboard cache:', err);
       }
     }
 
@@ -902,6 +981,15 @@ export class OrderService {
       }
     }
 
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+
     return result;
   }
 
@@ -931,7 +1019,16 @@ export class OrderService {
       };
     }
 
-    return await orderRepository.updateOrderItemDamage(itemId, data);
+    const result = await orderRepository.updateOrderItemDamage(itemId, data);
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+    return result;
   }
 
   /**

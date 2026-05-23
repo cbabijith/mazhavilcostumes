@@ -332,3 +332,17 @@ export interface BatchAvailabilityResponse {
   allAvailable: boolean;
   items: ItemAvailabilityResult[];
 }
+
+/**
+ * Search Results for Orders
+ */
+export interface OrderSearchResult {
+  orders: OrderWithRelations[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+

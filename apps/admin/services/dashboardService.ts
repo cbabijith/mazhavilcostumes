@@ -176,6 +176,22 @@ export interface DailyReportStats {
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 export class DashboardService {
+  // In-memory cache for dashboard metrics (30 seconds TTL)
+  private lastOperationalMetrics: { data: OperationalMetrics; timestamp: number } | null = null;
+  private lastMetrics: Record<string, { data: DashboardMetrics; timestamp: number }> = {};
+  private lastDailyReport: { data: DailyReportStats; timestamp: number } | null = null;
+
+  /**
+   * Clears all in-memory dashboard metric caches.
+   * Invoked automatically whenever orders, payments, or collections are modified.
+   */
+  public clearCache(): void {
+    console.log('[DashboardService] Cache invalidated due to data mutations');
+    this.lastOperationalMetrics = null;
+    this.lastMetrics = {};
+    this.lastDailyReport = null;
+  }
+
   private getISTDateContext() {
     // 1. Get current time in IST
     const now = new Date();
@@ -211,155 +227,100 @@ export class DashboardService {
    * Prepare Delivery (next 5 days), Pending Delivery, Pending Return, Revenue Due.
    */
   async getOperationalMetrics(): Promise<OperationalMetrics> {
+    const nowMs = Date.now();
+    if (this.lastOperationalMetrics && (nowMs - this.lastOperationalMetrics.timestamp < 300000)) {
+      console.log('[DashboardService] Returning cached operational metrics');
+      return this.lastOperationalMetrics.data;
+    }
+
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
 
-    // 1. Today's Bookings — orders created today
-    const { data: todaysBookings } = await supabase
-      .from('orders')
-      .select('id')
-      .gte('created_at', todayStart)
-      .lte('created_at', todayEnd)
-      .neq('status', 'cancelled');
+    const { data, error } = await supabase.rpc('get_operational_dashboard_metrics', {
+      p_today_start: todayStart,
+      p_today_end: todayEnd,
+      p_today_date: todayStr,
+      p_yesterday_date: yesterdayStr,
+      p_tomorrow_date: tomorrowStr,
+      p_next_5_days_date: next5DaysStr,
+    });
 
-    // 2a. Today's Delivery TOTAL — all non-cancelled orders with start_date = today
-    const { data: todaysDeliveryTotal } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('start_date', todayStr)
-      .neq('status', 'cancelled');
+    if (error) {
+      console.error('[DashboardService] Error fetching operational metrics RPC:', error);
+    }
 
-    // 2b. Today's Delivery DONE — start_date = today AND already picked up/active
-    const { count: todaysDeliveryDoneCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('start_date', todayStr)
-      .in('status', DELIVERY_DONE_STATUSES);
-
-    // 3a. Today's Return TOTAL — all non-cancelled orders with end_date = today
-    const { data: todaysReturnTotal } = await supabase
-      .from('orders')
-      .select('id')
-      .eq('end_date', todayStr)
-      .neq('status', 'cancelled');
-
-    // 3b. Today's Return DONE — end_date = today AND already returned
-    const { count: todaysReturnDoneCount } = await supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .eq('end_date', todayStr)
-      .in('status', RETURN_DONE_STATUSES);
-
-    // 4. Prepare Delivery — scheduled/pending orders starting within next 5 days
-    const { data: prepareDeliveries } = await supabase
-      .from('orders')
-      .select('id')
-      .gte('start_date', tomorrowStr)
-      .lte('start_date', next5DaysStr)
-      .in('status', DELIVERY_PENDING_STATUSES);
-
-    // 5. Pending Delivery (overdue) — orders past start_date still in scheduled/pending
-    const { data: pendingDeliveries } = await supabase
-      .from('orders')
-      .select('id')
-      .lt('start_date', todayStr)
-      .in('status', DELIVERY_PENDING_STATUSES);
-
-    // 6. Pending Return (overdue) — orders past end_date still in ongoing/in_use/late_return
-    const { data: pendingReturns } = await supabase
-      .from('orders')
-      .select('id')
-      .lt('end_date', todayStr)
-      .in('status', RETURN_PENDING_STATUSES);
-
-    // 7. Revenue Due — orders returned/partial/flagged with balance
-    const { data: revenueDueOrders } = await supabase
-      .from('orders')
-      .select('total_amount, amount_paid')
-      .in('status', ['returned', 'partial', 'flagged', 'late_return'])
-      .neq('payment_status', 'paid');
-
-    const deliveryTotal = todaysDeliveryTotal?.length || 0;
-    const deliveryDone = todaysDeliveryDoneCount || 0;
-    const returnTotal = todaysReturnTotal?.length || 0;
-    const returnDone = todaysReturnDoneCount || 0;
-
-    const revenueDueTotalAmount = (revenueDueOrders || []).reduce(
-      (sum, o) => {
-        const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
-        return sum + (due > 0 ? due : 0);
-      }, 
-      0
-    );
+    const rpcData = data || {
+      todaysBookings: 0,
+      todaysDeliveryTotal: 0,
+      todaysDeliveryDone: 0,
+      todaysReturnTotal: 0,
+      todaysReturnDone: 0,
+      prepareDeliveries: 0,
+      pendingDeliveries: 0,
+      pendingReturns: 0,
+      revenueDueCount: 0,
+      revenueDueAmount: 0,
+      priorityCleaning: [],
+    };
 
     const cards: OperationalCard[] = [
-        {
-          label: "Today's Bookings",
-          orderCount: todaysBookings?.length || 0,
-          icon: 'calendar-plus',
-          color: 'blue',
-          filterUrl: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
-        },
-        {
-          label: "Today's Delivery",
-          orderCount: deliveryTotal,
-          icon: 'truck',
-          color: 'emerald',
-          completedCount: deliveryDone,
-          totalCount: deliveryTotal,
-          filterUrl: '/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled',
-        },
-        {
-          label: "Today's Return",
-          orderCount: returnTotal,
-          icon: 'package-check',
-          color: 'violet',
-          completedCount: returnDone,
-          totalCount: returnTotal,
-          filterUrl: '/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled',
-        },
-        {
-          label: "Prepare Delivery (5d)",
-          orderCount: prepareDeliveries?.length || 0,
-          icon: 'boxes',
-          color: 'amber',
-          filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}`,
-        },
-        {
-          label: "Pending Delivery",
-          orderCount: pendingDeliveries?.length || 0,
-          icon: 'alert-triangle',
-          color: 'rose',
-          filterUrl: '/dashboard/orders?status=pending',
-        },
-        {
-          label: "Pending Return",
-          orderCount: pendingReturns?.length || 0,
-          icon: 'clock-alert',
-          color: 'red',
-          filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}`,
-        },
-        {
-          label: "Revenue Due",
-          orderCount: revenueDueOrders?.length || 0,
-          amount: revenueDueTotalAmount,
-          icon: 'banknote',
-          color: 'indigo',
-          filterUrl: '/dashboard/orders?status=revenue_due',
-        },
-      ];
+      {
+        label: "Today's Bookings",
+        orderCount: rpcData.todaysBookings || 0,
+        icon: 'calendar-plus',
+        color: 'blue',
+        filterUrl: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
+      },
+      {
+        label: "Today's Delivery",
+        orderCount: rpcData.todaysDeliveryTotal || 0,
+        icon: 'truck',
+        color: 'emerald',
+        completedCount: rpcData.todaysDeliveryDone || 0,
+        totalCount: rpcData.todaysDeliveryTotal || 0,
+        filterUrl: '/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled',
+      },
+      {
+        label: "Today's Return",
+        orderCount: rpcData.todaysReturnTotal || 0,
+        icon: 'package-check',
+        color: 'violet',
+        completedCount: rpcData.todaysReturnDone || 0,
+        totalCount: rpcData.todaysReturnTotal || 0,
+        filterUrl: '/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled',
+      },
+      {
+        label: "Prepare Delivery (5d)",
+        orderCount: rpcData.prepareDeliveries || 0,
+        icon: 'boxes',
+        color: 'amber',
+        filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}`,
+      },
+      {
+        label: "Pending Delivery",
+        orderCount: rpcData.pendingDeliveries || 0,
+        icon: 'alert-triangle',
+        color: 'rose',
+        filterUrl: '/dashboard/orders?status=pending',
+      },
+      {
+        label: "Pending Return",
+        orderCount: rpcData.pendingReturns || 0,
+        icon: 'clock-alert',
+        color: 'red',
+        filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}`,
+      },
+      {
+        label: "Revenue Due",
+        orderCount: rpcData.revenueDueCount || 0,
+        amount: Number(rpcData.revenueDueAmount || 0),
+        icon: 'banknote',
+        color: 'indigo',
+        filterUrl: '/dashboard/orders?status=revenue_due',
+      },
+    ];
 
-    // 7. Priority Cleaning — Scheduled urgent cleaning records
-    // Fetch cleaning records that are scheduled or pending with urgent priority
-    const { data: priorityCleaningRecords } = await supabase
-      .from('cleaning_records')
-      .select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name)')
-      .in('status', ['scheduled', 'pending'])
-      .eq('priority', 'urgent')
-      .order('expected_return_date', { ascending: true })
-      .limit(10);
-
-    const priorityCleaning: PriorityCleaningOrder[] = (priorityCleaningRecords || []).map((r: any) => ({
+    const priorityCleaning: PriorityCleaningOrder[] = (rpcData.priorityCleaning || []).map((r: any) => ({
       id: r.priority_order_id || r.id,
       customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
       startDate: r.expected_return_date || '',
@@ -369,10 +330,17 @@ export class DashboardService {
       }],
     }));
 
-    return {
+    const result = {
       cards,
       priorityCleaning,
     };
+
+    this.lastOperationalMetrics = {
+      data: result,
+      timestamp: nowMs,
+    };
+
+    return result;
   }
 
   /**
@@ -388,6 +356,24 @@ export class DashboardService {
       roiLimit?: number;
     }
   ): Promise<DashboardMetrics> {
+    const nowMs = Date.now();
+    const roundTo10Sec = (d: Date) => Math.floor(d.getTime() / 10000) * 10000;
+    const cacheKey = JSON.stringify({
+      startDate: roundTo10Sec(startDate),
+      endDate: roundTo10Sec(endDate),
+      prevStartDate: roundTo10Sec(prevStartDate),
+      prevEndDate: roundTo10Sec(prevEndDate),
+      branchId,
+      storeId,
+      categoryPeriod: overrides?.categoryPeriod,
+      roiLimit: overrides?.roiLimit,
+    });
+
+    if (this.lastMetrics[cacheKey] && (nowMs - this.lastMetrics[cacheKey].timestamp < 300000)) {
+      console.log('[DashboardService] Returning cached admin metrics');
+      return this.lastMetrics[cacheKey].data;
+    }
+
     const supabase = createAdminClient();
     const { now, todayStr } = this.getISTDateContext();
     const startDateStr = startDate.toISOString();
@@ -395,7 +381,6 @@ export class DashboardService {
     const prevStartDateStr = prevStartDate.toISOString();
     const prevEndDateStr = prevEndDate.toISOString();
     const ninetyDaysAgo = subDays(now, 90).toISOString();
-    const velocityEndDate = addDays(now, 15).toISOString();
     const velocityEndDateStr = format(addDays(now, 15), 'yyyy-MM-dd');
 
     const roiLimit = overrides?.roiLimit || 3;
@@ -407,94 +392,83 @@ export class DashboardService {
     }
     const catStartDateStr = catStartDate.toISOString();
 
-    // Prepare optimized queries with branch filtering
-    let completedQuery = supabase.from('orders').select('amount_paid').in('status', ['returned', 'completed']).gte('updated_at', startDateStr).lte('updated_at', endDateStr);
-    if (branchId) completedQuery = completedQuery.eq('branch_id', branchId);
+    // 1. Unified orders query to fetch data for completed orders in range, active rentals, and pending payment orders
+    const activeStatuses = 'ongoing,in_use,late_return,partial,delivered,scheduled,pending';
+    const completedStatuses = 'returned,completed';
+    const paymentDueStatuses = 'partial,pending,due';
+
+    const ordersOrFilter = `status.in.(${activeStatuses}),and(status.in.(${completedStatuses}),payment_status.in.(${paymentDueStatuses})),and(status.in.(${completedStatuses}),updated_at.gte.${startDateStr},updated_at.lte.${endDateStr})`;
     
-    let activeRentalsQuery = supabase.from('orders').select('total_amount, amount_paid').in('status', ['ongoing', 'in_use', 'late_return', 'partial', 'delivered']);
-    if (branchId) activeRentalsQuery = activeRentalsQuery.eq('branch_id', branchId);
-    
-    let scheduledQuery = supabase.from('orders').select('advance_amount').in('status', ['scheduled', 'pending']).eq('advance_collected', true).gte('created_at', startDateStr).lte('created_at', endDateStr);
-    if (branchId) scheduledQuery = scheduledQuery.eq('branch_id', branchId);
-    
-    let currentCancellationsQuery = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', startDateStr).lte('cancelled_at', endDateStr);
-    if (branchId) currentCancellationsQuery = currentCancellationsQuery.eq('branch_id', branchId);
-    
-    let prevCancellationsQuery = supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'cancelled').gte('cancelled_at', prevStartDateStr).lte('cancelled_at', prevEndDateStr);
-    if (branchId) prevCancellationsQuery = prevCancellationsQuery.eq('branch_id', branchId);
-    
-    let activeOrdersQuery = supabase.from('orders').select('id, status, end_date').in('status', ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending']);
-    if (branchId) activeOrdersQuery = activeOrdersQuery.eq('branch_id', branchId);
-    
+    let ordersQuery = supabase.from('orders')
+      .select('id, status, payment_status, total_amount, amount_paid, updated_at, end_date')
+      .or(ordersOrFilter);
+    if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
+
+    // 2. Cancellations query in a single round-trip for both periods
+    let cancellationsQuery = supabase.from('orders')
+      .select('cancelled_at')
+      .eq('status', 'cancelled')
+      .gte('cancelled_at', prevStartDateStr)
+      .lte('cancelled_at', endDateStr);
+    if (branchId) cancellationsQuery = cancellationsQuery.eq('branch_id', branchId);
+
+    // 3. Total active products count
     let totalProductsQuery = supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true);
     if (branchId) totalProductsQuery = totalProductsQuery.eq('branch_id', branchId);
-    
+
+    // 4. Rented items query
     let rentedItemsQuery = supabase.from('order_items').select('product_id, orders!inner(status, branch_id)').in('orders.status', ['ongoing', 'in_use', 'late_return', 'delivered', 'partial']);
     if (branchId) rentedItemsQuery = rentedItemsQuery.eq('orders.branch_id', branchId);
-    
+
+    // 5. Booking velocity query
     let upcomingOrdersQuery = supabase.from('orders').select('start_date').gte('start_date', todayStr).lte('start_date', velocityEndDateStr).neq('status', 'cancelled');
     if (branchId) upcomingOrdersQuery = upcomingOrdersQuery.eq('branch_id', branchId);
-    
-    let roiItemsQuery = supabase.from('order_items').select('product_id, quantity, price_per_day, orders!inner(status, created_at, branch_id), products(name)').neq('orders.status', 'cancelled').gte('orders.created_at', startDateStr).lte('orders.created_at', endDateStr);
-    if (branchId) roiItemsQuery = roiItemsQuery.eq('orders.branch_id', branchId);
-    
-    let catItemsQuery = supabase.from('order_items').select('quantity, price_per_day, orders!inner(status, created_at, branch_id), products(categories:category_id(name))').neq('orders.status', 'cancelled').gte('orders.created_at', catStartDateStr).lte('orders.created_at', endDateStr);
-    if (branchId) catItemsQuery = catItemsQuery.eq('orders.branch_id', branchId);
-    
-    let deadStockQuery = supabase.from('order_items').select('product_id, orders!inner(created_at, branch_id)').gte('orders.created_at', ninetyDaysAgo);
-    if (branchId) deadStockQuery = deadStockQuery.eq('orders.branch_id', branchId);
-    
-    let activeProductsQuery = supabase.from('products').select('id, name, price_per_day, created_at').eq('is_active', true);
-    if (branchId) activeProductsQuery = activeProductsQuery.eq('branch_id', branchId);
-    activeProductsQuery = activeProductsQuery.limit(100);
-    
+
+    // 6. Combined ROI & Category query
+    let combinedItemsQuery = supabase.from('order_items')
+      .select(`
+        product_id,
+        quantity,
+        price_per_day,
+        orders!inner(status, created_at, branch_id),
+        products(name, categories:category_id(name))
+      `)
+      .neq('orders.status', 'cancelled')
+      .gte('orders.created_at', catStartDateStr)
+      .lte('orders.created_at', endDateStr);
+    if (branchId) combinedItemsQuery = combinedItemsQuery.eq('orders.branch_id', branchId);
+
+    // 7. Priority cleaning records query
     let priorityCleaningQuery = supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name, branch_id)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent');
     if (branchId) priorityCleaningQuery = priorityCleaningQuery.eq('products.branch_id', branchId);
     priorityCleaningQuery = priorityCleaningQuery.order('expected_return_date', { ascending: true }).limit(5);
-    
-    let pendingPaymentQuery = supabase.from('orders').select('total_amount, amount_paid').in('status', ['returned', 'completed']).in('payment_status', ['partial', 'pending', 'due']);
-    if (branchId) pendingPaymentQuery = pendingPaymentQuery.eq('branch_id', branchId);
 
-    // Kick off all queries in parallel
+    // Execute in parallel
     const [
       currentMetrics,
       prevMetrics,
-      completedOrdersRes,
-      ongoingOrdersRes,
-      scheduledOrdersRes,
-      currentCancelRes,
-      prevCancelRes,
-      activeOrdersRes,
+      ordersRes,
+      cancellationsRes,
       totalProductsRes,
       rentedItemsRes,
       upcomingOrdersRes,
-      roiItemsRes,
-      catItemsRes,
-      recentOrderRes,
-      allActiveProductsRes,
-      priorityRes,
-      pendingPaymentRes
+      combinedItemsRes,
+      deadStockRes,
+      priorityRes
     ] = await Promise.all([
-      (async () => {
-        console.log(`[DashboardService] Fetching metrics for branch:`, branchId);
-        return reportService.getUnifiedRevenueMetrics(format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'), branchId);
-      })(),
+      reportService.getUnifiedRevenueMetrics(format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'), branchId),
       reportService.getUnifiedRevenueMetrics(format(prevStartDate, 'yyyy-MM-dd'), format(prevEndDate, 'yyyy-MM-dd'), branchId),
-      completedQuery,
-      activeRentalsQuery,
-      scheduledQuery,
-      currentCancellationsQuery,
-      prevCancellationsQuery,
-      activeOrdersQuery,
+      ordersQuery,
+      cancellationsQuery,
       totalProductsQuery,
       rentedItemsQuery,
       upcomingOrdersQuery,
-      roiItemsQuery.returns<any[]>(),
-      catItemsQuery.returns<any[]>(),
-      deadStockQuery.returns<any[]>(),
-      activeProductsQuery,
-      priorityCleaningQuery,
-      pendingPaymentQuery
+      combinedItemsQuery.returns<any[]>(),
+      supabase.rpc('get_dead_stock', {
+        p_ninety_days_ago: ninetyDaysAgo,
+        p_branch_id: branchId || null
+      }),
+      priorityCleaningQuery
     ]);
 
     // Processing results
@@ -532,25 +506,47 @@ export class DashboardService {
       amount: t.cash
     }));
 
-    const completedRevenue = completedOrdersRes.data?.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0) || 0;
+    // Parse the unified orders data
+    const ordersData = ordersRes.data || [];
+
+    const completedOrdersData = ordersData.filter(o => 
+      ['returned', 'completed'].includes(o.status) && 
+      o.updated_at >= startDateStr && 
+      o.updated_at <= endDateStr
+    );
+    const ongoingOrdersData = ordersData.filter(o => 
+      ['ongoing', 'in_use', 'late_return', 'partial', 'delivered'].includes(o.status)
+    );
+    const pendingPaymentData = ordersData.filter(o => 
+      ['returned', 'completed'].includes(o.status) && 
+      ['partial', 'pending', 'due'].includes(o.payment_status)
+    );
+    const activeOrdersData = ordersData.filter(o => 
+      ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending'].includes(o.status)
+    );
+
+    const completedRevenue = completedOrdersData.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
+    
     // Uncollected Active: money currently in the hands of customers for ongoing rentals
-    const activeBalance = (ongoingOrdersRes.data || []).reduce((sum, o) => {
+    const activeBalance = ongoingOrdersData.reduce((sum, o) => {
       const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
       return sum + Math.max(0, balance);
     }, 0);
 
-    const pendingAmount = (pendingPaymentRes.data || []).reduce((sum, o) => {
+    const pendingAmount = pendingPaymentData.reduce((sum, o) => {
       const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
       return sum + Math.max(0, balance);
     }, 0);
 
-    const cancelCurrent = currentCancelRes.count || 0;
-    const cancelPrev = prevCancelRes.count || 0;
+    // Process cancellation counts
+    const cancellationsData = cancellationsRes.data || [];
+    const cancelCurrent = cancellationsData.filter(o => o.cancelled_at >= startDateStr && o.cancelled_at <= endDateStr).length;
+    const cancelPrev = cancellationsData.filter(o => o.cancelled_at >= prevStartDateStr && o.cancelled_at <= prevEndDateStr).length;
     const cancelChange = cancelPrev === 0 ? 0 : ((cancelCurrent - cancelPrev) / cancelPrev) * 100;
 
-    const overdueOrders = activeOrdersRes.data?.filter(o =>
+    const overdueOrders = activeOrdersData.filter(o =>
       ['ongoing', 'in_use', 'late_return'].includes(o.status) && o.end_date < todayStr
-    ) || [];
+    );
 
     const totalProducts = totalProductsRes.count || 0;
     const uniqueRentedProducts = new Set((rentedItemsRes.data || []).map((i: any) => i.product_id));
@@ -558,7 +554,7 @@ export class DashboardService {
     const utilizationPercentage = totalProducts > 0 ? Math.round((rentedOut / totalProducts) * 100) : 0;
 
     const velocityMap = new Map<string, number>();
-    upcomingOrdersRes.data?.forEach(order => {
+    (upcomingOrdersRes.data || []).forEach(order => {
       const dateStr = format(new Date(order.start_date), 'yyyy-MM-dd');
       velocityMap.set(dateStr, (velocityMap.get(dateStr) || 0) + 1);
     });
@@ -569,9 +565,10 @@ export class DashboardService {
       return { date: format(d, 'MMM dd'), count: velocityMap.get(dateStr) || 0 };
     });
 
-    // ROI Processing
+    // ROI Processing (filtering the combined list client-side for dates >= startDateStr)
     const productStats = new Map<string, { name: string; rentals: number; revenue: number }>();
-    roiItemsRes.data?.forEach(item => {
+    const roiItems = (combinedItemsRes.data || []).filter((item: any) => item.orders && item.orders.created_at >= startDateStr);
+    roiItems.forEach((item: any) => {
       if (!item.products) return;
       const pid = item.product_id;
       const stats = productStats.get(pid) || { name: item.products.name, rentals: 0, revenue: 0 };
@@ -585,9 +582,9 @@ export class DashboardService {
       .slice(0, roiLimit)
       .map((p, i) => ({ id: String(i), ...p }));
 
-    // Category Processing
+    // Category Processing (using the full range of the combined query)
     const categoryRevenueMap = new Map<string, { name: string; revenue: number }>();
-    catItemsRes.data?.forEach(item => {
+    (combinedItemsRes.data || []).forEach((item: any) => {
       if (!item.products?.categories) return;
       const catName = item.products.categories.name || 'Uncategorized';
       const existing = categoryRevenueMap.get(catName) || { name: catName, revenue: 0 };
@@ -604,20 +601,14 @@ export class DashboardService {
     }));
 
     // Dead Stock
-    const recentProductIdSet = new Set(recentOrderRes.data?.map(i => i.product_id) || []);
-    const deadStock = (allActiveProductsRes.data || [])
-      .filter(p => !recentProductIdSet.has(p.id))
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        daysIdle: Math.max(0, differenceInDays(now, new Date(p.created_at))),
-        value: Number(p.price_per_day || 0),
-      }))
-      .filter(p => p.daysIdle >= 90)
-      .sort((a, b) => b.daysIdle - a.daysIdle)
-      .slice(0, 5);
+    const deadStock = (deadStockRes.data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      daysIdle: Number(row.days_idle || 0),
+      value: Number(row.value || 0),
+    }));
 
-    return {
+    const result: DashboardMetrics = {
       revenuePacing: {
         current: currentRevenue,
         previous: prevRevenue,
@@ -670,6 +661,13 @@ export class DashboardService {
         }],
       })),
     };
+
+    this.lastMetrics[cacheKey] = {
+      data: result,
+      timestamp: nowMs,
+    };
+
+    return result;
   }
 
   /**
@@ -677,21 +675,22 @@ export class DashboardService {
    * Returns 8 metrics for the "Today's Report" panel.
    */
   async getDailyReport(): Promise<DailyReportStats> {
+    const nowMs = Date.now();
+    if (this.lastDailyReport && (nowMs - this.lastDailyReport.timestamp < 300000)) {
+      console.log('[DashboardService] Returning cached daily report');
+      return this.lastDailyReport.data;
+    }
+
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr: todayDateStr } = this.getISTDateContext();
 
     const [
       bookingsRes,
-      todaySalesRes,
       deliveryTotalRes,
-      deliveryDoneRes,
       returnTotalRes,
-      returnDoneRes,
-      revenueRes,
+      paymentsRes,
       damagedRes,
-      refundRes,
-      damageIncomeRes,
-      lateFeeRes,
+      chargesRes,
       revenueDueRes,
     ] = await Promise.all([
       // 1. Today's Bookings — count of orders created today
@@ -702,51 +701,28 @@ export class DashboardService {
         .lte('created_at', todayEnd)
         .neq('status', 'cancelled'),
 
-      // 2. Today's Sales — total value of orders created today
-      supabase
-        .from('orders')
-        .select('total_amount')
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd)
-        .neq('status', 'cancelled'),
-
-      // 3. Today's Delivery TOTAL
+      // 2. Today's Delivery TOTAL
       supabase
         .from('orders')
         .select('id, status, customer:customer_id(name)')
         .eq('start_date', todayDateStr)
         .neq('status', 'cancelled'),
 
-      // 4. Today's Delivery DONE
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('start_date', todayDateStr)
-        .in('status', DELIVERY_DONE_STATUSES),
-
-      // 5. Today's Return TOTAL
+      // 3. Today's Return TOTAL
       supabase
         .from('orders')
         .select('id, status, customer:customer_id(name)')
         .eq('end_date', todayDateStr)
         .neq('status', 'cancelled'),
 
-      // 6. Today's Return DONE
-      supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('end_date', todayDateStr)
-        .in('status', RETURN_DONE_STATUSES),
-
-      // 7. Today's Payments (Cash Collection)
+      // 4. Today's Payments & Refunds
       supabase
         .from('payments')
-        .select('amount, payment_date, payment_mode, orders(id, customer:customer_id(name))')
+        .select('amount, payment_date, payment_mode, payment_type, orders(id, customer:customer_id(name))')
         .gte('payment_date', todayStart)
-        .lte('payment_date', todayEnd)
-        .neq('payment_type', 'refund'),
+        .lte('payment_date', todayEnd),
 
-      // 8. Damaged Orders (Today only)
+      // 5. Damaged Orders (Today only)
       supabase
         .from('order_status_history')
         .select('id', { count: 'exact', head: true })
@@ -754,31 +730,15 @@ export class DashboardService {
         .gte('created_at', todayStart)
         .lte('created_at', todayEnd),
 
-      // 9. Today's Refunds
-      supabase
-        .from('payments')
-        .select('amount')
-        .gte('payment_date', todayStart)
-        .lte('payment_date', todayEnd)
-        .eq('payment_type', 'refund'),
-
-      // 10. Damage Income (Accrual)
+      // 6. Today's Accrued Damage charges & Late fees
       supabase
         .from('orders')
-        .select('damage_charges_total')
-        .gt('damage_charges_total', 0)
+        .select('damage_charges_total, late_fee')
         .gte('updated_at', todayStart)
-        .lte('updated_at', todayEnd),
+        .lte('updated_at', todayEnd)
+        .or('damage_charges_total.gt.0,late_fee.gt.0'),
 
-      // 11. Late Fee Income (Accrual)
-      supabase
-        .from('orders')
-        .select('late_fee')
-        .gt('late_fee', 0)
-        .gte('updated_at', todayStart)
-        .lte('updated_at', todayEnd),
-
-      // 12. Revenue Due (all outstanding balance across history, to remind daily)
+      // 7. Revenue Due (all outstanding balance across history, to remind daily)
       supabase
         .from('orders')
         .select('total_amount, amount_paid')
@@ -789,8 +749,12 @@ export class DashboardService {
     const bookingList = (bookingsRes.data || []) as any[];
     const deliveryList = (deliveryTotalRes.data || []) as any[];
     const returnList = (returnTotalRes.data || []) as any[];
-    const revenueList = (revenueRes.data || []) as any[];
+    const paymentList = (paymentsRes.data || []) as any[];
     const revenueDueOrders = (revenueDueRes.data || []) as any[];
+
+    // Separate payments into collections and refunds client-side
+    const revenueList = paymentList.filter(p => p.payment_type !== 'refund');
+    const refundList = paymentList.filter(p => p.payment_type === 'refund');
 
     const todaysCollection = revenueList.reduce(
       (sum, p) => sum + Number(p.amount || 0), 0
@@ -825,13 +789,16 @@ export class DashboardService {
     const todaysSales = bookingList.reduce(
       (sum, o) => sum + Number(o.total_amount || 0), 0
     );
-    const todaysRefunds = (refundRes.data || []).reduce(
+    const todaysRefunds = refundList.reduce(
       (sum, p) => sum + Number(p.amount || 0), 0
     );
-    const damageIncome = (damageIncomeRes.data || []).reduce(
+
+    // Sum dynamic accrued charges client-side
+    const chargesList = chargesRes.data || [];
+    const damageIncome = chargesList.reduce(
       (sum, o) => sum + Number(o.damage_charges_total || 0), 0
     );
-    const lateFeeIncome = (lateFeeRes.data || []).reduce(
+    const lateFeeIncome = chargesList.reduce(
       (sum, o) => sum + Number(o.late_fee || 0), 0
     );
     
@@ -843,16 +810,20 @@ export class DashboardService {
       0
     );
 
-    return {
+    // Compute progress card counts client-side
+    const deliveryDoneCount = deliveryList.filter(o => DELIVERY_DONE_STATUSES.includes(o.status)).length;
+    const returnDoneCount = returnList.filter(o => RETURN_DONE_STATUSES.includes(o.status)).length;
+
+    const result: DailyReportStats = {
       todaysBookings: bookingList.length,
       todaysSales,
       todaysCollection,
       todaysDelivery: {
-        delivered: deliveryDoneRes.count || 0,
+        delivered: deliveryDoneCount,
         total: deliveryList.length,
       },
       todaysReturn: {
-        returned: returnDoneRes.count || 0,
+        returned: returnDoneCount,
         total: returnList.length,
       },
       todaysRevenue: todaysCollection,
@@ -877,6 +848,13 @@ export class DashboardService {
         }))
       }
     };
+
+    this.lastDailyReport = {
+      data: result,
+      timestamp: nowMs,
+    };
+
+    return result;
   }
 }
 
