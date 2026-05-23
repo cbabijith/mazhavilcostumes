@@ -7,7 +7,7 @@
  */
 
 export { useProductStore } from './productStore';
-export { useAppStore, appUtils } from './appStore';
+export { useAppStore, appUtils, useAppSelectors } from './appStore';
 
 export type { 
   Product, 

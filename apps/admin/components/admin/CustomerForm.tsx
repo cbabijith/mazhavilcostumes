@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
 import { type Customer, type IdType } from "@/domain";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 
 const ID_TYPE_OPTIONS: { value: IdType; label: string }[] = [
@@ -50,7 +50,8 @@ function emptyFormData() {
 export default function CustomerForm({ customer }: CustomerFormProps) {
   const router = useRouter();
   const isEdit = !!customer;
-  const { showError, showSuccess } = useAppStore();
+  const showError = useAppSelectors.showError();
+  const showSuccess = useAppSelectors.showSuccess();
   const queryClient = useQueryClient();
 
   const [loading, setLoading] = useState(false);

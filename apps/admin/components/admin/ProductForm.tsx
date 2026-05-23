@@ -20,7 +20,7 @@ import { FileUpload } from "@/components/ui/file-upload";
 import { Switch } from "@/components/ui/switch";
 import { type Category } from "@/domain/types/category";
 import { type Product } from "@/domain/types/product";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
@@ -54,7 +54,9 @@ export default function ProductForm({
 }: ProductFormProps) {
   const router = useRouter();
   const isEdit = !!product;
-  const { showError, showSuccess, user } = useAppStore();
+  const showError = useAppSelectors.showError();
+  const showSuccess = useAppSelectors.showSuccess();
+  const user = useAppSelectors.user();
   const queryClient = useQueryClient();
   const { createProduct } = useCreateProduct();
   const { updateProduct } = useUpdateProduct();

@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import Modal from "@/components/admin/Modal";
 import { useCustomers, useDeleteCustomer } from "@/hooks";
-import { useAppStore } from "@/stores";
+import { useAppStore, useAppSelectors } from "@/stores";
 import { type Customer } from "@/domain";
 
 export default function CustomersPage() {
@@ -72,7 +72,8 @@ export default function CustomersPage() {
   });
 
   const deleteCustomer = useDeleteCustomer();
-  const { showSuccess, showError } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const showError = useAppSelectors.showError();
 
   // ── Delete modal ───────────────────────────────────────────────────
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);

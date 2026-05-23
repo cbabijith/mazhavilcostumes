@@ -45,6 +45,7 @@ export class CustomerRepository extends BaseRepository {
       orderBy: { column: sort_by, ascending: sort_order === 'asc' },
       limit,
       offset,
+      count: 'exact',
     });
 
     // Apply text search on name or email
@@ -52,27 +53,9 @@ export class CustomerRepository extends BaseRepository {
       selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
     }
 
-    // Get total count for pagination
-    let countQuery = this.client.from(this.tableName).select('*', { count: 'exact', head: true });
-    
-    // Apply basic filters to count query
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          countQuery = (countQuery as any).eq(key, value);
-        }
-      });
-    }
-
-    if (query) {
-      countQuery = (countQuery as any).or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
-    }
-
-    const { count: totalCount } = await countQuery;
-
-    // Execute main query
+    // Execute consolidated query (gets both data and total exact count in a single trip)
     const response = await selectQuery;
-    const { data, error } = response as any;
+    const { data, count, error } = response as any;
     const result = this.handleResponse<Customer[]>({ data, error });
 
     if (!result.success || !result.data) {
@@ -83,7 +66,7 @@ export class CustomerRepository extends BaseRepository {
       };
     }
 
-    const total = totalCount || 0;
+    const total = count || 0;
     const totalPages = Math.ceil(total / limit);
 
     const searchResult: CustomerSearchResult = {

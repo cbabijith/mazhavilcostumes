@@ -16,7 +16,8 @@ import {
   UpdateOrderDTO,
   OrderSearchParams,
   ReturnOrderDTO,
-  ConditionRating
+  ConditionRating,
+  OrderSearchResult
 } from '@/domain/types/order';
 
 /** Buffer days for cleaning/prep before and after each rental (in milliseconds) */
@@ -31,7 +32,7 @@ export class OrderRepository extends BaseRepository {
   /**
    * Find all orders
    */
-  async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderWithRelations[]>> {
+  async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
     let customerIds: string[] = [];
     const searchTerm = params?.query?.trim();
 
@@ -64,7 +65,7 @@ export class OrderRepository extends BaseRepository {
         customer:customer_id(id, name, phone, alt_phone, email),
         items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
-      `)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (params?.customer_id) {
@@ -237,7 +238,38 @@ export class OrderRepository extends BaseRepository {
     }
 
     const response = await query;
-    return this.handleResponse<OrderWithRelations[]>(response);
+    const { data, count, error } = response as any;
+    const result = this.handleResponse<OrderWithRelations[]>({ data, error });
+
+    if (!result.success || !result.data) {
+      return {
+        data: null,
+        error: result.error,
+        success: false,
+      };
+    }
+
+    const limit = params?.limit || 20;
+    const offset = params?.offset || 0;
+    const total = count || 0;
+    const totalPages = Math.ceil(total / limit);
+    const page = Math.floor(offset / limit) + 1;
+
+    const searchResult: OrderSearchResult = {
+      orders: result.data,
+      total,
+      page,
+      limit,
+      total_pages: totalPages,
+      has_next: offset + limit < total,
+      has_prev: offset > 0,
+    };
+
+    return {
+      data: searchResult,
+      error: null,
+      success: true,
+    };
   }
 
   /**
@@ -542,9 +574,9 @@ export class OrderRepository extends BaseRepository {
     const conflicts: any[] = [];
     let hasConflict = false;
 
-    // 2. Check each item in the order
-    for (const item of order.items || []) {
-      if (!item.product_id) continue;
+    // 2. Check each item in the order in parallel
+    await Promise.all((order.items || []).map(async (item) => {
+      if (!item.product_id) return;
       
       const availRes = await this.checkAvailability(
         item.product_id, 
@@ -567,7 +599,7 @@ export class OrderRepository extends BaseRepository {
           });
         }
       }
-    }
+    }));
 
     // 3. Update order flag and details
     const { error: updateError } = await this.client
@@ -607,10 +639,48 @@ export class OrderRepository extends BaseRepository {
     // Deduplicate order IDs
     const orderIds = Array.from(new Set(orderItems.map(item => item.order_id)));
 
-    // Run validation for each order
-    for (const id of orderIds) {
-      await this.validateOrderStockConflicts(id);
-    }
+    // Run validation for each order in parallel
+    await Promise.all(orderIds.map(id => this.validateOrderStockConflicts(id)));
+  }
+
+  /**
+   * Sync conflicts for orders containing a specific product within a specific date range (plus buffer).
+   * Highly optimized for order create/update/delete operations where total product stock hasn't changed.
+   *
+   * @param productId - The product to search for
+   * @param startDate - The start date of the range
+   * @param endDate - The end date of the range
+   */
+  async syncProductConflictsForRange(
+    productId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    const DAY_MS = 86400000;
+    // Buffer is 1 day before/after to be safe about cleaning buffers
+    const startMs = new Date(startDate).getTime() - DAY_MS;
+    const endMs = new Date(endDate).getTime() + DAY_MS;
+    const startStr = new Date(startMs).toISOString().split('T')[0];
+    const endStr = new Date(endMs).toISOString().split('T')[0];
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
+    // Find all active orders containing this product that overlap with our range
+    const { data: orderItems, error } = await this.client
+      .from(this.orderItemsTable)
+      .select('order_id, orders!inner(id, status, start_date, end_date)')
+      .eq('product_id', productId)
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .gte('orders.end_date', todayStr)
+      .lte('orders.start_date', endStr)
+      .gte('orders.end_date', startStr);
+
+    if (error || !orderItems) return;
+
+    // Deduplicate order IDs
+    const orderIds = Array.from(new Set(orderItems.map(item => item.order_id)));
+
+    // Run validation for each order in parallel
+    await Promise.all(orderIds.map(id => this.validateOrderStockConflicts(id)));
   }
 
   /**
@@ -1909,6 +1979,14 @@ export class OrderRepository extends BaseRepository {
       .from(this.tableName)
       .update({ has_priority_cleaning: hasUrgentCleaning })
       .eq('id', orderId);
+  }
+
+  async updateOrderPriorityFlags(orderIds: string[], hasPriority: boolean): Promise<void> {
+    if (orderIds.length === 0) return;
+    await this.client
+      .from(this.tableName)
+      .update({ has_priority_cleaning: hasPriority })
+      .in('id', orderIds);
   }
 }
 

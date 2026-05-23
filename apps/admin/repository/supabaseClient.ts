@@ -224,13 +224,14 @@ export abstract class BaseRepository {
       orderBy?: { column: string; ascending?: boolean };
       limit?: number;
       offset?: number;
+      count?: 'exact' | 'planned' | 'estimated';
     } = {}
   ) {
     let query = this.client.from(table);
 
     // Select columns
     if (options.select) {
-      query = (query as any).select(options.select);
+      query = (query as any).select(options.select, options.count ? { count: options.count } : undefined);
     }
 
     // Apply filters

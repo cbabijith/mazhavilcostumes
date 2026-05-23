@@ -132,6 +132,16 @@ export class PaymentService {
     paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
     const result = await paymentRepository.create(data);
 
+    // Invalidate dashboard cache on payment registration
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+
     // After successfully creating a refund, atomically update the order's state
     if (result.success && result.data && data.payment_type === PaymentType.REFUND) {
       const { orderRepository } = await import('@/repository');
@@ -178,14 +188,32 @@ export class PaymentService {
     }
 
     paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
-    return await paymentRepository.update(id, data);
+    const result = await paymentRepository.update(id, data);
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+    return result;
   }
 
   /**
    * Delete a payment
    */
   async deletePayment(id: string): Promise<RepositoryResult<boolean>> {
-    return await paymentRepository.delete(id);
+    const result = await paymentRepository.delete(id);
+    if (result.success) {
+      try {
+        const { dashboardService } = await import('./dashboardService');
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+    return result;
   }
 
   /**
