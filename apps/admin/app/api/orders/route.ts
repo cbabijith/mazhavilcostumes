@@ -33,14 +33,12 @@ export async function GET(request: NextRequest) {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    // Lazy on-read: auto-transition overdue orders before fetching.
-    // Awaited so the response reflects correct statuses immediately.
-    // The cron job handles the daily bulk update; this catches any stragglers.
-    try {
-      await orderService.transitionOverdueOrders();
-    } catch (err) {
+    // Lazy on-read: auto-transition overdue orders in the background.
+    // The cron job handles the daily bulk update; this catches any stragglers
+    // asynchronously to avoid blocking user read requests.
+    orderService.transitionOverdueOrders().catch(err => {
       console.error('Lazy overdue transition failed:', err);
-    }
+    });
 
     const searchParams = request.nextUrl.searchParams;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;

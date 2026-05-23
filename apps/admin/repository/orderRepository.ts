@@ -361,20 +361,26 @@ export class OrderRepository extends BaseRepository {
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
-    // Fetch all active order items for this product with their order date ranges
+    const DAY_MS = 86400000;
+    const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
+    const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
+
+    // Date range filter boundaries (including 2 days of buffer padding on each end to be safe)
+    const searchStart = new Date(reqStart - 2 * DAY_MS).toISOString().split('T')[0];
+    const searchEnd = new Date(reqEnd + 2 * DAY_MS).toISOString().split('T')[0];
+
+    // Fetch only overlapping active order items for this product with their order date ranges
     const ordersResponse = await this.client
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .gte('orders.end_date', searchStart)
+      .lte('orders.start_date', searchEnd);
 
     if (ordersResponse.error) {
       return this.handleResponse<any>(ordersResponse);
     }
-
-    const DAY_MS = 86400000;
-    const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
-    const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
 
     // Collect bookings into categories
     type BookingInfo = { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string };
@@ -1309,11 +1315,14 @@ export class OrderRepository extends BaseRepository {
     storeId: string;
     status: string;
   }[]>> {
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+
     let query = this.client
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .gte('orders.end_date', todayStr);
 
     const response = await query;
 

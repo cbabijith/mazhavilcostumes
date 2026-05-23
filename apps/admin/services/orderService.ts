@@ -429,13 +429,14 @@ export class OrderService {
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.createOrder] DB save duration: ${dbDuration.toFixed(2)}ms`);
 
-    // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS ────────────────────────────────
+    // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS (BACKGROUND NON-BLOCKING) ──────
     // Every order pre-creates cleaning records so the cleaning queue has
     // full visibility of upcoming workload before items are even returned.
+    // Done in background to keep HTTP save response under 1.5 seconds.
     if (result.success && result.data) {
-      try {
+      (async () => {
         const recalcStart = performance.now();
-        const newOrder = result.data;
+        const newOrder = result.data!;
         const newOrderId = newOrder.id;
         const storeId = newOrder.store_id;
         const endDateStr = new Date(newOrder.end_date).toISOString().split('T')[0];
@@ -477,10 +478,10 @@ export class OrderService {
         }));
 
         const recalcDuration = performance.now() - recalcStart;
-        console.log(`[OrderService.createOrder] Cleaning auto-schedule & priority recalc duration: ${recalcDuration.toFixed(2)}ms`);
-      } catch (err) {
-        console.error('Failed to schedule cleaning records:', err);
-      }
+        console.log(`[OrderService.createOrder] Background cleaning auto-schedule & priority recalc finished in ${recalcDuration.toFixed(2)}ms`);
+      })().catch(err => {
+        console.error('[OrderService.createOrder] Background auto-schedule/recalculation failed:', err);
+      });
     }
 
     if (result.success) {
@@ -599,9 +600,11 @@ export class OrderService {
     // Recalculate priority cleaning when dates, items, or status change.
     // This replaces the old incremental approach that caused edge-case bugs.
     if (result.success) {
-      try {
+      // Execute priority recalculation and conflict synchronization asynchronously in the background.
+      // This completely removes the 3.5s+ blocking lag from the user's save transaction!
+      (async () => {
         const recalcStart = performance.now();
-        const order = existingOrder.data;
+        const order = existingOrder.data!;
         const branchId = order.branch_id;
 
         if (data.status === OrderStatus.CANCELLED) {
@@ -675,10 +678,10 @@ export class OrderService {
           }));
         }
         const recalcDuration = performance.now() - recalcStart;
-        console.log(`[OrderService.updateOrder] Priority recalculation & conflict sync duration: ${recalcDuration.toFixed(2)}ms`);
-      } catch (err) {
-        console.error('Failed to recalculate priority cleaning:', err);
-      }
+        console.log(`[OrderService.updateOrder] Background priority recalculation & conflict sync finished in ${recalcDuration.toFixed(2)}ms`);
+      })().catch(err => {
+        console.error('[OrderService.updateOrder] Background priority recalculation failed:', err);
+      });
     }
 
     if (result.success) {
@@ -736,17 +739,15 @@ export class OrderService {
     // 2. Delete the order itself
     const deleteResult = await orderRepository.delete(id);
 
-    // 3. Recalculate priority cleaning for each affected product
+    // 3. Recalculate priority cleaning for each affected product in parallel in the background (non-blocking)
     //    (runs AFTER delete so the deleted order won't appear in active orders)
     if (deleteResult.success) {
-      try {
-        for (const productId of affectedProductIds) {
-          await this.recalculateProductPriorityCleaning(productId, branchId);
-          await orderRepository.syncProductConflictsForRange(productId, order.start_date, order.end_date);
-        }
-      } catch (err) {
-        console.error('Failed to recalculate priority cleaning after delete:', err);
-      }
+      Promise.all(affectedProductIds.map(async (productId) => {
+        await this.recalculateProductPriorityCleaning(productId, branchId);
+        await orderRepository.syncProductConflictsForRange(productId, order.start_date, order.end_date);
+      })).catch(err => {
+        console.error('[OrderService.deleteOrder] Background priority recalculation failed:', err);
+      });
     }
 
     if (deleteResult.success) {
