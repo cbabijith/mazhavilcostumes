@@ -40,6 +40,7 @@ const FILTER_CHIPS = [
   { label: "Completed", value: OrderStatus.COMPLETED },
   { label: "Cancelled", value: OrderStatus.CANCELLED },
   { label: "Flagged", value: OrderStatus.FLAGGED },
+  { label: "Revenue Due", value: "revenue_due" },
 ] as const;
 
 interface OrderFiltersProps {
