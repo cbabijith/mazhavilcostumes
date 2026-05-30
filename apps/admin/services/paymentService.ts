@@ -16,6 +16,7 @@ import {
   PaymentMode
 } from '@/domain/types/payment';
 import { paymentRepository } from '@/repository';
+import { dashboardService } from './dashboardService';
 
 export class PaymentService {
   private currentUserId: string | null = null;
@@ -135,7 +136,6 @@ export class PaymentService {
     // Invalidate dashboard cache on payment registration
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -191,7 +191,6 @@ export class PaymentService {
     const result = await paymentRepository.update(id, data);
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -207,7 +206,6 @@ export class PaymentService {
     const result = await paymentRepository.delete(id);
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);

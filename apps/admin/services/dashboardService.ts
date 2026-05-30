@@ -176,8 +176,10 @@ export interface DailyReportStats {
 // ─── Service ───────────────────────────────────────────────────────────────────
 
 export class DashboardService {
-  // In-memory cache for dashboard metrics (30 seconds TTL)
-  private lastOperationalMetrics: { data: OperationalMetrics; timestamp: number } | null = null;
+  // In-memory cache for dashboard metrics
+  // Operational metrics: no cache (real-time data needed)
+  // Admin metrics: 30 second cache (expensive analytics queries)
+  // Daily report: 30 second cache (cash reconciliation stats)
   private lastMetrics: Record<string, { data: DashboardMetrics; timestamp: number }> = {};
   private lastDailyReport: { data: DailyReportStats; timestamp: number } | null = null;
 
@@ -187,7 +189,6 @@ export class DashboardService {
    */
   public clearCache(): void {
     console.log('[DashboardService] Cache invalidated due to data mutations');
-    this.lastOperationalMetrics = null;
     this.lastMetrics = {};
     this.lastDailyReport = null;
   }
@@ -227,12 +228,7 @@ export class DashboardService {
    * Prepare Delivery (next 5 days), Pending Delivery, Pending Return, Revenue Due.
    */
   async getOperationalMetrics(branchId?: string): Promise<OperationalMetrics> {
-    const nowMs = Date.now();
-    if (this.lastOperationalMetrics && (nowMs - this.lastOperationalMetrics.timestamp < 300000)) {
-      console.log('[DashboardService] Returning cached operational metrics');
-      return this.lastOperationalMetrics.data;
-    }
-
+    // No caching for operational metrics - need real-time data
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
 
@@ -338,11 +334,6 @@ export class DashboardService {
       priorityCleaning,
     };
 
-    this.lastOperationalMetrics = {
-      data: result,
-      timestamp: nowMs,
-    };
-
     return result;
   }
 
@@ -372,7 +363,7 @@ export class DashboardService {
       roiLimit: overrides?.roiLimit,
     });
 
-    if (this.lastMetrics[cacheKey] && (nowMs - this.lastMetrics[cacheKey].timestamp < 300000)) {
+    if (this.lastMetrics[cacheKey] && (nowMs - this.lastMetrics[cacheKey].timestamp < 30000)) {
       console.log('[DashboardService] Returning cached admin metrics');
       return this.lastMetrics[cacheKey].data;
     }
@@ -679,7 +670,7 @@ export class DashboardService {
    */
   async getDailyReport(): Promise<DailyReportStats> {
     const nowMs = Date.now();
-    if (this.lastDailyReport && (nowMs - this.lastDailyReport.timestamp < 300000)) {
+    if (this.lastDailyReport && (nowMs - this.lastDailyReport.timestamp < 30000)) {
       console.log('[DashboardService] Returning cached daily report');
       return this.lastDailyReport.data;
     }
