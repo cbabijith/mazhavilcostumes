@@ -21,10 +21,10 @@ import { reportService } from './reportService';
 const DELIVERY_PENDING_STATUSES = ['scheduled', 'pending', 'confirmed'];
 
 /** Statuses meaning delivery was completed (order has been picked up / is active or done) */
-const DELIVERY_DONE_STATUSES = ['ongoing', 'in_use', 'delivered', 'late_return', 'partial', 'returned', 'completed', 'flagged'];
+const DELIVERY_DONE_STATUSES = ['ongoing', 'in_use', 'delivered', 'partial', 'returned', 'completed', 'flagged'];
 
 /** Statuses meaning return is still pending (order is active with customer) */
-const RETURN_PENDING_STATUSES = ['ongoing', 'in_use', 'late_return'];
+const RETURN_PENDING_STATUSES = ['ongoing', 'in_use'];
 
 /** Statuses meaning return was completed */
 const RETURN_DONE_STATUSES = ['returned', 'completed', 'flagged'];
@@ -311,7 +311,7 @@ export class DashboardService {
         orderCount: rpcData.pendingReturns || 0,
         icon: 'clock-alert',
         color: 'red',
-        filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}${branchIdParam}`,
+        filterUrl: `/dashboard/orders?status=ongoing&status=in_use&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}${branchIdParam}`,
       },
       {
         label: "Revenue Due",
@@ -396,7 +396,7 @@ export class DashboardService {
     const catStartDateStr = catStartDate.toISOString();
 
     // 1. Unified orders query to fetch data for completed orders in range, active rentals, and pending payment orders
-    const activeStatuses = 'ongoing,in_use,late_return,partial,delivered,scheduled,pending';
+    const activeStatuses = 'ongoing,in_use,partial,delivered,scheduled,pending';
     const completedStatuses = 'returned,completed';
     const paymentDueStatuses = 'partial,pending,due';
 
@@ -420,7 +420,7 @@ export class DashboardService {
     if (branchId) totalProductsQuery = totalProductsQuery.eq('branch_id', branchId);
 
     // 4. Rented items query
-    let rentedItemsQuery = supabase.from('order_items').select('product_id, orders!inner(status, branch_id)').in('orders.status', ['ongoing', 'in_use', 'late_return', 'delivered', 'partial']);
+    let rentedItemsQuery = supabase.from('order_items').select('product_id, orders!inner(status, branch_id)').in('orders.status', ['ongoing', 'in_use', 'delivered', 'partial']);
     if (branchId) rentedItemsQuery = rentedItemsQuery.eq('orders.branch_id', branchId);
 
     // 5. Booking velocity query
@@ -517,15 +517,15 @@ export class DashboardService {
       o.updated_at >= startDateStr && 
       o.updated_at <= endDateStr
     );
-    const ongoingOrdersData = ordersData.filter(o => 
-      ['ongoing', 'in_use', 'late_return', 'partial', 'delivered'].includes(o.status)
+    const ongoingOrdersData = ordersData.filter(o =>
+      ['ongoing', 'in_use', 'partial', 'delivered'].includes(o.status)
     );
     const pendingPaymentData = ordersData.filter(o => 
       ['returned', 'completed'].includes(o.status) && 
       ['partial', 'pending', 'due'].includes(o.payment_status)
     );
-    const activeOrdersData = ordersData.filter(o => 
-      ['ongoing', 'in_use', 'late_return', 'scheduled', 'pending'].includes(o.status)
+    const activeOrdersData = ordersData.filter(o =>
+      ['ongoing', 'in_use', 'scheduled', 'pending'].includes(o.status)
     );
 
     const completedRevenue = completedOrdersData.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
@@ -548,7 +548,7 @@ export class DashboardService {
     const cancelChange = cancelPrev === 0 ? 0 : ((cancelCurrent - cancelPrev) / cancelPrev) * 100;
 
     const overdueOrders = activeOrdersData.filter(o =>
-      ['ongoing', 'in_use', 'late_return'].includes(o.status) && o.end_date < todayStr
+      ['ongoing', 'in_use'].includes(o.status) && o.end_date < todayStr
     );
 
     const totalProducts = totalProductsRes.count || 0;
@@ -745,7 +745,7 @@ export class DashboardService {
       supabase
         .from('orders')
         .select('total_amount, amount_paid')
-        .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+        .in('status', ['returned', 'partial', 'flagged'])
         .neq('payment_status', 'paid'),
     ]);
 

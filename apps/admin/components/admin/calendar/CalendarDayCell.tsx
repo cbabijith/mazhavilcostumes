@@ -26,7 +26,7 @@ const statusColors: Record<string, string> = {
   [OrderStatus.IN_USE]: "bg-purple-500",
   [OrderStatus.SCHEDULED]: "bg-blue-500",
   [OrderStatus.CONFIRMED]: "bg-blue-500",
-  [OrderStatus.LATE_RETURN]: "bg-red-500",
+  // LATE_RETURN removed - now handled by is_late boolean flag
   [OrderStatus.FLAGGED]: "bg-red-500",
   [OrderStatus.RETURNED]: "bg-emerald-500",
   [OrderStatus.COMPLETED]: "bg-emerald-500",
@@ -40,7 +40,7 @@ const statusTextColors: Record<string, string> = {
   [OrderStatus.IN_USE]: "text-purple-700 bg-purple-50",
   [OrderStatus.SCHEDULED]: "text-blue-700 bg-blue-50",
   [OrderStatus.CONFIRMED]: "text-blue-700 bg-blue-50",
-  [OrderStatus.LATE_RETURN]: "text-red-700 bg-red-50",
+  // LATE_RETURN removed - now handled by is_late boolean flag
   [OrderStatus.FLAGGED]: "text-red-700 bg-red-50",
   [OrderStatus.RETURNED]: "text-emerald-700 bg-emerald-50",
   [OrderStatus.COMPLETED]: "text-emerald-700 bg-emerald-50",
@@ -65,7 +65,7 @@ export default function CalendarDayCell({
   const previewEvents = useMemo(() => {
     if (!summary?.events.length) return [];
     const priorityOrder = [
-      OrderStatus.LATE_RETURN,
+      // LATE_RETURN removed - now handled by is_late boolean flag
       OrderStatus.FLAGGED,
       OrderStatus.ONGOING,
       OrderStatus.IN_USE,

@@ -298,7 +298,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
         : "From late return fees",
       icon: Clock,
       color: "amber",
-      href: "/dashboard/orders?status=late_return&date_filter=today&date_field=updated_at",
+      href: "/dashboard/orders?is_late=true&date_filter=today&date_field=updated_at",
       isEmpty: stats.lateFeeIncome === 0,
       isCurrency: true,
     },

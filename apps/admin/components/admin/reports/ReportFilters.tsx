@@ -35,7 +35,7 @@ export function ReportFilters({
     { label: "Ongoing", value: "ongoing" },
     { label: "Returned", value: "returned" },
     { label: "Completed", value: "completed" },
-    { label: "Late Return", value: "late_return" },
+    // Late Return removed - now handled by is_late boolean flag
     { label: "Flagged", value: "flagged" },
   ];
 

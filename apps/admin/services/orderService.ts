@@ -530,12 +530,12 @@ export class OrderService {
         [OrderStatus.CONFIRMED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED], // legacy fallback
         [OrderStatus.SCHEDULED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED],
         [OrderStatus.DELIVERED]: [OrderStatus.IN_USE, OrderStatus.ONGOING, OrderStatus.CANCELLED],
-        [OrderStatus.IN_USE]: [OrderStatus.RETURNED, OrderStatus.LATE_RETURN, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
-        [OrderStatus.ONGOING]: [OrderStatus.RETURNED, OrderStatus.LATE_RETURN, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
+        [OrderStatus.IN_USE]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
+        [OrderStatus.ONGOING]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
         [OrderStatus.PARTIAL]: [OrderStatus.RETURNED, OrderStatus.COMPLETED, OrderStatus.FLAGGED],
         [OrderStatus.FLAGGED]: [OrderStatus.RETURNED, OrderStatus.COMPLETED],
         [OrderStatus.RETURNED]: [OrderStatus.COMPLETED],
-        [OrderStatus.LATE_RETURN]: [OrderStatus.COMPLETED, OrderStatus.FLAGGED],
+        // LATE_RETURN removed - now handled by is_late boolean flag
         [OrderStatus.COMPLETED]: [],
         [OrderStatus.CANCELLED]: [],
       };
@@ -811,11 +811,11 @@ export class OrderService {
 
     // Validate order is in correct status for return
     const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.LATE_RETURN && currentStatus !== OrderStatus.PARTIAL) {
+    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL) {
       return {
         data: null,
         error: {
-          message: 'Order must be in use, ongoing, partial, or late return to process return',
+          message: 'Order must be in use, ongoing, or partial to process return',
           code: 'INVALID_STATUS'
         } as any,
         success: false,
@@ -1083,11 +1083,12 @@ export class OrderService {
 
   /**
    * Transition all overdue orders (ongoing/in_use past end_date) to late_return.
-   * Called by:
-   *   1. Vercel Cron Job (daily)
-   *   2. On-read when the orders list is fetched (lazy fallback)
    *
-   * @returns Number of orders transitioned
+   * DEPRECATED: This function is no longer needed as the is_late flag is now
+   * automatically calculated by a database trigger. The trigger sets is_late=true
+   * when end_date < current_date AND status is in (ongoing, in_use, delivered).
+   *
+   * @returns Number of orders transitioned (always 0 now)
    */
   async transitionOverdueOrders(): Promise<number> {
     return await orderRepository.transitionOverdueToLateReturn();

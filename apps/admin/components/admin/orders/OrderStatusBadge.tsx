@@ -22,6 +22,7 @@ import { OrderStatus } from "@/domain";
 
 interface OrderStatusBadgeProps {
   status: OrderStatus;
+  is_late?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -60,10 +61,7 @@ const STATUS_CONFIG: Record<
     label: "Flagged",
     className: "bg-red-50 text-red-700 border-red-200",
   },
-  [OrderStatus.LATE_RETURN]: {
-    label: "Late",
-    className: "bg-red-50 text-red-700 border-red-200",
-  },
+  // LATE_RETURN removed - now handled by is_late boolean flag
   [OrderStatus.CANCELLED]: {
     label: "Cancelled",
     className: "bg-slate-100 text-slate-600 border-slate-200",
@@ -83,8 +81,17 @@ const DEFAULT_CONFIG = {
   className: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-function OrderStatusBadgeInner({ status }: OrderStatusBadgeProps) {
+function OrderStatusBadgeInner({ status, is_late }: OrderStatusBadgeProps) {
   const config = STATUS_CONFIG[status] || { ...DEFAULT_CONFIG, label: status };
+
+  // If order is late, show Late badge instead of status badge
+  if (is_late) {
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+        Late
+      </Badge>
+    );
+  }
 
   return (
     <Badge variant="outline" className={config.className}>

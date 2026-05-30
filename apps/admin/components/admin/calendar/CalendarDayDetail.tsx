@@ -73,13 +73,12 @@ function getStatusBadge(status: OrderStatus) {
         </Badge>
       );
     case OrderStatus.FLAGGED:
-    case OrderStatus.LATE_RETURN:
       return (
         <Badge
           variant="outline"
           className="bg-red-50 text-red-700 border-red-200 text-[10px] px-1.5 py-0"
         >
-          {status === OrderStatus.LATE_RETURN ? "Late" : "Flagged"}
+          Flagged
         </Badge>
       );
     case OrderStatus.CANCELLED:

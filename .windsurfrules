@@ -1,0 +1,260 @@
+# Mazhavil Costumes Admin Rules
+
+## Architecture
+
+Always follow:
+
+Domain -> Repository -> Service -> Hooks -> Components
+
+Never skip layers.
+
+Components must never import:
+- repository/*
+- lib/supabase/*
+- services/* directly
+
+Components must only use hooks.
+
+---
+
+## Domain Layer
+
+All types, interfaces, enums and zod schemas belong inside domain/.
+
+Never create duplicate types.
+
+Always import from:
+
+@/domain
+
+Never deep import files.
+
+---
+
+## Repository Layer
+
+Repository is only for database access.
+
+Repositories:
+- Must not contain business logic
+- Must return RepositoryResult<T>
+- Must use Supabase only
+- Must not call UI code
+
+---
+
+## Service Layer
+
+All business rules belong here.
+
+Examples:
+- Availability checking
+- Inventory calculations
+- Stock conflicts
+- Category validation
+- RBAC validation
+- Order calculations
+- GST calculations
+
+Never place business logic inside components.
+
+---
+
+## Hooks Layer
+
+Use TanStack Query.
+
+Every mutation must:
+- invalidate related query cache
+- show success notification
+- show error notification
+
+Use queryKeys factory.
+
+---
+
+## Components
+
+Keep components presentation focused.
+
+Never:
+- access database directly
+- perform complex calculations
+- contain business rules
+
+Always use hooks.
+
+---
+
+## API Routes
+
+API Routes must:
+
+1. Authenticate user
+2. Check permissions
+3. Call service layer
+4. Return standardized response
+
+Never access repositories directly from API routes.
+
+---
+
+## Authentication
+
+Use apiGuard().
+
+All routes require permission checks.
+
+Never bypass RBAC.
+
+Roles:
+
+super_admin
+admin
+manager
+staff
+
+---
+
+## Database
+
+Always preserve:
+
+created_by
+updated_by
+created_at_branch_id
+updated_at_branch_id
+
+Never remove audit fields.
+
+---
+
+## Categories
+
+Hierarchy:
+
+Main
+ -> Sub
+     -> Variant
+
+Maximum depth = 3
+
+Prevent circular references.
+
+---
+
+## Orders
+
+Before creating order:
+
+1. Check availability
+2. Check inventory
+3. Check stock conflicts
+4. Reserve inventory
+
+Never create orders without availability validation.
+
+---
+
+## Products
+
+Every product must:
+
+- have branch assignment
+- have category assignment
+- support inventory tracking
+
+Images must use Cloudflare R2.
+
+---
+
+## UI Standards
+
+Use:
+
+- shadcn/ui
+- Tailwind CSS
+- TypeScript strict mode
+
+Avoid custom UI libraries.
+
+---
+
+## Code Quality
+
+Always:
+
+- use TypeScript strict typing
+- avoid any
+- use async/await
+- use barrel exports
+- use reusable components
+
+Never:
+- duplicate logic
+- duplicate types
+- create large monolithic files
+
+---
+
+## Imports
+
+Preferred:
+
+import { Product } from "@/domain"
+import { useProducts } from "@/hooks"
+
+Avoid:
+
+import { Product } from "@/domain/types/product"
+
+---
+
+## State Management
+
+Global state:
+Zustand
+
+Server state:
+TanStack Query
+
+Do not use Context API for business state.
+
+---
+
+## File Uploads
+
+All uploads go through:
+
+Upload Service
+Cloudflare R2
+
+Images should be optimized to WebP.
+
+---
+
+## Performance
+
+Prefer:
+
+- Server Components
+- Pagination
+- Lazy loading
+- Query caching
+
+Avoid unnecessary re-renders.
+
+---
+
+## When Generating New Features
+
+Always:
+
+1. Create Domain types
+2. Create Repository
+3. Create Service
+4. Create Hook
+5. Create API Route
+6. Create Components
+
+Follow existing architecture exactly.

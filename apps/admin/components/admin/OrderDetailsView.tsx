@@ -107,7 +107,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { data: paymentsResponse, isLoading: isLoadingPayments } = useOrderPayments(orderId);
   const payments = paymentsResponse || [];
   
-  const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.LATE_RETURN || order?.status === OrderStatus.PARTIAL;
+  const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.PARTIAL;
   const isFinalized = order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
 
   useEffect(() => {
@@ -475,7 +475,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     switch (status) {
       case OrderStatus.CONFIRMED: case OrderStatus.SCHEDULED: return { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Scheduled' };
       case OrderStatus.ONGOING: case OrderStatus.IN_USE: return { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Ongoing' };
-      case OrderStatus.LATE_RETURN: return { color: 'bg-red-100 text-red-800 border-red-300 shadow-[0_0_10px_rgba(239,68,68,0.3)]', label: 'Late' };
+      // LATE_RETURN removed - now handled by is_late boolean flag
       case OrderStatus.PARTIAL: return { color: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Partial' };
       case OrderStatus.RETURNED: case OrderStatus.COMPLETED: return { color: 'bg-slate-100 text-slate-600 border-slate-200', label: 'Returned' };
       case OrderStatus.FLAGGED: return { color: 'bg-purple-100 text-purple-800 border-purple-200', label: '⚠️ Flagged' };
@@ -616,11 +616,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Out (Pickup)</p>
           <p className="text-2xl font-bold text-slate-900">{format(new Date(order.start_date), "dd/MM/yyyy")}</p>
         </div>
-        <div className={`bg-white rounded-2xl border p-5 ${order.status === OrderStatus.LATE_RETURN ? 'border-red-400 bg-red-50 ring-4 ring-red-50' : 'border-slate-200'}`}>
-          <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${order.status === OrderStatus.LATE_RETURN ? 'text-red-600' : 'text-slate-500'}`}>
+        <div className={`bg-white rounded-2xl border p-5 ${order.is_late ? 'border-red-400 bg-red-50 ring-4 ring-red-50' : 'border-slate-200'}`}>
+          <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${order.is_late ? 'text-red-600' : 'text-slate-500'}`}>
             In (Return)
           </p>
-          <p className={`text-2xl font-bold ${order.status === OrderStatus.LATE_RETURN ? 'text-red-700' : 'text-slate-900'}`}>
+          <p className={`text-2xl font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}>
             {format(new Date(order.end_date), "dd/MM/yyyy")}
           </p>
         </div>
