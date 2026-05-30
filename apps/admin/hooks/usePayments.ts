@@ -132,9 +132,15 @@ export function useUpdatePayment() {
       return response.data;
     },
     onSuccess: (result) => {
-      queryUtils.invalidatePayments();
+      // Only invalidate the specific payment and order payments (if applicable)
+      // Don't invalidate all payments globally for better performance
       if (result?.id) {
-        queryUtils.invalidatePayment(result.id);
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.payment(result.id),
+        });
+      }
+      if (result?.order_id) {
+        queryUtils.invalidateOrderPayments(result.order_id);
       }
       showSuccess('Payment updated successfully');
     },
