@@ -30,6 +30,22 @@ export class OrderRepository extends BaseRepository {
   private readonly orderStatusHistoryTable = 'order_status_history';
 
   /**
+   * Map UI sort field to database column
+   */
+  private mapSortField(sortBy: string): string | null {
+    const fieldMap: Record<string, string> = {
+      customer: 'customer.name',
+      created_at: 'created_at',
+      phone: 'customer.phone',
+      dates: 'start_date',
+      items: 'total_amount', // Fallback to amount for items count sorting
+      amount: 'total_amount',
+      status: 'status',
+    };
+    return fieldMap[sortBy] || null;
+  }
+
+  /**
    * Find all orders
    */
   async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
@@ -65,8 +81,18 @@ export class OrderRepository extends BaseRepository {
         customer:customer_id(id, name, phone, alt_phone, email),
         items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
         branch:branch_id(id, name)
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' });
+
+    // Handle server-side sorting
+    if (params?.sort_by && params?.sort_order) {
+      const sortField = this.mapSortField(params.sort_by);
+      if (sortField) {
+        query = query.order(sortField, { ascending: params.sort_order === 'asc' });
+      }
+    } else {
+      // Default sort by created_at descending
+      query = query.order('created_at', { ascending: false });
+    }
 
     if (params?.customer_id) {
       query = query.eq('customer_id', params.customer_id);

@@ -171,7 +171,7 @@ export default async function DashboardPage(props: {
           Today&apos;s Operations
         </h2>
         <Suspense fallback={<OperationalSkeleton />}>
-          <OperationalSection />
+          <OperationalSection selectedBranchId={selectedBranchId} />
         </Suspense>
       </div>
 
@@ -199,8 +199,8 @@ export default async function DashboardPage(props: {
 }
 
 // ─── Sub-Component: Operational Section ───────────────────────────────────────
-async function OperationalSection() {
-  const operational = await dashboardService.getOperationalMetrics();
+async function OperationalSection({ selectedBranchId }: { selectedBranchId: string }) {
+  const operational = await dashboardService.getOperationalMetrics(selectedBranchId);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

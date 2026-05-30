@@ -16,24 +16,20 @@ export async function GET(request: NextRequest) {
       return apiUnauthorized('Not authenticated');
     }
 
-    // Resolve staff name for sidebar display
-    let name = '';
-    if (authUser.staff_id) {
-      const supabase = createAdminClient();
-      const { data: staff } = await supabase
-        .from('staff')
-        .select('name')
-        .eq('id', authUser.staff_id)
-        .maybeSingle();
-      name = staff?.name || '';
-    }
+    // Resolve staff name for sidebar display (already fetched in getAuthUser)
+    let name = authUser.staff_id ? (authUser as any).name : '';
 
-    return apiSuccess({
+    const response = apiSuccess({
       user: {
         ...authUser,
         name: name || authUser.email.split('@')[0] || 'User',
       },
     });
+
+    // Add caching headers - cache for 30 seconds, revalidate in background
+    response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
+    
+    return response;
   } catch (error) {
     console.error('[API] GET /api/auth/me error:', error);
     return apiInternalError();

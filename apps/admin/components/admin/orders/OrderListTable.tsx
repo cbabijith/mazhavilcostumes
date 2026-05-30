@@ -30,11 +30,6 @@ import OrderItemsPanel from "./OrderItemsPanel";
 type SortField = "customer" | "created_at" | "phone" | "dates" | "items" | "amount" | "status";
 type SortDirection = "asc" | "desc";
 
-interface SortState {
-  field: SortField | null;
-  direction: SortDirection;
-}
-
 interface OrderListTableProps {
   orders: OrderWithRelations[];
   isLoading: boolean;
@@ -43,6 +38,9 @@ interface OrderListTableProps {
   onSelectAll: () => void;
   onToggleSelect: (id: string) => void;
   onCancel: (order: OrderWithRelations) => void;
+  sortBy?: SortField;
+  sortOrder?: SortDirection;
+  onSortChange?: (field: string, order: 'asc' | 'desc' | null) => void;
 }
 
 /** Shimmer skeleton for the loading state — static component, zero re-renders. */
@@ -123,11 +121,11 @@ const STATUS_ORDER: Record<string, number> = {
 };
 
 /** Sort icon component for table headers */
-function SortIcon({ field, sortState }: { field: SortField; sortState: SortState }) {
-  if (sortState.field !== field) {
+function SortIcon({ field, sortBy, sortOrder }: { field: SortField; sortBy?: SortField; sortOrder?: SortDirection }) {
+  if (sortBy !== field) {
     return <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400 transition-colors" />;
   }
-  return sortState.direction === "asc"
+  return sortOrder === "asc"
     ? <ArrowUp className="w-3 h-3 text-slate-700" />
     : <ArrowDown className="w-3 h-3 text-slate-700" />;
 }
@@ -140,58 +138,27 @@ function OrderListTableInner({
   onSelectAll,
   onToggleSelect,
   onCancel,
+  sortBy,
+  sortOrder,
+  onSortChange,
 }: OrderListTableProps) {
-  const [sortState, setSortState] = useState<SortState>({ field: null, direction: "asc" });
-
   const toggleSort = useCallback((field: SortField) => {
-    setSortState(prev => {
-      if (prev.field === field) {
-        // Same field → toggle direction, or clear if already desc
-        return prev.direction === "asc"
-          ? { field, direction: "desc" as SortDirection }
-          : { field: null, direction: "asc" as SortDirection };
+    if (!onSortChange) return;
+
+    if (sortBy === field) {
+      // Same field → toggle direction, or clear if already desc
+      if (sortOrder === "asc") {
+        onSortChange(field, "desc");
+      } else if (sortOrder === "desc") {
+        onSortChange(field, null);
+      } else {
+        onSortChange(field, "asc");
       }
+    } else {
       // New field → default to ascending
-      return { field, direction: "asc" as SortDirection };
-    });
-  }, []);
-
-  const sortedOrders = useMemo(() => {
-    if (!sortState.field) return orders;
-
-    const sorted = [...orders].sort((a, b) => {
-      let cmp = 0;
-
-      switch (sortState.field) {
-        case "customer":
-          cmp = (a.customer?.name || "").localeCompare(b.customer?.name || "");
-          break;
-        case "created_at":
-          cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          break;
-        case "phone":
-          cmp = (a.customer?.phone || "").localeCompare(b.customer?.phone || "");
-          break;
-        case "dates":
-          cmp = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
-          if (cmp === 0) cmp = new Date(a.end_date).getTime() - new Date(b.end_date).getTime();
-          break;
-        case "items":
-          cmp = (a.items?.length || 0) - (b.items?.length || 0);
-          break;
-        case "amount":
-          cmp = (a.total_amount || 0) - (b.total_amount || 0);
-          break;
-        case "status":
-          cmp = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
-          break;
-      }
-
-      return sortState.direction === "desc" ? -cmp : cmp;
-    });
-
-    return sorted;
-  }, [orders, sortState]);
+      onSortChange(field, "asc");
+    }
+  }, [sortBy, sortOrder, onSortChange]);
 
   const isSelected = useCallback(
     (id: string) => selectedOrders.includes(id),
@@ -242,50 +209,50 @@ function OrderListTableInner({
               <th className={headerClass} onClick={() => toggleSort("customer")}>
                 <div className="flex items-center gap-1.5">
                   Customer
-                  <SortIcon field="customer" sortState={sortState} />
+                  <SortIcon field="customer" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("created_at")}>
                 <div className="flex items-center gap-1.5">
                   Booked On
-                  <SortIcon field="created_at" sortState={sortState} />
+                  <SortIcon field="created_at" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("phone")}>
                 <div className="flex items-center gap-1.5">
                   Phone
-                  <SortIcon field="phone" sortState={sortState} />
+                  <SortIcon field="phone" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("dates")}>
                 <div className="flex items-center gap-1.5">
                   Dates
-                  <SortIcon field="dates" sortState={sortState} />
+                  <SortIcon field="dates" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("items")}>
                 <div className="flex items-center gap-1.5">
                   Items
-                  <SortIcon field="items" sortState={sortState} />
+                  <SortIcon field="items" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("amount")}>
                 <div className="flex items-center gap-1.5">
                   Amount
-                  <SortIcon field="amount" sortState={sortState} />
+                  <SortIcon field="amount" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className={headerClass} onClick={() => toggleSort("status")}>
                 <div className="flex items-center gap-1.5">
                   Status
-                  <SortIcon field="status" sortState={sortState} />
+                  <SortIcon field="status" sortBy={sortBy} sortOrder={sortOrder} />
                 </div>
               </th>
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {sortedOrders.map((order) => (
+            {orders.map((order: OrderWithRelations) => (
               <OrderRow
                 key={order.id}
                 order={order}

@@ -24,6 +24,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     async function initAuth() {
       try {
+        // Skip if already authenticated and user data exists
+        const currentState = useAppStore.getState();
+        if (currentState.isAuthenticated && currentState.user) {
+          setInitialized(true);
+          return;
+        }
+
         setLoading(true);
         
         // 1. Check current session

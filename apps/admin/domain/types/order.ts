@@ -256,6 +256,8 @@ export interface OrderSearchParams {
   date_to?: string;
   has_damage_charges?: boolean;
   has_stock_conflict?: boolean;
+  sort_by?: 'customer' | 'created_at' | 'phone' | 'dates' | 'items' | 'amount' | 'status';
+  sort_order?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }

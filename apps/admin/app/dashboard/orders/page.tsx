@@ -75,6 +75,8 @@ function OrdersContent() {
   const dateTo = searchParams.get("date_to") || "";
   const paymentStatusFilter = searchParams.getAll("payment_status");
   const excludeStatusFilter = searchParams.getAll("exclude_status") as OrderStatus[];
+  const sortBy = (searchParams.get("sort_by") || undefined) as 'customer' | 'created_at' | 'phone' | 'dates' | 'items' | 'amount' | 'status' | undefined;
+  const sortOrder = (searchParams.get("sort_order") || undefined) as 'asc' | 'desc' | undefined;
 
   // ── Centralised URL updater (idempotent) ───────────────────────────────
   const updateParams = useCallback(
@@ -122,6 +124,8 @@ function OrdersContent() {
     date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
     has_damage_charges: searchParams.get("has_damage_charges") === "true" || undefined,
     has_stock_conflict: statusFilter === "stock_conflict" ? true : undefined,
+    sort_by: sortBy,
+    sort_order: sortOrder,
   });
 
   const { updateOrder } = useUpdateOrder();
@@ -244,6 +248,17 @@ function OrdersContent() {
     [updateParams]
   );
 
+  const handleSortChange = useCallback(
+    (field: string, order: 'asc' | 'desc' | null) => {
+      if (order === null) {
+        updateParams({ sort_by: null, sort_order: null });
+      } else {
+        updateParams({ sort_by: field, sort_order: order });
+      }
+    },
+    [updateParams]
+  );
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 pb-12">
@@ -298,6 +313,9 @@ function OrdersContent() {
         onSelectAll={handleSelectAll}
         onToggleSelect={handleToggleSelect}
         onCancel={openCancelModal}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        onSortChange={handleSortChange}
       />
 
       {/* Pagination */}
