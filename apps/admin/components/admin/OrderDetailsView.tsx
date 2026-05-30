@@ -13,15 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Modal from "@/components/admin/Modal";
-import { 
-  useOrder, 
-  useOrderStatusHistory, 
-  useProcessOrderReturn, 
-  useUpdateOrder, 
-  useCreatePayment, 
-  useOrderPayments, 
+import {
+  useOrder,
+  useOrderStatusHistory,
+  useProcessOrderReturn,
+  useUpdateOrder,
+  useCreatePayment,
+  useOrderPayments,
   useLookupProductByBarcode,
-  useUpdateOrderItemDamage
+  useUpdateOrderItemDamage,
+  useUpdatePayment
 } from "@/hooks";
 import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
@@ -42,12 +43,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { processOrderReturn, isPending: isReturning } = useProcessOrderReturn();
   const { updateOrder, isLoading: isUpdating } = useUpdateOrder();
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
+  const { updatePayment, isPending: isUpdatingPayment } = useUpdatePayment();
   const showSuccess = useAppSelectors.showSuccess();
   const showError = useAppSelectors.showError();
   const { lookupByBarcode } = useLookupProductByBarcode();
   const { updateOrderItemDamage, isUpdating: isSavingItem } = useUpdateOrderItemDamage();
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isPaymentEditModalOpen, setIsPaymentEditModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [paymentEditForm, setPaymentEditForm] = useState({
+    paymentMode: PaymentMode.CASH,
+    notes: ""
+  });
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
@@ -312,6 +320,40 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         damaged_quantity: rItem.damaged_quantity || 0,
       }
     });
+  };
+
+  const handleEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setPaymentEditForm({
+      paymentMode: payment.payment_mode,
+      notes: payment.notes || ""
+    });
+    setIsPaymentEditModalOpen(true);
+  };
+
+  const handleSavePaymentEdit = async () => {
+    if (!editingPayment) return;
+
+    try {
+      updatePayment(
+        {
+          id: editingPayment.id,
+          data: {
+            payment_mode: paymentEditForm.paymentMode,
+            notes: paymentEditForm.notes
+          }
+        },
+        {
+          onSuccess: () => {
+            setIsPaymentEditModalOpen(false);
+            setEditingPayment(null);
+          }
+        }
+      );
+    } catch (e) {
+      console.error(e);
+      showError("Error", "Failed to update payment mode.");
+    }
   };
 
   const handleCollectPayment = async () => {
@@ -640,6 +682,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-slate-700">{(payment as any).staff?.name || (payment.created_by ? `Staff #${payment.created_by.slice(0,6)}` : 'System')}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <Button
+                        onClick={() => handleEditPayment(payment)}
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -1475,6 +1527,70 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 {isCreatingPayment ? "Processing..." : "Confirm Payment"}
               </Button>
             </div>
+          </div>
+        </Modal>
+
+        {/* Payment Edit Modal */}
+        <Modal
+          open={isPaymentEditModalOpen}
+          onClose={() => setIsPaymentEditModalOpen(false)}
+          title="Edit Payment Mode"
+        >
+          <div className="p-6 space-y-6">
+            {editingPayment && (
+              <>
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Amount</p>
+                  <p className="text-2xl font-black text-slate-900">{formatCurrency(editingPayment.amount)}</p>
+                  <p className="text-xs text-slate-500 mt-1">{editingPayment.payment_type}</p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Mode</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
+                      { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
+                      { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
+                      { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+                    ].map((method) => {
+                      const Icon = method.icon;
+                      return (
+                        <button
+                          key={method.id}
+                          onClick={() => setPaymentEditForm({ ...paymentEditForm, paymentMode: method.id })}
+                          className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                            paymentEditForm.paymentMode === method.id
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Icon className="w-6 h-6" />
+                          <span className="text-xs font-bold">{method.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID <span className="text-slate-400 font-normal capitalize">(Optional)</span></Label>
+                  <Input
+                    value={paymentEditForm.notes}
+                    onChange={(e) => setPaymentEditForm({ ...paymentEditForm, notes: e.target.value })}
+                    className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
+                    placeholder="E.g. UPI Ref #123456"
+                  />
+                </div>
+
+                <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+                  <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
+                  <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
+                    {isUpdatingPayment ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
 
