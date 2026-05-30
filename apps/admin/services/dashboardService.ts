@@ -226,7 +226,7 @@ export class DashboardService {
    * Returns 7 cards: Today's Booking, Today's Delivery, Today's Return,
    * Prepare Delivery (next 5 days), Pending Delivery, Pending Return, Revenue Due.
    */
-  async getOperationalMetrics(): Promise<OperationalMetrics> {
+  async getOperationalMetrics(branchId?: string): Promise<OperationalMetrics> {
     const nowMs = Date.now();
     if (this.lastOperationalMetrics && (nowMs - this.lastOperationalMetrics.timestamp < 300000)) {
       console.log('[DashboardService] Returning cached operational metrics');
@@ -243,6 +243,7 @@ export class DashboardService {
       p_yesterday_date: yesterdayStr,
       p_tomorrow_date: tomorrowStr,
       p_next_5_days_date: next5DaysStr,
+      p_branch_id: branchId,
     });
 
     if (error) {
@@ -263,13 +264,15 @@ export class DashboardService {
       priorityCleaning: [],
     };
 
+    const branchIdParam = branchId ? `&branch_id=${branchId}` : '';
+
     const cards: OperationalCard[] = [
       {
         label: "Today's Bookings",
         orderCount: rpcData.todaysBookings || 0,
         icon: 'calendar-plus',
         color: 'blue',
-        filterUrl: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
+        filterUrl: `/dashboard/orders?date_filter=today&exclude_status=cancelled${branchIdParam}`,
       },
       {
         label: "Today's Delivery",
@@ -278,7 +281,7 @@ export class DashboardService {
         color: 'emerald',
         completedCount: rpcData.todaysDeliveryDone || 0,
         totalCount: rpcData.todaysDeliveryTotal || 0,
-        filterUrl: '/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled',
+        filterUrl: `/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled${branchIdParam}`,
       },
       {
         label: "Today's Return",
@@ -287,28 +290,28 @@ export class DashboardService {
         color: 'violet',
         completedCount: rpcData.todaysReturnDone || 0,
         totalCount: rpcData.todaysReturnTotal || 0,
-        filterUrl: '/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled',
+        filterUrl: `/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled${branchIdParam}`,
       },
       {
         label: "Prepare Delivery (5d)",
         orderCount: rpcData.prepareDeliveries || 0,
         icon: 'boxes',
         color: 'amber',
-        filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}`,
+        filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}${branchIdParam}`,
       },
       {
         label: "Pending Delivery",
         orderCount: rpcData.pendingDeliveries || 0,
         icon: 'alert-triangle',
         color: 'rose',
-        filterUrl: '/dashboard/orders?status=pending',
+        filterUrl: `/dashboard/orders?status=pending${branchIdParam}`,
       },
       {
         label: "Pending Return",
         orderCount: rpcData.pendingReturns || 0,
         icon: 'clock-alert',
         color: 'red',
-        filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}`,
+        filterUrl: `/dashboard/orders?status=ongoing&status=in_use&status=late_return&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}${branchIdParam}`,
       },
       {
         label: "Revenue Due",
@@ -316,7 +319,7 @@ export class DashboardService {
         amount: Number(rpcData.revenueDueAmount || 0),
         icon: 'banknote',
         color: 'indigo',
-        filterUrl: '/dashboard/orders?status=revenue_due',
+        filterUrl: `/dashboard/orders?status=revenue_due${branchIdParam}`,
       },
     ];
 

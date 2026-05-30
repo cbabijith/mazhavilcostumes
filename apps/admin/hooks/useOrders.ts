@@ -97,6 +97,8 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.page) searchParams.append('page', params.page.toString());
       if (params?.has_damage_charges) searchParams.append('has_damage_charges', 'true');
       if (params?.has_stock_conflict) searchParams.append('has_stock_conflict', 'true');
+      if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
+      if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
       
       const queryString = searchParams.toString();
       const url = `/api/orders${queryString ? `?${queryString}` : ''}`;
@@ -118,7 +120,6 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       };
     },
     placeholderData: keepPreviousData,
-    refetchOnMount: 'always', // Always refetch when navigating back from create/edit
   });
 }
 
