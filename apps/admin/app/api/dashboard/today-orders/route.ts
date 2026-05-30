@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('end_date', todayStr)
-      .in('status', ['ongoing', 'in_use', 'late_return'])
+      .in('status', ['ongoing', 'in_use'])
       .order('end_date', { ascending: true });
 
     const formatOrder = (order: any, type: 'pickup' | 'return'): TodayOrder => {

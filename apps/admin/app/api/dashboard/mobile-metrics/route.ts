@@ -30,7 +30,7 @@ export interface MobileDashboardMetrics {
 }
 
 const pendingStatuses = ['pending', 'confirmed', 'scheduled'];
-const activeRentalStatuses = ['delivered', 'in_use', 'ongoing', 'partial', 'flagged', 'late_return'];
+const activeRentalStatuses = ['delivered', 'in_use', 'ongoing', 'partial', 'flagged'];
 
 export async function GET(request: NextRequest) {
   try {

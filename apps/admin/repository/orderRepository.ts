@@ -113,7 +113,7 @@ export class OrderRepository extends BaseRepository {
           .not('status', 'in', '(completed,cancelled)');
       } else if ((params.status as string) === 'revenue_due') {
         // Virtual status: returned/partial/flagged but not fully paid
-        query = query.in('status', ['returned', 'partial', 'flagged', 'late_return'])
+        query = query.in('status', ['returned', 'partial', 'flagged'])
           .neq('payment_status', 'paid');
       } else if ((params.status as string) === 'pending') {
         // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
@@ -311,7 +311,7 @@ export class OrderRepository extends BaseRepository {
         branch:branch_id(id, name)
       `)
       .eq('branch_id', branchId)
-      .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .order('start_date', { ascending: true });
@@ -400,7 +400,7 @@ export class OrderRepository extends BaseRepository {
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .gte('orders.end_date', searchStart)
       .lte('orders.start_date', searchEnd);
 
@@ -595,7 +595,7 @@ export class OrderRepository extends BaseRepository {
     const order = orderRes.data;
 
     // Only active orders can have conflicts
-    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'];
+    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'];
     if (!activeStatuses.includes(order.status)) {
       if (order.has_stock_conflict) {
         await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
@@ -663,7 +663,7 @@ export class OrderRepository extends BaseRepository {
       .from(this.orderItemsTable)
       .select('order_id, orders!inner(id, status, end_date)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .gte('orders.end_date', todayStr);
 
     if (error || !orderItems) return;
@@ -701,7 +701,7 @@ export class OrderRepository extends BaseRepository {
       .from(this.orderItemsTable)
       .select('order_id, orders!inner(id, status, start_date, end_date)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .gte('orders.end_date', todayStr)
       .lte('orders.start_date', endStr)
       .gte('orders.end_date', startStr);
@@ -755,7 +755,7 @@ export class OrderRepository extends BaseRepository {
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned']);
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned']);
 
     if (ordersResponse.error) {
       return this.handleResponse<any>(ordersResponse);
@@ -1192,8 +1192,8 @@ export class OrderRepository extends BaseRepository {
 
     // If status changed to ongoing/in_use, decrement stock
     if (data.status && oldStatus && branchId) {
-      const isStarting = ['ongoing', 'in_use'].includes(data.status) && 
-                         !['ongoing', 'in_use', 'returned', 'late_return', 'completed'].includes(oldStatus);
+      const isStarting = ['ongoing', 'in_use'].includes(data.status) &&
+                         !['ongoing', 'in_use', 'returned', 'completed'].includes(oldStatus);
       const isCancelling = data.status === 'cancelled' && 
                            ['ongoing', 'in_use'].includes(oldStatus);
                            
@@ -1253,7 +1253,7 @@ export class OrderRepository extends BaseRepository {
       const branchId = orderResponse.data.branch_id;
       
       // These statuses mean the items have decremented the available_quantity
-      if (['ongoing', 'in_use', 'late_return', 'partial', 'flagged'].includes(status)) {
+      if (['ongoing', 'in_use', 'partial', 'flagged'].includes(status)) {
         const itemsRes = await this.client
           .from(this.orderItemsTable)
           .select('product_id, quantity, returned_quantity')
@@ -1347,7 +1347,7 @@ export class OrderRepository extends BaseRepository {
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'late_return', 'partial', 'flagged', 'returned'])
+      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .gte('orders.end_date', todayStr);
 
     const response = await query;
@@ -1372,7 +1372,7 @@ export class OrderRepository extends BaseRepository {
       // Include if either:
       // 1. Item is still with the customer (quantity > 0)
       // 2. Order is in a status where items might be in the cleaning room
-      return r.quantity > 0 || ['returned', 'flagged', 'partial', 'late_return'].includes(r.status);
+      return r.quantity > 0 || ['returned', 'flagged', 'partial'].includes(r.status);
     });
 
     // Filter by branch if specified
@@ -1455,7 +1455,7 @@ export class OrderRepository extends BaseRepository {
           .not('status', 'in', '(completed,cancelled)');
       } else if ((params.status as string) === 'revenue_due') {
         // Virtual status: returned/partial/flagged but not fully paid
-        query = query.in('status', ['returned', 'partial', 'flagged', 'late_return'])
+        query = query.in('status', ['returned', 'partial', 'flagged'])
           .neq('payment_status', 'paid');
       } else if ((params.status as string) === 'pending') {
         // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
@@ -1862,52 +1862,15 @@ export class OrderRepository extends BaseRepository {
   /**
    * Transition all overdue orders (ongoing/in_use past end_date) to late_return.
    *
-   * This is a bulk operation intended to be called by:
-   *   1. A daily Vercel Cron Job
-   *   2. On-read when the orders list is fetched (lazy fallback)
+   * DEPRECATED: This function is no longer needed as the is_late flag is now
+   * automatically calculated by a database trigger. The trigger sets is_late=true
+   * when end_date < current_date AND status is in (ongoing, in_use, delivered).
    *
-   * @returns Number of orders transitioned
+   * @returns Number of orders transitioned (always 0 now)
    */
   async transitionOverdueToLateReturn(): Promise<number> {
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    // Find all orders that are in ongoing/in_use AND past their end_date
-    const { data: overdueOrders, error } = await this.client
-      .from(this.tableName)
-      .select('id')
-      .in('status', ['ongoing', 'in_use'])
-      .lt('end_date', todayStr);
-
-    if (error || !overdueOrders || overdueOrders.length === 0) {
-      return 0;
-    }
-
-    const overdueIds = overdueOrders.map(o => o.id);
-
-    // Bulk update status to late_return
-    const { error: updateError } = await this.client
-      .from(this.tableName)
-      .update({ status: 'late_return' })
-      .in('id', overdueIds);
-
-    if (updateError) {
-      console.error('Failed to bulk-transition overdue orders:', updateError);
-      return 0;
-    }
-
-    // Insert status history entries for each transitioned order
-    const historyEntries = overdueIds.map(id => ({
-      order_id: id,
-      status: 'late_return',
-      notes: 'Auto-transitioned: rental period ended without return',
-      changed_by: null,
-    }));
-
-    await this.client
-      .from(this.orderStatusHistoryTable)
-      .insert(historyEntries);
-
-    return overdueIds.length;
+    // No-op: The database trigger now handles late flag calculation automatically
+    return 0;
   }
 
   /**

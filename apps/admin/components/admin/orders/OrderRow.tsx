@@ -186,7 +186,7 @@ function OrderRowInner({
       {/* Status */}
       <td className="px-4 py-4">
         <div className="flex flex-col items-start gap-1">
-          <OrderStatusBadge status={order.status} />
+          <OrderStatusBadge status={order.status} is_late={order.is_late} />
 
           {/* Priority Cleaning badge - only show for non-terminal orders */}
           {order.has_priority_cleaning && 
@@ -265,9 +265,7 @@ function OrderRowInner({
                   case OrderStatus.IN_USE:
                     message = `Hi ${customerName}, your order #${orderIdShort} is currently active. Please remember to return by ${endDate}.`;
                     break;
-                  case OrderStatus.LATE_RETURN:
-                    message = `Hi ${customerName}, your order #${orderIdShort} is overdue. Please return immediately to avoid additional charges.`;
-                    break;
+                  // LATE_RETURN removed - now handled by is_late boolean flag
                   case OrderStatus.PARTIAL:
                     message = `Hi ${customerName}, your order #${orderIdShort} has partial returns pending. Please complete the return process.`;
                     break;

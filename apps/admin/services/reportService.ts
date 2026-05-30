@@ -95,7 +95,7 @@ export class ReportService {
       .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
       .lte('end_date', toDate)
       .gte('end_date', fromDate)
-      .in('status', ['ongoing', 'in_use', 'delivered', 'late_return'])
+      .in('status', ['ongoing', 'in_use', 'delivered'])
       .order('end_date', { ascending: true });
 
     return (data || []).map((o: any) => {
@@ -283,7 +283,7 @@ export class ReportService {
       .select('id, total_amount, amount_paid, start_date, status, payment_status')
       .gte('start_date', fromDate)
       .lte('start_date', toDate)
-      .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+      .in('status', ['returned', 'partial', 'flagged'])
       .neq('payment_status', 'paid');
 
     if (branchId) revenueDueQuery = revenueDueQuery.eq('branch_id', branchId);
@@ -436,7 +436,7 @@ export class ReportService {
            g.cancelled_revenue += amount;
         } else if (['completed', 'returned'].includes(status)) {
            g.completed_revenue += amount;
-        } else if (['ongoing', 'in_use', 'delivered', 'late_return'].includes(status)) {
+        } else if (['ongoing', 'in_use', 'delivered'].includes(status)) {
            g.ongoing_revenue += amount;
         } else {
            g.scheduled_revenue += amount;

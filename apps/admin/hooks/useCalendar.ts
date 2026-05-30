@@ -74,6 +74,7 @@ function orderToCalendarEvent(order: OrderWithRelations): CalendarEvent {
     itemNames: items.slice(0, 3).map((i: any) => i.product?.name || 'Unknown'),
     branchName: order.branch?.name || '',
     depositCollected: false,
+    is_late: order.is_late || false,
   };
 }
 
@@ -122,7 +123,7 @@ function buildDaySummaryMap(events: CalendarEvent[], startDate: Date, endDate: D
           summary.ongoingCount++;
         }
 
-        if (event.status === OrderStatus.LATE_RETURN || event.status === OrderStatus.FLAGGED) {
+        if (event.is_late || event.status === OrderStatus.FLAGGED) {
           summary.hasLateReturns = true;
         }
 
@@ -204,7 +205,7 @@ export function useCalendarView(branchId: string | null) {
           scheduledThisMonth++;
         }
         if (
-          (ev.status === OrderStatus.LATE_RETURN || ev.status === OrderStatus.FLAGGED) &&
+          (ev.is_late || ev.status === OrderStatus.FLAGGED) &&
           !seenLate.has(ev.orderId)
         ) {
           seenLate.add(ev.orderId);

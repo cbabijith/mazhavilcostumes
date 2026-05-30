@@ -19,7 +19,7 @@ export enum OrderStatus {
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
   FLAGGED = 'flagged',
-  LATE_RETURN = 'late_return',
+  // LATE_RETURN removed - now handled by is_late boolean flag
 }
 
 // Payment Status Enum
@@ -121,6 +121,7 @@ export interface Order {
   cancellation_reason?: string;
   cancelled_by?: string;
   cancelled_at?: string;
+  is_late: boolean;
 
   readonly created_at: string;
   readonly updated_at?: string;
@@ -346,5 +347,20 @@ export interface OrderSearchResult {
   total_pages: number;
   has_next: boolean;
   has_prev: boolean;
+}
+
+/**
+ * Helper function to determine if an order is late
+ * An order is late if:
+ * - end_date is in the past
+ * - status is one of: ongoing, in_use, delivered
+ */
+export function isOrderLate(order: Order): boolean {
+  if (!order.end_date) return false;
+  const endDate = new Date(order.end_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return endDate < today &&
+    ['ongoing', 'in_use', 'delivered'].includes(order.status);
 }
 

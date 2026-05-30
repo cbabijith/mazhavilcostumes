@@ -106,12 +106,12 @@ const EmptyState = React.memo(function EmptyState({
 
 /** Status priority for sorting — more urgent statuses come first */
 const STATUS_ORDER: Record<string, number> = {
-  late_return: 0,
-  flagged: 1,
-  ongoing: 2,
-  in_use: 3,
-  partial: 4,
-  delivered: 5,
+  // late_return removed - now handled by is_late boolean flag
+  flagged: 0,
+  ongoing: 1,
+  in_use: 2,
+  partial: 3,
+  delivered: 4,
   scheduled: 6,
   pending: 7,
   confirmed: 8,

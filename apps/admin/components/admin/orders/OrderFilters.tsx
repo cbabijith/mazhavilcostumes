@@ -34,7 +34,7 @@ const FILTER_CHIPS = [
   { label: "Pending", value: OrderStatus.PENDING },
   { label: "Ongoing", value: OrderStatus.ONGOING },
   { label: "Scheduled", value: OrderStatus.SCHEDULED },
-  { label: "Late", value: OrderStatus.LATE_RETURN },
+  // Late removed - now handled by is_late boolean flag
   { label: "Partial", value: OrderStatus.PARTIAL },
   { label: "Returned", value: OrderStatus.RETURNED },
   { label: "Completed", value: OrderStatus.COMPLETED },

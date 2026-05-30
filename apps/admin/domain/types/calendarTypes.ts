@@ -22,6 +22,7 @@ export interface CalendarEvent {
   itemNames: string[];      // first 3 product names
   branchName: string;
   depositCollected: boolean;
+  is_late: boolean;
 }
 
 /** Aggregated stats for a single calendar cell */
