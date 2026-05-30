@@ -28,6 +28,8 @@ import {
   ChevronRight,
   Loader2,
   Box,
+  Filter,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -39,6 +41,7 @@ import {
   useProducts,
   useDeleteProduct,
   useBulkProductOperation,
+  useCategories,
 } from "@/hooks";
 import { useProductStore, useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
@@ -73,11 +76,15 @@ function ProductsContent() {
   const page = parseInt(searchParams.get("page") || "1", 10);
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
+  const urlCategoryId = searchParams.get("category_id") || "";
 
   // Local state only for the fast-typing input field
   const [searchInput, setSearchInput] = useState(urlQuery);
   const [debouncedQuery, setDebouncedQuery] = useState(urlQuery);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch categories for filter dropdown
+  const { categories } = useCategories();
 
   // Centralized URL updater (Idempotent updates)
   const updateParams = (updates: Record<string, string | null>) => {
@@ -114,6 +121,7 @@ function ProductsContent() {
 
   const { products, isLoading, total, totalPages, hasNext, hasPrev } = useProducts({
     query: debouncedQuery,
+    category_id: urlCategoryId,
     limit: pageSize,
     page,
   });
@@ -305,6 +313,35 @@ function ProductsContent() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={urlCategoryId}
+                onChange={(e) => updateParams({ category_id: e.target.value, page: "1" })}
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 pr-8 text-sm font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 appearance-none min-w-[180px]"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+              <Filter className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+            {urlCategoryId && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                onClick={() => updateParams({ category_id: null, page: "1" })}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
           </div>
 
           {selectedProducts.length > 0 && (
