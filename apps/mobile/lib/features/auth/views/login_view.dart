@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/responsive.dart';
-import '../../../core/main_layout.dart';
-import '../../../core/providers/auth_provider.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/widgets/widgets.dart';
+import '../../home/views/home_view.dart';
+import '../viewmodels/auth_provider.dart';
 
 class LoginView extends ConsumerStatefulWidget {
   const LoginView({super.key});
@@ -18,8 +20,6 @@ class _LoginViewState extends ConsumerState<LoginView> {
   final _formKey = GlobalKey<FormState>();
   bool _isPasswordVisible = false;
 
-  static const _primary = Color(0xFF434343);
-
   void _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -30,15 +30,15 @@ class _LoginViewState extends ConsumerState<LoginView> {
 
     if (success && mounted) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainLayout()),
+        MaterialPageRoute(builder: (_) => const HomeView()),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Invalid credentials. Please try again.'),
-          backgroundColor: Colors.red[700],
+          content: const Text(AppStrings.invalidCredentials),
+          backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusMedium)),
         ),
       );
     }
@@ -57,197 +57,128 @@ class _LoginViewState extends ConsumerState<LoginView> {
     Responsive.init(context);
     
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: Responsive.symmetric(horizontal: 24),
+            padding: Responsive.symmetric(horizontal: AppSizes.screenPaddingLarge),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: Responsive.h(40)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingHuge)),
                   
                   // Logo
                   Center(
                     child: Container(
-                      padding: Responsive.all(16),
+                      padding: Responsive.all(AppSizes.spacingXLarge),
                       decoration: BoxDecoration(
-                        color: _primary,
+                        color: AppColors.primary,
                         shape: BoxShape.circle,
                       ),
                       child: SvgPicture.asset(
-                        'assets/images/logo_mazhavil.svg',
-                        width: Responsive.icon(48),
-                        height: Responsive.icon(48),
+                        'assets/images/logo_paris.svg',
+                        width: Responsive.icon(AppSizes.iconHuge),
+                        height: Responsive.icon(AppSizes.iconHuge),
                         colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                       ),
                     ),
                   ),
-                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingXXXLarge)),
 
                   // Title
                   Text(
-                    'Mazhavil Costumes',
+                    AppStrings.appName,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: Responsive.sp(24),
+                      fontSize: Responsive.sp(AppSizes.fontHuge),
                       fontWeight: FontWeight.bold,
-                      color: _primary,
+                      color: AppColors.text,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  SizedBox(height: Responsive.h(8)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                   Text(
-                    'Admin Dashboard',
+                    AppStrings.adminDashboard,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: Responsive.sp(14),
-                      color: Colors.grey[600],
+                      fontSize: Responsive.sp(AppSizes.fontLarge),
+                      color: AppColors.secondaryText,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: Responsive.h(40)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingHuge)),
 
                   // Email Field
-                  TextFormField(
+                  AppTextField(
                     controller: _emailController,
+                    labelText: AppStrings.email,
+                    hintText: AppStrings.enterYourEmail,
+                    prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      hintText: 'Enter your email',
-                      prefixIcon: Icon(Icons.email_outlined, size: Responsive.icon(20)),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: _primary, width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: const BorderSide(color: Colors.red),
-                      ),
-                      contentPadding: Responsive.symmetric(horizontal: 16, vertical: 16),
-                    ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
+                        return AppStrings.pleaseEnterYourEmail;
                       }
                       if (!value.contains('@')) {
-                        return 'Please enter a valid email';
+                        return AppStrings.pleaseEnterAValidEmail;
                       }
                       return null;
                     },
                   ),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
                   
                   // Password Field
-                  TextFormField(
+                  AppTextField(
                     controller: _passwordController,
+                    labelText: AppStrings.password,
+                    hintText: AppStrings.enterYourPassword,
+                    prefixIcon: Icons.lock_outline,
                     obscureText: !_isPasswordVisible,
                     textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _handleLogin(),
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      hintText: 'Enter your password',
-                      prefixIcon: Icon(Icons.lock_outline, size: Responsive.icon(20)),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                          size: Responsive.icon(20),
-                        ),
-                        onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+                    onSubmitted: (_) => _handleLogin(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        size: Responsive.icon(AppSizes.iconSmall),
+                        color: AppColors.secondaryText,
                       ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: BorderSide(color: _primary, width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        borderSide: const BorderSide(color: Colors.red),
-                      ),
-                      contentPadding: Responsive.symmetric(horizontal: 16, vertical: 16),
+                      onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
+                        return AppStrings.pleaseEnterYourPassword;
                       }
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return AppStrings.passwordMustBeAtLeast6Characters;
                       }
                       return null;
                     },
                   ),
-                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
                   // Login Button
-                  SizedBox(
-                    height: Responsive.h(52),
-                    child: ElevatedButton(
-                      onPressed: authState.isLoading ? null : _handleLogin,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Responsive.r(12)),
-                        ),
-                        disabledBackgroundColor: Colors.grey[400],
-                      ),
-                      child: authState.isLoading
-                          ? SizedBox(
-                              height: Responsive.icon(20),
-                              width: Responsive.icon(20),
-                              child: const CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2.5,
-                              ),
-                            )
-                          : Text(
-                              'Sign In',
-                              style: TextStyle(
-                                fontSize: Responsive.sp(15),
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                    ),
+                  AppButton(
+                    text: AppStrings.signIn,
+                    onPressed: authState.isLoading ? null : _handleLogin,
+                    isLoading: authState.isLoading,
+                    size: ButtonSize.large,
                   ),
-                  SizedBox(height: Responsive.h(60)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMassive)),
                   
                   // Footer
                   Text(
-                    '© ${DateTime.now().year} Mazhavil Costumes',
+                    AppStrings.copyright,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: Responsive.sp(11),
-                      color: Colors.grey[500],
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      color: AppColors.secondaryText,
                     ),
                   ),
-                  SizedBox(height: Responsive.h(20)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
                 ],
               ),
             ),

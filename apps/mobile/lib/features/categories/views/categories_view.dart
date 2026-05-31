@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/responsive.dart';
-import '../../auth/providers/auth_provider.dart';
+import '../../../core/utils/responsive.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
-import '../providers/category_provider.dart';
+import '../viewmodels/providers/category_provider.dart';
 import 'category_detail_view.dart';
 import 'category_form_view.dart';
 

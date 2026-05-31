@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/order.dart';
-import '../providers/order_provider.dart';
+import '../viewmodels/providers/order_provider.dart';
 import 'order_form_view.dart';
 
 class OrderDetailView extends ConsumerWidget {

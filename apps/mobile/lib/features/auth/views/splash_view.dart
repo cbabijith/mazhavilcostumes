@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../../core/responsive.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../../core/main_layout.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../home/views/home_view.dart';
 import 'login_view.dart';
 
 class SplashView extends StatefulWidget {
@@ -43,14 +44,13 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
     await Future.delayed(const Duration(milliseconds: 1500));
     
     try {
-      // Check if user is logged in
-      const storage = FlutterSecureStorage();
-      final token = await storage.read(key: 'auth_token');
+      // Check if user is logged in using Supabase
+      final user = Supabase.instance.client.auth.currentUser;
       
       if (mounted) {
-        if (token != null) {
+        if (user != null) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const MainLayout()),
+            MaterialPageRoute(builder: (_) => const HomeView()),
           );
         } else {
           Navigator.of(context).pushReplacement(
@@ -59,12 +59,7 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
         }
       }
     } catch (e) {
-      // SELF-HEALING: If anything goes wrong reading local storage
-      // (corrupt data, crash), automatically clear the cache and force login.
-      // This prevents the dreaded "infinite loading screen" issue.
-      const storage = FlutterSecureStorage();
-      await storage.deleteAll(); // Nuclear wipe of local secure storage
-      
+      // If anything goes wrong, navigate to login
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const LoginView()),
@@ -83,42 +78,44 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     Responsive.init(context);
     return Scaffold(
-      backgroundColor: const Color(0xFF434343), // Charcoal
-      body: Center(
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position: _slideAnimation,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SvgPicture.asset(
-                  'assets/images/logo_mazhavil.svg',
-                  width: Responsive.w(100),
-                  height: Responsive.w(100),
-                  colorFilter: const ColorFilter.mode(Color(0xFFF7C873), BlendMode.srcIn), // Golden Accent
-                ),
-                SizedBox(height: Responsive.h(24)),
-                Text(
-                  'MAZHAVIL COSTUMES',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(26),
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: Responsive.w(4),
-                    color: const Color(0xFFF8F8F8), // Off-white
+      backgroundColor: AppColors.primary,
+      body: SafeArea(
+        child: Center(
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: SlideTransition(
+              position: _slideAnimation,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SvgPicture.asset(
+                    'assets/images/logo_paris.svg',
+                    width: Responsive.w(AppSizes.spacingMassive),
+                    height: Responsive.w(AppSizes.spacingMassive),
+                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                   ),
-                ),
-                SizedBox(height: Responsive.h(8)),
-                Text(
-                  'ADMINISTRATION',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(11),
-                    fontWeight: FontWeight.w400,
-                    letterSpacing: Responsive.w(5),
-                    color: const Color(0xFFFAEBCD).withValues(alpha: 0.8), // Almond, semi-transparent
+                  SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
+                  Text(
+                    AppStrings.appName,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontXXLarge),
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: Responsive.w(AppSizes.spacingSmall),
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-              ],
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  Text(
+                    AppStrings.adminDashboard,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: Responsive.w(AppSizes.spacingSmall),
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

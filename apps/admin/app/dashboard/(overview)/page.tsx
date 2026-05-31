@@ -7,10 +7,16 @@
  *
  * Server component — calls dashboardService directly.
  *
+ * Force dynamic to ensure real-time data after order creation.
+ *
  * @module app/dashboard/page
  */
 
 import { Suspense } from "react";
+
+// Force dynamic rendering to bypass Next.js static caching
+// This ensures dashboard shows real-time data after order creation
+export const dynamic = 'force-dynamic';
 import {
   TrendingUp,
   DollarSign,

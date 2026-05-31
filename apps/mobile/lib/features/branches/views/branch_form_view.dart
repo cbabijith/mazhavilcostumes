@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/branch.dart';
-import '../providers/branch_provider.dart';
+import '../viewmodels/providers/branch_provider.dart';
 
 class BranchFormView extends ConsumerStatefulWidget {
   final Branch? branch;

@@ -1,5 +1,5 @@
-import 'package:dio/dio.dart';
-import '../../../core/api_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../domain/operational_card.dart';
 
 class DashboardProduct {
   final String id;
@@ -130,19 +130,112 @@ class DashboardMetrics {
 }
 
 class DashboardRepository {
-  final Dio _client = apiClient;
+  final supabase = Supabase.instance.client;
 
   Future<DashboardMetrics> getMetrics({String? branchId}) async {
-    final queryParams = <String, dynamic>{};
-    if (branchId != null && branchId.isNotEmpty) {
-      queryParams['branch_id'] = branchId;
-    }
+    // TODO: Implement using Supabase queries if needed
+    throw UnimplementedError('getMetrics not implemented for Supabase direct access');
+  }
 
-    final response = await _client.get('/dashboard/mobile-metrics', queryParameters: queryParams);
-    if (response.statusCode == 200 && response.data['success'] == true) {
-      return DashboardMetrics.fromJson(response.data);
-    }
+  Future<OperationalMetrics> getOperationalMetrics({String? branchId}) async {
+    try {
+      // Get IST date context
+      final now = DateTime.now();
+      final istDateStr = DateTime(now.year, now.month, now.day).toIso8601String().split('T')[0];
+      final todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0).toIso8601String();
+      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
+      final yesterdayStr = DateTime(now.year, now.month, now.day - 1).toIso8601String().split('T')[0];
+      final tomorrowStr = DateTime(now.year, now.month, now.day + 1).toIso8601String().split('T')[0];
+      final next5DaysStr = DateTime(now.year, now.month, now.day + 5).toIso8601String().split('T')[0];
 
-    throw Exception(response.data?['error'] ?? 'Failed to load dashboard metrics');
+      print('[DashboardRepository] Calling Supabase RPC with branchId: $branchId');
+
+      final response = await supabase.rpc('get_operational_dashboard_metrics', params: {
+        'p_today_start': todayStart,
+        'p_today_end': todayEnd,
+        'p_today_date': istDateStr,
+        'p_yesterday_date': yesterdayStr,
+        'p_tomorrow_date': tomorrowStr,
+        'p_next_5_days_date': next5DaysStr,
+        'p_branch_id': branchId,
+      });
+
+      print('[DashboardRepository] RPC Response: $response');
+
+      final rpcData = response as Map<String, dynamic>? ?? {
+        'todaysBookings': 0,
+        'todaysDeliveryTotal': 0,
+        'todaysDeliveryDone': 0,
+        'todaysReturnTotal': 0,
+        'todaysReturnDone': 0,
+        'prepareDeliveries': 0,
+        'pendingDeliveries': 0,
+        'pendingReturns': 0,
+        'revenueDueCount': 0,
+        'revenueDueAmount': 0,
+      };
+
+      final cards = [
+        OperationalCard(
+          label: "Today's Bookings",
+          orderCount: (rpcData['todaysBookings'] as num?)?.toInt() ?? 0,
+          icon: 'calendar-plus',
+          color: 'blue',
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Today's Delivery",
+          orderCount: (rpcData['todaysDeliveryTotal'] as num?)?.toInt() ?? 0,
+          icon: 'truck',
+          color: 'emerald',
+          completedCount: (rpcData['todaysDeliveryDone'] as num?)?.toInt() ?? 0,
+          totalCount: (rpcData['todaysDeliveryTotal'] as num?)?.toInt() ?? 0,
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Today's Return",
+          orderCount: (rpcData['todaysReturnTotal'] as num?)?.toInt() ?? 0,
+          icon: 'package-check',
+          color: 'violet',
+          completedCount: (rpcData['todaysReturnDone'] as num?)?.toInt() ?? 0,
+          totalCount: (rpcData['todaysReturnTotal'] as num?)?.toInt() ?? 0,
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Prepare Delivery (5d)",
+          orderCount: (rpcData['prepareDeliveries'] as num?)?.toInt() ?? 0,
+          icon: 'boxes',
+          color: 'amber',
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Pending Delivery",
+          orderCount: (rpcData['pendingDeliveries'] as num?)?.toInt() ?? 0,
+          icon: 'alert-triangle',
+          color: 'rose',
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Pending Return",
+          orderCount: (rpcData['pendingReturns'] as num?)?.toInt() ?? 0,
+          icon: 'clock-alert',
+          color: 'red',
+          filterUrl: '',
+        ),
+        OperationalCard(
+          label: "Revenue Due",
+          orderCount: (rpcData['revenueDueCount'] as num?)?.toInt() ?? 0,
+          amount: (rpcData['revenueDueAmount'] as num?)?.toDouble() ?? 0,
+          icon: 'banknote',
+          color: 'indigo',
+          filterUrl: '',
+        ),
+      ];
+
+      return OperationalMetrics(cards: cards);
+    } catch (e) {
+      print('[DashboardRepository] Error: $e');
+      rethrow;
+    }
   }
 }

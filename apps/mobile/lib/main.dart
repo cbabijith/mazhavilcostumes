@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/theme.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/theme/theme.dart';
 import 'features/auth/views/splash_view.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables (API Base URL)
-  await dotenv.load(fileName: ".env");
+  // Initialize Supabase
+  await Supabase.initialize(
+    url: 'https://szegcwbvvszsrmvzaiiv.supabase.co',
+    anonKey: 'sb_publishable_z5IbnbT-UZCSRqA_6HG3XA_yCS0LezQ',
+  );
 
   // Run the app wrapped in ProviderScope for Riverpod
   runApp(const ProviderScope(child: MyApp()));
@@ -22,10 +25,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Mazhavil Costumes',
       debugShowCheckedModeBanner: false,
-      // DO NOT add restorationScopeId here.
-      // CategoryFormView takes non-serializable constructor args (Category object)
-      // that cannot be restored after process death, which corrupts the widget tree
-      // and causes assertion failures in framework.dart:2168.
       theme: AppTheme.lightTheme,
       home: const SplashView(),
     );

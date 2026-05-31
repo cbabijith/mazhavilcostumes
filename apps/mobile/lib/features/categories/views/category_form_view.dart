@@ -2,10 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/responsive.dart';
-import '../../../core/upload_repository.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/supabase/upload_repository.dart';
 import '../models/category.dart';
-import '../providers/category_provider.dart';
+import '../viewmodels/providers/category_provider.dart';
 
 /// Create / Edit form for a category.
 /// If [category] is null → Create mode. Otherwise → Edit mode.

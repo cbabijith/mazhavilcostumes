@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/responsive.dart';
+import '../../../core/utils/responsive.dart';
 
 class CalendarView extends StatelessWidget {
   const CalendarView({super.key});

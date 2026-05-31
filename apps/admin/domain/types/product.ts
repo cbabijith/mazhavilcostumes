@@ -150,6 +150,7 @@ export interface ProductSearchResult {
   total_pages: number;
   has_next: boolean;
   has_prev: boolean;
+  total_stock?: number;
 }
 
 // Product with Related Data

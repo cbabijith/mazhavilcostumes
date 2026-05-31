@@ -67,6 +67,7 @@ export function useProducts(params: ProductSearchParams = {}) {
     ...query,
     products: query.data?.products || [],
     total: query.data?.total || 0,
+    totalStock: query.data?.total_stock || 0,
     page: query.data?.page || 1,
     totalPages: query.data?.total_pages || 0,
     hasNext: query.data?.has_next || false,
