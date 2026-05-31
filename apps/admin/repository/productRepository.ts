@@ -36,8 +36,8 @@ export class ProductRepository extends BaseRepository {
       min_price,
       max_price,
       in_stock,
-      sort_by = 'created_at',
-      sort_order = 'desc',
+      sort_by = params.query ? 'name' : 'created_at',
+      sort_order = params.query ? 'asc' : 'desc',
       page = 1,
       limit = 20,
     } = params;
