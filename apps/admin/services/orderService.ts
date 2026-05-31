@@ -22,6 +22,7 @@ import {
 import { orderRepository, cleaningRepository } from '@/repository';
 import { settingsService } from './settingsService';
 import { damageAssessmentService } from './damageAssessmentService';
+import { dashboardService } from './dashboardService';
 import { CleaningPriority, CleaningStatus, DamageDecision } from '@/domain';
 
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
@@ -486,7 +487,6 @@ export class OrderService {
 
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -686,7 +686,6 @@ export class OrderService {
 
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -752,7 +751,6 @@ export class OrderService {
 
     if (deleteResult.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -983,7 +981,6 @@ export class OrderService {
 
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
@@ -1022,7 +1019,6 @@ export class OrderService {
     const result = await orderRepository.updateOrderItemDamage(itemId, data);
     if (result.success) {
       try {
-        const { dashboardService } = await import('./dashboardService');
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
