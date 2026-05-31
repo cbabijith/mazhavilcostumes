@@ -70,7 +70,11 @@ export class ProductService {
    * Get products with search and filtering
    */
   async getProducts(params: ProductSearchParams = {}): Promise<RepositoryResult<ProductSearchResult>> {
-    return await productRepository.findAll(params);
+    const result = await productRepository.findAll(params);
+    if (result.success && result.data && params.query) {
+      result.data.products = this.sortProductsByRelevance(result.data.products, params.query);
+    }
+    return result;
   }
 
   /**
@@ -415,7 +419,11 @@ export class ProductService {
    * Search products
    */
   async searchProducts(query: string, limit: number = 10): Promise<RepositoryResult<Product[]>> {
-    return await productRepository.search(query, limit);
+    const result = await productRepository.search(query, limit);
+    if (result.success && result.data && query) {
+      result.data = this.sortProductsByRelevance(result.data, query);
+    }
+    return result;
   }
 
   /**
@@ -632,6 +640,55 @@ export class ProductService {
     } catch (error) {
       return { success: false, data: null, error: this.handleError(error) };
     }
+  }
+
+  /**
+   * Sort products by relevance to a query (exact matches first, then prefix matches, then other matches)
+   */
+  private sortProductsByRelevance<T extends { name: string; barcode?: string | null; slug: string; sku?: string | null; description?: string | null }>(
+    products: T[],
+    query: string
+  ): T[] {
+    if (!query) return products;
+    
+    const q = query.trim().toLowerCase();
+    const normalizedQ = q.replace(/\s+/g, '-');
+
+    return products.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+      const aBarcode = (a.barcode || '').toLowerCase();
+      const bBarcode = (b.barcode || '').toLowerCase();
+      const aSlug = (a.slug || '').toLowerCase();
+      const bSlug = (b.slug || '').toLowerCase();
+
+      // 1. Exact matches (name or barcode or slug)
+      const aExact = aName === q || aName === normalizedQ || aBarcode === q || aBarcode === normalizedQ || aSlug === q || aSlug === normalizedQ;
+      const bExact = bName === q || bName === normalizedQ || bBarcode === q || bBarcode === normalizedQ || bSlug === q || bSlug === normalizedQ;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+
+      // 2. Prefix matches (starts with query)
+      const aPrefix = aName.startsWith(q) || aName.startsWith(normalizedQ) || aBarcode.startsWith(q) || aBarcode.startsWith(normalizedQ) || aSlug.startsWith(q) || aSlug.startsWith(normalizedQ);
+      const bPrefix = bName.startsWith(q) || bName.startsWith(normalizedQ) || bBarcode.startsWith(q) || bBarcode.startsWith(normalizedQ) || bSlug.startsWith(q) || bSlug.startsWith(normalizedQ);
+      if (aPrefix && !bPrefix) return -1;
+      if (!aPrefix && bPrefix) return 1;
+
+      // 3. Substring matches in barcode/slug/SKU
+      const aSub = aBarcode.includes(q) || aBarcode.includes(normalizedQ);
+      const bSub = bBarcode.includes(q) || bBarcode.includes(normalizedQ);
+      if (aSub && !bSub) return -1;
+      if (!aSub && bSub) return 1;
+
+      // 4. Default: Alphabetical/lexicographical order by name with natural number sort
+      const matchA = a.name.match(/^(.+?)-(\d+)$/);
+      const matchB = b.name.match(/^(.+?)-(\d+)$/);
+      if (matchA && matchB && matchA[1].toLowerCase() === matchB[1].toLowerCase()) {
+        return parseInt(matchA[2], 10) - parseInt(matchB[2], 10);
+      }
+
+      return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+    });
   }
 }
 
