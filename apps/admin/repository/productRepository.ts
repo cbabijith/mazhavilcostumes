@@ -114,6 +114,61 @@ export class ProductRepository extends BaseRepository {
       };
     }
 
+    // Calculate total stock matching the exact same filters
+    let totalStock = 0;
+    try {
+      let sumQuery = this.client.from(this.tableName).select('quantity');
+      
+      if (query) {
+        const normalizedQuery = query.trim().replace(/\s+/g, '-');
+        if (normalizedQuery !== query) {
+          sumQuery = sumQuery.or(
+            `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%,` +
+            `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+          );
+        } else {
+          sumQuery = sumQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
+        }
+      }
+      
+      sumQuery = sumQuery.is('deleted_at', null);
+      
+      if (branch_id) {
+        sumQuery = sumQuery.or(`branch_id.eq.${branch_id},branch_id.is.null`);
+      }
+      
+      if (min_price !== undefined) {
+        sumQuery = sumQuery.gte('price_per_day', min_price);
+      }
+      
+      if (max_price !== undefined) {
+        sumQuery = sumQuery.lte('price_per_day', max_price);
+      }
+
+      if (category_id) {
+        sumQuery = sumQuery.eq('category_id', category_id);
+      }
+
+      if (store_id) {
+        sumQuery = sumQuery.eq('store_id', store_id);
+      }
+
+      if (status !== undefined) {
+        sumQuery = sumQuery.eq('is_active', status === 'active');
+      }
+
+      if (is_featured !== undefined) {
+        sumQuery = sumQuery.eq('is_featured', is_featured);
+      }
+      
+      const { data: stockData } = await sumQuery;
+      if (stockData) {
+        totalStock = stockData.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
+      }
+    } catch (e) {
+      console.error('Failed to calculate total stock:', e);
+    }
+
     const total = count || 0;
     const totalPages = Math.ceil(total / limit);
 
@@ -125,6 +180,7 @@ export class ProductRepository extends BaseRepository {
       total_pages: totalPages,
       has_next: page < totalPages,
       has_prev: page > 1,
+      total_stock: totalStock,
     };
 
     return {

@@ -119,7 +119,7 @@ function ProductsContent() {
     };
   }, [searchInput, urlQuery, searchParams]);
 
-  const { products, isLoading, total, totalPages, hasNext, hasPrev } = useProducts({
+  const { products, isLoading, total, totalStock, totalPages, hasNext, hasPrev } = useProducts({
     query: debouncedQuery,
     category_id: urlCategoryId,
     limit: pageSize,
@@ -149,15 +149,11 @@ function ProductsContent() {
 
   // Stats
   const stats = useMemo(() => {
-    let totalQty = 0;
-    for (const p of visibleProducts) {
-      totalQty += p.quantity || 0;
-    }
     return {
-      count: visibleProducts.length,
-      totalQty,
+      count: total,
+      totalQty: totalStock || 0,
     };
-  }, [visibleProducts]);
+  }, [total, totalStock]);
 
   // ── Actions ──────────────────────────────────────────────────────
   const handleConfirmDelete = async () => {
