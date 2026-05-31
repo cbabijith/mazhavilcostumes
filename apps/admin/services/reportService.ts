@@ -906,6 +906,19 @@ export class ReportService {
       .single();
     const prefix = settingsData?.value || 'INV-';
 
+    // Fetch all orders sorted by created_at ascending to build an accurate sequential chronological invoice index map
+    const { data: orderSequenceData } = await supabase()
+      .from('orders')
+      .select('id, created_at')
+      .order('created_at', { ascending: true });
+
+    const orderSequenceMap: Record<string, number> = {};
+    if (orderSequenceData) {
+      orderSequenceData.forEach((ord, index) => {
+        orderSequenceMap[ord.id] = index + 1;
+      });
+    }
+
     // 1. Fetch total counts for GST vs Non-GST transparency
     let orderQuery = supabase()
       .from('orders')
@@ -1002,9 +1015,23 @@ export class ReportService {
       const hasGst = Number(order.gst_amount) > 0 || gst > 0;
       if (hasGst) {
         if (!invoiceMap[order.id]) {
+          const orderDate = new Date(order.created_at);
+          const year = orderDate.getFullYear();
+          const month = orderDate.getMonth();
+          let fiscalStartYear = year;
+          if (month < 3) {
+            fiscalStartYear = year - 1;
+          }
+          const startYY = String(fiscalStartYear).slice(-2);
+          const endYY = String(fiscalStartYear + 1).slice(-2);
+          const fiscalSuffix = `${startYY}${endYY}`;
+          
+          const seqNum = orderSequenceMap[order.id] || 1;
+          const formattedInvoiceNo = `MAZ-${fiscalSuffix}-${seqNum}`;
+
           invoiceMap[order.id] = {
             order_id: order.id,
-            invoice_no: `${prefix}${order.id.slice(0, 8).toUpperCase()}`,
+            invoice_no: formattedInvoiceNo,
             date: order.created_at,
             customer_name: order.customer?.name || 'Unknown',
             status: order.status,
