@@ -47,7 +47,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const [productSearch, setProductSearch] = useState("");
 
   const { data: customersData } = useCustomers({ query: customerSearch, limit: 10 });
-  const { data: productsData } = useProducts({ query: productSearch, limit: 10, branch_id: selectedBranchId || undefined });
+  const { data: productsData } = useProducts({ query: productSearch, limit: 50, branch_id: selectedBranchId || undefined });
 
   const customers = customersData?.customers || [];
   const products = productsData?.products || [];

@@ -75,7 +75,15 @@ export class ProductRepository extends BaseRepository {
 
     // Apply additional filters using proper Supabase syntax
     if (query) {
-      selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
+      const normalizedQuery = query.trim().replace(/\s+/g, '-');
+      if (normalizedQuery !== query) {
+        selectQuery = (selectQuery as any).or(
+          `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%,` +
+          `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+        );
+      } else {
+        selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
+      }
     }
 
     // Exclude soft-deleted
@@ -173,14 +181,22 @@ export class ProductRepository extends BaseRepository {
     return this.handleResponse<Product[]>(response);
   }
 
-  /**
-   * Search products by text query
-   */
   async search(query: string, limit: number = 10): Promise<RepositoryResult<Product[]>> {
-    const response = await this.client
+    let selectQuery = this.client
       .from(this.tableName)
-      .select('*')
-      .or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%`)
+      .select('*');
+
+    const normalizedQuery = query.trim().replace(/\s+/g, '-');
+    if (normalizedQuery !== query) {
+      selectQuery = selectQuery.or(
+        `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%,` +
+        `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+      );
+    } else {
+      selectQuery = selectQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%`);
+    }
+
+    const response = await selectQuery
       .is('deleted_at', null)
       .limit(limit)
       .order('created_at', { ascending: false });
