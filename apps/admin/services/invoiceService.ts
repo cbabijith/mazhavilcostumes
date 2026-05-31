@@ -11,6 +11,7 @@ import React from 'react';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { OrderWithRelations } from '@/domain/types/order';
 import { orderRepository } from '@/repository';
+import { createAdminClient } from '@/lib/supabase/server';
 import { settingsService } from './settingsService';
 import { paymentService } from './paymentService';
 import { orderService } from './orderService';
@@ -35,9 +36,9 @@ export interface InvoiceData {
 
 export class InvoiceService {
   /**
-   * Generate invoice PDF and return as a Buffer.
+   * Generate invoice PDF and return as a Buffer alongside the invoice number.
    */
-  async generateInvoice(orderId: string, invoiceType: 'deposit' | 'final'): Promise<Buffer> {
+  async generateInvoice(orderId: string, invoiceType: 'deposit' | 'final'): Promise<{ buffer: Buffer; invoiceNumber: string }> {
     // Fetch order with relations
     const orderResult = await orderService.getOrderById(orderId);
     if (!orderResult.success || !orderResult.data) {
@@ -57,10 +58,34 @@ export class InvoiceService {
     const historyResult = await orderRepository.getStatusHistory(orderId);
     const history = historyResult.success ? historyResult.data || [] : [];
 
-    // Generate invoice number
+    // Get fiscal year based on order's created_at date
+    const orderDate = new Date(order.created_at || new Date());
+    const year = orderDate.getFullYear();
+    const month = orderDate.getMonth(); // 0-indexed: 0 = Jan, 11 = Dec
+    
+    let fiscalStartYear = year;
+    if (month < 3) { // Jan, Feb, Mar belong to previous year's fiscal year
+      fiscalStartYear = year - 1;
+    }
+    
+    const startYY = String(fiscalStartYear).slice(-2);
+    const endYY = String(fiscalStartYear + 1).slice(-2);
+    const fiscalSuffix = `${startYY}${endYY}`;
+    
+    // Count orders created on or before this order to get sequential bill number
+    let sequentialNum = 1;
+    const { count, error: countErr } = await createAdminClient()
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .lte('created_at', order.created_at);
+      
+    if (!countErr && count !== null) {
+      sequentialNum = count;
+    }
+    
     const invoiceNumber = invoiceType === 'final'
-      ? `${settings.invoicePrefix}${order.id.slice(0, 8).toUpperCase()}`
-      : `${settings.invoicePrefix}${order.id.slice(0, 8).toUpperCase()}-DEPOSIT`;
+      ? `MAZ-${fiscalSuffix}-${sequentialNum}`
+      : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 
     // Build props for the React PDF component
@@ -72,7 +97,7 @@ export class InvoiceService {
     const element = React.createElement(TallyInvoicePDF, props) as any;
     const buffer = await renderToBuffer(element);
 
-    return buffer;
+    return { buffer, invoiceNumber };
   }
 
   /**

@@ -305,7 +305,7 @@ function OrderRowInner({
               e.stopPropagation();
               const link = document.createElement("a");
               link.href = `/api/orders/${order.id}/invoice?type=final`;
-              link.setAttribute("download", `INV-${order.id.slice(0, 8).toUpperCase()}.pdf`);
+              link.setAttribute("download", "");
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
