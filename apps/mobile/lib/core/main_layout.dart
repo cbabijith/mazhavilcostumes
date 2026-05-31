@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'providers/auth_provider.dart' as core_auth;
-import '../features/auth/providers/auth_provider.dart';
+import '../features/auth/viewmodels/auth_provider.dart' as core_auth;
+import '../features/auth/viewmodels/providers/auth_provider.dart';
 import '../features/auth/views/login_view.dart';
 import '../features/products/views/products_view.dart';
 import '../features/dashboard/views/dashboard_view.dart';
@@ -10,10 +10,10 @@ import '../features/orders/views/orders_view.dart';
 import '../features/calendar/views/calendar_view.dart';
 import '../features/categories/views/categories_view.dart';
 import '../features/branches/models/branch.dart';
-import '../features/branches/providers/branch_provider.dart';
+import '../features/branches/viewmodels/providers/branch_provider.dart';
 import '../features/branches/views/branches_view.dart';
 import '../features/customers/views/customers_view.dart';
-import 'responsive.dart';
+import 'utils/responsive.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});

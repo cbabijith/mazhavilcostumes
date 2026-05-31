@@ -7,14 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:path_provider/path_provider.dart';
-import '../../../core/responsive.dart';
-import '../../../core/upload_repository.dart';
-import '../../categories/providers/category_provider.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/supabase/upload_repository.dart';
+import '../../categories/viewmodels/providers/category_provider.dart';
 import '../../categories/models/category.dart';
-import '../../branches/providers/branch_provider.dart';
+import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../branches/models/branch.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../providers/product_provider.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
+import '../viewmodels/providers/product_provider.dart';
 import '../models/product.dart';
 
 /// Single-page scrollable product form — mirrors the admin ProductForm layout.

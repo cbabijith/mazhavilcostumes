@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/customer.dart';
-import '../providers/customer_provider.dart';
+import '../viewmodels/providers/customer_provider.dart';
 
 class CustomerFormView extends ConsumerStatefulWidget {
   final Customer? customer;

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../../../core/api_client.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/product.dart';
 
 class PaginatedProducts {

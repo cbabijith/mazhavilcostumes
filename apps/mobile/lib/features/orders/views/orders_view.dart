@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
-import '../../../core/responsive.dart';
-import '../../auth/providers/auth_provider.dart';
+import '../../../core/utils/responsive.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/order.dart';
-import '../providers/order_provider.dart';
+import '../viewmodels/providers/order_provider.dart';
 import 'order_detail_view.dart';
 import 'order_form_view.dart';
 
@@ -20,6 +20,7 @@ class OrdersView extends ConsumerStatefulWidget {
 class _OrdersViewState extends ConsumerState<OrdersView> {
   final _searchController = TextEditingController();
   String? _selectedChip; // null = All
+  String _searchQuery = '';
 
   static const _primary = Color(0xFF434343);
   static const _accent = Color(0xFFF7C873);
@@ -47,7 +48,13 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final canManage = ref.watch(canManageProvider);
-    final ordersAsync = ref.watch(ordersProvider);
+    final params = {
+      'page': 1,
+      'limit': 25,
+      'query': _searchQuery,
+      'status': _selectedChip,
+    };
+    final ordersAsync = ref.watch(ordersProvider(params));
 
     return Container(
       color: _bg,
@@ -118,7 +125,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
         child: TextField(
           controller: _searchController,
           onSubmitted: (val) {
-            ref.read(ordersProvider.notifier).search(val);
+            setState(() => _searchQuery = val);
           },
           textInputAction: TextInputAction.search,
           style: TextStyle(fontSize: Responsive.sp(15)),
@@ -131,7 +138,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                     icon: Icon(Icons.close_rounded, size: Responsive.icon(22), color: Colors.grey),
                     onPressed: () {
                       _searchController.clear();
-                      ref.read(ordersProvider.notifier).search('');
+                      setState(() => _searchQuery = '');
                     },
                   )
                 : null,
@@ -146,7 +153,13 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildFilterChips() {
-    final ordersAsync = ref.watch(ordersProvider);
+    final params = {
+      'page': 1,
+      'limit': 25,
+      'query': _searchQuery,
+      'status': _selectedChip,
+    };
+    final ordersAsync = ref.watch(ordersProvider(params));
     final allOrders = ordersAsync.value?.orders ?? [];
 
     return SingleChildScrollView(
@@ -164,7 +177,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
             child: GestureDetector(
               onTap: () {
                 setState(() => _selectedChip = entry.value);
-                ref.read(ordersProvider.notifier).filterByStatus(entry.value);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

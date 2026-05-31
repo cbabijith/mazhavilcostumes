@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' hide Category;
-import '../../../core/api_client.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/category.dart';
 
 /// Repository layer for Categories.

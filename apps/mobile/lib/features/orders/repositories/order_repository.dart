@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import '../../../core/api_client.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/order.dart';
 
 class PaginatedOrders {

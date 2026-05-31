@@ -258,3 +258,67 @@ Always:
 6. Create Components
 
 Follow existing architecture exactly.
+
+---
+
+## Flutter Responsive UI Rules
+
+Never use hardcoded width.
+
+Never use hardcoded height unless absolutely required.
+
+Always use:
+- Expanded
+- Flexible
+- LayoutBuilder
+- AspectRatio
+- MediaQuery
+
+All pages must support:
+- Small phones (320px)
+- Medium phones
+- Large phones
+- Tablets
+- Landscape mode
+
+Text must use:
+- AutoSizeText
+- maxLines
+- overflow: TextOverflow.ellipsis
+
+Scrollable content must use:
+- SingleChildScrollView
+- ListView
+- CustomScrollView
+
+No RenderFlex overflow warnings are allowed.
+
+All grids must adapt using breakpoints.
+
+No fixed pixel layouts.
+
+---
+
+## UI Validation Rules
+
+Every screen must pass:
+
+- Mobile 320 width
+- Mobile 360 width
+- Mobile 393 width
+- Tablet 768 width
+- Landscape mode
+
+Every screen must support:
+
+- Text scale 1.0
+- Text scale 1.5
+- Text scale 2.0
+
+No RenderFlex overflow warnings.
+
+No pixel overflow warnings.
+
+All scrollable content must remain accessible.
+
+Every PR must include widget tests validating responsive layouts.

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/categories/models/category.dart';
 import 'package:mobile/features/categories/views/category_form_view.dart';
-import 'package:mobile/features/categories/providers/category_provider.dart';
+import 'package:mobile/features/categories/viewmodels/providers/category_provider.dart';
 import 'package:mobile/features/categories/repositories/category_repository.dart';
 import 'package:dio/dio.dart';
 

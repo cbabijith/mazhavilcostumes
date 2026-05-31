@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/branch.dart';
-import '../providers/branch_provider.dart';
+import '../viewmodels/providers/branch_provider.dart';
 import 'branch_detail_view.dart';
 import 'branch_form_view.dart';
 

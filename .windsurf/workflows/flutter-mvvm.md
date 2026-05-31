@@ -1,0 +1,313 @@
+---
+description: Flutter MVVM Architecture Rules for Mobile App Development
+---
+
+# Flutter MVVM Architecture Rules
+
+## Architecture
+
+Always follow:
+
+View
+→ ViewModel
+→ Repository
+→ Supabase
+
+Never skip layers.
+
+Views must never access Supabase directly.
+
+Views must never contain business logic.
+
+Repositories must contain all Supabase queries.
+
+---
+
+## Folder Structure
+
+Always use:
+
+lib/
+├── core/
+├── features/
+│   ├── auth/
+│   ├── products/
+│   ├── categories/
+│   ├── customers/
+│   ├── orders/
+│   ├── payments/
+│   ├── staff/
+│   ├── branches/
+│   ├── reports/
+│   └── settings/
+
+Every feature must contain:
+
+models/
+repositories/
+viewmodels/
+views/
+widgets/
+
+Never create random folders.
+
+---
+
+## MVVM Rules
+
+Views:
+- UI only
+- No business logic
+- No Supabase calls
+- No complex calculations
+
+ViewModels:
+- Manage state
+- Call repositories
+- Handle loading and error states
+- No UI widgets
+
+Repositories:
+- Supabase queries only
+- CRUD operations only
+- Return typed models
+
+---
+
+## State Management
+
+Use Riverpod only.
+
+Do not use:
+- Provider
+- GetX
+- Bloc
+- setState for business state
+
+Use:
+- AsyncNotifier
+- Notifier
+- Riverpod Generator
+
+Prefer code generation.
+
+---
+
+## Navigation
+
+Use GoRouter only.
+
+Do not use Navigator.push directly.
+
+All routes must be registered centrally.
+
+---
+
+## Models
+
+Use Freezed.
+
+Every model must have:
+
+- fromJson
+- toJson
+- copyWith
+- equality support
+
+Never create manual model classes when Freezed can be used.
+
+---
+
+## Supabase
+
+All Supabase access must go through repositories.
+
+Never access:
+
+Supabase.instance.client
+
+inside views.
+
+Create a central Supabase service.
+
+Use dependency injection.
+
+---
+
+## Repository Pattern
+
+Example:
+
+ProductView
+↓
+ProductViewModel
+↓
+ProductRepository
+↓
+Supabase
+
+Never:
+
+ProductView
+↓
+Supabase
+
+---
+
+## Error Handling
+
+Always use try/catch.
+
+Return meaningful errors.
+
+Never use empty catches.
+
+Never swallow exceptions.
+
+---
+
+## Loading States
+
+Every async action must support:
+
+- Loading
+- Success
+- Error
+
+Use AsyncValue.
+
+---
+
+## Naming Convention
+
+Screens:
+
+product_list_screen.dart
+product_detail_screen.dart
+
+ViewModels:
+
+product_viewmodel.dart
+
+Repositories:
+
+product_repository.dart
+
+Models:
+
+product.dart
+
+Widgets:
+
+product_card.dart
+
+Use snake_case filenames.
+
+---
+
+## UI Rules
+
+Use:
+
+- Material 3
+- Responsive layouts
+- Reusable widgets
+
+Avoid duplicated UI.
+
+Extract repeated widgets.
+
+---
+
+## Performance
+
+Use:
+
+- const widgets
+- pagination
+- lazy loading
+- cached_network_image
+
+Avoid unnecessary rebuilds.
+
+Use Riverpod selectors where possible.
+
+---
+
+## Code Quality
+
+Always:
+
+- Use strict typing
+- Use final whenever possible
+- Use async/await
+- Keep files focused
+
+Avoid:
+
+- dynamic
+- any-like patterns
+- huge widgets over 500 lines
+
+---
+
+## Feature Development Checklist
+
+When creating a new feature:
+
+1. Create model
+2. Create repository
+3. Create ViewModel
+4. Create screens
+5. Create widgets
+6. Register routes
+7. Add tests
+
+Follow MVVM strictly.
+
+---
+
+## Critical Rules
+
+Never modify architecture without permission.
+
+Never call Supabase from UI.
+
+Never place business logic in widgets.
+
+Never duplicate models.
+
+Never create multiple repositories for the same entity.
+
+Always reuse existing ViewModels and repositories when possible.
+
+---
+
+## Mazhavil Business Rules
+
+Products:
+- Must support inventory tracking
+- Must support branch assignment
+- Must support image uploads
+
+Orders:
+- Check availability before booking
+- Validate stock before confirmation
+- Prevent double booking
+
+Customers:
+- Support KYC documents
+- Support rental history
+
+Payments:
+- Support Cash
+- Support UPI
+- Support Bank Transfer
+
+Reports:
+- Revenue
+- Top Costumes
+- Top Customers
+- GST Reports
+
+Never bypass inventory validation.
