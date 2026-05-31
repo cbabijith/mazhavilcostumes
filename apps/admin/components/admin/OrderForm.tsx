@@ -45,12 +45,18 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   // Data Fetching for comboboxes
   const [customerSearch, setCustomerSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [productLimit, setProductLimit] = useState(20);
 
   const { data: customersData } = useCustomers({ query: customerSearch, limit: 10 });
-  const { data: productsData } = useProducts({ query: productSearch, limit: 50, branch_id: selectedBranchId || undefined });
+  const { data: productsData } = useProducts({ query: productSearch, limit: productLimit, branch_id: selectedBranchId || undefined });
 
   const customers = customersData?.customers || [];
   const products = productsData?.products || [];
+
+  // Reset page limit when user types a new search query
+  useEffect(() => {
+    setProductLimit(20);
+  }, [productSearch]);
 
   // Local State
   const [selectedCustomer, setSelectedCustomer] = useState<any>(initialData?.customer || null);
@@ -848,57 +854,79 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                     onKeyDown={handleProductSearchKeyDown}
                   />
                   {isProductDropdownOpen && productSearch.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto">
+                    <div 
+                      className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-72 overflow-y-auto"
+                      onScroll={(e) => {
+                        const target = e.currentTarget;
+                        // Scroll threshold: check if user scrolled near the bottom (within 15px)
+                        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 15) {
+                          // If we fetched the full current page, there are likely more items to fetch
+                          if (products.length >= productLimit) {
+                            setProductLimit(prev => prev + 20);
+                          }
+                        }
+                      }}
+                    >
                       {(() => {
                         return availableProducts.length > 0 ? (
-                          <ul className="py-1">
-                            {availableProducts.map((p: any) => {
-                            const imgUrl = getImageUrl(p);
-                            const sAvail = searchAvailabilityMap.get(p.id);
-                            const sMaxAvail = (sAvail as any)?.availableWithPriority ?? sAvail?.available ?? 0;
-                            const isAvail = sAvail ? sMaxAvail > 0 : p.available_quantity > 0;
-                            
-                            return (
-                              <li
-                                key={p.id}
-                                className={`px-3 py-2.5 flex items-center gap-3 border-b border-slate-50 last:border-0 ${isAvail ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
-                                onClick={() => isAvail ? addToCart(p) : null}
-                              >
-                                <div className="w-10 h-10 rounded-md bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden">
-                                  {imgUrl ? (
-                                    <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                      <Package className="w-4 h-4" />
+                          <div className="flex flex-col">
+                            <ul className="py-1">
+                              {availableProducts.map((p: any) => {
+                                const imgUrl = getImageUrl(p);
+                                const sAvail = searchAvailabilityMap.get(p.id);
+                                const sMaxAvail = (sAvail as any)?.availableWithPriority ?? sAvail?.available ?? 0;
+                                const isAvail = sAvail ? sMaxAvail > 0 : p.available_quantity > 0;
+                                
+                                return (
+                                  <li
+                                    key={p.id}
+                                    className={`px-3 py-2.5 flex items-center gap-3 border-b border-slate-50 last:border-0 ${isAvail ? 'hover:bg-slate-50 cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
+                                    onClick={() => isAvail ? addToCart(p) : null}
+                                  >
+                                    <div className="w-10 h-10 rounded-md bg-slate-100 border border-slate-200 flex-shrink-0 overflow-hidden">
+                                      {imgUrl ? (
+                                        <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                          <Package className="w-4 h-4" />
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-slate-900 text-sm truncate">{p.name}</div>
-                                  <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
-                                    <span>{formatCurrency(p.price_per_day)}</span>
-                                    <span className={isAvail ? (sAvail && sAvail.available === 0 ? "text-amber-600" : "text-emerald-600") : "text-red-500 font-bold"}>
-                                      {isCheckingSearch 
-                                        ? "Checking dates..." 
-                                        : sAvail 
-                                          ? (sAvail.available > 0 
-                                              ? `${sAvail.available} free for dates` 
-                                              : (() => {
-                                                  const cData = p.category;
-                                                  const cat = Array.isArray(cData) ? cData[0] : cData;
-                                                  const hasBuffer = cat?.has_buffer ?? true;
-                                                  return hasBuffer ? `0 free (${sMaxAvail} with priority cleaning)` : `0 free (Unavailable)`;
-                                                })()
-                                            )
-                                          : `${p.available_quantity} in stock`}
-                                    </span>
-                                  </div>
-                                </div>
-                                <Plus className="w-4 h-4 text-slate-300 flex-shrink-0" />
-                              </li>
-                            );
-                          })}
-                          </ul>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-medium text-slate-900 text-sm truncate">{p.name}</div>
+                                      <div className="text-xs text-slate-500 flex gap-2 mt-0.5">
+                                        <span>{formatCurrency(p.price_per_day)}</span>
+                                        <span className={isAvail ? (sAvail && sAvail.available === 0 ? "text-amber-600" : "text-emerald-600") : "text-red-500 font-bold"}>
+                                          {isCheckingSearch 
+                                            ? "Checking dates..." 
+                                            : sAvail 
+                                              ? (sAvail.available > 0 
+                                                  ? `${sAvail.available} free for dates` 
+                                                  : (() => {
+                                                      const cData = p.category;
+                                                      const cat = Array.isArray(cData) ? cData[0] : cData;
+                                                      const hasBuffer = cat?.has_buffer ?? true;
+                                                      return hasBuffer ? `0 free (${sMaxAvail} with priority cleaning)` : `0 free (Unavailable)`;
+                                                    })()
+                                                )
+                                              : `${p.available_quantity} in stock`}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <Plus className="w-4 h-4 text-slate-300 flex-shrink-0" />
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            
+                            {/* Loading More Indicator / Dynamic Pagination Feedback */}
+                            {products.length >= productLimit && (
+                              <div className="px-3 py-2 text-center text-xs text-slate-400 border-t border-slate-50 flex items-center justify-center gap-1.5 bg-slate-50/50">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 shrink-0" />
+                                <span>Loading more products...</span>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="p-4 text-center text-sm text-slate-500">
                             {products.length > 0 ? "All matching products are already in the cart." : "No products found."}
