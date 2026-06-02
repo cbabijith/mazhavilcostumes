@@ -594,8 +594,8 @@ export class OrderRepository extends BaseRepository {
     if (!orderRes.success || !orderRes.data) return { data: false, error: orderRes.error, success: false };
     const order = orderRes.data;
 
-    // Only active orders can have conflicts
-    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'];
+    // Only active orders awaiting fulfillment can have conflicts
+    const activeStatuses = ['pending', 'confirmed', 'scheduled'];
     if (!activeStatuses.includes(order.status)) {
       if (order.has_stock_conflict) {
         await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
@@ -1107,6 +1107,12 @@ export class OrderRepository extends BaseRepository {
     }
     if (normalizedData.event_date) {
       normalizedData.event_date = new Date(normalizedData.event_date).toISOString().split('T')[0];
+    }
+
+    // If status is transitioning to a non-active state, clear stock conflict flags
+    if (normalizedData.status && !['pending', 'confirmed', 'scheduled'].includes(normalizedData.status)) {
+      normalizedData.has_stock_conflict = false;
+      normalizedData.conflict_details = [];
     }
 
     // Extract items to handle them separately
@@ -1730,7 +1736,9 @@ export class OrderRepository extends BaseRepository {
         late_fee: additionalLateFee,
         discount: newDiscountTotal,
         damage_charges_total: totalDamageCharges,
-        payment_status: paymentStatus
+        payment_status: paymentStatus,
+        has_stock_conflict: false,
+        conflict_details: []
       })
       .eq('id', orderId)
       .select()

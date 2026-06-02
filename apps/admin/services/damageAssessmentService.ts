@@ -8,7 +8,7 @@
  * @module services/damageAssessmentService
  */
 
-import { damageAssessmentRepository, orderRepository } from '@/repository';
+import { damageAssessmentRepository, orderRepository, cleaningRepository } from '@/repository';
 import type { RepositoryResult } from '@/repository/supabaseClient';
 import type { DamageAssessment, DamageAssessmentWithProduct, CreateDamageAssessmentsDTO } from '@/domain';
 import { DamageDecision } from '@/domain';
@@ -91,6 +91,34 @@ export class DamageAssessmentService {
         // PROACTIVE CONFLICT DETECTION
         // Since stock was reduced, re-evaluate all future orders for this product
         await orderRepository.syncProductConflicts(result.data.product_id);
+      }
+
+      // Decrement/delete cleaning record for write-off since it shouldn't be cleaned
+      try {
+        const activeCleaningRes = await cleaningRepository.findActiveByOrderAndProduct(
+          result.data.order_id,
+          result.data.product_id
+        );
+
+        if (activeCleaningRes.success && activeCleaningRes.data) {
+          const cleaningRecord = activeCleaningRes.data;
+          if (cleaningRecord.quantity > 1) {
+            await cleaningRepository.update(cleaningRecord.id, {
+              quantity: cleaningRecord.quantity - 1,
+              notes: cleaningRecord.notes
+                ? `${cleaningRecord.notes} — 1 unit written off`
+                : '1 unit written off',
+            });
+          } else {
+            // Delete cleaning record if quantity goes to 0
+            await cleaningRepository.delete(cleaningRecord.id);
+          }
+
+          // Sync order priority flag since the cleaning records changed
+          await orderRepository.syncOrderPriorityFlag(result.data.order_id);
+        }
+      } catch (err) {
+        console.error('[DamageAssessmentService] Failed to adjust cleaning record for write-off:', err);
       }
     }
 

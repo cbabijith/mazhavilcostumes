@@ -190,6 +190,41 @@ export class CleaningRepository extends BaseRepository {
   }
 
   /**
+   * Find an active (non-completed) cleaning record for an order + product pair.
+   * Prefers in_progress over pending/scheduled.
+   */
+  async findActiveByOrderAndProduct(orderId: string, productId: string): Promise<RepositoryResult<CleaningRecord | null>> {
+    return this.executeOperation(async () => {
+      const response = await this.client
+        .from(this.TABLE)
+        .select('*')
+        .eq('order_id', orderId)
+        .eq('product_id', productId)
+        .neq('status', CleaningStatus.COMPLETED);
+
+      if (response.error || !response.data || response.data.length === 0) {
+        return { data: null, error: response.error, success: !response.error };
+      }
+
+      // Sort in-memory: 'in_progress' first, then 'pending', then 'scheduled'
+      const records = response.data as CleaningRecord[];
+      records.sort((a, b) => {
+        const orderMap: Record<string, number> = {
+          [CleaningStatus.IN_PROGRESS]: 1,
+          [CleaningStatus.PENDING]: 2,
+          [CleaningStatus.SCHEDULED]: 3,
+        };
+        const rankA = orderMap[a.status] || 99;
+        const rankB = orderMap[b.status] || 99;
+        return rankA - rankB;
+      });
+
+      return { data: records[0], error: null, success: true };
+    });
+  }
+
+
+  /**
    * Find all cleaning records whose buffer period has expired.
    * Buffer = 1 calendar day after started_at.
    * A record is expired when: started_at::date + bufferDays <= today.
