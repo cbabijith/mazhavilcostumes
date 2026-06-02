@@ -39,6 +39,15 @@ export class DamageAssessmentRepository extends BaseRepository {
   }
 
   /**
+   * Create multiple damage assessment records in a single batch insert.
+   */
+  async createAll(rows: any[]): Promise<RepositoryResult<DamageAssessment[]>> {
+    return this.executeOperation(async () =>
+      this.client.from(this.tableName).insert(rows).select('*')
+    );
+  }
+
+  /**
    * Fetch all damage assessments for an order, with product info.
    */
   async findByOrderId(orderId: string): Promise<RepositoryResult<DamageAssessmentWithProduct[]>> {

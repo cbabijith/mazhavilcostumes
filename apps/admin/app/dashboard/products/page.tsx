@@ -144,6 +144,10 @@ function ProductsContent() {
   const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
   const bulkOperation = useBulkProductOperation();
 
+
+
+
+
   // Products are shown directly — no branch filtering needed
   const visibleProducts = products;
 
@@ -275,12 +279,14 @@ function ProductsContent() {
             <span>{stats.count} total items</span>
           </p>
         </div>
-        <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
-          <Link href="/dashboard/products/create">
-            <Plus className="w-4 h-4" />
-            Add Product
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
+            <Link href="/dashboard/products/create">
+              <Plus className="w-4 h-4" />
+              Add Product
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -647,6 +653,8 @@ function ProductsContent() {
           </div>
         </div>
       </Modal>
+
+
     </div>
   );
 }

@@ -8,7 +8,7 @@
  * @module services/damageAssessmentService
  */
 
-import { damageAssessmentRepository, orderRepository } from '@/repository';
+import { damageAssessmentRepository, orderRepository, cleaningRepository } from '@/repository';
 import type { RepositoryResult } from '@/repository/supabaseClient';
 import type { DamageAssessment, DamageAssessmentWithProduct, CreateDamageAssessmentsDTO } from '@/domain';
 import { DamageDecision } from '@/domain';
@@ -17,29 +17,31 @@ export class DamageAssessmentService {
   /**
    * Create damage assessments for all damaged items in a return.
    * Called after the return process when items have damage.
+   * Batch inserts all assessment rows in a single query.
    */
   async createAssessments(dto: CreateDamageAssessmentsDTO): Promise<RepositoryResult<DamageAssessment[]>> {
-    const allAssessments: DamageAssessment[] = [];
+    const rows: any[] = [];
 
     for (const item of dto.items) {
       if (item.damaged_quantity <= 0) continue;
 
-      const result = await damageAssessmentRepository.createBatch({
-        order_id: dto.order_id,
-        order_item_id: item.order_item_id,
-        product_id: item.product_id,
-        branch_id: item.branch_id,
-        damaged_quantity: item.damaged_quantity,
-      });
-
-      if (result.success && result.data) {
-        allAssessments.push(...result.data);
-      } else if (!result.success) {
-        return result;
+      for (let i = 0; i < item.damaged_quantity; i++) {
+        rows.push({
+          order_id: dto.order_id,
+          order_item_id: item.order_item_id,
+          product_id: item.product_id,
+          branch_id: item.branch_id,
+          unit_index: i + 1,
+          decision: 'pending',
+        });
       }
     }
 
-    return { data: allAssessments, error: null, success: true };
+    if (rows.length === 0) {
+      return { data: [], error: null, success: true };
+    }
+
+    return damageAssessmentRepository.createAll(rows);
   }
 
   /**
@@ -88,9 +90,45 @@ export class DamageAssessmentService {
         console.error('[DamageAssessmentService] Failed to decrement stock:', stockResult.error);
         // Return the assessment result but log the stock error
       } else {
-        // PROACTIVE CONFLICT DETECTION
-        // Since stock was reduced, re-evaluate all future orders for this product
-        await orderRepository.syncProductConflicts(result.data.product_id);
+        const orderId = result.data.order_id;
+        const productId = result.data.product_id;
+
+        // Perform stock-conflict syncing and cleaning adjustments in parallel to improve performance
+        await Promise.all([
+          // 1. PROACTIVE CONFLICT DETECTION
+          // Since stock was reduced, re-evaluate all future orders for this product
+          orderRepository.syncProductConflicts(productId),
+
+          // 2. Decrement/delete cleaning record for write-off since it shouldn't be cleaned
+          (async () => {
+            try {
+              const activeCleaningRes = await cleaningRepository.findActiveByOrderAndProduct(
+                orderId,
+                productId
+              );
+
+              if (activeCleaningRes.success && activeCleaningRes.data) {
+                const cleaningRecord = activeCleaningRes.data;
+                if (cleaningRecord.quantity > 1) {
+                  await cleaningRepository.update(cleaningRecord.id, {
+                    quantity: cleaningRecord.quantity - 1,
+                    notes: cleaningRecord.notes
+                      ? `${cleaningRecord.notes} — 1 unit written off`
+                      : '1 unit written off',
+                  });
+                } else {
+                  // Delete cleaning record if quantity goes to 0
+                  await cleaningRepository.delete(cleaningRecord.id);
+                }
+
+                // Sync order priority flag since the cleaning records changed
+                await orderRepository.syncOrderPriorityFlag(orderId);
+              }
+            } catch (err) {
+              console.error('[DamageAssessmentService] Failed to adjust cleaning record for write-off:', err);
+            }
+          })()
+        ]);
       }
     }
 

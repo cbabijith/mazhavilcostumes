@@ -594,8 +594,8 @@ export class OrderRepository extends BaseRepository {
     if (!orderRes.success || !orderRes.data) return { data: false, error: orderRes.error, success: false };
     const order = orderRes.data;
 
-    // Only active orders can have conflicts
-    const activeStatuses = ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'];
+    // Only active orders awaiting fulfillment can have conflicts
+    const activeStatuses = ['pending', 'confirmed', 'scheduled'];
     if (!activeStatuses.includes(order.status)) {
       if (order.has_stock_conflict) {
         await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
@@ -1109,6 +1109,12 @@ export class OrderRepository extends BaseRepository {
       normalizedData.event_date = new Date(normalizedData.event_date).toISOString().split('T')[0];
     }
 
+    // If status is transitioning to a non-active state, clear stock conflict flags
+    if (normalizedData.status && !['pending', 'confirmed', 'scheduled'].includes(normalizedData.status)) {
+      normalizedData.has_stock_conflict = false;
+      normalizedData.conflict_details = [];
+    }
+
     // Extract items to handle them separately
     const { items, ...orderData } = normalizedData;
 
@@ -1612,65 +1618,97 @@ export class OrderRepository extends BaseRepository {
       .select('id, quantity, returned_quantity')
       .eq('order_id', orderId);
 
-    // 1. First, update all order items with their condition and damage info
-    // This must happen before recalculating order totals
-    for (const item of returnData.items) {
-      // Get existing order item to prevent double-counting inventory on partial returns
-      const { data: orderItem } = await this.client
-        .from(this.orderItemsTable)
-        .select('returned_quantity, product_id, orders(branch_id)')
-        .eq('id', item.item_id)
-        .single();
-        
-      const oldReturnedQuantity = orderItem?.returned_quantity || 0;
-      const quantityToIncrement = Math.max(0, (item.returned_quantity || 0) - oldReturnedQuantity);
+    // 1. First, fetch all existing order items in a single query
+    // This allows us to prevent N+1 queries during return processing.
+    const itemIds = returnData.items.map(i => i.item_id);
+    const { data: orderItems } = await this.client
+      .from(this.orderItemsTable)
+      .select('id, returned_quantity, product_id, orders(branch_id)')
+      .in('id', itemIds);
 
-      await this.client
-        .from(this.orderItemsTable)
-        .update({
-          is_returned: true,
-          returned_at: new Date().toISOString(),
-          returned_quantity: item.returned_quantity,
-          condition_rating: item.condition_rating,
-          damage_description: item.damage_description || null,
-          damage_charges: item.damage_charges || 0,
-          damaged_quantity: item.damaged_quantity || 0,
-        })
-        .eq('id', item.item_id);
-
-      // Increment inventory only by the difference
-      if (quantityToIncrement > 0 && orderItem && orderItem.product_id) {
-        const branchId = (orderItem as any).orders?.branch_id || (orderItem as any).orders?.[0]?.branch_id;
-        
-        const { data: inv } = await this.client
-          .from('product_inventory')
-          .select('available_quantity')
-          .eq('product_id', orderItem.product_id)
-          .eq('branch_id', branchId)
-          .single();
-          
-        if (inv) {
-          await this.client
-            .from('product_inventory')
-            .update({ available_quantity: inv.available_quantity + quantityToIncrement })
-            .eq('product_id', orderItem.product_id)
-            .eq('branch_id', branchId);
-        }
-        
-        const { data: prod } = await this.client
-          .from('products')
-          .select('available_quantity')
-          .eq('id', orderItem.product_id)
-          .single();
-          
-        if (prod) {
-          await this.client
-            .from('products')
-            .update({ available_quantity: prod.available_quantity + quantityToIncrement })
-            .eq('id', orderItem.product_id);
-        }
+    // Create a map for quick O(1) lookup
+    const orderItemsMap = new Map<string, { id: string; returned_quantity: number; product_id: string; branch_id: string }>();
+    if (orderItems) {
+      for (const item of orderItems) {
+        const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
+        orderItemsMap.set(item.id, {
+          id: item.id,
+          returned_quantity: item.returned_quantity || 0,
+          product_id: item.product_id,
+          branch_id: branchId
+        });
       }
     }
+
+    // 2. Update order items and inventory in parallel
+    await Promise.all(
+      returnData.items.map(async (item) => {
+        const orderItem = orderItemsMap.get(item.item_id);
+        const oldReturnedQuantity = orderItem?.returned_quantity || 0;
+        const quantityToIncrement = Math.max(0, (item.returned_quantity || 0) - oldReturnedQuantity);
+
+        // Batch the database operations for this item
+        const itemOperations: Promise<any>[] = [
+          this.client
+            .from(this.orderItemsTable)
+            .update({
+              is_returned: true,
+              returned_at: new Date().toISOString(),
+              returned_quantity: item.returned_quantity,
+              condition_rating: item.condition_rating,
+              damage_description: item.damage_description || null,
+              damage_charges: item.damage_charges || 0,
+              damaged_quantity: item.damaged_quantity || 0,
+            })
+            .eq('id', item.item_id) as any
+        ];
+
+        // Increment inventory in parallel if there is an increase in returned quantity
+        if (quantityToIncrement > 0 && orderItem && orderItem.product_id) {
+          const { branch_id, product_id } = orderItem;
+
+          // Branch inventory update
+          itemOperations.push(
+            (async () => {
+              const { data: inv } = await this.client
+                .from('product_inventory')
+                .select('available_quantity')
+                .eq('product_id', product_id)
+                .eq('branch_id', branch_id)
+                .single();
+                
+              if (inv) {
+                await this.client
+                  .from('product_inventory')
+                  .update({ available_quantity: inv.available_quantity + quantityToIncrement })
+                  .eq('product_id', product_id)
+                  .eq('branch_id', branch_id);
+              }
+            })()
+          );
+
+          // Global product inventory update
+          itemOperations.push(
+            (async () => {
+              const { data: prod } = await this.client
+                .from('products')
+                .select('available_quantity')
+                .eq('id', product_id)
+                .single();
+                
+              if (prod) {
+                await this.client
+                  .from('products')
+                  .update({ available_quantity: prod.available_quantity + quantityToIncrement })
+                  .eq('id', product_id);
+              }
+            })()
+          );
+        }
+
+        await Promise.all(itemOperations);
+      })
+    );
 
     // 2. Now recalculate totals from source of truth
     const { data: allItems } = await this.client
@@ -1730,7 +1768,9 @@ export class OrderRepository extends BaseRepository {
         late_fee: additionalLateFee,
         discount: newDiscountTotal,
         damage_charges_total: totalDamageCharges,
-        payment_status: paymentStatus
+        payment_status: paymentStatus,
+        has_stock_conflict: false,
+        conflict_details: []
       })
       .eq('id', orderId)
       .select()
