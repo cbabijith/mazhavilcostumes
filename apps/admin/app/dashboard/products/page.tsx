@@ -31,6 +31,7 @@ import {
   Filter,
   X,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,9 +145,91 @@ function ProductsContent() {
   const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
   const bulkOperation = useBulkProductOperation();
 
+  const [exporting, setExporting] = useState(false);
 
+  const handleExportCatalog = async () => {
+    setExporting(true);
+    showSuccess("Export Started", "Fetching products to generate catalog...");
+    try {
+      let allProducts: any[] = [];
+      let pageNum = 1;
+      let hasMore = true;
+      const limit = 100;
 
+      while (hasMore) {
+        const searchParams = new URLSearchParams();
+        if (urlCategoryId) {
+          searchParams.append('category_id', urlCategoryId);
+        }
+        searchParams.append('limit', String(limit));
+        searchParams.append('page', String(pageNum));
+        
+        const response = await fetch(`/api/products?${searchParams.toString()}`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.products) {
+          allProducts.push(...result.data.products);
+          hasMore = result.data.has_next;
+          pageNum++;
+        } else {
+          hasMore = false;
+        }
+      }
 
+      if (allProducts.length === 0) {
+        showError("No Products", "There are no products to export.");
+        return;
+      }
+
+      // Format data to match "Product with GST rent new.xlsx" layout:
+      // Row 1: Title
+      // Row 2: Headers (Code/Name | Description/SKU | Category | GST | Rent | Purchase Price | Qty)
+      const dataRows = allProducts.map(p => [
+        p.name || p.barcode || '',
+        p.sku || p.description || '',
+        p.category?.name || 'Uncategorized',
+        p.category?.gst_percentage !== undefined ? Number(p.category.gst_percentage) : 5,
+        p.price_per_day || 0,
+        p.purchase_price || 0,
+        p.quantity || 0
+      ]);
+
+      const titleRow = ['Mazhavil Costumes Catalog', '', '', '', '', '', ''];
+      const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
+
+      const sheetData = [titleRow, headerRow, ...dataRows];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Catalog");
+
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 15 }, // Code/Name
+        { wch: 45 }, // Description/SKU
+        { wch: 20 }, // Category
+        { wch: 8 },  // GST
+        { wch: 10 }, // Rent
+        { wch: 15 }, // Purchase Price
+        { wch: 8 }   // Qty
+      ];
+
+      // Export filename
+      const categoryName = urlCategoryId && categories
+        ? categories.find(c => c.id === urlCategoryId)?.name || 'Filtered'
+        : 'All';
+      const cleanCategoryName = categoryName.replace(/[^a-zA-Z0-9]/g, '_');
+      const filename = `Catalog_${cleanCategoryName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+      XLSX.writeFile(workbook, filename);
+      showSuccess("Export Completed", `Successfully exported ${allProducts.length} products.`);
+    } catch (err: any) {
+      console.error(err);
+      showError("Export Failed", err.message || "Could not generate Excel catalog.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Products are shown directly — no branch filtering needed
   const visibleProducts = products;
@@ -280,6 +363,19 @@ function ProductsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="gap-2 border-slate-200 bg-white text-slate-700 hover:text-slate-900"
+            onClick={handleExportCatalog}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            {urlCategoryId ? "Export Category" : "Export Catalog"}
+          </Button>
           <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
             <Link href="/dashboard/products/create">
               <Plus className="w-4 h-4" />
