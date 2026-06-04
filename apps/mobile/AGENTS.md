@@ -1,5 +1,23 @@
 # Flutter MVVM Architecture Rules
 
+## 🚨 MANDATORY: Post-Work Build Verification
+**After EVERY code change in this module, the agent MUST:**
+1. Run `flutter analyze --no-pub`.
+2. Fix ALL `error` and `warning` level issues before delivering to the user.
+3. Verify there are no runtime issues.
+
+## 🚫 No Automatic Git Push
+- Never run `git add`, `git commit`, or `git push` automatically.
+- If requested to push, target branch is `abijithcb`. NEVER push to `main`.
+
+## 📝 Mandatory Change Explanations
+- For every code change, provide a clear explanation of:
+  - **What** was changed
+  - **Why** the change was necessary
+  - **How** the fix works
+
+---
+
 ## Architecture
 
 Always follow:
