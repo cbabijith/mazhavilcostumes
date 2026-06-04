@@ -133,4 +133,46 @@ class OrderRepository {
       throw Exception('Failed to delete order');
     }
   }
+
+  /// Record/collect a payment transaction for an order
+  Future<void> collectPayment({
+    required String orderId,
+    required double amount,
+    required String paymentMode,
+    required String paymentType,
+    String? notes,
+  }) async {
+    final response = await _client.post('/payments', data: {
+      'order_id': orderId,
+      'amount': amount,
+      'payment_mode': paymentMode,
+      'payment_type': paymentType,
+      'notes': notes,
+    });
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw Exception('Failed to record payment');
+    }
+  }
+
+  /// Process returning of items in the order
+  Future<void> processReturn({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+    double? lateFee,
+    double? discount,
+  }) async {
+    final response = await _client.patch('/orders/$orderId/return', data: {
+      'order_id': orderId,
+      'items': items,
+      if (notes != null) 'notes': notes,
+      if (lateFee != null) 'late_fee': lateFee,
+      if (discount != null) 'discount': discount,
+    });
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to process order return');
+    }
+  }
 }

@@ -195,4 +195,26 @@ class ProductRepository {
       return {'canDelete': false, 'reason': _extractError(e, 'Unable to check')};
     }
   }
+
+  /// Get availability calendar for a product
+  Future<Map<String, dynamic>> getProductAvailability(
+    String productId, {
+    required String start,
+    required String end,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _client.get(
+        '/products/$productId/availability',
+        queryParameters: {'start': start.split('T')[0], 'end': end.split('T')[0]},
+        cancelToken: cancelToken,
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data as Map<String, dynamic>;
+      }
+      throw Exception('Failed to load availability');
+    } catch (e) {
+      throw Exception(_extractError(e, 'Failed to load availability'));
+    }
+  }
 }

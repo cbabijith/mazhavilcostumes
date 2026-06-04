@@ -1,7 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/responsive.dart';
+import '../../customers/viewmodels/providers/customer_provider.dart';
+import '../../products/viewmodels/providers/product_provider.dart';
+import '../../products/models/product.dart' as p_model;
+import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
+
+// Color Constants accessible across classes in the file
+const _primary = Color(0xFF434343);
+const _accent = Color(0xFFF7C873);
+const _bg = Color(0xFFF8F8F8);
 
 class OrderFormView extends ConsumerStatefulWidget {
   final Order? order;
@@ -14,75 +24,269 @@ class OrderFormView extends ConsumerStatefulWidget {
 
 class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _formKey = GlobalKey<FormState>();
-  final _customerIdController = TextEditingController();
-  final _branchIdController = TextEditingController();
+  bool _isLoading = false;
+  
+  // Selected entities details
+  String? _selectedCustomerId;
+  String? _selectedCustomerName;
+  String? _selectedBranchId;
+  String? _selectedBranchName;
+
   final _startDateController = TextEditingController();
   final _endDateController = TextEditingController();
   final _eventDateController = TextEditingController();
   final _notesController = TextEditingController();
   final _deliveryAddressController = TextEditingController();
   final _pickupAddressController = TextEditingController();
-  final _securityDepositController = TextEditingController(text: '0');
+  final _advanceAmountController = TextEditingController(text: '0');
   final _amountPaidController = TextEditingController(text: '0');
   final _discountController = TextEditingController(text: '0');
+
   OrderStatus? _selectedStatus = OrderStatus.pending;
   PaymentStatus? _selectedPaymentStatus = PaymentStatus.pending;
   DeliveryMethod? _selectedDeliveryMethod = DeliveryMethod.pickup;
   final List<OrderItemInput> _items = [];
 
+  // Totals calculations
+  int _rentalDays = 1;
+  double _subtotal = 0.0;
+  double _gstAmount = 0.0;
+  double _totalAmount = 0.0;
+
   @override
   void initState() {
     super.initState();
+    
+    // Default branch ID from provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentBranchId = ref.read(effectiveBranchIdProvider);
+      if (currentBranchId != null && _selectedBranchId == null) {
+        setState(() {
+          _selectedBranchId = currentBranchId;
+          _selectedBranchName = 'Current Branch';
+        });
+      }
+    });
+
     if (widget.order != null) {
-      _customerIdController.text = widget.order!.customerId;
-      _branchIdController.text = widget.order!.branchId;
+      _selectedCustomerId = widget.order!.customerId;
+      _selectedCustomerName = widget.order!.customer?.name ?? 'Linked Customer';
+      _selectedBranchId = widget.order!.branchId;
+      _selectedBranchName = widget.order!.branch?.name ?? 'Linked Branch';
+      
       _startDateController.text = widget.order!.startDate;
       _endDateController.text = widget.order!.endDate;
       _eventDateController.text = widget.order!.eventDate;
       _notesController.text = widget.order!.notes ?? '';
       _deliveryAddressController.text = widget.order!.deliveryAddress ?? '';
       _pickupAddressController.text = widget.order!.pickupAddress ?? '';
-      _securityDepositController.text = widget.order!.securityDeposit.toString();
-      _amountPaidController.text = widget.order!.amountPaid.toString();
-      _discountController.text = widget.order!.discount.toString();
+      _advanceAmountController.text = widget.order!.advanceAmount.toStringAsFixed(0);
+      _amountPaidController.text = widget.order!.amountPaid.toStringAsFixed(0);
+      _discountController.text = widget.order!.discount.toStringAsFixed(0);
       _selectedStatus = widget.order!.status;
       _selectedPaymentStatus = widget.order!.paymentStatus;
       _selectedDeliveryMethod = widget.order!.deliveryMethod;
+      
       if (widget.order!.items != null) {
         _items.addAll(widget.order!.items!.map((item) => OrderItemInput(
-          productId: item.productId,
-          quantity: item.quantity,
-          pricePerDay: item.pricePerDay,
-        )));
+              productId: item.productId,
+              productName: item.product?.name ?? 'Linked Product',
+              quantity: item.quantity,
+              pricePerDay: item.pricePerDay,
+              gstPercentage: item.gstPercentage,
+              isAvailable: true,
+            )));
       }
+      _calculateTotals();
     }
   }
 
   @override
   void dispose() {
-    _customerIdController.dispose();
-    _branchIdController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
     _eventDateController.dispose();
     _notesController.dispose();
     _deliveryAddressController.dispose();
     _pickupAddressController.dispose();
-    _securityDepositController.dispose();
+    _advanceAmountController.dispose();
     _amountPaidController.dispose();
     _discountController.dispose();
     super.dispose();
+  }
+
+  void _calculateTotals() {
+    // 1. Calculate rental days (inclusive counting: pickup day + return day)
+    if (_startDateController.text.isNotEmpty && _endDateController.text.isNotEmpty) {
+      try {
+        final start = DateTime.parse(_startDateController.text);
+        final end = DateTime.parse(_endDateController.text);
+        final diff = end.difference(start).inDays;
+        _rentalDays = diff >= 0 ? diff + 1 : 1;
+      } catch (_) {
+        _rentalDays = 1;
+      }
+    } else {
+      _rentalDays = 1;
+    }
+
+    // 2. Pricing multiplier: base price covers first 3 days, each extra day adds 1x
+    final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+
+    // 3. Sum up items
+    double itemsSum = 0.0;
+    for (final item in _items) {
+      itemsSum += item.quantity * item.pricePerDay * pricingMultiplier;
+    }
+
+    final discount = double.tryParse(_discountController.text) ?? 0.0;
+    final totalAfterDiscount = itemsSum - discount > 0 ? itemsSum - discount : 0.0;
+
+    // 4. GST-inclusive: the rent amount ALREADY includes GST
+    // Formula: base = amount / (1 + rate/100), gst = amount - base
+    // When there's an order-level discount, proportionally reduce GST
+    double totalGst = 0.0;
+    final double ratio = itemsSum > 0 ? totalAfterDiscount / itemsSum : 1.0;
+
+    for (final item in _items) {
+      final double lineTotal = item.quantity * item.pricePerDay * pricingMultiplier;
+      final double gstRate = item.gstPercentage > 0 ? item.gstPercentage : 18.0; // 18% standard fallback
+      final double base = lineTotal / (1 + gstRate / 100);
+      final double gst = lineTotal - base;
+      totalGst += gst * ratio;
+    }
+
+    setState(() {
+      _subtotal = itemsSum;
+      _gstAmount = totalGst;
+      _totalAmount = totalAfterDiscount;
+    });
   }
 
   Future<void> _selectDate(TextEditingController controller) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: _primary, onPrimary: Colors.white, surface: Colors.white),
+          ),
+          child: child!,
+        );
+      },
     );
-    if (picked != null && mounted) {
-      controller.text = picked.toIso8601String();
+    if (picked != null) {
+      setState(() {
+        controller.text = picked.toIso8601String().split('T')[0];
+      });
+      _calculateTotals();
+      _checkAllItemsAvailability();
+    }
+  }
+
+  void _openCustomerLookup() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _SearchSelectorDialog(
+          title: 'Select Customer',
+          hint: 'Search name or phone...',
+          fetchList: (query) async {
+            final repo = ref.read(customerRepositoryProvider);
+            final result = await repo.getCustomers(query: query);
+            return result.customers.map((c) => _LookupItem(id: c.id, label: c.name, subtitle: c.phone)).toList();
+          },
+          onSelect: (item) {
+            setState(() {
+              _selectedCustomerId = item.id;
+              _selectedCustomerName = item.label;
+            });
+          },
+        );
+      },
+    );
+  }
+
+  void _openProductLookup(int itemIndex) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _SearchSelectorDialog(
+          title: 'Select Product',
+          hint: 'Search products...',
+          fetchList: (query) async {
+            final repo = ref.read(productRepositoryProvider);
+            final result = await repo.getProducts(search: query);
+            return result.products
+                .map((p) => _LookupItem(
+                      id: p.id,
+                      label: p.name,
+                      subtitle: 'Rate: ₹${p.pricePerDay.toStringAsFixed(0)}/day  |  Stock: ${p.availableQuantity}',
+                      extraData: p,
+                    ))
+                .toList();
+          },
+          onSelect: (item) {
+            final product = item.extraData as p_model.Product;
+            setState(() {
+              _items[itemIndex].productId = product.id;
+              _items[itemIndex].productName = product.name;
+              _items[itemIndex].pricePerDay = product.pricePerDay;
+              _items[itemIndex].gstPercentage = product.gstPercentage;
+            });
+            _calculateTotals();
+            _checkItemAvailability(itemIndex);
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _checkItemAvailability(int index) async {
+    final item = _items[index];
+    if (item.productId.isEmpty || _startDateController.text.isEmpty || _endDateController.text.isEmpty) return;
+
+    setState(() => item.isChecking = true);
+    try {
+      final repo = ref.read(productRepositoryProvider);
+      final result = await repo.getProductAvailability(
+        item.productId,
+        start: _startDateController.text,
+        end: _endDateController.text,
+      );
+
+      final days = result['data']?['days'] as List?;
+      bool isAvail = true;
+      int minAvailable = 999;
+
+      if (days != null) {
+        for (final d in days) {
+          final avail = (d['available'] as num?)?.toInt() ?? 0;
+          if (avail < item.quantity) {
+            isAvail = false;
+          }
+          if (avail < minAvailable) {
+            minAvailable = avail;
+          }
+        }
+      }
+
+      setState(() {
+        item.isAvailable = isAvail;
+        item.availableStockInfo = isAvail ? null : 'Conflict (Max avail: $minAvailable)';
+        item.isChecking = false;
+      });
+    } catch (_) {
+      setState(() => item.isChecking = false);
+    }
+  }
+
+  void _checkAllItemsAvailability() {
+    for (int i = 0; i < _items.length; i++) {
+      _checkItemAvailability(i);
     }
   }
 
@@ -96,17 +300,49 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     setState(() {
       _items.removeAt(index);
     });
+    _calculateTotals();
   }
 
   Future<void> _submit() async {
+    if (_selectedCustomerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a customer')));
+      return;
+    }
+    if (_items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add at least 1 item')));
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
+    // Check conflict warning
+    final hasConflicts = _items.any((i) => !i.isAvailable);
+    if (hasConflicts) {
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Stock Conflicts Detected'),
+          content: const Text('Some items do not have enough availability for these dates. Proceed anyway?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.orange),
+              child: const Text('Proceed'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) return;
+    }
+
+    setState(() => _isLoading = true);
+
     final body = {
-      'customer_id': _customerIdController.text.trim(),
-      'branch_id': _branchIdController.text.trim(),
+      'customer_id': _selectedCustomerId,
+      'branch_id': _selectedBranchId,
       'rental_start_date': _startDateController.text,
       'rental_end_date': _endDateController.text,
-      'event_date': _eventDateController.text,
+      'event_date': _eventDateController.text.isEmpty ? null : _eventDateController.text,
       'delivery_method': _selectedDeliveryMethod?.name,
       'delivery_address': _deliveryAddressController.text.trim().isEmpty ? null : _deliveryAddressController.text.trim(),
       'pickup_address': _pickupAddressController.text.trim().isEmpty ? null : _pickupAddressController.text.trim(),
@@ -116,13 +352,12 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         'quantity': item.quantity,
         'price_per_day': item.pricePerDay,
       }).toList(),
-      'store_id': 'default-store-id', // TODO: Get from auth context
     };
 
     if (widget.order != null) {
       body.addAll({
         'status': _selectedStatus?.name,
-        'security_deposit': double.tryParse(_securityDepositController.text) ?? 0,
+        'advance_amount': double.tryParse(_advanceAmountController.text) ?? 0,
         'amount_paid': double.tryParse(_amountPaidController.text) ?? 0,
         'payment_status': _selectedPaymentStatus?.name,
         'discount': double.tryParse(_discountController.text) ?? 0,
@@ -141,9 +376,10 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         Navigator.pop(context);
       }
     } catch (e) {
+      setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error saving order: $e')),
         );
       }
     }
@@ -151,289 +387,457 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   @override
   Widget build(BuildContext context) {
+    Responsive.init(context);
     final isEditing = widget.order != null;
 
     return Scaffold(
+      backgroundColor: _bg,
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Order' : 'Create Order'),
+        title: Text(isEditing ? 'Edit Order' : 'Create Order',
+            style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: _primary)),
+        scrolledUnderElevation: 0,
+        backgroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _customerIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Customer ID',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Customer ID is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _branchIdController,
-                decoration: const InputDecoration(
-                  labelText: 'Branch ID',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Branch ID is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _startDateController,
-                decoration: const InputDecoration(
-                  labelText: 'Start Date',
-                  border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_today),
-                ),
-                readOnly: true,
-                onTap: () => _selectDate(_startDateController),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Start date is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _endDateController,
-                decoration: const InputDecoration(
-                  labelText: 'End Date',
-                  border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_today),
-                ),
-                readOnly: true,
-                onTap: () => _selectDate(_endDateController),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'End date is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _eventDateController,
-                decoration: const InputDecoration(
-                  labelText: 'Event Date',
-                  border: OutlineInputBorder(),
-                  suffixIcon: Icon(Icons.calendar_today),
-                ),
-                readOnly: true,
-                onTap: () => _selectDate(_eventDateController),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Event date is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<DeliveryMethod>(
-                initialValue: _selectedDeliveryMethod,
-                decoration: const InputDecoration(
-                  labelText: 'Delivery Method',
-                  border: OutlineInputBorder(),
-                ),
-                items: DeliveryMethod.values.map((method) {
-                  return DropdownMenuItem(
-                    value: method,
-                    child: Text(method.name[0].toUpperCase() + method.name.substring(1)),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDeliveryMethod = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _deliveryAddressController,
-                decoration: const InputDecoration(
-                  labelText: 'Delivery Address',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _pickupAddressController,
-                decoration: const InputDecoration(
-                  labelText: 'Pickup Address',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Order Items',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              ..._items.asMap().entries.map((entry) {
-                final index = entry.key;
-                final item = entry.value;
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          initialValue: item.productId,
-                          decoration: const InputDecoration(
-                            labelText: 'Product ID',
-                            border: OutlineInputBorder(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _primary))
+          : Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: Responsive.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSectionHeader('Fulfillment Basics'),
+                    _buildCard(children: [
+                      // Customer Lookup Selector
+                      _buildLookupField(
+                        label: 'Customer',
+                        value: _selectedCustomerName ?? 'Choose Customer...',
+                        icon: Icons.person_search_rounded,
+                        onTap: _openCustomerLookup,
+                      ),
+                      SizedBox(height: Responsive.h(12)),
+                      // Dates Selectors
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildDateField(
+                              label: 'Start Date',
+                              controller: _startDateController,
+                              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                            ),
                           ),
-                          onChanged: (value) {
-                            item.productId = value;
-                          },
+                          SizedBox(width: Responsive.w(12)),
+                          Expanded(
+                            child: _buildDateField(
+                              label: 'End Date',
+                              controller: _endDateController,
+                              validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: Responsive.h(12)),
+                      _buildDateField(
+                        label: 'Event Date',
+                        controller: _eventDateController,
+                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                      ),
+                    ]),
+                    SizedBox(height: Responsive.h(16)),
+                    _buildSectionHeader('Rent Items'),
+                    ..._items.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final item = entry.value;
+                      return _buildItemCard(item, index);
+                    }),
+                    SizedBox(height: Responsive.h(8)),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _primary),
+                        foregroundColor: _primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: Responsive.symmetric(vertical: 12),
+                      ),
+                      onPressed: _addItem,
+                      icon: Icon(Icons.add_rounded, size: Responsive.icon(20)),
+                      label: Text('Add costume item', style: TextStyle(fontSize: Responsive.sp(13))),
+                    ),
+                    SizedBox(height: Responsive.h(16)),
+                    _buildSectionHeader('Pricing Summary'),
+                    _buildCard(children: [
+                      _buildTotalSummaryRow('Subtotal', '₹${_subtotal.toStringAsFixed(2)}'),
+                      _buildTotalSummaryRow('GST (18% Standard)', '₹${_gstAmount.toStringAsFixed(2)}'),
+                      SizedBox(height: Responsive.h(8)),
+                      TextFormField(
+                        controller: _discountController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontSize: Responsive.sp(14)),
+                        decoration: InputDecoration(
+                          labelText: 'Flat Discount (₹)',
+                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        const SizedBox(height: 8),
+                        onChanged: (_) => _calculateTotals(),
+                      ),
+                      const Divider(height: 24),
+                      _buildTotalSummaryRow('Grand Total', '₹${_totalAmount.toStringAsFixed(2)}', isBold: true),
+                      if (isEditing) ...[
+                        SizedBox(height: Responsive.h(12)),
                         TextFormField(
-                          initialValue: item.quantity.toString(),
-                          decoration: const InputDecoration(
-                            labelText: 'Quantity',
-                            border: OutlineInputBorder(),
-                          ),
+                          controller: _advanceAmountController,
                           keyboardType: TextInputType.number,
-                          onChanged: (value) {
-                            item.quantity = int.tryParse(value) ?? 0;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          initialValue: item.pricePerDay.toString(),
-                          decoration: const InputDecoration(
-                            labelText: 'Price per Day',
-                            border: OutlineInputBorder(),
+                          style: TextStyle(fontSize: Responsive.sp(14)),
+                          decoration: InputDecoration(
+                            labelText: 'Advance Collected (₹)',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
-                          keyboardType: TextInputType.number,
-                          onChanged: (value) {
-                            item.pricePerDay = double.tryParse(value) ?? 0;
-                          },
                         ),
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton.icon(
-                            onPressed: () => _removeItem(index),
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            label: const Text('Remove Item', style: TextStyle(color: Colors.red)),
+                        SizedBox(height: Responsive.h(12)),
+                        TextFormField(
+                          controller: _amountPaidController,
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(fontSize: Responsive.sp(14)),
+                          decoration: InputDecoration(
+                            labelText: 'Amount Paid (₹)',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                         ),
                       ],
+                    ]),
+                    SizedBox(height: Responsive.h(16)),
+                    _buildSectionHeader('Logistics & Notes'),
+                    _buildCard(children: [
+                      DropdownButtonFormField<DeliveryMethod>(
+                        value: _selectedDeliveryMethod,
+                        style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                        decoration: InputDecoration(
+                          labelText: 'Fulfillment Method',
+                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: DeliveryMethod.values.map((method) {
+                          return DropdownMenuItem(
+                            value: method,
+                            child: Text(method.name.toUpperCase()),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedDeliveryMethod = value;
+                          });
+                        },
+                      ),
+                      SizedBox(height: Responsive.h(12)),
+                      if (_selectedDeliveryMethod == DeliveryMethod.delivery) ...[
+                        TextFormField(
+                          controller: _deliveryAddressController,
+                          style: TextStyle(fontSize: Responsive.sp(14)),
+                          decoration: InputDecoration(
+                            labelText: 'Delivery Address',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          maxLines: 2,
+                        ),
+                        SizedBox(height: Responsive.h(12)),
+                      ],
+                      if (_selectedDeliveryMethod == DeliveryMethod.pickup) ...[
+                        TextFormField(
+                          controller: _pickupAddressController,
+                          style: TextStyle(fontSize: Responsive.sp(14)),
+                          decoration: InputDecoration(
+                            labelText: 'Pickup Branch Location',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          maxLines: 2,
+                        ),
+                        SizedBox(height: Responsive.h(12)),
+                      ],
+                      TextFormField(
+                        controller: _notesController,
+                        style: TextStyle(fontSize: Responsive.sp(14)),
+                        decoration: InputDecoration(
+                          labelText: 'Order Notes',
+                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        maxLines: 2,
+                      ),
+                      if (isEditing) ...[
+                        SizedBox(height: Responsive.h(12)),
+                        DropdownButtonFormField<OrderStatus>(
+                          value: _selectedStatus,
+                          style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                          decoration: InputDecoration(
+                            labelText: 'Order Status',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          items: OrderStatus.values.map((status) {
+                            return DropdownMenuItem(
+                              value: status,
+                              child: Text(status.name.toUpperCase()),
+                            );
+                          }).toList(),
+                          onChanged: (val) => setState(() => _selectedStatus = val),
+                        ),
+                        SizedBox(height: Responsive.h(12)),
+                        DropdownButtonFormField<PaymentStatus>(
+                          value: _selectedPaymentStatus,
+                          style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                          decoration: InputDecoration(
+                            labelText: 'Payment Status',
+                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          items: PaymentStatus.values.map((status) {
+                            return DropdownMenuItem(
+                              value: status,
+                              child: Text(status.name.toUpperCase()),
+                            );
+                          }).toList(),
+                          onChanged: (val) => setState(() => _selectedPaymentStatus = val),
+                        ),
+                      ],
+                    ]),
+                    SizedBox(height: Responsive.h(24)),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
+                        padding: Responsive.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _submit,
+                      child: Text(
+                        isEditing ? 'Update Order Details' : 'Place Rental Booking',
+                        style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                );
-              }),
-              TextButton.icon(
-                onPressed: _addItem,
-                icon: const Icon(Icons.add),
-                label: const Text('Add Item'),
+                    SizedBox(height: Responsive.h(40)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notes',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
+            ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: Responsive.only(bottom: 8, left: 4),
+      child: Text(
+        title,
+        style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: Colors.grey[700]),
+      ),
+    );
+  }
+
+  Widget _buildCard({required List<Widget> children}) {
+    return Container(
+      padding: Responsive.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(12)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
+    );
+  }
+
+  Widget _buildLookupField({
+    required String label,
+    required String value,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Responsive.r(8)),
+      child: Container(
+        padding: Responsive.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(Responsive.r(8)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: _primary, size: Responsive.icon(20)),
+            SizedBox(width: Responsive.w(8)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey)),
+                  SizedBox(height: Responsive.h(2)),
+                  Text(value, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w600)),
+                ],
               ),
-              if (isEditing) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<OrderStatus>(
-                  initialValue: _selectedStatus,
-                  decoration: const InputDecoration(
-                    labelText: 'Status',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: OrderStatus.values.map((status) {
-                    return DropdownMenuItem(
-                      value: status,
-                      child: Text(status.name.split('_').map((e) => e[0].toUpperCase() + e.substring(1)).join(' ')),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedStatus = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<PaymentStatus>(
-                  initialValue: _selectedPaymentStatus,
-                  decoration: const InputDecoration(
-                    labelText: 'Payment Status',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: PaymentStatus.values.map((status) {
-                    return DropdownMenuItem(
-                      value: status,
-                      child: Text(status.name[0].toUpperCase() + status.name.substring(1)),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedPaymentStatus = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _securityDepositController,
-                  decoration: const InputDecoration(
-                    labelText: 'Security Deposit',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _amountPaidController,
-                  decoration: const InputDecoration(
-                    labelText: 'Amount Paid',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _discountController,
-                  decoration: const InputDecoration(
-                    labelText: 'Discount',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _submit,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: Text(isEditing ? 'Update Order' : 'Create Order'),
+            ),
+            Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField({
+    required String label,
+    required TextEditingController controller,
+    required String? Function(String?) validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true,
+      style: TextStyle(fontSize: Responsive.sp(14)),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: Icon(Icons.calendar_today_rounded, size: Responsive.icon(18)),
+        contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onTap: () => _selectDate(controller),
+      validator: validator,
+    );
+  }
+
+  Widget _buildItemCard(OrderItemInput item, int index) {
+    return Container(
+      margin: Responsive.only(bottom: 12),
+      padding: Responsive.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(12)),
+        border: Border.all(color: item.isAvailable ? Colors.transparent : Colors.red.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('Costume #${index + 1}',
+                  style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: _primary)),
+              const Spacer(),
+              IconButton(
+                icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: Responsive.icon(20)),
+                onPressed: () => _removeItem(index),
               ),
             ],
           ),
-        ),
+          _buildLookupField(
+            label: 'Costume Product',
+            value: item.productName.isEmpty ? 'Select costume...' : item.productName,
+            icon: Icons.search_rounded,
+            onTap: () => _openProductLookup(index),
+          ),
+          SizedBox(height: Responsive.h(12)),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: item.quantity.toString(),
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  decoration: InputDecoration(
+                    labelText: 'Quantity',
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      item.quantity = int.tryParse(val) ?? 1;
+                    });
+                    _calculateTotals();
+                    _checkItemAvailability(index);
+                  },
+                ),
+              ),
+              SizedBox(width: Responsive.w(12)),
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('rate_$index'),
+                  initialValue: item.pricePerDay.toStringAsFixed(0),
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  decoration: InputDecoration(
+                    labelText: 'Rate/day (₹)',
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      item.pricePerDay = double.tryParse(val) ?? 0.0;
+                    });
+                    _calculateTotals();
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (item.isChecking)
+            Padding(
+              padding: Responsive.only(top: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                      width: Responsive.w(12),
+                      height: Responsive.w(12),
+                      child: const CircularProgressIndicator(strokeWidth: 1.5, color: _primary)),
+                  SizedBox(width: Responsive.w(6)),
+                  Text('Checking availability...', style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey)),
+                ],
+              ),
+            )
+          else if (item.availableStockInfo != null)
+            Padding(
+              padding: Responsive.only(top: 8),
+              child: Row(
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: Responsive.icon(16)),
+                  SizedBox(width: Responsive.w(4)),
+                  Text(item.availableStockInfo!, style: TextStyle(fontSize: Responsive.sp(11), color: Colors.orange)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTotalSummaryRow(String label, String value, {bool isBold = false}) {
+    return Padding(
+      padding: Responsive.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: Responsive.sp(13),
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: isBold ? _primary : Colors.grey[700],
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: Responsive.sp(13),
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: isBold ? _primary : Colors.grey[800],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -441,8 +845,137 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
 class OrderItemInput {
   String productId = '';
+  String productName = '';
   int quantity = 1;
   double pricePerDay = 0.0;
+  double gstPercentage = 0.0;
+  bool isAvailable = true;
+  bool isChecking = false;
+  String? availableStockInfo;
 
-  OrderItemInput({this.productId = '', this.quantity = 1, this.pricePerDay = 0.0});
+  OrderItemInput({
+    this.productId = '',
+    this.productName = '',
+    this.quantity = 1,
+    this.pricePerDay = 0.0,
+    this.gstPercentage = 0.0,
+    this.isAvailable = true,
+  });
+}
+
+class _LookupItem {
+  final String id;
+  final String label;
+  final String subtitle;
+  final dynamic extraData;
+
+  _LookupItem({required this.id, required this.label, required this.subtitle, this.extraData});
+}
+
+class _SearchSelectorDialog extends StatefulWidget {
+  final String title;
+  final String hint;
+  final Future<List<_LookupItem>> Function(String) fetchList;
+  final ValueChanged<_LookupItem> onSelect;
+
+  const _SearchSelectorDialog({
+    required this.title,
+    required this.hint,
+    required this.fetchList,
+    required this.onSelect,
+  });
+
+  @override
+  State<_SearchSelectorDialog> createState() => _SearchSelectorDialogState();
+}
+
+class _SearchSelectorDialogState extends State<_SearchSelectorDialog> {
+  final _searchController = TextEditingController();
+  List<_LookupItem> _results = [];
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _triggerSearch('');
+  }
+
+  Future<void> _triggerSearch(String query) async {
+    setState(() => _loading = true);
+    try {
+      final list = await widget.fetchList(query);
+      setState(() {
+        _results = list;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Responsive.init(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(14))),
+      child: Padding(
+        padding: Responsive.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.title, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold)),
+            SizedBox(height: Responsive.h(12)),
+            TextField(
+              controller: _searchController,
+              style: TextStyle(fontSize: Responsive.sp(14)),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
+                prefixIcon: Icon(Icons.search, size: Responsive.icon(20)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(10))),
+                contentPadding: Responsive.symmetric(horizontal: 12, vertical: 10),
+              ),
+              onChanged: (val) {
+                _triggerSearch(val);
+              },
+            ),
+            SizedBox(height: Responsive.h(12)),
+            Container(
+              constraints: BoxConstraints(maxHeight: Responsive.h(250)),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(color: _primary))
+                  : _results.isEmpty
+                      ? const Center(child: Text('No results found.'))
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: _results.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, i) {
+                             final item = _results[i];
+                             return ListTile(
+                               contentPadding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                               title: Text(item.label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(14))),
+                               subtitle: Text(item.subtitle, style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(12))),
+                               onTap: () {
+                                 widget.onSelect(item);
+                                 Navigator.pop(context);
+                               },
+                             );
+                          },
+                        ),
+            ),
+            SizedBox(height: Responsive.h(12)),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close', style: TextStyle(color: _primary, fontSize: Responsive.sp(13))),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

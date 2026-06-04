@@ -168,10 +168,11 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
       child: Row(
         children: _statusFilters.entries.map((entry) {
           final isActive = entry.value == _selectedChip;
-          // Count orders matching this status
           final count = entry.value == null
               ? allOrders.length
-              : allOrders.where((o) => _statusToString(o.status) == entry.value).length;
+              : entry.value == 'late_return'
+                  ? allOrders.where((o) => o.isLate).length
+                  : allOrders.where((o) => _statusToString(o.status) == entry.value).length;
           return Padding(
             padding: Responsive.only(right: 8),
             child: GestureDetector(
@@ -235,7 +236,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildOrderCard(Order order) {
-    final statusColor = _getStatusColor(order.status);
+    final statusColor = order.isLate ? const Color(0xFFFF6B8A) : _getStatusColor(order.status);
     final customerName = order.customer?.name ?? 'Unknown';
     final customerPhone = order.customer?.phone ?? '';
     final itemCount = order.items?.length ?? 0;
@@ -303,7 +304,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                         borderRadius: BorderRadius.circular(Responsive.r(8)),
                       ),
                       child: Text(
-                        _formatStatus(order.status),
+                        order.isLate ? 'Overdue' : _formatStatus(order.status),
                         style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w700, color: statusColor),
                         maxLines: 1, overflow: TextOverflow.ellipsis,
                       ),
@@ -432,8 +433,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
       case OrderStatus.returned:
       case OrderStatus.completed: return const Color(0xFF2ECC71);
       case OrderStatus.cancelled: return const Color(0xFF95A5A6);
-      case OrderStatus.flagged:
-      case OrderStatus.lateReturn: return const Color(0xFFFF6B8A);
+      case OrderStatus.flagged: return const Color(0xFFFF6B8A);
       case OrderStatus.partial: return const Color(0xFFF5A623);
     }
   }
@@ -451,7 +451,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
       case OrderStatus.completed: return 'completed';
       case OrderStatus.cancelled: return 'cancelled';
       case OrderStatus.flagged: return 'flagged';
-      case OrderStatus.lateReturn: return 'late_return';
     }
   }
 
@@ -468,7 +467,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
       case OrderStatus.completed: return 'Completed';
       case OrderStatus.cancelled: return 'Cancelled';
       case OrderStatus.flagged: return 'Flagged';
-      case OrderStatus.lateReturn: return 'Overdue';
     }
   }
 

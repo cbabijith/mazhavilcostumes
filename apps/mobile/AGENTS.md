@@ -16,6 +16,11 @@
   - **Why** the change was necessary
   - **How** the fix works
 
+## 🔍 Mandatory Graphify Usage & Token Optimization
+- **Use Graphify First**: For any codebase, directory, or structural questions, you **MUST** run `graphify query` or `query_graph` instead of doing broad grep or file searches.
+- **Reference Exact Files**: Always ask the user for specific file references (e.g. `@file`) or search the graph to target files precisely, preventing unnecessary loading of files to keep prompt sizes small.
+- **Atomic Tasks**: Break feature development down into small, step-by-step components (Model -> Repository -> Provider -> View) to maintain maximum accuracy and lowest token usage.
+
 ---
 
 ## Architecture

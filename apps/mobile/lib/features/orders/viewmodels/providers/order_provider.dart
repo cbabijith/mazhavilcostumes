@@ -46,6 +46,38 @@ class OrderOperations {
   Future<void> deleteOrder(String id) async {
     await _repository.deleteOrder(id);
   }
+
+  Future<void> collectPayment({
+    required String orderId,
+    required double amount,
+    required String paymentMode,
+    required String paymentType,
+    String? notes,
+  }) async {
+    await _repository.collectPayment(
+      orderId: orderId,
+      amount: amount,
+      paymentMode: paymentMode,
+      paymentType: paymentType,
+      notes: notes,
+    );
+  }
+
+  Future<void> processReturn({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+    double? lateFee,
+    double? discount,
+  }) async {
+    await _repository.processReturn(
+      orderId: orderId,
+      items: items,
+      notes: notes,
+      lateFee: lateFee,
+      discount: discount,
+    );
+  }
 }
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {

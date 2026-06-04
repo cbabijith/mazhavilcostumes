@@ -1,10 +1,12 @@
+import 'package:equatable/equatable.dart';
+
 // Product domain models for the Mazhavil Costumes mobile app.
 //
 // Mirrors the Next.js Product domain types including costumes-specific
 // fields (material, metal_purity, metal_color, weight_grams) and
 // rental-specific fields (condition, min/max rental days, inventory counts).
 
-class BranchInventory {
+class BranchInventory extends Equatable {
   final String id;
   final String productId;
   final String branchId;
@@ -13,7 +15,7 @@ class BranchInventory {
   final String createdAt;
   final String updatedAt;
 
-  BranchInventory({
+  const BranchInventory({
     required this.id,
     required this.productId,
     required this.branchId,
@@ -23,8 +25,10 @@ class BranchInventory {
     required this.updatedAt,
   });
 
+  @override
+  List<Object?> get props => [id, productId, branchId, stockCount, branchName, createdAt, updatedAt];
+
   factory BranchInventory.fromJson(Map<String, dynamic> json) {
-    // Extract branch name from nested 'branches' object if present
     String? branchName = json['branch_name'] as String?;
     if (branchName == null && json['branches'] is Map) {
       branchName = (json['branches'] as Map<String, dynamic>)['name'] as String?;
@@ -54,18 +58,21 @@ class BranchInventory {
   }
 }
 
-class ProductImage {
+class ProductImage extends Equatable {
   final String url;
   final String altText;
   final bool isPrimary;
   final int sortOrder;
 
-  ProductImage({
+  const ProductImage({
     required this.url,
     this.altText = '',
     this.isPrimary = false,
     this.sortOrder = 0,
   });
+
+  @override
+  List<Object?> get props => [url, altText, isPrimary, sortOrder];
 
   factory ProductImage.fromJson(dynamic json) {
     if (json is String) {
@@ -89,20 +96,23 @@ class ProductImage {
   }
 }
 
-class ProductVariant {
+class ProductVariant extends Equatable {
   final String id;
   final String name;
   final String value;
   final double additionalPrice;
   final bool inStock;
 
-  ProductVariant({
+  const ProductVariant({
     required this.id,
     required this.name,
     required this.value,
     this.additionalPrice = 0,
     this.inStock = true,
   });
+
+  @override
+  List<Object?> get props => [id, name, value, additionalPrice, inStock];
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
     return ProductVariant(
@@ -125,7 +135,7 @@ class ProductVariant {
   }
 }
 
-class Product {
+class Product extends Equatable {
   final String id;
   final String storeId;
   final String? categoryId;
@@ -138,7 +148,9 @@ class Product {
   final String? sku;
   final String? barcode;
   final double pricePerDay;
-  final double securityDeposit;
+  final double purchasePrice;
+  final double securityDeposit; // Kept for UI backward compatibility, defaults to 0.0
+  final double gstPercentage;
 
   // Inventory
   final int quantity;
@@ -174,10 +186,16 @@ class Product {
   final String createdAt;
   final String? updatedAt;
 
+  // Audit Fields (matching Admin types)
+  final String? createdBy;
+  final String? createdAtBranchId;
+  final String? updatedBy;
+  final String? updatedAtBranchId;
+
   // Branch inventory
   final List<BranchInventory> branchInventory;
 
-  Product({
+  const Product({
     required this.id,
     required this.storeId,
     this.categoryId,
@@ -190,7 +208,9 @@ class Product {
     this.sku,
     this.barcode,
     required this.pricePerDay,
-    this.securityDeposit = 0,
+    this.purchasePrice = 0.0,
+    this.securityDeposit = 0.0,
+    this.gstPercentage = 0.0,
     required this.quantity,
     required this.availableQuantity,
     this.reservedQuantity = 0,
@@ -213,8 +233,58 @@ class Product {
     this.lowStockThreshold = 10,
     required this.createdAt,
     this.updatedAt,
+    this.createdBy,
+    this.createdAtBranchId,
+    this.updatedBy,
+    this.updatedAtBranchId,
     this.branchInventory = const [],
   });
+
+  @override
+  List<Object?> get props => [
+        id,
+        storeId,
+        categoryId,
+        subcategoryId,
+        subvariantId,
+        branchId,
+        name,
+        slug,
+        description,
+        sku,
+        barcode,
+        pricePerDay,
+        purchasePrice,
+        securityDeposit,
+        gstPercentage,
+        quantity,
+        availableQuantity,
+        reservedQuantity,
+        maintenanceQuantity,
+        totalQuantity,
+        material,
+        metalPurity,
+        metalColor,
+        weightGrams,
+        condition,
+        sanitizationStatus,
+        minRentalDays,
+        maxRentalDays,
+        images,
+        sizes,
+        colors,
+        isActive,
+        isFeatured,
+        trackInventory,
+        lowStockThreshold,
+        createdAt,
+        updatedAt,
+        createdBy,
+        createdAtBranchId,
+        updatedBy,
+        updatedAtBranchId,
+        branchInventory,
+      ];
 
   /// Quick helper — primary image URL or null.
   String? get primaryImageUrl {
@@ -244,7 +314,11 @@ class Product {
       sku: json['sku'] as String?,
       barcode: json['barcode'] as String?,
       pricePerDay: (json['price_per_day'] as num?)?.toDouble() ?? 0.0,
+      purchasePrice: (json['purchase_price'] as num?)?.toDouble() ?? 0.0,
       securityDeposit: (json['security_deposit'] as num?)?.toDouble() ?? 0.0,
+      gstPercentage: (json['gst_percentage'] as num?)?.toDouble() ??
+          (json['category']?['gst_percentage'] as num?)?.toDouble() ??
+          0.0,
       quantity: json['quantity'] as int? ?? 0,
       availableQuantity: json['available_quantity'] as int? ?? 0,
       reservedQuantity: json['reserved_quantity'] as int? ?? 0,
@@ -276,13 +350,16 @@ class Product {
       lowStockThreshold: json['low_stock_threshold'] as int? ?? 10,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String?,
+      createdBy: json['created_by'] as String?,
+      createdAtBranchId: json['created_at_branch_id'] as String?,
+      updatedBy: json['updated_by'] as String?,
+      updatedAtBranchId: json['updated_at_branch_id'] as String?,
       branchInventory: _parseBranchInventory(json),
     );
   }
 
   /// Parse branch inventory from either 'branch_inventory' or 'product_inventory' key.
   static List<BranchInventory> _parseBranchInventory(Map<String, dynamic> json) {
-    // Try 'branch_inventory' first (mobile API), then 'product_inventory' (Supabase join)
     final raw = json['branch_inventory'] ?? json['product_inventory'];
     if (raw is List) {
       return raw.map((e) => BranchInventory.fromJson(e as Map<String, dynamic>)).toList();
@@ -304,7 +381,9 @@ class Product {
       'sku': sku,
       'barcode': barcode,
       'price_per_day': pricePerDay,
+      'purchase_price': purchasePrice,
       'security_deposit': securityDeposit,
+      'gst_percentage': gstPercentage,
       'quantity': quantity,
       'available_quantity': availableQuantity,
       'reserved_quantity': reservedQuantity,
@@ -327,6 +406,10 @@ class Product {
       'low_stock_threshold': lowStockThreshold,
       'created_at': createdAt,
       'updated_at': updatedAt,
+      'created_by': createdBy,
+      'created_at_branch_id': createdAtBranchId,
+      'updated_by': updatedBy,
+      'updated_at_branch_id': updatedAtBranchId,
       'branch_inventory': branchInventory.map((e) => e.toJson()).toList(),
     };
   }
