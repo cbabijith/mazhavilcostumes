@@ -155,7 +155,7 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                     {order.status.replace('_', ' ').toUpperCase()}
                   </Badge>
                 </div>
-                
+
                 <div className="bg-muted/50 rounded-md p-3">
                   <p className="text-sm font-medium mb-2">Items</p>
                   <ul className="text-sm space-y-1">
@@ -166,7 +166,7 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                     ))}
                   </ul>
                 </div>
-                
+
                 <div className="mt-3 flex justify-between text-sm text-muted-foreground">
                   <div>
                     {format(parseISO(order.start_date), "MMM d")} - {format(parseISO(order.end_date), "MMM d")}
