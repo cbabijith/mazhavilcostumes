@@ -23,6 +23,7 @@ import { OrderStatus } from "@/domain";
 interface OrderStatusBadgeProps {
   status: OrderStatus;
   is_late?: boolean;
+  end_date?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -81,9 +82,7 @@ const DEFAULT_CONFIG = {
   className: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-function OrderStatusBadgeInner({ status, is_late }: OrderStatusBadgeProps) {
-  const config = STATUS_CONFIG[status] || { ...DEFAULT_CONFIG, label: status };
-
+function OrderStatusBadgeInner({ status, is_late, end_date }: OrderStatusBadgeProps) {
   // If order is late, show Late badge instead of status badge
   if (is_late) {
     return (
@@ -92,6 +91,29 @@ function OrderStatusBadgeInner({ status, is_late }: OrderStatusBadgeProps) {
       </Badge>
     );
   }
+
+  // Check if scheduled/pending/confirmed order has expired (return date passed)
+  const isExpired = React.useMemo(() => {
+    if (!end_date || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
+    
+    const end = new Date(end_date);
+    const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    
+    const today = new Date();
+    const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    return endMidnight < todayMidnight;
+  }, [status, end_date]);
+
+  if (isExpired) {
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-750 border-red-200 font-bold uppercase tracking-wider">
+        Expired
+      </Badge>
+    );
+  }
+
+  const config = STATUS_CONFIG[status] || { ...DEFAULT_CONFIG, label: status };
 
   return (
     <Badge variant="outline" className={config.className}>

@@ -243,9 +243,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const handleStartOrder = async () => {
     if (!order) return;
+
+    // Check if the scheduled return date has already passed
+    const today = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(today);
+    const endDate = new Date(order.end_date);
+    if (endDate < todayDate) {
+      showError("Rental Expired", "Cannot start a rental whose scheduled return date has already passed. Please create a new order instead.");
+      return;
+    }
+
     setIsCheckingStock(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
       const items = order.items.map(item => ({
         product_id: item.product_id,
         quantity: item.quantity,
@@ -471,7 +480,20 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     );
   }
 
-  const getStatusDisplay = (status: string) => {
+  const getStatusDisplay = (status: string, endDateStr?: string) => {
+    const isExpired = (() => {
+      if (!endDateStr || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
+      const end = new Date(endDateStr);
+      const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+      const today = new Date();
+      const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      return endMidnight < todayMidnight;
+    })();
+
+    if (isExpired) {
+      return { color: 'bg-red-100 text-red-800 border-red-200', label: 'Expired' };
+    }
+
     switch (status) {
       case OrderStatus.CONFIRMED: case OrderStatus.SCHEDULED: return { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Scheduled' };
       case OrderStatus.ONGOING: case OrderStatus.IN_USE: return { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Ongoing' };
@@ -484,7 +506,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     }
   };
 
-  const statusDisplay = getStatusDisplay(order.status);
+  const statusDisplay = getStatusDisplay(order.status, order.end_date);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
@@ -572,7 +594,34 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           {(order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.SCHEDULED) && (() => {
             const today = startOfDay(new Date());
             const rentalStart = startOfDay(new Date(order.start_date));
+            const rentalEnd = startOfDay(new Date(order.end_date));
+            const isExpired = today > rentalEnd;
             const isEarlyStart = today < rentalStart;
+
+            if (isExpired) {
+              return (
+                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
+                  <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex-1">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5 animate-pulse" />
+                    <div>
+                      <p className="font-extrabold text-red-900 uppercase tracking-wider text-[10px]">Rental Period Expired</p>
+                      <p className="mt-0.5 leading-relaxed text-red-700">
+                        The return date for this scheduled order has already passed. You cannot start this rental. Please cancel this order and create a fresh one.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => setIsCancelModalOpen(true)}
+                    disabled={isUpdating}
+                    variant="outline"
+                    className="h-11 px-4 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold text-sm rounded-xl whitespace-nowrap self-start md:self-auto"
+                  >
+                    <XCircle className="w-4 h-4 mr-1.5" /> Cancel Order
+                  </Button>
+                </div>
+              );
+            }
+
             return (
               <>
                 <Button 
