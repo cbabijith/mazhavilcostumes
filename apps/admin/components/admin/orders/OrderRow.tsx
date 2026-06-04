@@ -186,7 +186,7 @@ function OrderRowInner({
       {/* Status */}
       <td className="px-4 py-4">
         <div className="flex flex-col items-start gap-1">
-          <OrderStatusBadge status={order.status} is_late={order.is_late} />
+          <OrderStatusBadge status={order.status} is_late={order.is_late} end_date={order.end_date} />
 
           {/* Priority Cleaning badge - only show for non-terminal orders */}
           {order.has_priority_cleaning && 
