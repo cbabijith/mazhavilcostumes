@@ -84,7 +84,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isKeepMoneyModalOpen, setIsKeepMoneyModalOpen] = useState(false);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const [barcodeInput, setBarcodeInput] = useState('');  
+  const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   // Start Rental stock check
@@ -106,7 +106,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const order = orderResponse?.data;
   const { data: paymentsResponse, isLoading: isLoadingPayments } = useOrderPayments(orderId);
   const payments = paymentsResponse || [];
-  
+
   const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.PARTIAL;
   const isFinalized = order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
 
@@ -118,12 +118,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         let status: any = null;
         if (item.condition_rating === 'damaged') status = 'damaged';
         else if (item.condition_rating === 'excellent') status = 'excellent';
-        
-        initial[item.id] = { 
-          status: status, 
-          damage_fee: item.damage_charges || 0, 
-          damaged_quantity: item.damaged_quantity || item.quantity, 
-          notes: item.damage_description || "" 
+
+        initial[item.id] = {
+          status: status,
+          damage_fee: item.damage_charges || 0,
+          damaged_quantity: item.damaged_quantity || item.quantity,
+          notes: item.damage_description || ""
         };
       });
       setReturnItems(initial);
@@ -132,26 +132,26 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   // Projected amount due including pending return fees (live preview)
   const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
-  
+
   // Calculate if the order is overdue based on current date vs end_date
   const todayStr = typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '';
   const isOverdue = order ? todayStr > order.end_date : false;
 
   // Base order total before any return-time adjustments (damage, late fee)
-  const originalOrderTotalBeforeReturn = order 
-    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0)) 
+  const originalOrderTotalBeforeReturn = order
+    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0))
     : 0;
 
-  const projected_total = order 
-    ? (isReturnable 
-        ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount 
-        : order.total_amount)
+  const projected_total = order
+    ? (isReturnable
+      ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount
+      : order.total_amount)
     : 0;
 
-  const amount_due = order 
-    ? (isReturnable 
-        ? Math.max(0, projected_total - (order.amount_paid || 0)) 
-        : Math.max(0, order.total_amount - (order.amount_paid || 0)))
+  const amount_due = order
+    ? (isReturnable
+      ? Math.max(0, projected_total - (order.amount_paid || 0))
+      : Math.max(0, order.total_amount - (order.amount_paid || 0)))
     : 0;
 
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
@@ -511,52 +511,52 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       {/* STOCK CONFLICT ALERT */}
-      {order?.has_stock_conflict && 
-       order.status !== OrderStatus.COMPLETED && 
-       order.status !== OrderStatus.CANCELLED && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 animate-in slide-in-from-top duration-300">
-          <div className="flex items-start gap-4">
-            <div className="bg-red-100 p-2.5 rounded-xl shrink-0">
-              <AlertTriangle className="w-6 h-6 text-red-600 animate-pulse" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">
-                Inventory Fulfillment Conflict Detected
-              </h3>
-              <p className="text-sm text-red-700 mt-1 font-medium leading-relaxed">
-                Total inventory for one or more items in this order has dropped below required levels due to damage or write-offs. 
-                This order is currently at risk of incomplete fulfillment.
-              </p>
-              
-              {order.conflict_details && Array.isArray(order.conflict_details) && order.conflict_details.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-3">
-                  {order.conflict_details.map((conflict: any, idx: number) => (
-                    <div key={idx} className="bg-white/80 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-3 shadow-sm">
-                      <div className="bg-red-50 px-2 py-0.5 rounded text-[10px] font-black text-red-700 uppercase tracking-wider">Conflict</div>
-                      <span className="text-xs font-bold text-red-900 uppercase tracking-tight">{conflict.productName}</span>
-                      <div className="w-px h-3 bg-red-200" />
-                      <span className="text-xs text-red-700 font-bold">
-                        Shortfall: {conflict.shortfall} unit(s)
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="bg-white border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 h-10 font-black uppercase tracking-wider text-xs rounded-xl"
-                onClick={() => router.push(`/dashboard/orders/${orderId}/edit`)}
-              >
-                Modify Order
-              </Button>
+      {order?.has_stock_conflict &&
+        order.status !== OrderStatus.COMPLETED &&
+        order.status !== OrderStatus.CANCELLED && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 animate-in slide-in-from-top duration-300">
+            <div className="flex items-start gap-4">
+              <div className="bg-red-100 p-2.5 rounded-xl shrink-0">
+                <AlertTriangle className="w-6 h-6 text-red-600 animate-pulse" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-black text-red-900 uppercase tracking-tight">
+                  Inventory Fulfillment Conflict Detected
+                </h3>
+                <p className="text-sm text-red-700 mt-1 font-medium leading-relaxed">
+                  Total inventory for one or more items in this order has dropped below required levels due to damage or write-offs.
+                  This order is currently at risk of incomplete fulfillment.
+                </p>
+
+                {order.conflict_details && Array.isArray(order.conflict_details) && order.conflict_details.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {order.conflict_details.map((conflict: any, idx: number) => (
+                      <div key={idx} className="bg-white/80 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-3 shadow-sm">
+                        <div className="bg-red-50 px-2 py-0.5 rounded text-[10px] font-black text-red-700 uppercase tracking-wider">Conflict</div>
+                        <span className="text-xs font-bold text-red-900 uppercase tracking-tight">{conflict.productName}</span>
+                        <div className="w-px h-3 bg-red-200" />
+                        <span className="text-xs text-red-700 font-bold">
+                          Shortfall: {conflict.shortfall} unit(s)
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 h-10 font-black uppercase tracking-wider text-xs rounded-xl"
+                  onClick={() => router.push(`/dashboard/orders/${orderId}/edit`)}
+                >
+                  Modify Order
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      
+        )}
+
       {/* 1. Hero Banner (The 2-Second Glance) */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
         {/* Top Row: Order ID + Status */}
@@ -624,9 +624,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
             return (
               <>
-                <Button 
-                  onClick={handleStartOrder} 
-                  disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict} 
+                <Button
+                  onClick={handleStartOrder}
+                  disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict}
                   className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCheckingStock ? (
@@ -663,14 +663,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Out (Pickup)</p>
-          <p className="text-2xl font-bold text-slate-900">{format(new Date(order.start_date), "dd/MM/yyyy")}</p>
+          <p className="text-2xl font-bold text-slate-900">{format(new Date(order.start_date), "MMM d, yyyy")}</p>
         </div>
         <div className={`bg-white rounded-2xl border p-5 ${order.is_late ? 'border-red-400 bg-red-50 ring-4 ring-red-50' : 'border-slate-200'}`}>
           <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${order.is_late ? 'text-red-600' : 'text-slate-500'}`}>
             In (Return)
           </p>
           <p className={`text-2xl font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}>
-            {format(new Date(order.end_date), "dd/MM/yyyy")}
+            {format(new Date(order.end_date), "MMM d, yyyy")}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
@@ -711,11 +711,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md border ${
-                          payment.payment_type === PaymentType.REFUND ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                          payment.payment_type === PaymentType.DEPOSIT ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                          'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        }`}>
+                        <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md border ${payment.payment_type === PaymentType.REFUND ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                            payment.payment_type === PaymentType.DEPOSIT ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
                           {payment.payment_type}
                         </span>
                         <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md uppercase border border-slate-200">
@@ -730,7 +729,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-700">{(payment as any).staff?.name || (payment.created_by ? `Staff #${payment.created_by.slice(0,6)}` : 'System')}</div>
+                      <div className="text-sm font-bold text-slate-700">{(payment as any).staff?.name || (payment.created_by ? `Staff #${payment.created_by.slice(0, 6)}` : 'System')}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Button
@@ -752,7 +751,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
       {/* 3. Split View */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
+
         {/* Left Column: Order Items */}
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -767,7 +766,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               )}
             </div>
 
-            
+
             <div className="divide-y divide-slate-100">
               {order.items.map((item) => {
                 const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: "" };
@@ -795,7 +794,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           <p className="text-sm font-bold text-slate-700">
                             Qty: {item.quantity} × {formatCurrency(item.price_per_day)}
                           </p>
-                          
+
                           {item.discount > 0 && (
                             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
                               -{item.discount_type === 'percent' ? `${item.discount}%` : formatCurrency(item.discount)} Off
@@ -808,7 +807,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             </span>
                           )}
                         </div>
-                        
+
                         {(item.gst_amount > 0 || item.discount > 0) && (
                           <p className="text-[10px] text-slate-400 mt-1 font-medium">
                             Base: {formatCurrency(item.base_amount)} + GST: {formatCurrency(item.gst_amount)}
@@ -901,8 +900,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                               const dbStatus = dbItem.condition_rating === 'damaged' ? 'damaged' : (dbItem.condition_rating === 'excellent' ? 'excellent' : null);
                               const dbDamagedQty = dbItem.condition_rating === 'damaged' ? (dbItem.damaged_quantity || 0) : 0;
                               const currentDamagedQty = rItem.status === 'damaged' ? (rItem.damaged_quantity || 0) : 0;
-                              
-                              const isDirty = 
+
+                              const isDirty =
                                 rItem.status !== dbStatus ||
                                 rItem.damage_fee !== (dbItem.damage_charges || 0) ||
                                 currentDamagedQty !== dbDamagedQty ||
@@ -961,11 +960,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     {!isReturnable && item.is_returned && (
                       <div className="mt-3 space-y-2">
                         {item.condition_rating && (
-                          <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded border ${
-                            item.condition_rating === 'damaged' || item.condition_rating === 'fair'
+                          <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded border ${item.condition_rating === 'damaged' || item.condition_rating === 'fair'
                               ? 'bg-orange-50 text-orange-700 border-orange-200'
                               : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}>
+                            }`}>
                             Condition: {item.condition_rating.charAt(0).toUpperCase() + item.condition_rating.slice(1)}
                           </span>
                         )}
@@ -987,7 +985,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 );
               })}
             </div>
-            
+
             {/* Damage Assessment Panel — for flagged/returned orders with damage */}
             {(order.status === OrderStatus.FLAGGED || order.items.some(i => i.condition_rating === 'damaged')) && !isReturnable && (
               <div className="p-6 border-t border-slate-200">
@@ -997,130 +995,130 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
             {/* Settlement Footer (Only visible when processing returns) */}
             {isReturnable && (
-               <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
-                  {/* Live projected total with damage fees */}
-                  {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
-                    <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
-                      <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
-                      <div className="flex justify-between text-sm text-slate-700">
-                        <span>Base Order Total</span>
-                        <span className="font-bold">{formatCurrency(originalOrderTotalBeforeReturn)}</span>
-                      </div>
-                      {calculatedDamage > 0 && (
-                        <div className="flex justify-between text-sm text-orange-700">
-                          <span>+ Damage Fees</span>
-                          <span className="font-bold">{formatCurrency(calculatedDamage)}</span>
-                        </div>
-                      )}
-                      {lateFee > 0 && (
-                        <div className="flex justify-between text-sm text-red-700">
-                          <span>+ Late Fee</span>
-                          <span className="font-bold">{formatCurrency(lateFee)}</span>
-                        </div>
-                      )}
-                      {discount > 0 && (
-                        <div className="flex justify-between text-sm text-emerald-700">
-                          <span>− Discount</span>
-                          <span className="font-bold">−{formatCurrency(discount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-amber-300">
-                        <span>New Total</span>
-                        <span>{formatCurrency(projected_total)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Less: Paid</span>
-                        <span className="font-bold text-emerald-600">−{formatCurrency(order.amount_paid || 0)}</span>
-                      </div>
-                      <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
-                        <span>Balance Due</span>
-                        <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
-                      </div>
+              <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
+                {/* Live projected total with damage fees */}
+                {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
+                  <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
+                    <div className="flex justify-between text-sm text-slate-700">
+                      <span>Base Order Total</span>
+                      <span className="font-bold">{formatCurrency(originalOrderTotalBeforeReturn)}</span>
                     </div>
-                  )}
-
-                  {/* Warning banner if late fee is added but the order is not late */}
-                  {lateFee > 0 && !isOverdue && (
-                    <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold shadow-sm transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">On-Time Return Warning</p>
-                        <p className="mt-0.5 leading-relaxed text-amber-850">
-                          This order is being returned on-time (due by {order ? format(new Date(order.end_date), "dd MMM yyyy") : ""}). 
-                          Are you sure you want to charge a late fee of {formatCurrency(lateFee)}?
-                        </p>
+                    {calculatedDamage > 0 && (
+                      <div className="flex justify-between text-sm text-orange-700">
+                        <span>+ Damage Fees</span>
+                        <span className="font-bold">{formatCurrency(calculatedDamage)}</span>
                       </div>
+                    )}
+                    {lateFee > 0 && (
+                      <div className="flex justify-between text-sm text-red-700">
+                        <span>+ Late Fee</span>
+                        <span className="font-bold">{formatCurrency(lateFee)}</span>
+                      </div>
+                    )}
+                    {discount > 0 && (
+                      <div className="flex justify-between text-sm text-emerald-700">
+                        <span>− Discount</span>
+                        <span className="font-bold">−{formatCurrency(discount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm font-black text-slate-900 pt-2 border-t border-amber-300">
+                      <span>New Total</span>
+                      <span>{formatCurrency(projected_total)}</span>
                     </div>
-                  )}
-
-                  {/* Payment Due Warning */}
-                  {amount_due > 0 && (
-                    <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-red-800">Payment Due — {formatCurrency(amount_due)}</p>
-                        <p className="text-xs text-red-600 mt-0.5">Collect the remaining balance before or after completing the return.</p>
-                      </div>
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
-                          setIsPaymentModalOpen(true);
-                        }}
-                        className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
-                      >
-                        Collect Payment
-                      </Button>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Less: Paid</span>
+                      <span className="font-bold text-emerald-600">−{formatCurrency(order.amount_paid || 0)}</span>
                     </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
-                      <div className="flex gap-4 w-full sm:w-auto">
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extra Late Fee</label>
-                          <Input type="number" value={lateFee || ""} onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</label>
-                          <Input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
-                        </div>
-                      </div>
-                     <Button
-                        onClick={handleReturnClick}
-                        disabled={isReturning}
-                        className="w-full sm:w-auto h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-md"
-                     >
-                        {isReturning ? "Processing..." : "Complete Return Process"}
-                     </Button>
+                    <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
+                      <span>Balance Due</span>
+                      <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
+                    </div>
                   </div>
-               </div>
+                )}
+
+                {/* Warning banner if late fee is added but the order is not late */}
+                {lateFee > 0 && !isOverdue && (
+                  <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold shadow-sm transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">On-Time Return Warning</p>
+                      <p className="mt-0.5 leading-relaxed text-amber-850">
+                        This order is being returned on-time (due by {order ? format(new Date(order.end_date), "dd MMM yyyy") : ""}).
+                        Are you sure you want to charge a late fee of {formatCurrency(lateFee)}?
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Due Warning */}
+                {amount_due > 0 && (
+                  <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-red-800">Payment Due — {formatCurrency(amount_due)}</p>
+                      <p className="text-xs text-red-600 mt-0.5">Collect the remaining balance before or after completing the return.</p>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                        setIsPaymentModalOpen(true);
+                      }}
+                      className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
+                    >
+                      Collect Payment
+                    </Button>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
+                  <div className="flex gap-4 w-full sm:w-auto">
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extra Late Fee</label>
+                      <Input type="number" value={lateFee || ""} onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</label>
+                      <Input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleReturnClick}
+                    disabled={isReturning}
+                    className="w-full sm:w-auto h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-md"
+                  >
+                    {isReturning ? "Processing..." : "Complete Return Process"}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>
 
         {/* Right Column: Customer & Money */}
         <div className="space-y-6">
-          
+
           {/* Customer Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
             <div>
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Customer</h2>
               <p className="text-2xl font-black text-slate-900 leading-tight">{order.customer?.name}</p>
-              <a 
-                 href={`tel:${order.customer?.phone}`} 
-                 className="mt-4 flex items-center justify-center gap-3 w-full bg-green-50 hover:bg-green-100 text-green-700 border-2 border-green-200 py-3.5 rounded-xl font-black text-lg transition-colors shadow-sm"
+              <a
+                href={`tel:${order.customer?.phone}`}
+                className="mt-4 flex items-center justify-center gap-3 w-full bg-green-50 hover:bg-green-100 text-green-700 border-2 border-green-200 py-3.5 rounded-xl font-black text-lg transition-colors shadow-sm"
               >
-                 <Phone className="w-5 h-5" /> {order.customer?.phone}
+                <Phone className="w-5 h-5" /> {order.customer?.phone}
               </a>
               {order.customer?.alt_phone && (
-                <a 
-                   href={`tel:${order.customer.alt_phone}`} 
-                   className="mt-2.5 flex items-center justify-center gap-3 w-full bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 py-2.5 rounded-xl font-bold text-sm transition-colors"
+                <a
+                  href={`tel:${order.customer.alt_phone}`}
+                  className="mt-2.5 flex items-center justify-center gap-3 w-full bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 py-2.5 rounded-xl font-bold text-sm transition-colors"
                 >
-                   <Phone className="w-4 h-4" /> {order.customer.alt_phone}
-                   <span className="text-xs text-slate-400 font-medium">(Alt)</span>
+                  <Phone className="w-4 h-4" /> {order.customer.alt_phone}
+                  <span className="text-xs text-slate-400 font-medium">(Alt)</span>
                 </a>
               )}
             </div>
@@ -1163,17 +1161,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <Edit3 className="w-3 h-3 mr-1" /> Adjust
               </Button>}
             </div>
-            
+
             {(() => {
               // Calculate breakdown from items (more accurate than order summary fields)
               const rawSubtotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
               const afterItemDiscountTotal = order.items.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0);
               const itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
-              
+
               // Base amount excluding GST is the sum of all item base_amounts
               const totalBaseExclGst = order.items.reduce((sum, item) => sum + (item.base_amount || 0), 0);
               const totalGst = order.items.reduce((sum, item) => sum + (item.gst_amount || 0), 0);
-              
+
               return (
                 <div className="space-y-4">
                   {/* 1. Raw Subtotal */}
@@ -1197,7 +1195,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           const itemAfter = (item.base_amount || 0) + (item.gst_amount || 0);
                           const itemDisc = itemRaw - itemAfter;
                           if (itemDisc <= 0) return null;
-                          
+
                           return (
                             <div key={item.id} className="flex justify-between text-[11px] text-orange-500 font-medium italic">
                               <span className="truncate max-w-[150px]">{item.product?.name}</span>
@@ -1266,7 +1264,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       )}
                     </div>
                   )}
-                  
+
                   {displayDamageCharges > 0 && (
                     <div className="space-y-1 pt-2 border-t border-slate-50">
                       <div className="flex justify-between text-amber-600 font-bold text-sm">
@@ -1410,7 +1408,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="flex justify-between items-center pt-2 px-1">
                         <span className="text-lg font-black text-slate-900">Balance Due</span>
                         <span className={`text-2xl font-black ${displayBalanceDue > 0 ? "text-red-600" : "text-emerald-600"}`}>
@@ -1422,60 +1420,60 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 </div>
               );
             })()}
-            </div>
-
-            {/* Record Payment — only for active orders */}
-            {!isFinalized && amount_due > 0 && (
-              <Button 
-                onClick={() => {
-                  setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
-                  setIsPaymentModalOpen(true);
-                }} 
-                className="w-full mt-6 h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold text-base rounded-xl shadow-md"
-              >
-                Record Payment
-              </Button>
-            )}
-
-
-
-            {/* Cancellation Refund — for cancelled orders */}
-            {order.status === OrderStatus.CANCELLED && (
-              <div className="space-y-3 mt-4">
-                {/* Rental payment refund */}
-                {(order.amount_paid || 0) > 0 && (
-                  <>
-                    <Button 
-                      onClick={() => {
-                        setIsCancellationRefund(true);
-                        setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Cancellation Refund", amount: String(order.amount_paid || 0) });
-                        setIsRefundModalOpen(true);
-                      }} 
-                      className="w-full h-12 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
-                    >
-                      Refund Payment ({formatCurrency(order.amount_paid)})
-                    </Button>
-                    {order.payment_status !== PaymentStatus.REFUND_WAIVED && (
-                      <Button
-                        onClick={() => setIsKeepMoneyModalOpen(true)}
-                        className="w-full h-10 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-bold text-sm rounded-xl transition-colors"
-                      >
-                        Keep Money — No Refund Needed
-                      </Button>
-                    )}
-                    {order.payment_status === PaymentStatus.REFUND_WAIVED && (
-                      <div className="px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700 font-bold text-center flex items-center justify-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Refund waived — money kept
-                      </div>
-                    )}
-                  </>
-                )}
-                {/* Deposit refund removed - no longer applicable */}
-              </div>
-            )}
           </div>
 
+          {/* Record Payment — only for active orders */}
+          {!isFinalized && amount_due > 0 && (
+            <Button
+              onClick={() => {
+                setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                setIsPaymentModalOpen(true);
+              }}
+              className="w-full mt-6 h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold text-base rounded-xl shadow-md"
+            >
+              Record Payment
+            </Button>
+          )}
+
+
+
+          {/* Cancellation Refund — for cancelled orders */}
+          {order.status === OrderStatus.CANCELLED && (
+            <div className="space-y-3 mt-4">
+              {/* Rental payment refund */}
+              {(order.amount_paid || 0) > 0 && (
+                <>
+                  <Button
+                    onClick={() => {
+                      setIsCancellationRefund(true);
+                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Cancellation Refund", amount: String(order.amount_paid || 0) });
+                      setIsRefundModalOpen(true);
+                    }}
+                    className="w-full h-12 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
+                  >
+                    Refund Payment ({formatCurrency(order.amount_paid)})
+                  </Button>
+                  {order.payment_status !== PaymentStatus.REFUND_WAIVED && (
+                    <Button
+                      onClick={() => setIsKeepMoneyModalOpen(true)}
+                      className="w-full h-10 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-bold text-sm rounded-xl transition-colors"
+                    >
+                      Keep Money — No Refund Needed
+                    </Button>
+                  )}
+                  {order.payment_status === PaymentStatus.REFUND_WAIVED && (
+                    <div className="px-3 py-2.5 bg-teal-50 border border-teal-200 rounded-xl text-xs text-teal-700 font-bold text-center flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Refund waived — money kept
+                    </div>
+                  )}
+                </>
+              )}
+              {/* Deposit refund removed - no longer applicable */}
+            </div>
+          )}
         </div>
+
+      </div>
 
       {/* Payment Modal */}
       <Modal
@@ -1518,11 +1516,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     key={method.id}
                     type="button"
                     onClick={() => setPaymentForm({ ...paymentForm, paymentMode: method.id })}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                      isSelected 
-                        ? 'border-slate-900 bg-slate-900 text-white shadow-md' 
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${isSelected
+                        ? 'border-slate-900 bg-slate-900 text-white shadow-md'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <Icon className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
                     <span className="text-sm font-bold">{method.label}</span>
@@ -1531,12 +1528,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               })}
             </div>
           </div>
-          
+
           <div className="space-y-3">
             <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs flex justify-between items-center">
               <span>Amount (₹)</span>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setPaymentForm({ ...paymentForm, amount: (amount_due).toString() })}
                 className="text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full text-[10px]"
               >
@@ -1547,13 +1544,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               type="number"
               value={paymentForm.amount}
               onChange={(e) => {
-                 const val = e.target.value;
-                 const maxPayable = amount_due;
-                 if (parseFloat(val) > maxPayable) {
-                    setPaymentForm({ ...paymentForm, amount: maxPayable.toString() });
-                 } else {
-                    setPaymentForm({ ...paymentForm, amount: val });
-                 }
+                const val = e.target.value;
+                const maxPayable = amount_due;
+                if (parseFloat(val) > maxPayable) {
+                  setPaymentForm({ ...paymentForm, amount: maxPayable.toString() });
+                } else {
+                  setPaymentForm({ ...paymentForm, amount: val });
+                }
               }}
               className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
               placeholder="0"
@@ -1570,569 +1567,568 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             />
           </div>
 
-            <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-              <Button onClick={handleCollectPayment} disabled={isCreatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
-                {isCreatingPayment ? "Processing..." : "Confirm Payment"}
-              </Button>
-            </div>
+          <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
+            <Button onClick={handleCollectPayment} disabled={isCreatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
+              {isCreatingPayment ? "Processing..." : "Confirm Payment"}
+            </Button>
           </div>
-        </Modal>
+        </div>
+      </Modal>
 
-        {/* Payment Edit Modal */}
-        <Modal
-          open={isPaymentEditModalOpen}
-          onClose={() => setIsPaymentEditModalOpen(false)}
-          title="Edit Payment Mode"
-        >
-          <div className="p-6 space-y-6">
-            {editingPayment && (
-              <>
-                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Amount</p>
-                  <p className="text-2xl font-black text-slate-900">{formatCurrency(editingPayment.amount)}</p>
-                  <p className="text-xs text-slate-500 mt-1">{editingPayment.payment_type}</p>
-                </div>
+      {/* Payment Edit Modal */}
+      <Modal
+        open={isPaymentEditModalOpen}
+        onClose={() => setIsPaymentEditModalOpen(false)}
+        title="Edit Payment Mode"
+      >
+        <div className="p-6 space-y-6">
+          {editingPayment && (
+            <>
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Amount</p>
+                <p className="text-2xl font-black text-slate-900">{formatCurrency(editingPayment.amount)}</p>
+                <p className="text-xs text-slate-500 mt-1">{editingPayment.payment_type}</p>
+              </div>
 
-                <div className="space-y-3">
-                  <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Mode</Label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
-                      { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                      { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
-                      { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
-                    ].map((method) => {
-                      const Icon = method.icon;
-                      return (
-                        <button
-                          key={method.id}
-                          onClick={() => setPaymentEditForm({ ...paymentEditForm, paymentMode: method.id })}
-                          className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                            paymentEditForm.paymentMode === method.id
-                              ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          <Icon className="w-6 h-6" />
-                          <span className="text-xs font-bold">{method.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID <span className="text-slate-400 font-normal capitalize">(Optional)</span></Label>
-                  <Input
-                    value={paymentEditForm.notes}
-                    onChange={(e) => setPaymentEditForm({ ...paymentEditForm, notes: e.target.value })}
-                    className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
-                    placeholder="E.g. UPI Ref #123456"
-                  />
-                </div>
-
-                <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-                  <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-                  <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
-                    {isUpdatingPayment ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </Modal>
-
-        {/* Refund Modal (Deposit or Cancellation) */}
-        <Modal
-          open={isRefundModalOpen}
-          onClose={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }}
-          title={isCancellationRefund ? "Refund Payment" : "Refund Security Deposit"}
-        >
-          <div className="p-6 space-y-6">
-            {/* Amount Display / Edit */}
-            {isCancellationRefund ? (
               <div className="space-y-3">
-                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Amount (₹)</Label>
-                <Input
-                  type="number"
-                  value={refundForm.amount}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    const maxRefund = order?.amount_paid || 0;
-                    if (parseFloat(val) > maxRefund) {
-                      setRefundForm({ ...refundForm, amount: maxRefund.toString() });
-                    } else {
-                      setRefundForm({ ...refundForm, amount: val });
-                    }
-                  }}
-                  className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
-                  placeholder="0"
-                />
-                <p className="text-xs text-slate-500">Maximum refundable: {formatCurrency(order?.amount_paid || 0)}</p>
-              </div>
-            ) : (
-              <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 flex justify-between items-center shadow-sm">
-                <div>
-                  <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Refund Amount</p>
-                  <p className="text-2xl font-black text-orange-900">{formatCurrency(0 || 0)}</p>
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Mode</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
+                    { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
+                    { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
+                    { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+                  ].map((method) => {
+                    const Icon = method.icon;
+                    return (
+                      <button
+                        key={method.id}
+                        onClick={() => setPaymentEditForm({ ...paymentEditForm, paymentMode: method.id })}
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentEditForm.paymentMode === method.id
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                      >
+                        <Icon className="w-6 h-6" />
+                        <span className="text-xs font-bold">{method.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
 
+              <div className="space-y-3">
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID <span className="text-slate-400 font-normal capitalize">(Optional)</span></Label>
+                <Input
+                  value={paymentEditForm.notes}
+                  onChange={(e) => setPaymentEditForm({ ...paymentEditForm, notes: e.target.value })}
+                  className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
+                  placeholder="E.g. UPI Ref #123456"
+                />
+              </div>
+
+              <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+                <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
+                <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
+                  {isUpdatingPayment ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Refund Modal (Deposit or Cancellation) */}
+      <Modal
+        open={isRefundModalOpen}
+        onClose={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }}
+        title={isCancellationRefund ? "Refund Payment" : "Refund Security Deposit"}
+      >
+        <div className="p-6 space-y-6">
+          {/* Amount Display / Edit */}
+          {isCancellationRefund ? (
             <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Method</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
-                  { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                  { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
-                  { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
-                ].map((method) => {
-                  const Icon = method.icon;
-                  const isSelected = refundForm.paymentMode === method.id;
-                  return (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => setRefundForm({ ...refundForm, paymentMode: method.id })}
-                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
-                        isSelected 
-                          ? 'border-orange-500 bg-orange-500 text-white shadow-md' 
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Icon className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
-                      <span className="text-sm font-bold">{method.label}</span>
-                    </button>
-                  )
-                })}
+              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Amount (₹)</Label>
+              <Input
+                type="number"
+                value={refundForm.amount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const maxRefund = order?.amount_paid || 0;
+                  if (parseFloat(val) > maxRefund) {
+                    setRefundForm({ ...refundForm, amount: maxRefund.toString() });
+                  } else {
+                    setRefundForm({ ...refundForm, amount: val });
+                  }
+                }}
+                className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
+                placeholder="0"
+              />
+              <p className="text-xs text-slate-500">Maximum refundable: {formatCurrency(order?.amount_paid || 0)}</p>
+            </div>
+          ) : (
+            <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 flex justify-between items-center shadow-sm">
+              <div>
+                <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Refund Amount</p>
+                <p className="text-2xl font-black text-orange-900">{formatCurrency(0 || 0)}</p>
               </div>
             </div>
+          )}
 
-            <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID</Label>
-              <Input
-                value={refundForm.notes}
-                onChange={(e) => setRefundForm({ ...refundForm, notes: e.target.value })}
-                className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
-                placeholder="E.g. Refunded via UPI"
-              />
-            </div>
-
-            <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-              <Button variant="outline" onClick={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-              <Button 
-                onClick={() => {
-                  if (isCancellationRefund) {
-                    // Cancellation refund — server handles order update atomically
-                    const refundAmount = parseFloat(refundForm.amount) || 0;
-                    if (!order || refundAmount <= 0) {
-                      showError("Validation Error", "Amount must be greater than 0");
-                      return;
-                    }
-                    if (refundAmount > (order.amount_paid || 0)) {
-                      showError("Validation Error", `Refund cannot exceed paid amount (${formatCurrency(order.amount_paid)})`);
-                      return;
-                    }
-                    createPayment({
-                      order_id: order.id,
-                      payment_type: PaymentType.REFUND,
-                      amount: refundAmount,
-                      payment_mode: refundForm.paymentMode,
-                      notes: refundForm.notes || "Cancellation Refund",
-                    }, {
-                      onSuccess: () => {
-                        setIsRefundModalOpen(false);
-                        setIsCancellationRefund(false);
-                        setRefundForm({ paymentMode: PaymentMode.CASH, notes: "", amount: "0" });
-                        showSuccess("Refund Processed", `${formatCurrency(refundAmount)} has been refunded.`);
-                      },
-                    });
-                  } else {
-                    // Deposit refund
-                    handleRefundDeposit();
-                  }
-                }} 
-                disabled={isCreatingPayment || isUpdating} 
-                className="h-12 px-8 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 shadow-md"
-              >
-                {isCreatingPayment || isUpdating ? "Processing..." : "Confirm Refund"}
-              </Button>
+          <div className="space-y-3">
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Method</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
+                { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
+                { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
+                { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+              ].map((method) => {
+                const Icon = method.icon;
+                const isSelected = refundForm.paymentMode === method.id;
+                return (
+                  <button
+                    key={method.id}
+                    type="button"
+                    onClick={() => setRefundForm({ ...refundForm, paymentMode: method.id })}
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${isSelected
+                        ? 'border-orange-500 bg-orange-500 text-white shadow-md'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                  >
+                    <Icon className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                    <span className="text-sm font-bold">{method.label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
-        </Modal>
 
-        {/* Adjustment Modal */}
-        <Modal
-          open={isAdjustmentModalOpen}
-          onClose={() => setIsAdjustmentModalOpen(false)}
-          title="Apply Financial Adjustment"
-        >
-          <div className="p-6 space-y-6">
-            <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Adjustment Type</Label>
-              <Select value={adjustmentForm.type} onValueChange={(v: any) => setAdjustmentForm({ ...adjustmentForm, type: v })}>
-                <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="discount">Discount (reduces total)</SelectItem>
-                  <SelectItem value="late_fee">Late Fee (increases total)</SelectItem>
-                  <SelectItem value="damage_fee">Damage Fee (increases total)</SelectItem>
-                  <SelectItem value="extra_charge">Extra Charge (increases total)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Amount (₹)</Label>
-              <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })} className="h-14 text-2xl font-black" placeholder="0" />
-            </div>
-            <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Reason / Notes</Label>
-              <Input value={adjustmentForm.notes} onChange={e => setAdjustmentForm({ ...adjustmentForm, notes: e.target.value })} className="h-12" placeholder="E.g. Loyal customer discount" />
-            </div>
-            <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold">Cancel</Button>
-              <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating || isCreatingPayment} onClick={() => {
-                if (!order) return;
-                const val = parseFloat(adjustmentForm.amount) || 0;
-                if (val <= 0) { showError('Invalid', 'Amount must be greater than 0'); return; }
+          <div className="space-y-3">
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID</Label>
+            <Input
+              value={refundForm.notes}
+              onChange={(e) => setRefundForm({ ...refundForm, notes: e.target.value })}
+              className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
+              placeholder="E.g. Refunded via UPI"
+            />
+          </div>
 
-                const isDeduction = adjustmentForm.type === 'discount';
-                const newTotal = isDeduction ? Math.max(0, order.total_amount - val) : order.total_amount + val;
-                const newLateFee = adjustmentForm.type === 'late_fee' ? (order.late_fee || 0) + val : (order.late_fee || 0);
-                const newDiscount = adjustmentForm.type === 'discount' ? (order.discount || 0) + val : (order.discount || 0);
-                const newDamage = adjustmentForm.type === 'damage_fee' ? (order.damage_charges_total || 0) + val : (order.damage_charges_total || 0);
-                const newAmountPaid = order.amount_paid || 0;
-                const newPaymentStatus = newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+          <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
+            <Button
+              onClick={() => {
+                if (isCancellationRefund) {
+                  // Cancellation refund — server handles order update atomically
+                  const refundAmount = parseFloat(refundForm.amount) || 0;
+                  if (!order || refundAmount <= 0) {
+                    showError("Validation Error", "Amount must be greater than 0");
+                    return;
+                  }
+                  if (refundAmount > (order.amount_paid || 0)) {
+                    showError("Validation Error", `Refund cannot exceed paid amount (${formatCurrency(order.amount_paid)})`);
+                    return;
+                  }
+                  createPayment({
+                    order_id: order.id,
+                    payment_type: PaymentType.REFUND,
+                    amount: refundAmount,
+                    payment_mode: refundForm.paymentMode,
+                    notes: refundForm.notes || "Cancellation Refund",
+                  }, {
+                    onSuccess: () => {
+                      setIsRefundModalOpen(false);
+                      setIsCancellationRefund(false);
+                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "", amount: "0" });
+                      showSuccess("Refund Processed", `${formatCurrency(refundAmount)} has been refunded.`);
+                    },
+                  });
+                } else {
+                  // Deposit refund
+                  handleRefundDeposit();
+                }
+              }}
+              disabled={isCreatingPayment || isUpdating}
+              className="h-12 px-8 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 shadow-md"
+            >
+              {isCreatingPayment || isUpdating ? "Processing..." : "Confirm Refund"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
-                // Record as adjustment payment
-                const label = adjustmentForm.type === 'discount' ? 'Discount' : adjustmentForm.type === 'late_fee' ? 'Late Fee' : adjustmentForm.type === 'damage_fee' ? 'Damage Fee' : 'Extra Charge';
-                createPayment({
-                  order_id: order.id,
-                  payment_type: PaymentType.ADJUSTMENT,
-                  amount: val,
-                  payment_mode: PaymentMode.CASH,
-                  notes: `${label}: ${adjustmentForm.notes || 'N/A'}`,
-                }, {
-                  onSuccess: () => {
-                    updateOrder({ id: order.id, data: {
+      {/* Adjustment Modal */}
+      <Modal
+        open={isAdjustmentModalOpen}
+        onClose={() => setIsAdjustmentModalOpen(false)}
+        title="Apply Financial Adjustment"
+      >
+        <div className="p-6 space-y-6">
+          <div className="space-y-3">
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Adjustment Type</Label>
+            <Select value={adjustmentForm.type} onValueChange={(v: any) => setAdjustmentForm({ ...adjustmentForm, type: v })}>
+              <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="discount">Discount (reduces total)</SelectItem>
+                <SelectItem value="late_fee">Late Fee (increases total)</SelectItem>
+                <SelectItem value="damage_fee">Damage Fee (increases total)</SelectItem>
+                <SelectItem value="extra_charge">Extra Charge (increases total)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-3">
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Amount (₹)</Label>
+            <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })} className="h-14 text-2xl font-black" placeholder="0" />
+          </div>
+          <div className="space-y-3">
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Reason / Notes</Label>
+            <Input value={adjustmentForm.notes} onChange={e => setAdjustmentForm({ ...adjustmentForm, notes: e.target.value })} className="h-12" placeholder="E.g. Loyal customer discount" />
+          </div>
+          <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold">Cancel</Button>
+            <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating || isCreatingPayment} onClick={() => {
+              if (!order) return;
+              const val = parseFloat(adjustmentForm.amount) || 0;
+              if (val <= 0) { showError('Invalid', 'Amount must be greater than 0'); return; }
+
+              const isDeduction = adjustmentForm.type === 'discount';
+              const newTotal = isDeduction ? Math.max(0, order.total_amount - val) : order.total_amount + val;
+              const newLateFee = adjustmentForm.type === 'late_fee' ? (order.late_fee || 0) + val : (order.late_fee || 0);
+              const newDiscount = adjustmentForm.type === 'discount' ? (order.discount || 0) + val : (order.discount || 0);
+              const newDamage = adjustmentForm.type === 'damage_fee' ? (order.damage_charges_total || 0) + val : (order.damage_charges_total || 0);
+              const newAmountPaid = order.amount_paid || 0;
+              const newPaymentStatus = newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+
+              // Record as adjustment payment
+              const label = adjustmentForm.type === 'discount' ? 'Discount' : adjustmentForm.type === 'late_fee' ? 'Late Fee' : adjustmentForm.type === 'damage_fee' ? 'Damage Fee' : 'Extra Charge';
+              createPayment({
+                order_id: order.id,
+                payment_type: PaymentType.ADJUSTMENT,
+                amount: val,
+                payment_mode: PaymentMode.CASH,
+                notes: `${label}: ${adjustmentForm.notes || 'N/A'}`,
+              }, {
+                onSuccess: () => {
+                  updateOrder({
+                    id: order.id, data: {
                       total_amount: newTotal,
                       late_fee: newLateFee,
                       discount: newDiscount,
                       damage_charges_total: newDamage,
                       payment_status: newPaymentStatus,
-                    }});
-                    setIsAdjustmentModalOpen(false);
-                    setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
-                    showSuccess('Adjustment Applied', `${label} of ${formatCurrency(val)} has been applied.`);
-                  }
-                });
-              }}>
-                {isUpdating || isCreatingPayment ? 'Processing...' : 'Apply Adjustment'}
-              </Button>
-            </div>
+                    }
+                  });
+                  setIsAdjustmentModalOpen(false);
+                  setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
+                  showSuccess('Adjustment Applied', `${label} of ${formatCurrency(val)} has been applied.`);
+                }
+              });
+            }}>
+              {isUpdating || isCreatingPayment ? 'Processing...' : 'Apply Adjustment'}
+            </Button>
           </div>
-        </Modal>
+        </div>
+      </Modal>
 
-        {/* Cancel Order Modal — with mandatory reason */}
-        {(() => {
-          const hasPaid = (order.amount_paid || 0) > 0;
-          return (
-            <Modal
-              open={isCancelModalOpen}
-              onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
-              title="Cancel Order"
-              maxWidth="max-w-lg"
-            >
-              <div className="p-6 space-y-5">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                    <XCircle className="w-5 h-5 text-red-600" />
-                  </div>
+      {/* Cancel Order Modal — with mandatory reason */}
+      {(() => {
+        const hasPaid = (order.amount_paid || 0) > 0;
+        return (
+          <Modal
+            open={isCancelModalOpen}
+            onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
+            title="Cancel Order"
+            maxWidth="max-w-lg"
+          >
+            <div className="p-6 space-y-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                  <XCircle className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              {/* Refund Warning */}
+              {hasPaid && (
+                <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <Banknote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                    <p className="text-sm font-semibold text-amber-800">
+                      Payment Collected: {formatCurrency(order.amount_paid)}
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                      After cancellation, you can process a refund from the order detail page.
                     </p>
                   </div>
                 </div>
+              )}
 
-                {/* Refund Warning */}
-                {hasPaid && (
-                  <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
-                    <Banknote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-amber-800">
-                        Payment Collected: {formatCurrency(order.amount_paid)}
-                      </p>
-                      <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                        After cancellation, you can process a refund from the order detail page.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Mandatory Reason */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-900">
-                    Reason for Cancellation <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="Enter the reason for cancelling this order..."
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-y min-h-[80px]"
-                    rows={3}
-                    autoFocus
-                  />
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                  <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
-                  <Button
-                    onClick={() => {
-                      updateOrder({
-                        id: order.id,
-                        data: {
-                          status: OrderStatus.CANCELLED,
-                          cancellation_reason: cancelReason.trim(),
-                          cancelled_at: new Date().toISOString(),
-                        } as any,
-                      });
-                      setIsCancelModalOpen(false);
-                      setCancelReason("");
-                    }}
-                    disabled={isUpdating || !cancelReason.trim()}
-                    className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
-                  >
-                    {isUpdating ? "Cancelling..." : "Cancel Order"}
-                  </Button>
-                </div>
+              {/* Mandatory Reason */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-900">
+                  Reason for Cancellation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder="Enter the reason for cancelling this order..."
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-y min-h-[80px]"
+                  rows={3}
+                  autoFocus
+                />
               </div>
-            </Modal>
-          );
-        })()}
 
-        {/* Stock Insufficient Modal */}
-        <Modal
-          open={isStockErrorModalOpen}
-          onClose={() => setIsStockErrorModalOpen(false)}
-          title="Cannot Start Rental"
-          maxWidth="max-w-lg"
-        >
-          <div className="p-6">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold text-slate-900 mb-1">Insufficient Stock</h4>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  Some items don't have enough stock for today. Please edit the order to adjust quantities before starting the rental.
-                </p>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
+                <Button
+                  onClick={() => {
+                    updateOrder({
+                      id: order.id,
+                      data: {
+                        status: OrderStatus.CANCELLED,
+                        cancellation_reason: cancelReason.trim(),
+                        cancelled_at: new Date().toISOString(),
+                      } as any,
+                    });
+                    setIsCancelModalOpen(false);
+                    setCancelReason("");
+                  }}
+                  disabled={isUpdating || !cancelReason.trim()}
+                  className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
+                >
+                  {isUpdating ? "Cancelling..." : "Cancel Order"}
+                </Button>
               </div>
             </div>
+          </Modal>
+        );
+      })()}
 
-            {/* Per-item breakdown */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Item</th>
-                    <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Ordered</th>
-                    <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Available</th>
-                    <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {stockCheckResults.map((item, idx) => (
-                    <tr key={idx} className={!item.isAvailable ? 'bg-red-50/50' : ''}>
-                      <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
-                      <td className="px-4 py-3 text-center text-slate-600">{item.requested}</td>
-                      <td className="px-4 py-3 text-center font-bold text-slate-900">{item.available}</td>
-                      <td className="px-4 py-3 text-center">
-                        {item.isAvailable ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> OK
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs">
-                            <XCircle className="w-3.5 h-3.5" /> Short
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Stock Insufficient Modal */}
+      <Modal
+        open={isStockErrorModalOpen}
+        onClose={() => setIsStockErrorModalOpen(false)}
+        title="Cannot Start Rental"
+        maxWidth="max-w-lg"
+      >
+        <div className="p-6">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
-
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsStockErrorModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Close</Button>
-              <Button
-                onClick={() => {
-                  setIsStockErrorModalOpen(false);
-                  router.push(`/dashboard/orders/${order.id}/edit`);
-                }}
-                className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
-              >
-                <Edit3 className="w-4 h-4 mr-2" /> Edit Order
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Return Confirmation Modal */}
-        <Modal open={isReturnConfirmOpen} onClose={() => setIsReturnConfirmOpen(false)} title="Confirm Return">
-          <div className="p-6 space-y-5">
-            <p className="text-sm text-slate-600">Please review the return summary before confirming.</p>
-
-            {/* Items Summary */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
-              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                {order.items.map((item) => {
-                  const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
-                  const product = (item as any).product;
-                  return (
-                    <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
-                        <span className="text-xs text-slate-400">×{item.quantity}</span>
-                        {rItem.status === 'damaged' && rItem.damaged_quantity < item.quantity && (
-                          <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                            {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity} good
-                          </span>
-                        )}
-                      </div>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
-                        rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        rItem.status === 'damaged' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                        rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
-                        'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}>
-                        {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Missing' : 'Unmarked'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Zero Damage Fee Warning */}
-            {Object.values(returnItems).some(r => r.status === 'damaged' && (r.damage_fee || 0) <= 0) && (
-              <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-amber-800">Warning: ₹0 Damage Fee</p>
-                  <p className="text-xs text-amber-600">One or more damaged items have no damage fee set. You can still complete the return, but the fee won't be charged.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Fees Summary — only show when there's still a balance due */}
-            {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && amount_due > 0 && (
-              <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
-                {calculatedDamage > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-orange-700 font-medium">Damage Charges</span>
-                    <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
-                  </div>
-                )}
-                {lateFee > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-red-700 font-medium">Late Fee</span>
-                    <span className="font-bold text-red-700">{formatCurrency(lateFee)}</span>
-                  </div>
-                )}
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-emerald-700 font-medium">Discount</span>
-                    <span className="font-bold text-emerald-700">−{formatCurrency(discount)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Fully Paid indicator */}
-            {amount_due <= 0 && (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
-                  <p className="text-xs text-emerald-600">All charges including fees have been collected.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Payment Due Warning */}
-            {amount_due > 0 && (
-              <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
-                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-bold text-red-800">Payment still due: {formatCurrency(amount_due)}</p>
-                  <p className="text-xs text-red-600">You can collect the payment after completing the return.</p>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-              <Button variant="outline" onClick={() => setIsReturnConfirmOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200">
-                Go Back
-              </Button>
-              <Button
-                onClick={submitReturn}
-                disabled={isReturning}
-                className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
-              >
-                {isReturning ? 'Processing...' : 'Confirm & Complete Return'}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Keep Money Confirmation Modal */}
-        <Modal
-          open={isKeepMoneyModalOpen}
-          onClose={() => setIsKeepMoneyModalOpen(false)}
-          title="Keep Money — Confirm"
-        >
-          <div className="p-6 space-y-5">
-            <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
-              <p className="text-sm font-bold text-teal-800 mb-1">No refund will be issued</p>
-              <p className="text-xs text-teal-600 leading-relaxed">
-                You are choosing to keep <span className="font-black">{formatCurrency(order?.amount_paid || 0)}</span> from this cancelled order.
-                This action will mark the refund as waived and the amount will remain in your revenue.
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 mb-1">Insufficient Stock</h4>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Some items don't have enough stock for today. Please edit the order to adjust quantities before starting the rental.
               </p>
             </div>
+          </div>
 
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Amount to Keep</p>
-              <p className="text-3xl font-black text-slate-900">{formatCurrency(order?.amount_paid || 0)}</p>
-            </div>
+          {/* Per-item breakdown */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Item</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Ordered</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Available</th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {stockCheckResults.map((item, idx) => (
+                  <tr key={idx} className={!item.isAvailable ? 'bg-red-50/50' : ''}>
+                    <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
+                    <td className="px-4 py-3 text-center text-slate-600">{item.requested}</td>
+                    <td className="px-4 py-3 text-center font-bold text-slate-900">{item.available}</td>
+                    <td className="px-4 py-3 text-center">
+                      {item.isAvailable ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> OK
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-red-600 font-semibold text-xs">
+                          <XCircle className="w-3.5 h-3.5" /> Short
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setIsKeepMoneyModalOpen(false)} 
-                className="flex-1 h-12 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  updateOrder({ id: orderId, data: { payment_status: PaymentStatus.REFUND_WAIVED } as any });
-                  setIsKeepMoneyModalOpen(false);
-                }}
-                disabled={isUpdating}
-                className="flex-1 h-12 rounded-xl font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-md"
-              >
-                {isUpdating ? 'Processing...' : 'Confirm — Keep Money'}
-              </Button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setIsStockErrorModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Close</Button>
+            <Button
+              onClick={() => {
+                setIsStockErrorModalOpen(false);
+                router.push(`/dashboard/orders/${order.id}/edit`);
+              }}
+              className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
+            >
+              <Edit3 className="w-4 h-4 mr-2" /> Edit Order
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Return Confirmation Modal */}
+      <Modal open={isReturnConfirmOpen} onClose={() => setIsReturnConfirmOpen(false)} title="Confirm Return">
+        <div className="p-6 space-y-5">
+          <p className="text-sm text-slate-600">Please review the return summary before confirming.</p>
+
+          {/* Items Summary */}
+          <div className="space-y-2">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
+            <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+              {order.items.map((item) => {
+                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
+                const product = (item as any).product;
+                return (
+                  <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
+                      <span className="text-xs text-slate-400">×{item.quantity}</span>
+                      {rItem.status === 'damaged' && rItem.damaged_quantity < item.quantity && (
+                        <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity} good
+                        </span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        rItem.status === 'damaged' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
+                            'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                      {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Missing' : 'Unmarked'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </Modal>
-      </div>
+
+          {/* Zero Damage Fee Warning */}
+          {Object.values(returnItems).some(r => r.status === 'damaged' && (r.damage_fee || 0) <= 0) && (
+            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-amber-800">Warning: ₹0 Damage Fee</p>
+                <p className="text-xs text-amber-600">One or more damaged items have no damage fee set. You can still complete the return, but the fee won't be charged.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Fees Summary — only show when there's still a balance due */}
+          {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && amount_due > 0 && (
+            <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
+              {calculatedDamage > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-orange-700 font-medium">Damage Charges</span>
+                  <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
+                </div>
+              )}
+              {lateFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-red-700 font-medium">Late Fee</span>
+                  <span className="font-bold text-red-700">{formatCurrency(lateFee)}</span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-emerald-700 font-medium">Discount</span>
+                  <span className="font-bold text-emerald-700">−{formatCurrency(discount)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fully Paid indicator */}
+          {amount_due <= 0 && (
+            <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                <p className="text-xs text-emerald-600">All charges including fees have been collected.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Payment Due Warning */}
+          {amount_due > 0 && (
+            <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-red-800">Payment still due: {formatCurrency(amount_due)}</p>
+                <p className="text-xs text-red-600">You can collect the payment after completing the return.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setIsReturnConfirmOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200">
+              Go Back
+            </Button>
+            <Button
+              onClick={submitReturn}
+              disabled={isReturning}
+              className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
+            >
+              {isReturning ? 'Processing...' : 'Confirm & Complete Return'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Keep Money Confirmation Modal */}
+      <Modal
+        open={isKeepMoneyModalOpen}
+        onClose={() => setIsKeepMoneyModalOpen(false)}
+        title="Keep Money — Confirm"
+      >
+        <div className="p-6 space-y-5">
+          <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
+            <p className="text-sm font-bold text-teal-800 mb-1">No refund will be issued</p>
+            <p className="text-xs text-teal-600 leading-relaxed">
+              You are choosing to keep <span className="font-black">{formatCurrency(order?.amount_paid || 0)}</span> from this cancelled order.
+              This action will mark the refund as waived and the amount will remain in your revenue.
+            </p>
+          </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Amount to Keep</p>
+            <p className="text-3xl font-black text-slate-900">{formatCurrency(order?.amount_paid || 0)}</p>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsKeepMoneyModalOpen(false)}
+              className="flex-1 h-12 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                updateOrder({ id: orderId, data: { payment_status: PaymentStatus.REFUND_WAIVED } as any });
+                setIsKeepMoneyModalOpen(false);
+              }}
+              disabled={isUpdating}
+              className="flex-1 h-12 rounded-xl font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-md"
+            >
+              {isUpdating ? 'Processing...' : 'Confirm — Keep Money'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
   );
 }

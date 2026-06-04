@@ -26,6 +26,15 @@
   - **How** the fix works (especially for non-obvious solutions)
 - Do NOT silently make changes and move on. The user must understand every modification.
 
+### 🔄 Synchronization with RentoCostumes (Separate Repository)
+- **Separate Repositories**: `mazhavilcostumes` and `RENTOCOSTUMES` are separate git repositories. Changes made in one do **not** automatically sync.
+- **Porting Changes**: When requested, the agent must assist in porting changes to `RENTOCOSTUMES`.
+- **MANDATORY Branding Safety**:
+  - The agent must **NEVER** copy files directly without verifying brand-specific strings (e.g. `Mazhavil Costumes` / `Mazhavil Dance Costumes` vs `RENTOCOSTUMES` in WhatsApp templates, labels, or configurations).
+  - Protect and preserve the respective brand names of the repository being worked on.
+- **Always Ask for Permission**:
+  - The agent must **NEVER** automatically edit, commit, or sync files in the other repository (`RENTOCOSTUMES`) without explicitly asking the user for permission first.
+
 ---
 
 ## 1. Project Overview

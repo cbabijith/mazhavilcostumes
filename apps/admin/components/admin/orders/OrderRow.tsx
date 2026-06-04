@@ -78,9 +78,8 @@ function OrderRowInner({
   return (
     <tr
       onClick={handleRowClick}
-      className={`hover:bg-slate-50 transition-colors group cursor-pointer ${
-        selected ? "bg-slate-50/80" : ""
-      }`}
+      className={`hover:bg-slate-50 transition-colors group cursor-pointer ${selected ? "bg-slate-50/80" : ""
+        }`}
     >
       {/* Checkbox */}
       <td className="px-4 py-4 text-center">
@@ -189,24 +188,24 @@ function OrderRowInner({
           <OrderStatusBadge status={order.status} is_late={order.is_late} end_date={order.end_date} />
 
           {/* Priority Cleaning badge - only show for non-terminal orders */}
-          {order.has_priority_cleaning && 
-           order.status !== OrderStatus.COMPLETED && 
-           order.status !== OrderStatus.CANCELLED && (
-            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none">
-              <Sparkles className="w-3 h-3 fill-amber-500" />
-              Priority Cleaning
-            </Badge>
-          )}
-          
+          {order.has_priority_cleaning &&
+            order.status !== OrderStatus.COMPLETED &&
+            order.status !== OrderStatus.CANCELLED && (
+              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none">
+                <Sparkles className="w-3 h-3 fill-amber-500" />
+                Priority Cleaning
+              </Badge>
+            )}
+
           {/* Stock Conflict badge */}
-          {order.has_stock_conflict && 
-           order.status !== OrderStatus.COMPLETED && 
-           order.status !== OrderStatus.CANCELLED && (
-            <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none animate-pulse">
-              <AlertTriangle className="w-3 h-3 fill-red-500" />
-              Stock Conflict
-            </Badge>
-          )}
+          {order.has_stock_conflict &&
+            order.status !== OrderStatus.COMPLETED &&
+            order.status !== OrderStatus.CANCELLED && (
+              <Badge className="bg-red-100 text-red-700 hover:bg-red-100 border-red-200 text-[10px] font-black tracking-tight px-1.5 py-0 gap-1 shadow-none animate-pulse">
+                <AlertTriangle className="w-3 h-3 fill-red-500" />
+                Stock Conflict
+              </Badge>
+            )}
 
           {/* Show payment badge for active (non-terminal) orders */}
           {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (
@@ -249,12 +248,12 @@ function OrderRowInner({
                 e.stopPropagation();
                 const phone = order.customer?.phone?.replace(/\D/g, '');
                 if (!phone) return;
-                
+
                 const customerName = order.customer?.name || 'Customer';
                 const orderIdShort = order.id.slice(0, 8);
                 const startDate = format(new Date(order.start_date), 'MMM d, yyyy');
                 const endDate = format(new Date(order.end_date), 'MMM d, yyyy');
-                
+
                 let message = '';
                 switch (order.status) {
                   case OrderStatus.PENDING:
@@ -287,7 +286,7 @@ function OrderRowInner({
                   default:
                     message = `Hi ${customerName}, this is regarding your order #${orderIdShort} at Mazhavil Dance Costumes.`;
                 }
-                
+
                 const encodedMessage = encodeURIComponent(message);
                 window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
               }}
@@ -381,11 +380,10 @@ function OrderRowInner({
               <Button
                 variant="ghost"
                 size="icon"
-                className={`w-8 h-8 ${
-                  isEditDisabled
+                className={`w-8 h-8 ${isEditDisabled
                     ? "text-slate-200 cursor-not-allowed"
                     : "text-slate-400 hover:text-slate-900"
-                }`}
+                  }`}
                 disabled={isEditDisabled}
                 asChild={!isEditDisabled}
                 onClick={(e) => {

@@ -132,7 +132,7 @@ function TransactionListContent() {
   const formatCell = (value: any, format?: string) => {
     if (value === null || value === undefined) return "-";
     if (format === "currency") return formatCurrency(value);
-    if (format === "date") return new Date(value).toLocaleDateString();
+    if (format === "date") return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     return String(value);
   };
 
