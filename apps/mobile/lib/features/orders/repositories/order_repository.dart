@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:dio/dio.dart';
 import '../models/order.dart';
 
 class PaginatedOrders {
@@ -45,7 +46,7 @@ class OrderRepository {
       var dbQuery = _supabase.from('orders').select('''
         *,
         customer:customers(id, name, phone, alt_phone, email),
-        branch:branches(id, name),
+        branch:branches!branch_id(id, name),
         items:order_items(
           *,
           product:products(id, name, images)
@@ -87,6 +88,8 @@ class OrderRepository {
       final response = await dbQuery
           .order('created_at', ascending: false)
           .range(fromIndex, toIndex);
+
+      print('DEBUG: ORDERS_RESPONSE: $response');
 
       final List<dynamic> data = response as List<dynamic>? ?? [];
 
@@ -139,12 +142,14 @@ class OrderRepository {
       final response = await _supabase.from('orders').select('''
         *,
         customer:customers(id, name, phone, alt_phone, email),
-        branch:branches(id, name),
+        branch:branches!branch_id(id, name),
         items:order_items(
           *,
           product:products(id, name, images)
         )
       ''').eq('id', id).single();
+
+      print('DEBUG: GET_ORDER_BY_ID_RESPONSE: $response');
 
       return Order.fromJson(response);
     } catch (e) {
@@ -223,4 +228,76 @@ class OrderRepository {
       throw Exception('Failed to process order return: $e');
     }
   }
+
+  /// Fetch payments/transactions logged against the order.
+  Future<List<PaymentTransaction>> getOrderPayments(String orderId) async {
+    try {
+      final response = await _supabase
+          .from('payments')
+          .select('*, staff:created_by(name)')
+          .eq('order_id', orderId)
+          .order('payment_date', ascending: false);
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+      return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw Exception('Failed to load payments: $e');
+    }
+  }
+
+  /// Update an existing payment transaction's mode and notes.
+  Future<void> updatePayment({
+    required String paymentId,
+    required String paymentMode,
+    String? notes,
+  }) async {
+    try {
+      await _supabase.from('payments').update({
+        'payment_mode': paymentMode,
+        'notes': notes,
+      }).eq('id', paymentId);
+    } catch (e) {
+      throw Exception('Failed to update payment: $e');
+    }
+  }
+
+  /// Check availability of order items before starting rental.
+  Future<Map<String, dynamic>> checkAvailability({
+    required String startDate,
+    required String endDate,
+    required String branchId,
+    required List<Map<String, dynamic>> items,
+    String? excludeOrderId,
+  }) async {
+    final dio = Dio(BaseOptions(
+      baseUrl: 'https://mazhavilcostumes-admin.vercel.app/api',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    ));
+
+    // Get current auth token to pass to Next.js API
+    final session = _supabase.auth.currentSession;
+    if (session != null) {
+      dio.options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+    }
+
+    try {
+      final response = await dio.post('/orders/check-availability', data: {
+        'items': items,
+        'start_date': startDate,
+        'end_date': endDate,
+        'branch_id': branchId,
+        if (excludeOrderId != null) 'exclude_order_id': excludeOrderId,
+      });
+
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      if (e is DioException && e.response != null) {
+        final errorMsg = e.response?.data?['error'] ?? 'API availability check failed';
+        throw Exception(errorMsg);
+      }
+      throw Exception('Failed to check availability: $e');
+    }
+  }
 }
+

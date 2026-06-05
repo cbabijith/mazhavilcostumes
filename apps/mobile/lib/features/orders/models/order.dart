@@ -410,7 +410,13 @@ class Order extends Equatable {
       isLate: json['is_late'] as bool? ?? false,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String?,
-      customer: json['customer'] != null ? CustomerInfo.fromJson(json['customer']) : null,
+      customer: json['customer'] != null
+          ? (json['customer'] is List
+              ? (json['customer'].isNotEmpty
+                  ? CustomerInfo.fromJson(Map<String, dynamic>.from(json['customer'][0]))
+                  : null)
+              : CustomerInfo.fromJson(Map<String, dynamic>.from(json['customer'])))
+          : null,
       items: (json['items'] as List<dynamic>?)
           ?.map((e) => OrderItem.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
@@ -602,3 +608,73 @@ class BranchInfo extends Equatable {
     };
   }
 }
+
+class PaymentTransaction extends Equatable {
+  final String id;
+  final String orderId;
+  final String paymentType;
+  final double amount;
+  final String paymentMode;
+  final String? transactionId;
+  final String paymentDate;
+  final String? notes;
+  final String? createdBy;
+  final String? createdByName;
+
+  const PaymentTransaction({
+    required this.id,
+    required this.orderId,
+    required this.paymentType,
+    required this.amount,
+    required this.paymentMode,
+    this.transactionId,
+    required this.paymentDate,
+    this.notes,
+    this.createdBy,
+    this.createdByName,
+  });
+
+  @override
+  List<Object?> get props => [
+        id,
+        orderId,
+        paymentType,
+        amount,
+        paymentMode,
+        transactionId,
+        paymentDate,
+        notes,
+        createdBy,
+        createdByName,
+      ];
+
+  factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
+    return PaymentTransaction(
+      id: json['id'] as String? ?? '',
+      orderId: json['order_id'] as String? ?? '',
+      paymentType: json['payment_type'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      paymentMode: json['payment_mode'] as String? ?? '',
+      transactionId: json['transaction_id'] as String?,
+      paymentDate: json['payment_date'] as String? ?? json['created_at'] as String? ?? '',
+      notes: json['notes'] as String?,
+      createdBy: json['created_by'] as String?,
+      createdByName: json['staff']?['name'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'order_id': orderId,
+      'payment_type': paymentType,
+      'amount': amount,
+      'payment_mode': paymentMode,
+      'transaction_id': transactionId,
+      'payment_date': paymentDate,
+      'notes': notes,
+      'created_by': createdBy,
+    };
+  }
+}
+
