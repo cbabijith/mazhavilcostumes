@@ -142,6 +142,7 @@ class Product extends Equatable {
   final String? subcategoryId;
   final String? subvariantId;
   final String? branchId;
+  final String? categoryName;
   final String name;
   final String slug;
   final String? description;
@@ -202,6 +203,7 @@ class Product extends Equatable {
     this.subcategoryId,
     this.subvariantId,
     this.branchId,
+    this.categoryName,
     required this.name,
     required this.slug,
     this.description,
@@ -248,6 +250,7 @@ class Product extends Equatable {
         subcategoryId,
         subvariantId,
         branchId,
+        categoryName,
         name,
         slug,
         description,
@@ -308,6 +311,7 @@ class Product extends Equatable {
       subcategoryId: json['subcategory_id'] as String?,
       subvariantId: json['subvariant_id'] as String?,
       branchId: json['branch_id'] as String?,
+      categoryName: json['category']?['name'] as String?,
       name: json['name'] as String,
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String?,
@@ -375,6 +379,7 @@ class Product extends Equatable {
       'subcategory_id': subcategoryId,
       'subvariant_id': subvariantId,
       'branch_id': branchId,
+      'category_name': categoryName,
       'name': name,
       'slug': slug,
       'description': description,

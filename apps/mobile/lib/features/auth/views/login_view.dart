@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/widgets.dart';
-import '../../home/views/home_view.dart';
+import '../../../core/main_layout.dart';
 import '../viewmodels/auth_provider.dart';
 
 class LoginView extends ConsumerStatefulWidget {
@@ -30,7 +30,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
 
     if (success && mounted) {
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeView()),
+        MaterialPageRoute(builder: (_) => const MainLayout()),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

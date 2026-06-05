@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../home/views/home_view.dart';
+import '../../../core/main_layout.dart';
 import 'login_view.dart';
 
 class SplashView extends StatefulWidget {
@@ -50,7 +50,7 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
       if (mounted) {
         if (user != null) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomeView()),
+            MaterialPageRoute(builder: (_) => const MainLayout()),
           );
         } else {
           Navigator.of(context).pushReplacement(

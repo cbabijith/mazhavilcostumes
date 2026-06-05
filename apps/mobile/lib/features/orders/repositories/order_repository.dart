@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import '../../../core/supabase/api_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/order.dart';
 
 class PaginatedOrders {
@@ -22,12 +21,11 @@ class PaginatedOrders {
   });
 }
 
-/// Repository layer for Orders.
-/// All HTTP calls go through here — providers never touch Dio directly.
+/// Repository layer for Orders communicating directly with Supabase.
 class OrderRepository {
-  final Dio _client = apiClient;
+  final _supabase = Supabase.instance.client;
 
-  /// Fetch all orders from the Next.js API with pagination.
+  /// Fetch all orders from Supabase with pagination.
   Future<PaginatedOrders> getOrders({
     int page = 1,
     int limit = 25,
@@ -39,98 +37,147 @@ class OrderRepository {
     String? dateFrom,
     String? dateTo,
   }) async {
-    final Map<String, dynamic> queryParams = {
-      'page': page,
-      'limit': limit,
-    };
-    if (customerId != null && customerId.isNotEmpty) {
-      queryParams['customer_id'] = customerId;
-    }
-    if (branchId != null && branchId.isNotEmpty) {
-      queryParams['branch_id'] = branchId;
-    }
-    if (status != null && status.isNotEmpty) {
-      queryParams['status'] = status;
-    }
-    if (query != null && query.isNotEmpty) {
-      queryParams['query'] = query;
-    }
-    if (dateFilter != null && dateFilter.isNotEmpty) {
-      queryParams['date_filter'] = dateFilter;
-    }
-    if (dateFrom != null && dateFrom.isNotEmpty) {
-      queryParams['date_from'] = dateFrom;
-    }
-    if (dateTo != null && dateTo.isNotEmpty) {
-      queryParams['date_to'] = dateTo;
-    }
+    try {
+      final fromIndex = (page - 1) * limit;
+      final toIndex = fromIndex + limit - 1;
 
-    final response = await _client.get('/orders', queryParameters: queryParams);
+      // Base query fetching order, customer info, branch info, and order items.
+      var dbQuery = _supabase.from('orders').select('''
+        *,
+        customer:customers(id, name, phone, alt_phone, email),
+        branch:branches(id, name),
+        items:order_items(
+          *,
+          product:products(id, name, images)
+        )
+      ''');
 
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        final ordersData = data['data'] as List;
-        final meta = data['meta'] as Map<String, dynamic>?;
-        return PaginatedOrders(
-          orders: ordersData.map((e) => Order.fromJson(e)).toList(),
-          total: meta?['total'] ?? 0,
-          page: meta?['page'] ?? 1,
-          limit: meta?['limit'] ?? 25,
-          totalPages: meta?['totalPages'] ?? 1,
-          hasNext: meta?['hasNext'] ?? false,
-          hasPrev: meta?['hasPrev'] ?? false,
-        );
+      // Filter by customer
+      if (customerId != null && customerId.isNotEmpty) {
+        dbQuery = dbQuery.eq('customer_id', customerId);
       }
+
+      // Filter by branch
+      if (branchId != null && branchId.isNotEmpty) {
+        dbQuery = dbQuery.eq('branch_id', branchId);
+      }
+
+      // Filter by status
+      if (status != null && status.isNotEmpty) {
+        if (status == 'late_return') {
+          dbQuery = dbQuery.eq('is_late', true);
+        } else {
+          dbQuery = dbQuery.eq('status', status);
+        }
+      }
+
+      // Filter by search query (notes)
+      if (query != null && query.isNotEmpty) {
+        dbQuery = dbQuery.or('notes.ilike.%$query%');
+      }
+
+      // Filter by dates
+      if (dateFrom != null && dateFrom.isNotEmpty) {
+        dbQuery = dbQuery.gte('start_date', dateFrom);
+      }
+      if (dateTo != null && dateTo.isNotEmpty) {
+        dbQuery = dbQuery.lte('end_date', dateTo);
+      }
+
+      final response = await dbQuery
+          .order('created_at', ascending: false)
+          .range(fromIndex, toIndex);
+
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+
+      // Fetch Total Count using a lightweight ID select
+      var countQuery = _supabase.from('orders').select('id');
+      if (customerId != null && customerId.isNotEmpty) {
+        countQuery = countQuery.eq('customer_id', customerId);
+      }
+      if (branchId != null && branchId.isNotEmpty) {
+        countQuery = countQuery.eq('branch_id', branchId);
+      }
+      if (status != null && status.isNotEmpty) {
+        if (status == 'late_return') {
+          countQuery = countQuery.eq('is_late', true);
+        } else {
+          countQuery = countQuery.eq('status', status);
+        }
+      }
+      if (query != null && query.isNotEmpty) {
+        countQuery = countQuery.or('notes.ilike.%$query%');
+      }
+      if (dateFrom != null && dateFrom.isNotEmpty) {
+        countQuery = countQuery.gte('start_date', dateFrom);
+      }
+      if (dateTo != null && dateTo.isNotEmpty) {
+        countQuery = countQuery.lte('end_date', dateTo);
+      }
+
+      final countResult = await countQuery;
+      final int totalCount = (countResult as List).length;
+      final int totalPages = (totalCount / limit).ceil();
+
+      return PaginatedOrders(
+        orders: data.map((e) => Order.fromJson(e as Map<String, dynamic>)).toList(),
+        total: totalCount,
+        page: page,
+        limit: limit,
+        totalPages: totalPages > 0 ? totalPages : 1,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      );
+    } catch (e) {
+      throw Exception('Failed to load orders: $e');
     }
-    throw Exception('Failed to load orders');
   }
 
   /// Fetch a single order by ID.
   Future<Order> getOrderById(String id) async {
-    final response = await _client.get('/orders/$id');
+    try {
+      final response = await _supabase.from('orders').select('''
+        *,
+        customer:customers(id, name, phone, alt_phone, email),
+        branch:branches(id, name),
+        items:order_items(
+          *,
+          product:products(id, name, images)
+        )
+      ''').eq('id', id).single();
 
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Order.fromJson(data['data']);
-      }
+      return Order.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to load order: $e');
     }
-    throw Exception('Failed to load order');
   }
 
   /// Create a new order.
   Future<Order> createOrder(Map<String, dynamic> body) async {
-    final response = await _client.post('/orders', data: body);
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Order.fromJson(data['data']);
-      }
+    try {
+      final response = await _supabase.from('orders').insert(body).select().single();
+      return Order.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to create order: $e');
     }
-    throw Exception('Failed to create order');
   }
 
   /// Update an existing order.
   Future<Order> updateOrder(String id, Map<String, dynamic> body) async {
-    final response = await _client.patch('/orders/$id', data: body);
-
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Order.fromJson(data['data']);
-      }
+    try {
+      final response = await _supabase.from('orders').update(body).eq('id', id).select().single();
+      return Order.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update order: $e');
     }
-    throw Exception('Failed to update order');
   }
 
   /// Delete an order.
   Future<void> deleteOrder(String id) async {
-    final response = await _client.delete('/orders/$id');
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to delete order');
+    try {
+      await _supabase.from('orders').delete().eq('id', id);
+    } catch (e) {
+      throw Exception('Failed to delete order: $e');
     }
   }
 
@@ -142,16 +189,17 @@ class OrderRepository {
     required String paymentType,
     String? notes,
   }) async {
-    final response = await _client.post('/payments', data: {
-      'order_id': orderId,
-      'amount': amount,
-      'payment_mode': paymentMode,
-      'payment_type': paymentType,
-      'notes': notes,
-    });
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception('Failed to record payment');
+    try {
+      await _supabase.from('payments').insert({
+        'order_id': orderId,
+        'amount': amount,
+        'payment_mode': paymentMode,
+        'payment_type': paymentType,
+        'notes': notes,
+        'payment_date': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to record payment: $e');
     }
   }
 
@@ -163,16 +211,16 @@ class OrderRepository {
     double? lateFee,
     double? discount,
   }) async {
-    final response = await _client.patch('/orders/$orderId/return', data: {
-      'order_id': orderId,
-      'items': items,
-      if (notes != null) 'notes': notes,
-      if (lateFee != null) 'late_fee': lateFee,
-      if (discount != null) 'discount': discount,
-    });
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to process order return');
+    try {
+      final updates = {
+        'status': 'returned',
+        if (notes != null) 'notes': notes,
+        if (lateFee != null) 'late_fee': lateFee,
+        if (discount != null) 'discount': discount,
+      };
+      await _supabase.from('orders').update(updates).eq('id', orderId);
+    } catch (e) {
+      throw Exception('Failed to process order return: $e');
     }
   }
 }

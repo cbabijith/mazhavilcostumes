@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../branches/viewmodels/providers/branch_provider.dart';
+import '../../../categories/viewmodels/providers/category_provider.dart';
 import '../../models/product.dart';
 import '../../repositories/product_repository.dart';
 
@@ -37,6 +38,7 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     ref.keepAlive();
     _currentPage = 1;
     _currentBranchId = ref.watch(effectiveBranchIdProvider);
+    final category = ref.watch(productCategoryFilterProvider);
     final cancelToken = CancelToken();
     ref.onDispose(cancelToken.cancel);
     final repo = ref.watch(productRepositoryProvider);
@@ -44,6 +46,7 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
       page: _currentPage,
       search: _currentSearch,
       branchId: _currentBranchId,
+      category: category,
       cancelToken: cancelToken,
     );
   }
@@ -54,10 +57,12 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
+      final category = ref.read(productCategoryFilterProvider);
       return repo.getProducts(
         page: _currentPage,
         search: _currentSearch,
         branchId: _currentBranchId,
+        category: category,
       );
     });
   }
@@ -68,10 +73,12 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
+      final category = ref.read(productCategoryFilterProvider);
       return repo.getProducts(
         page: _currentPage,
         search: _currentSearch,
         branchId: _currentBranchId,
+        category: category,
       );
     });
   }
@@ -85,10 +92,12 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     _isLoadingMore = true;
     try {
       final repo = ref.read(productRepositoryProvider);
+      final category = ref.read(productCategoryFilterProvider);
       final nextPageData = await repo.getProducts(
         page: _currentPage + 1,
         search: _currentSearch,
         branchId: _currentBranchId,
+        category: category,
       );
 
       _currentPage++;
@@ -107,6 +116,9 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     final repo = ref.read(productRepositoryProvider);
     final newProduct = await repo.createProduct(data);
 
+    ref.invalidate(categoryProductCountsProvider);
+    ref.invalidate(totalProductCountProvider);
+
     // Update local state immediately
     if (state.hasValue) {
       final currentData = state.value!;
@@ -124,6 +136,8 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
   Future<void> updateProduct(String id, Map<String, dynamic> data) async {
     final repo = ref.read(productRepositoryProvider);
     final updatedProduct = await repo.updateProduct(id, data);
+
+    ref.invalidate(categoryProductCountsProvider);
 
     // Update local state
     if (state.hasValue) {
@@ -146,6 +160,9 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
   Future<void> deleteProduct(String id) async {
     final repo = ref.read(productRepositoryProvider);
     await repo.deleteProduct(id);
+
+    ref.invalidate(categoryProductCountsProvider);
+    ref.invalidate(totalProductCountProvider);
 
     // Update local state
     if (state.hasValue) {
@@ -184,26 +201,34 @@ final productBranchInventoryProvider =
   return repo.getProductBranchInventory(productId, cancelToken: cancelToken);
 });
 
-/// Derived provider: products filtered by the current status filter.
-/// Runs client-side on already-fetched data (no extra API call).
+class ProductCategoryFilterNotifier extends Notifier<String> {
+  @override
+  String build() => 'All';
+
+  void set(String category) => state = category;
+}
+
+/// Selected category filter. Default is 'All'.
+final productCategoryFilterProvider =
+    NotifierProvider<ProductCategoryFilterNotifier, String>(
+        ProductCategoryFilterNotifier.new);
+
+/// Derived provider: products filtered by the current category filter.
+/// This simply returns the fetched paginated products directly (since the filtering
+/// is now applied server-side on productsProvider).
 final filteredProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {
-  final filter = ref.watch(productStatusFilterProvider);
-  return ref.watch(productsProvider).whenData((paginated) {
-    final products = paginated.products;
-    switch (filter) {
-      case ProductStatusFilter.all:
-        return products;
-      case ProductStatusFilter.available:
-        return products.where((p) => p.availableQuantity > 0).toList();
-      case ProductStatusFilter.lowStock:
-        return products
-            .where((p) =>
-                p.availableQuantity > 0 &&
-                p.availableQuantity <= p.lowStockThreshold)
-            .toList();
-      case ProductStatusFilter.outOfStock:
-        return products.where((p) => p.availableQuantity <= 0).toList();
-    }
-  });
+  return ref.watch(productsProvider).whenData((paginated) => paginated.products);
+});
+
+/// Fetches category product counts from the server.
+final categoryProductCountsProvider = FutureProvider<Map<String, int>>((ref) async {
+  final repo = ref.watch(categoryRepositoryProvider);
+  return repo.getCategoryProductCounts();
+});
+
+/// Fetches the total count of products in the store from the server.
+final totalProductCountProvider = FutureProvider<int>((ref) async {
+  final repo = ref.watch(categoryRepositoryProvider);
+  return repo.getTotalProductCount();
 });
 
