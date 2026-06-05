@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { Banner, getBannerLink } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +74,7 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
             className="flex h-full w-full transition-transform duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)]"
             style={{ transform: `translateX(-${current * 100}%)` }}
           >
-            {heroBanners.map((banner) => {
+            {heroBanners.map((banner, index) => {
               const hasTitle = !!banner.title;
               const hasSubtitle = !!banner.subtitle;
               const hasCTA = !!banner.call_to_action;
@@ -81,17 +82,21 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
 
               const SlideInner = (
                 <div className="min-w-full h-full relative group">
-                  <img
+                  <Image
                     src={banner.mobile_image_url || banner.web_image_url}
                     alt={banner.alt_text || banner.title || "Banner"}
+                    fill
+                    priority={index === 0}
+                    sizes="(max-width: 640px) 100vw, 1px"
                     className="w-full h-full object-cover object-center sm:hidden"
-                    loading="eager"
                   />
-                  <img
+                  <Image
                     src={banner.web_image_url}
                     alt={banner.alt_text || banner.title || "Banner"}
+                    fill
+                    priority={index === 0}
+                    sizes="(min-width: 640px) 100vw, 1024px"
                     className="w-full h-full object-cover object-center hidden sm:block"
-                    loading="eager"
                   />
 
                   {/* Text Overlay */}

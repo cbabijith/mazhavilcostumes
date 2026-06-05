@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Banner, getBannerLink } from '@/lib/supabase/queries';
 
 interface SplitPromoBannersProps {
@@ -23,14 +24,18 @@ export default function SplitPromoBanners({ banners }: SplitPromoBannersProps) {
 
             const BannerInner = (
               <div className="group relative w-full h-48 sm:h-56 md:h-64 rounded-[2.5rem] overflow-hidden">
-                <img
+                <Image
                   src={banner.mobile_image_url || banner.web_image_url}
                   alt={banner.alt_text || banner.title || 'Promo Banner'}
+                  fill
+                  sizes="(max-width: 640px) 100vw, 1px"
                   className="w-full h-full object-cover object-center sm:hidden"
                 />
-                <img
+                <Image
                   src={banner.web_image_url}
                   alt={banner.alt_text || banner.title || 'Promo Banner'}
+                  fill
+                  sizes="(min-width: 640px) 50vw, 500px"
                   className="w-full h-full object-cover object-center hidden sm:block"
                 />
 

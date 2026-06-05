@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Banner, getBannerLink } from '@/lib/supabase/queries';
 import { Button } from '@/components/ui/button';
 
@@ -16,14 +17,18 @@ export default function EditorialBanner({ banners }: EditorialBannerProps) {
 
   const BannerContent = (
     <div className="group relative w-full aspect-[21/10] md:aspect-[28/10] rounded-[2.5rem] overflow-hidden">
-      <img
+      <Image
         src={editorialBanner.mobile_image_url || editorialBanner.web_image_url}
         alt={editorialBanner.alt_text || editorialBanner.title || 'Editorial Banner'}
+        fill
+        sizes="(max-width: 640px) 100vw, 1px"
         className="w-full h-full object-cover object-center sm:hidden"
       />
-      <img
+      <Image
         src={editorialBanner.web_image_url}
         alt={editorialBanner.alt_text || editorialBanner.title || 'Editorial Banner'}
+        fill
+        sizes="(min-width: 640px) 100vw, 1024px"
         className="w-full h-full object-cover object-center hidden sm:block"
       />
       {hasContent && (

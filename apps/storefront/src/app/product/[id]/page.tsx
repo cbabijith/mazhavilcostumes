@@ -4,7 +4,8 @@ import Footer from "@/components/home/Footer";
 import ProductDetails from "@/components/product/ProductDetails";
 import RelatedProducts from "@/components/product/RelatedProducts";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getProductById, getRelatedProducts, getCategories } from "@/lib/supabase/queries";
+import { getRelatedProducts } from "@/lib/supabase/queries";
+import { getCachedProductById, getCachedCategories } from "@/lib/supabase/cached-queries";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -12,7 +13,7 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
-  const product = await getProductById(id);
+  const product = await getCachedProductById(id);
   if (!product) return { title: "Product — Mazhavil Costumes" };
   return {
     title: `${product.name} — Mazhavil Costumes`,
@@ -27,19 +28,18 @@ export default async function ProductPage({ params }: PageProps) {
 
   const [store, product] = await Promise.all([
     getParisBridalsStore(),
-    getProductById(id),
+    getCachedProductById(id),
   ]);
 
   if (!product) {
     notFound();
   }
 
-  // Fetch categories for the header
-  const categories = store ? await getCategories(store.id) : [];
-
-  const related = store
-    ? await getRelatedProducts(store.id, product.category_id || '', product.id, 8)
-    : [];
+  // Fetch categories and related products in parallel (eliminating waterfalls)
+  const [categories, related] = await Promise.all([
+    store ? getCachedCategories(store.id) : Promise.resolve([]),
+    store ? getRelatedProducts(store.id, product.category_id || '', product.id, 8) : Promise.resolve([]),
+  ]);
 
   return (
     <main className="min-h-screen bg-silk selection:bg-rosegold/20 selection:text-rosegold-dark pb-[72px] lg:pb-0">

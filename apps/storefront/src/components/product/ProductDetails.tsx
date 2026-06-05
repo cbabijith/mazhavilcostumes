@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { ChevronRight, Heart, Share2, ShieldCheck, Sparkles, Truck, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,14 +31,24 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
 
-  const [addedToCart, setAddedToCart] = useState(false);
+  const [isInCart, setIsInCart] = useState(false);
   const [addedToWishlist, setAddedToWishlist] = useState(false);
+  const router = useRouter();
 
   const images = getProductImageUrls(product.images);
   const mainImage = images[activeImage] || null;
-  const inStock = !product.track_inventory || product.available_quantity > 0;
 
-  const addToCart = () => {
+  useEffect(() => {
+    const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+    setIsInCart(cart.some((item: any) => item.id === product.id));
+  }, [product.id]);
+
+  const handleCartAction = () => {
+    if (isInCart) {
+      router.push("/cart");
+      return;
+    }
+
     const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
     const exists = cart.some((item: any) => item.id === product.id);
     if (!exists) {
@@ -49,9 +61,8 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
       const newCart = [...cart, newItem];
       localStorage.setItem("paris_cart", JSON.stringify(newCart));
       window.dispatchEvent(new CustomEvent("paris_cart_updated", { detail: newCart.length }));
+      setIsInCart(true);
     }
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 2000);
   };
 
   const addToWishlist = () => {
@@ -105,26 +116,22 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
             <div className="flex flex-col gap-3 sm:gap-4">
               <div className="relative aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white border border-[var(--border-silk)] shadow-silk group">
                 {mainImage ? (
-                  <img
+                  <Image
                     src={mainImage}
                     alt={product.name}
+                    fill
+                    priority
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-rosegold/5 text-7xl opacity-30">
-                    💎
+                    👗
                   </div>
                 )}
 
 
-                {/* Stock badge */}
-                {!inStock && (
-                  <div className="absolute top-3 left-3 sm:top-5 sm:left-5">
-                    <Badge className="bg-heading/90 text-white text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-full">
-                      Out of stock
-                    </Badge>
-                  </div>
-                )}
+
               </div>
 
               {/* Thumbnails */}
@@ -142,9 +149,11 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                       )}
                       aria-label={`View image ${idx + 1}`}
                     >
-                      <img
+                      <Image
                         src={img}
                         alt={`${product.name} ${idx + 1}`}
+                        fill
+                        sizes="80px"
                         className="w-full h-full object-cover"
                       />
                     </button>
@@ -212,23 +221,24 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={() => setModalOpen(true)}
-                  disabled={!inStock}
-                  className="shimmer-btn w-full py-6 rounded-full text-xs uppercase tracking-[0.2em] font-bold border-none shadow-xl disabled:opacity-50"
+                  className="shimmer-btn w-full py-6 rounded-full text-xs uppercase tracking-[0.2em] font-bold border-none shadow-xl"
                 >
                   Book for your Event
                 </Button>
                 
                 <div className="grid grid-cols-2 gap-3">
                   <Button
-                    variant="outline"
-                    onClick={addToCart}
+                    variant={isInCart ? "default" : "outline"}
+                    onClick={handleCartAction}
                     className={cn(
-                      "py-6 rounded-full text-[10px] uppercase tracking-[0.1em] font-bold border-heading text-heading hover:bg-heading/5 transition-all",
-                      addedToCart && "bg-heading text-white border-none"
+                      "py-6 rounded-full text-[10px] uppercase tracking-[0.1em] font-bold transition-all",
+                      isInCart
+                        ? "bg-heading text-white border-none hover:bg-heading/90"
+                        : "border-heading text-heading hover:bg-heading/5"
                     )}
                   >
                     <ShoppingBag size={14} className="mr-2" />
-                    {addedToCart ? "In Cart" : "Add to Cart"}
+                    {isInCart ? "Go to Cart" : "Add to Cart"}
                   </Button>
                   
                   <Button
@@ -276,8 +286,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
           </div>
           <Button
             onClick={() => setModalOpen(true)}
-            disabled={!inStock}
-            className="shimmer-btn flex-1 py-3 rounded-full text-xs font-semibold tracking-[0.15em] text-white uppercase disabled:opacity-50"
+            className="shimmer-btn flex-1 py-3 rounded-full text-xs font-semibold tracking-[0.15em] text-white uppercase"
           >
             Book for Event
           </Button>

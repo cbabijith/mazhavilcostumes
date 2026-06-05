@@ -1,14 +1,44 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Instagram, Facebook, Twitter, Mail, Phone } from "lucide-react";
-import { Store } from "@/lib/supabase/queries";
+import { Store, Category } from "@/lib/supabase/queries";
 import { Separator } from "@/components/ui/separator";
-import { DISPLAY_PHONE, WHATSAPP_NUMBER } from "@/lib/whatsapp";
+import { DISPLAY_PHONE } from "@/lib/whatsapp";
 
 interface FooterProps {
   store: Store | null;
+  categories?: Category[];
 }
 
-export default function Footer({ store }: FooterProps) {
+export default function Footer({ store, categories: initialCategories }: FooterProps) {
+  const [categories, setCategories] = useState<Category[]>(initialCategories || []);
+
+  useEffect(() => {
+    if (initialCategories) {
+      setCategories(initialCategories);
+      return;
+    }
+    if (!store?.id) return;
+    const storeId = store.id;
+
+    async function loadCategories() {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("store_id", storeId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true });
+      if (data) {
+        setCategories(data);
+      }
+    }
+    loadCategories();
+  }, [store?.id, initialCategories]);
+
   const storeName = store?.name || "Mazhavil Costumes";
   const storeEmail = store?.email || "hello@mazhavilcostumes.com";
   const storePhone = DISPLAY_PHONE;
@@ -40,13 +70,26 @@ export default function Footer({ store }: FooterProps) {
           <div>
             <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Collections</h4>
             <ul className="space-y-2 sm:space-y-3">
-              {["Necklaces", "Rings", "Earrings", "Sets", "Bangles"].map((item) => (
-                <li key={item}>
-                  <Link href={`/collections`} className="text-sm text-body font-light hover:text-rosegold transition-colors">
-                    {item}
+              {categories.slice(0, 5).map((category) => (
+                <li key={category.id}>
+                  <Link
+                    href={`/collections?category_id=${category.id}`}
+                    className="text-sm text-body font-light hover:text-rosegold transition-colors"
+                  >
+                    {category.name}
                   </Link>
                 </li>
               ))}
+              {categories.length === 0 && (
+                <li>
+                  <Link
+                    href="/collections"
+                    className="text-sm text-body font-light hover:text-rosegold transition-colors"
+                  >
+                    All Collections
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -54,7 +97,6 @@ export default function Footer({ store }: FooterProps) {
             <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Concierge</h4>
             <ul className="space-y-2 sm:space-y-3">
               {[
-                { label: "Our Story", href: "/about" },
                 { label: "FAQs", href: "/faqs" },
                 { label: "Policies", href: "/legal/terms" },
               ].map((link) => (

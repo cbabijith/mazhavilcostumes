@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Product, getProductImageUrls } from '@/lib/supabase/queries';
 import { Badge } from '@/components/ui/badge';
 
@@ -22,15 +23,16 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
       {/* Image Container — fixed aspect ratio, image fills & crops */}
       <div className="relative aspect-[3/4] overflow-hidden rounded-xl sm:rounded-2xl bg-silk-dark">
         {imageUrl ? (
-          <img
+          <Image
             src={imageUrl}
             alt={product.name}
-            loading="lazy"
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-rosegold/5">
-            <span className="text-4xl opacity-20">💎</span>
+            <span className="text-4xl opacity-20">👗</span>
           </div>
         )}
 
