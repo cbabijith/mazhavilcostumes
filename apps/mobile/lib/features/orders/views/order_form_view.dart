@@ -10,7 +10,6 @@ import '../viewmodels/providers/order_provider.dart';
 
 // Color Constants accessible across classes in the file
 const _primary = Color(0xFF434343);
-const _accent = Color(0xFFF7C873);
 const _bg = Color(0xFFF8F8F8);
 
 class OrderFormView extends ConsumerStatefulWidget {
@@ -30,7 +29,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   String? _selectedCustomerId;
   String? _selectedCustomerName;
   String? _selectedBranchId;
-  String? _selectedBranchName;
 
   final _startDateController = TextEditingController();
   final _endDateController = TextEditingController();
@@ -63,7 +61,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       if (currentBranchId != null && _selectedBranchId == null) {
         setState(() {
           _selectedBranchId = currentBranchId;
-          _selectedBranchName = 'Current Branch';
         });
       }
     });
@@ -72,7 +69,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _selectedCustomerId = widget.order!.customerId;
       _selectedCustomerName = widget.order!.customer?.name ?? 'Linked Customer';
       _selectedBranchId = widget.order!.branchId;
-      _selectedBranchName = widget.order!.branch?.name ?? 'Linked Branch';
       
       _startDateController.text = widget.order!.startDate;
       _endDateController.text = widget.order!.endDate;

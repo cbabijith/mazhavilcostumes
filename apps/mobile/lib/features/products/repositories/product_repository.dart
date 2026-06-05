@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-import '../../../core/supabase/api_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/product.dart';
 
 class PaginatedProducts {
@@ -17,167 +16,143 @@ class PaginatedProducts {
   });
 }
 
-/// Repository layer for Products.
-/// All HTTP calls go through here — providers never touch Dio directly.
+/// Repository layer for Products communicating directly with Supabase.
 class ProductRepository {
-  final Dio _client = apiClient;
+  final _supabase = Supabase.instance.client;
 
-  String _extractError(dynamic e, String defaultMsg) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      if (data is Map && data['error'] != null) {
-        if (data['error'] is Map && data['error']['message'] != null) {
-          return data['error']['message'];
-        }
-        return data['error'].toString();
-      }
-      return e.message ?? defaultMsg;
-    }
-    return e.toString();
-  }
-
-  /// Fetch all products from the Next.js API with pagination.
+  /// Fetch all products from Supabase with pagination.
   Future<PaginatedProducts> getProducts({
     int page = 1,
     int limit = 20,
     String? search,
     String? branchId,
     String? status,
+    String? category,
     CancelToken? cancelToken,
   }) async {
     try {
-      final Map<String, dynamic> queryParams = {
-        'page': page,
-        'limit': limit,
-      };
+      final fromIndex = (page - 1) * limit;
+      final toIndex = fromIndex + limit - 1;
+
+      // Base query fetching products, their categories, and inventory.
+      final selectStr = category != null && category != 'All'
+          ? '''
+            *,
+            category:categories!products_category_id_fkey!inner(name, gst_percentage),
+            product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at)
+            '''
+          : '''
+            *,
+            category:categories!products_category_id_fkey(name, gst_percentage),
+            product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at)
+            ''';
+
+      var query = _supabase.from('products').select(selectStr);
+
+      // Apply search filters
       if (search != null && search.isNotEmpty) {
-        queryParams['query'] = search;
+        query = query.or('name.ilike.%$search%,sku.ilike.%$search%');
+      }
+
+      // Filter by branch via product_inventory filter
+      if (branchId != null && branchId.isNotEmpty) {
+        query = query.filter('product_inventory.branch_id', 'eq', branchId);
+      }
+
+      // Filter by category
+      if (category != null && category != 'All') {
+        query = query.eq('categories.name', category);
+      }
+
+      // Fetch Paginated Data
+      final response = await query
+          .order('name', ascending: true)
+          .range(fromIndex, toIndex);
+
+      final List<dynamic> productsData = response as List<dynamic>? ?? [];
+
+      // Fetch Total Count using count method to bypass 1000 record postgrest limit
+      var countSelect = 'id';
+      if (category != null && category != 'All') {
+        countSelect = 'id, categories:categories!products_category_id_fkey!inner(name)';
+      }
+      var countQuery = _supabase.from('products').select(countSelect);
+
+      if (search != null && search.isNotEmpty) {
+        countQuery = countQuery.or('name.ilike.%$search%,sku.ilike.%$search%');
       }
       if (branchId != null && branchId.isNotEmpty) {
-        queryParams['branch_id'] = branchId;
+        countQuery = countQuery.filter('product_inventory.branch_id', 'eq', branchId);
       }
-      if (status != null && status.isNotEmpty) {
-        queryParams['status'] = status;
+      if (category != null && category != 'All') {
+        countQuery = countQuery.eq('categories.name', category);
       }
 
-      final response = await _client.get(
-        '/products',
-        queryParameters: queryParams,
-        cancelToken: cancelToken,
+      final countResult = await countQuery.count(CountOption.exact);
+      final int totalCount = countResult.count;
+      final int totalPages = (totalCount / limit).ceil();
+
+      return PaginatedProducts(
+        products: productsData.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList(),
+        total: totalCount,
+        page: page,
+        totalPages: totalPages > 0 ? totalPages : 1,
       );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['success'] == true && data['data'] != null) {
-          final productsData = data['data']['products'] as List;
-          return PaginatedProducts(
-            products: productsData.map((e) => Product.fromJson(e)).toList(),
-            total: data['data']['total'] ?? 0,
-            page: data['data']['page'] ?? 1,
-            totalPages: data['data']['total_pages'] ?? 1,
-          );
-        }
-      }
-      throw Exception('Failed to load products');
     } catch (e) {
-      throw Exception(_extractError(e, 'Failed to load products'));
+      throw Exception('Failed to load products: $e');
     }
   }
 
   /// Fetch a single product by ID.
   Future<Product> getProductById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _client.get('/products/$id', cancelToken: cancelToken);
+      final response = await _supabase.from('products').select('''
+        *,
+        category:categories!products_category_id_fkey(name, gst_percentage),
+        product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at)
+      ''').eq('id', id).single();
 
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['success'] == true && data['data'] != null) {
-          return Product.fromJson(data['data']);
-        }
-      }
-      throw Exception('Failed to load product');
+      return Product.fromJson(response);
     } catch (e) {
-      throw Exception(_extractError(e, 'Failed to load product'));
+      throw Exception('Failed to load product: $e');
     }
   }
 
   /// Create a new product.
   Future<Product> createProduct(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      debugPrint('[ProductRepo] POST /products body: $body');
-      final response = await _client.post('/products', data: body, cancelToken: cancelToken);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = response.data;
-        if (data['success'] == true && data['data'] != null) {
-          return Product.fromJson(data['data']);
-        }
-      }
-      throw Exception('Failed to create product');
+      final response = await _supabase.from('products').insert(body).select().single();
+      return Product.fromJson(response);
     } catch (e) {
-      debugPrint('[ProductRepo] createProduct ERROR: $e');
-      throw Exception(_extractError(e, 'Failed to create product'));
+      throw Exception('Failed to create product: $e');
     }
   }
 
-  /// Update an existing product (partial update via whitelisted fields).
+  /// Update an existing product.
   Future<Product> updateProduct(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _client.patch('/products/$id', data: body, cancelToken: cancelToken);
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['success'] == true && data['data'] != null) {
-          return Product.fromJson(data['data']);
-        }
-      }
-      throw Exception('Failed to update product');
+      final response = await _supabase.from('products').update(body).eq('id', id).select().single();
+      return Product.fromJson(response);
     } catch (e) {
-      throw Exception(_extractError(e, 'Failed to update product'));
+      throw Exception('Failed to update product: $e');
     }
   }
 
   /// Delete a product.
-  /// Handles HTTP 409 (product has linked orders) with a descriptive error.
   Future<void> deleteProduct(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _client.delete('/products/$id', cancelToken: cancelToken);
-
-      if (response.statusCode != 200) {
-        final msg = response.data?['error'] ?? 'Failed to delete product';
-        throw Exception(msg);
-      }
-    } on DioException catch (e) {
-      if (e.response?.statusCode == 409) {
-        final data = e.response?.data;
-        final reason = data is Map
-            ? (data['error'] ?? 'This product has linked orders and cannot be deleted.')
-            : 'This product has linked orders and cannot be deleted.';
-        throw Exception(reason.toString());
-      }
-      throw Exception(_extractError(e, 'Failed to delete product'));
+      await _supabase.from('products').delete().eq('id', id);
     } catch (e) {
-      throw Exception(_extractError(e, 'Failed to delete product'));
+      throw Exception('Failed to delete product: $e');
     }
   }
 
   /// Fetch branch inventory for a product.
   Future<List<BranchInventory>> getProductBranchInventory(String productId, {CancelToken? cancelToken}) async {
     try {
-      final response = await _client.get(
-        '/branch-inventory',
-        queryParameters: {'product_id': productId},
-        cancelToken: cancelToken,
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data['success'] == true && data['data'] != null) {
-          final inventoryData = data['data'] as List;
-          return inventoryData.map((e) => BranchInventory.fromJson(e)).toList();
-        }
-      }
-      return [];
+      final response = await _supabase.from('product_inventory').select().eq('product_id', productId);
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+      return data.map((e) => BranchInventory.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       return [];
     }
@@ -186,13 +161,20 @@ class ProductRepository {
   /// Pre-delete safety check.
   Future<Map<String, dynamic>> canDeleteProduct(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _client.get('/products/$id/can-delete', cancelToken: cancelToken);
-      if (response.statusCode == 200 && response.data != null) {
-        return response.data as Map<String, dynamic>;
-      }
-      return {'canDelete': false, 'reason': 'Unable to check'};
+      final response = await _supabase
+          .from('order_items')
+          .select('id')
+          .eq('product_id', id)
+          .limit(1);
+      final list = response as List<dynamic>? ?? [];
+      final hasOrders = list.isNotEmpty;
+
+      return {
+        'canDelete': !hasOrders,
+        'reason': hasOrders ? 'This product has active orders and cannot be deleted.' : null,
+      };
     } catch (e) {
-      return {'canDelete': false, 'reason': _extractError(e, 'Unable to check')};
+      return {'canDelete': false, 'reason': 'Unable to check status: $e'};
     }
   }
 
@@ -204,17 +186,18 @@ class ProductRepository {
     CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _client.get(
-        '/products/$productId/availability',
-        queryParameters: {'start': start.split('T')[0], 'end': end.split('T')[0]},
-        cancelToken: cancelToken,
-      );
-      if (response.statusCode == 200 && response.data != null) {
-        return response.data as Map<String, dynamic>;
-      }
-      throw Exception('Failed to load availability');
+      final response = await _supabase
+          .from('order_reservations')
+          .select()
+          .eq('product_id', productId)
+          .gte('reserved_to', start.split('T')[0])
+          .lte('reserved_from', end.split('T')[0]);
+
+      return {
+        'reservations': response,
+      };
     } catch (e) {
-      throw Exception(_extractError(e, 'Failed to load availability'));
+      throw Exception('Failed to load availability: $e');
     }
   }
 }

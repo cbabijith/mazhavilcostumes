@@ -16,6 +16,7 @@ import '../../branches/models/branch.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../viewmodels/providers/product_provider.dart';
 import '../models/product.dart';
+import 'qr_scanner_dialog.dart';
 
 /// Single-page scrollable product form — mirrors the admin ProductForm layout.
 ///
@@ -890,8 +891,19 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
 
   // ── Barcode Scanner (placeholder — needs mobile_scanner package) ──
   void _scanBarcode() {
-    // TODO: Integrate mobile_scanner or barcode_scan package
-    _snack('Barcode scanner coming soon. Use auto-generate for now.');
+    showDialog(
+      context: context,
+      builder: (context) {
+        return QRScannerDialog(
+          onRawCodeScanned: (code) {
+            setState(() {
+              _barcode = code;
+            });
+            _snack('Barcode scanned: "$code"');
+          },
+        );
+      },
+    );
   }
 
   // ── Submit ──

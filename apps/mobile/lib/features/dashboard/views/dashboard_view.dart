@@ -4,7 +4,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/widgets/widgets.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
 import '../domain/operational_card.dart';
 

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/dashboard/views/dashboard_view.dart';
-import 'package:mobile/main.dart';
 
 void main() {
   group('DashboardView Responsive Tests', () {

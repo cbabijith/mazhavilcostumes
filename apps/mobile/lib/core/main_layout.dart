@@ -60,7 +60,7 @@ class _MainLayoutState extends State<MainLayout> {
             padding: Responsive.only(left: 16),
             child: Center(
               child: SvgPicture.asset(
-                'assets/images/logo_mazhavil.svg',
+                'assets/images/logo_paris.svg',
                 width: Responsive.icon(28),
                 height: Responsive.icon(28),
                 colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -83,7 +83,7 @@ class _MainLayoutState extends State<MainLayout> {
       );
     }
 
-    final titles = ['', 'Orders', 'Calendar', 'Products', 'Categories'];
+    final titles = ['', 'Orders', 'Calendar', 'Products'];
     return AppBar(
       backgroundColor: _primary,
       iconTheme: const IconThemeData(color: Colors.white),
@@ -94,7 +94,7 @@ class _MainLayoutState extends State<MainLayout> {
           padding: Responsive.only(left: 16),
           child: Center(
             child: SvgPicture.asset(
-              'assets/images/logo_mazhavil.svg',
+              'assets/images/logo_paris.svg',
               width: Responsive.icon(28),
               height: Responsive.icon(28),
               colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -142,7 +142,7 @@ class _MainLayoutState extends State<MainLayout> {
                       borderRadius: BorderRadius.circular(Responsive.r(14)),
                     ),
                     child: SvgPicture.asset(
-                      'assets/images/logo_mazhavil.svg',
+                      'assets/images/logo_paris.svg',
                       width: Responsive.icon(32),
                       height: Responsive.icon(32),
                       colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
@@ -183,7 +183,13 @@ class _MainLayoutState extends State<MainLayout> {
                   if (isAdmin) ...[
                     _buildDrawerSectionLabel('Management'),
                     _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', 4),
+                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CategoriesView()),
+                      );
+                    }),
                     _buildDrawerItem(Icons.inventory_2_rounded, 'Products', 3),
                     _buildDrawerItem(Icons.receipt_long_rounded, 'Orders', 1),
                     _buildDrawerItem(Icons.calendar_month_rounded, 'Calendar', 2),
@@ -219,7 +225,13 @@ class _MainLayoutState extends State<MainLayout> {
                     // Manager sees nav items but no settings
                     _buildDrawerSectionLabel('Navigation'),
                     _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', 4),
+                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CategoriesView()),
+                      );
+                    }),
                     _buildDrawerItem(Icons.inventory_2_rounded, 'Products', 3),
                     _buildDrawerItem(Icons.receipt_long_rounded, 'Orders', 1),
                     _buildDrawerItem(Icons.calendar_month_rounded, 'Calendar', 2),
@@ -505,36 +517,64 @@ class _MainLayoutState extends State<MainLayout> {
 
   // ── Bottom Nav ──
   Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _primary,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: Responsive.r(20),
-            offset: Offset(0, Responsive.h(-4)),
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: Responsive.r(16),
+              offset: Offset(0, -Responsive.h(4)),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: Responsive.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildCustomNavItem(Icons.home_outlined, Icons.home_rounded, 'Home', 0),
+              _buildCustomNavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Orders', 1),
+              _buildCustomNavItem(Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Calendar', 2),
+              _buildCustomNavItem(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Products', 3),
+            ],
           ),
-        ],
+        ),
       ),
-      child: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: _primary,
-        selectedItemColor: const Color(0xFFF7C873), // Golden Accent
-        unselectedItemColor: Colors.white54,
-        selectedFontSize: Responsive.sp(11),
-        unselectedFontSize: Responsive.sp(11),
-        iconSize: Responsive.icon(24),
-        showUnselectedLabels: true,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), activeIcon: Icon(Icons.home_rounded), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.receipt_long_outlined), activeIcon: Icon(Icons.receipt_long_rounded), label: 'Orders'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month_outlined), activeIcon: Icon(Icons.calendar_month_rounded), label: 'Calendar'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory_2_outlined), activeIcon: Icon(Icons.inventory_2_rounded), label: 'Products'),
-          BottomNavigationBarItem(icon: Icon(Icons.category_outlined), activeIcon: Icon(Icons.category_rounded), label: 'Categories'),
-        ],
+    );
+  }
+
+  Widget _buildCustomNavItem(IconData icon, IconData activeIcon, String label, int index) {
+    final isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: Container(
+        padding: Responsive.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? _primary.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(Responsive.r(12)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? _primary : Colors.grey[500],
+              size: Responsive.icon(22),
+            ),
+            SizedBox(height: Responsive.h(4)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: Responsive.sp(10),
+                color: isSelected ? _primary : Colors.grey[600],
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -546,7 +586,6 @@ class _MainLayoutState extends State<MainLayout> {
       case 1: return const OrdersView();
       case 2: return const CalendarView();
       case 3: return const ProductsView();
-      case 4: return const CategoriesView();
       default: return const DashboardView();
     }
   }

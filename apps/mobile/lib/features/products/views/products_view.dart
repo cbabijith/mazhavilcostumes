@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -6,9 +7,11 @@ import '../../../core/utils/responsive.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../viewmodels/providers/product_provider.dart';
+import '../repositories/product_repository.dart';
 import '../models/product.dart';
 import 'product_form_view.dart';
 import 'product_detail_view.dart';
+import 'qr_scanner_dialog.dart';
 
 class ProductsView extends ConsumerStatefulWidget {
   const ProductsView({super.key});
@@ -57,63 +60,113 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     final canManage = ref.watch(canManageProvider);
     final productsAsync = ref.watch(productsProvider);
     final filteredAsync = ref.watch(filteredProductsProvider);
-    final currentFilter = ref.watch(productStatusFilterProvider);
+    final currentCategory = ref.watch(productCategoryFilterProvider);
     final selectedBranchId = ref.watch(effectiveBranchIdProvider);
 
-    return Container(
-      color: _bg,
-      child: Stack(
+    return Scaffold(
+      backgroundColor: _bg,
+      body: Column(
         children: [
-          productsAsync.when(
-            data: (paginatedData) {
-              final products = filteredAsync.value ?? paginatedData.products;
-              return _buildContent(
-                context,
-                products,
-                paginatedData.total,
-                paginatedData.products,
-                currentFilter,
-                canManage,
-                selectedBranchId,
-              );
-            },
-            loading: () => _buildShimmerList(),
-            error: (error, stack) => _buildErrorState(error.toString()),
-          ),
-          if (canManage)
-            Positioned(
-              right: Responsive.w(16),
-              bottom: Responsive.h(16),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                        builder: (_) => const ProductFormView()),
-                  );
-                },
-                backgroundColor: _accent,
-                foregroundColor: _primary,
-                icon: Icon(Icons.add_rounded, size: Responsive.icon(24)),
-                label: Text(
-                  'Add Product',
-                  style: TextStyle(
-                      fontSize: Responsive.sp(14),
-                      fontWeight: FontWeight.bold),
+          _buildSearchBar(),
+          _buildCategoryChipsRow(productsAsync, currentCategory),
+          SizedBox(height: Responsive.h(6)),
+          Expanded(
+            child: Stack(
+              children: [
+                productsAsync.when(
+                  data: (paginatedData) {
+                    final products = filteredAsync.value ?? paginatedData.products;
+                    return _buildProductsList(
+                      context,
+                      products,
+                      paginatedData.total,
+                      paginatedData.products,
+                      canManage,
+                      selectedBranchId,
+                    );
+                  },
+                  loading: () => _buildShimmerList(),
+                  error: (error, stack) => _buildErrorState(error.toString()),
                 ),
-                elevation: 3,
-              ),
+                if (canManage)
+                  Positioned(
+                    right: Responsive.w(16),
+                    bottom: Responsive.h(16),
+                    child: FloatingActionButton.extended(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const ProductFormView()),
+                        );
+                      },
+                      backgroundColor: _accent,
+                      foregroundColor: _primary,
+                      icon: Icon(Icons.add_rounded, size: Responsive.icon(24)),
+                      label: Text(
+                        'Add Product',
+                        style: TextStyle(
+                            fontSize: Responsive.sp(14),
+                            fontWeight: FontWeight.bold),
+                      ),
+                      elevation: 3,
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildContent(
+  Widget _buildCategoryChipsRow(AsyncValue<PaginatedProducts> productsAsync, String currentCategory) {
+    final countsAsync = ref.watch(categoryProductCountsProvider);
+    final totalCountAsync = ref.watch(totalProductCountProvider);
+
+    return countsAsync.when(
+      data: (categoryCounts) {
+        final totalCount = totalCountAsync.value ?? 0;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              _buildCategoryChip('All', totalCount, currentCategory),
+              SizedBox(width: Responsive.w(8)),
+              ...categoryCounts.entries.map((entry) {
+                return Padding(
+                  padding: Responsive.only(right: 8),
+                  child: _buildCategoryChip(entry.key, entry.value, currentCategory),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+      loading: () => SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            _buildCategoryChip('All', totalCountAsync.value ?? 0, currentCategory),
+            SizedBox(width: Responsive.w(8)),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildProductsList(
     BuildContext context,
     List<Product> products,
     int totalProducts,
     List<Product> allProducts,
-    ProductStatusFilter currentFilter,
     bool canManage,
     String? branchId,
   ) {
@@ -121,112 +174,69 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
       return _buildEmptyState();
     }
 
-    // Compute counts for filter badges using branch-specific stock
-    final availableCount =
-        allProducts.where((p) => _getStock(p, branchId) > 0).length;
-    final lowStockCount = allProducts
-        .where((p) =>
-            _getStock(p, branchId) > 0 &&
-            _getStock(p, branchId) <= p.lowStockThreshold)
-        .length;
-    final outOfStockCount =
-        allProducts.where((p) => _getStock(p, branchId) <= 0).length;
-
-    return Column(
-      children: [
-        _buildSearchBar(),
-
-        // Filter chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              _buildFilterChip('All', allProducts.length,
-                  ProductStatusFilter.all, currentFilter),
-              SizedBox(width: Responsive.w(8)),
-              _buildFilterChip('Available', availableCount,
-                  ProductStatusFilter.available, currentFilter),
-              SizedBox(width: Responsive.w(8)),
-              _buildFilterChip('Low Stock', lowStockCount,
-                  ProductStatusFilter.lowStock, currentFilter),
-              SizedBox(width: Responsive.w(8)),
-              _buildFilterChip('Out of Stock', outOfStockCount,
-                  ProductStatusFilter.outOfStock, currentFilter),
-            ],
-          ),
+    if (products.isEmpty && _searchQuery.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off_rounded,
+                size: Responsive.icon(48), color: Colors.grey[300]),
+            SizedBox(height: Responsive.h(12)),
+            Text('No results for "$_searchQuery"',
+                style: TextStyle(
+                    fontSize: Responsive.sp(14), color: Colors.grey)),
+          ],
         ),
-        SizedBox(height: Responsive.h(6)),
+      );
+    }
 
-        if (products.isEmpty && _searchQuery.isNotEmpty)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.search_off_rounded,
-                      size: Responsive.icon(48), color: Colors.grey[300]),
-                  SizedBox(height: Responsive.h(12)),
-                  Text('No results for "$_searchQuery"',
-                      style: TextStyle(
-                          fontSize: Responsive.sp(14), color: Colors.grey)),
-                ],
-              ),
-            ),
-          )
-        else if (products.isEmpty)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.filter_list_off_rounded,
-                      size: Responsive.icon(48), color: Colors.grey[300]),
-                  SizedBox(height: Responsive.h(12)),
-                  Text('No products in this filter',
-                      style: TextStyle(
-                          fontSize: Responsive.sp(14), color: Colors.grey)),
-                ],
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: RefreshIndicator(
-              color: _primary,
-              onRefresh: () async => ref.invalidate(productsProvider),
-              child: ListView.separated(
-                controller: _scrollController,
-                padding: Responsive.only(
-                    left: 16, right: 16, top: 6, bottom: 80),
-                itemCount: products.length +
-                    (products.length < totalProducts ? 1 : 0),
-                separatorBuilder: (context, index) =>
-                    SizedBox(height: Responsive.h(12)),
-                itemBuilder: (context, index) {
-                  if (index == products.length) {
-                    return _buildShimmerCard();
-                  }
-                  return _buildProductCard(products[index], canManage);
-                },
-              ),
-            ),
-          ),
-      ],
+    if (products.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.filter_list_off_rounded,
+                size: Responsive.icon(48), color: Colors.grey[300]),
+            SizedBox(height: Responsive.h(12)),
+            Text('No products in this category',
+                style: TextStyle(
+                    fontSize: Responsive.sp(14), color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: _primary,
+      onRefresh: () async => ref.invalidate(productsProvider),
+      child: ListView.separated(
+        controller: _scrollController,
+        padding: Responsive.only(
+            left: 16, right: 16, top: 6, bottom: 80),
+        itemCount: products.length +
+            (products.length < totalProducts ? 1 : 0),
+        separatorBuilder: (context, index) =>
+            SizedBox(height: Responsive.h(12)),
+        itemBuilder: (context, index) {
+          if (index == products.length) {
+            return _buildShimmerCard();
+          }
+          return _buildProductCard(products[index], canManage, branchId);
+        },
+      ),
     );
   }
 
   // ── Filter Chip ──
-  Widget _buildFilterChip(
-    String label,
+  Widget _buildCategoryChip(
+    String categoryName,
     int count,
-    ProductStatusFilter filter,
-    ProductStatusFilter current,
+    String currentCategory,
   ) {
-    final isActive = filter == current;
+    final isActive = categoryName == currentCategory;
     return GestureDetector(
       onTap: () =>
-          ref.read(productStatusFilterProvider.notifier).set(filter),
+          ref.read(productCategoryFilterProvider.notifier).set(categoryName),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: Responsive.symmetric(horizontal: 14, vertical: 8),
@@ -249,16 +259,16 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              label,
+              categoryName,
               style: TextStyle(
                 fontSize: Responsive.sp(12),
                 fontWeight: FontWeight.w600,
                 color: isActive ? Colors.white : _primary,
               ),
             ),
-            SizedBox(width: Responsive.w(4)),
+            SizedBox(width: Responsive.w(6)),
             Container(
-              padding: Responsive.symmetric(horizontal: 6, vertical: 1),
+              padding: Responsive.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: isActive
                     ? Colors.white.withValues(alpha: 0.25)
@@ -280,6 +290,24 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     );
   }
 
+  void _openQRScanner() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return QRScannerDialog(
+          onScanMatched: (productId) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProductDetailView(productId: productId),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildSearchBar() {
     return Padding(
       padding: Responsive.only(left: 16, right: 16, top: 12, bottom: 6),
@@ -296,6 +324,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         ),
         child: TextField(
           controller: _searchController,
+          onChanged: _onSearchChanged,
           onSubmitted: _onSearchChanged,
           textInputAction: TextInputAction.search,
           style: TextStyle(fontSize: Responsive.sp(15)),
@@ -305,16 +334,26 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                 fontSize: Responsive.sp(15), color: Colors.grey[400]),
             prefixIcon: Icon(Icons.search_rounded,
                 size: Responsive.icon(24), color: _primary),
-            suffixIcon: _searchController.text.isNotEmpty
-                ? IconButton(
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_searchController.text.isNotEmpty)
+                  IconButton(
                     icon: Icon(Icons.close_rounded,
                         size: Responsive.icon(22), color: Colors.grey),
                     onPressed: () {
                       _searchController.clear();
                       _onSearchChanged('');
                     },
-                  )
-                : null,
+                  ),
+                IconButton(
+                  icon: Icon(Icons.qr_code_scanner_rounded,
+                      size: Responsive.icon(24), color: _primary),
+                  onPressed: _openQRScanner,
+                ),
+                SizedBox(width: Responsive.w(8)),
+              ],
+            ),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
@@ -337,8 +376,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     return branchInv.first.stockCount;
   }
 
-  Widget _buildProductCard(Product product, bool canManage) {
-    final branchId = ref.watch(effectiveBranchIdProvider);
+  Widget _buildProductCard(Product product, bool canManage, String? branchId) {
     final stock = _getStock(product, branchId);
 
     Color stockColor;
@@ -602,13 +640,24 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   fontSize: Responsive.sp(15), fontWeight: FontWeight.bold),
             ),
             SizedBox(height: Responsive.h(6)),
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: Responsive.sp(12), color: Colors.grey[600]),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+            GestureDetector(
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: error));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error copied to clipboard: ${error.length > 30 ? "${error.substring(0, 30)}..." : error}'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              child: Text(
+                error,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                maxLines: 5,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             SizedBox(height: Responsive.h(16)),
             ElevatedButton.icon(
@@ -633,7 +682,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
   /// Full-page shimmer skeleton shown during initial load
   Widget _buildShimmerList() {
     return ListView.separated(
-      padding: Responsive.only(left: 12, right: 12, top: 120, bottom: 70),
+      padding: Responsive.only(left: 16, right: 16, top: 6, bottom: 80),
       itemCount: 6,
       separatorBuilder: (context, index) =>
           SizedBox(height: Responsive.h(8)),
@@ -726,3 +775,4 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     );
   }
 }
+

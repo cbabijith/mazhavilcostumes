@@ -1,71 +1,57 @@
-import 'package:dio/dio.dart';
-import '../../../core/supabase/api_client.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/branch.dart';
 
-/// Repository layer for Branches.
-/// All HTTP calls go through here — providers never touch Dio directly.
+/// Repository layer for Branches communicating directly with Supabase.
 class BranchRepository {
-  final Dio _client = apiClient;
+  final _supabase = Supabase.instance.client;
 
-  /// Fetch all branches from the Next.js API.
+  /// Fetch all branches from Supabase.
   Future<List<Branch>> getBranches() async {
-    final response = await _client.get('/branches');
-
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        final branchesData = data['data'] as List;
-        return branchesData.map((e) => Branch.fromJson(e)).toList();
-      }
+    try {
+      final response = await _supabase.from('branches').select();
+      final List<dynamic> data = response as List<dynamic>? ?? [];
+      return data.map((e) => Branch.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw Exception('Failed to load branches: $e');
     }
-    throw Exception('Failed to load branches');
   }
 
   /// Fetch a single branch by ID.
   Future<Branch> getBranchById(String id) async {
-    final response = await _client.get('/branches/$id');
-
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Branch.fromJson(data['data']);
-      }
+    try {
+      final response = await _supabase.from('branches').select().eq('id', id).single();
+      return Branch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to load branch: $e');
     }
-    throw Exception('Failed to load branch');
   }
 
   /// Create a new branch.
   Future<Branch> createBranch(Map<String, dynamic> body) async {
-    final response = await _client.post('/branches', data: body);
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Branch.fromJson(data['data']);
-      }
+    try {
+      final response = await _supabase.from('branches').insert(body).select().single();
+      return Branch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to create branch: $e');
     }
-    throw Exception('Failed to create branch');
   }
 
   /// Update an existing branch.
   Future<Branch> updateBranch(String id, Map<String, dynamic> body) async {
-    final response = await _client.patch('/branches/$id', data: body);
-
-    if (response.statusCode == 200) {
-      final data = response.data;
-      if (data['success'] == true && data['data'] != null) {
-        return Branch.fromJson(data['data']);
-      }
+    try {
+      final response = await _supabase.from('branches').update(body).eq('id', id).select().single();
+      return Branch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update branch: $e');
     }
-    throw Exception('Failed to update branch');
   }
 
   /// Delete a branch.
   Future<void> deleteBranch(String id) async {
-    final response = await _client.delete('/branches/$id');
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to delete branch');
+    try {
+      await _supabase.from('branches').delete().eq('id', id);
+    } catch (e) {
+      throw Exception('Failed to delete branch: $e');
     }
   }
 }
