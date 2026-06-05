@@ -66,3 +66,16 @@ export const getCachedProductById = (id: string) => {
   );
   return cachedFn(id);
 };
+
+/**
+ * Get cached gallery items
+ */
+export const getCachedGalleryItems = unstable_cache(
+  async () => rawQueries.getGalleryItems(),
+  ['gallery_items'],
+  {
+    revalidate: 300, // 5 minutes
+    tags: ['gallery'],
+  }
+);
+

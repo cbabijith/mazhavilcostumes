@@ -131,6 +131,18 @@ export type {
   UpdateBannerInput,
 } from './banner.schema';
 
+// Gallery schemas
+export {
+  CreateGallerySchema,
+  UpdateGallerySchema,
+} from './gallery.schema';
+
+export type {
+  CreateGalleryInput,
+  UpdateGalleryInput,
+} from './gallery.schema';
+
+
 // Staff schemas
 export {
   CreateStaffSchema,

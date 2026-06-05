@@ -14,6 +14,7 @@ import {
   LogOut,
   ChevronDown,
   ImageIcon,
+  Images,
   Building2,
   UserCircle,
   CalendarDays,
@@ -37,10 +38,12 @@ const navigation = [
   { name: "Customers", href: "/dashboard/customers", icon: Users },
   { name: "Reports", href: "/dashboard/reports", icon: FileBarChart },
   { name: "Banners", href: "/dashboard/banners", icon: ImageIcon },
+  { name: "Gallery", href: "/dashboard/gallery", icon: Images },
   { name: "Staff", href: "/dashboard/staff", icon: UserCircle },
   { name: "Branches", href: "/dashboard/branches", icon: Building2 },
   { name: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
+
 
 export default function Sidebar() {
   const pathname = usePathname();

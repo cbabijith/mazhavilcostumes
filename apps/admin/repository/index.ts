@@ -29,3 +29,5 @@ export { settingsRepository } from './settingsRepository';
 export { paymentRepository } from './paymentRepository';
 export { cleaningRepository } from './cleaningRepository';
 export { damageAssessmentRepository } from './damageAssessmentRepository';
+export { GalleryRepository, galleryRepository } from './galleryRepository';
+

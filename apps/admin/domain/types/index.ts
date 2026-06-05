@@ -145,6 +145,14 @@ export {
   validateBannerPosition,
 } from './banner';
 
+// Gallery types
+export type {
+  GalleryItem,
+  CreateGalleryItemDTO,
+  UpdateGalleryItemDTO,
+} from './gallery';
+
+
 // Inventory types
 export type {
   ProductInventory,
