@@ -31,6 +31,8 @@ export {
   CreateOrderSchema,
   UpdateOrderSchema,
   ReturnOrderSchema,
+  CreateGallerySchema,
+  UpdateGallerySchema,
 } from './schemas';
 
 export type {
@@ -39,4 +41,7 @@ export type {
   UpdateProductInput,
   BulkProductOperationInput,
   ProductImportInput,
+  CreateGalleryInput,
+  UpdateGalleryInput,
 } from './schemas';
+

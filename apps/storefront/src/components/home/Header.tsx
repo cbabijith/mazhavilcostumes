@@ -58,7 +58,9 @@ export default function Header({ store, categories }: HeaderProps) {
 
   const navLinks = [
     { label: "Collections", href: "/collections" },
+    { label: "Gallery", href: "/gallery" },
   ];
+
 
   return (
     <>

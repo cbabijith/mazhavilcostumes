@@ -101,6 +101,16 @@ export interface Banner {
   created_at: string;
 }
 
+export interface GalleryItem {
+  id: string;
+  store_id: string | null;
+  image_url: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+
 /**
  * Resolve the correct link for a banner based on its redirect type and target ID.
  */
@@ -466,3 +476,25 @@ export async function getProducts(
 
   return { products: data || [], total: count || 0 };
 }
+
+/**
+ * Get active gallery items
+ */
+export async function getGalleryItems(): Promise<GalleryItem[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('gallery')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching gallery items:', error);
+    return [];
+  }
+
+  return data || [];
+}
+

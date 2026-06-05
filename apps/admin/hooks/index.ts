@@ -84,6 +84,17 @@ export {
   useRemainingSlots,
 } from './useBanners';
 
+// Gallery hooks
+export {
+  useGallery,
+  useGalleryItem,
+  useCreateGalleryItem,
+  useUpdateGalleryItem,
+  useDeleteGalleryItem,
+  useReorderGalleryItems,
+} from './useGallery';
+
+
 // Customer hooks
 export {
   useCustomers,

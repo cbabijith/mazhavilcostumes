@@ -97,6 +97,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
             <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Concierge</h4>
             <ul className="space-y-2 sm:space-y-3">
               {[
+                { label: "Gallery", href: "/gallery" },
                 { label: "FAQs", href: "/faqs" },
                 { label: "Policies", href: "/legal/terms" },
               ].map((link) => (
@@ -108,6 +109,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
               ))}
             </ul>
           </div>
+
 
           <div>
             <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Get in Touch</h4>

@@ -13,9 +13,9 @@
 "use client";
 
 import * as React from "react";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Upload, X, FileVideo, Loader2, AlertCircle } from "lucide-react";
+import { Upload, X, FileVideo, Loader2, AlertCircle, Clock } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -55,6 +55,10 @@ export interface FileUploadProps {
   disabled?: boolean;
   /** Additional class names for the wrapper */
   className?: string;
+  /** Whether to compress images client-side before upload (default: true) */
+  compress?: boolean;
+  /** Callback triggered when all files in the current upload queue have finished processing */
+  onUploadComplete?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,18 +193,66 @@ function PreviewItem({ url, isVideo, onRemove, disabled }: PreviewItemProps) {
   );
 }
 
-interface UploadingItemProps {
+export interface QueueItem {
+  id: string;
+  file: File;
   name: string;
-  progress?: number;
+  size: number;
+  status: 'waiting' | 'compressing' | 'uploading' | 'error';
 }
 
-function UploadingItem({ name }: UploadingItemProps) {
+interface QueuePreviewItemProps {
+  item: QueueItem;
+  onRemove: () => void;
+  disabled?: boolean;
+}
+
+function QueuePreviewItem({ item, onRemove, disabled }: QueuePreviewItemProps) {
+  const statusLabels = {
+    waiting: "Waiting...",
+    compressing: "Compressing...",
+    uploading: "Uploading...",
+    error: "Failed",
+  };
+
+  const statusColors = {
+    waiting: "border-slate-200 bg-slate-50/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/20",
+    compressing: "border-blue-300 bg-blue-50/50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/20",
+    uploading: "border-primary/40 bg-primary/5 text-primary",
+    error: "border-red-300 bg-red-50/50 text-red-600 dark:border-red-900/50 dark:bg-red-950/20",
+  };
+
+  const isProcessing = item.status === 'compressing' || item.status === 'uploading';
+
   return (
-    <div className="w-24 h-24 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 flex flex-col items-center justify-center">
-      <Loader2 className="w-5 h-5 text-primary animate-spin" />
-      <span className="text-[10px] text-primary/70 mt-1 truncate w-20 text-center">
-        {name}
+    <div className={cn(
+      "group relative w-24 h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-2 text-center transition-all",
+      statusColors[item.status]
+    )}>
+      {item.status === 'error' ? (
+        <AlertCircle className="w-5 h-5 text-red-500 mb-1" />
+      ) : isProcessing ? (
+        <Loader2 className="w-5 h-5 text-current animate-spin mb-1" />
+      ) : (
+        <Clock className="w-5 h-5 text-slate-400 mb-1" />
+      )}
+      
+      <span className="text-[10px] font-medium truncate w-full px-1">
+        {item.name}
       </span>
+      <span className="text-[9px] opacity-75 mt-0.5">
+        {statusLabels[item.status]}
+      </span>
+
+      {!disabled && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm z-10"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -225,13 +277,22 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
       helperText,
       disabled = false,
       className,
+      compress = true,
+      onUploadComplete,
     },
     ref
   ) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
-    const [uploadingFiles, setUploadingFiles] = useState<string[]>([]);
+    const [uploadQueue, setUploadQueue] = useState<QueueItem[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    // Refs to store latest values to avoid React state closure stale references in async queue loop
+    const queueRef = useRef<QueueItem[]>([]);
+    queueRef.current = uploadQueue;
+
+    const valueRef = useRef<string[]>(value);
+    valueRef.current = value;
 
     // Maximum files the user can still add
     const remainingSlots = multiple ? maxFiles - value.length : value.length === 0 ? 1 : 0;
@@ -326,6 +387,84 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // Handle file selection
     // ------------------------------------------------------------------
 
+    const processQueueItem = useCallback(
+      async (itemId: string) => {
+        const item = queueRef.current.find((i) => i.id === itemId);
+        if (!item) return;
+
+        try {
+          let fileToUpload = item.file;
+
+          // Step 1: Compress image if enabled
+          if (compress && item.file.type.startsWith("image/")) {
+            setUploadQueue((prev) =>
+              prev.map((i) => (i.id === itemId ? { ...i, status: "compressing" } : i))
+            );
+            fileToUpload = await compressImage(item.file);
+          }
+
+          // Step 2: Upload to R2
+          setUploadQueue((prev) =>
+            prev.map((i) => (i.id === itemId ? { ...i, status: "uploading" } : i))
+          );
+
+          const url = await uploadToR2(fileToUpload);
+          if (!url) {
+            throw new Error(`Failed to upload "${item.file.name}"`);
+          }
+
+          // Step 3: Success! Append to parent value immediately
+          const newValue = multiple
+            ? [...valueRef.current, url]
+            : [url];
+          
+          onChange?.(newValue);
+
+          // Step 4: Remove from queue
+          setUploadQueue((prev) => prev.filter((i) => i.id !== itemId));
+        } catch (err) {
+          console.error("Queue upload error:", err);
+          setError(err instanceof Error ? err.message : `Failed to upload "${item.name}"`);
+          
+          setUploadQueue((prev) =>
+            prev.map((i) => (i.id === itemId ? { ...i, status: "error" } : i))
+          );
+        }
+      },
+      [compress, uploadToR2, multiple, onChange]
+    );
+
+    // Cancel / remove item from queue
+    const handleCancelQueueItem = useCallback((itemId: string) => {
+      setUploadQueue((prev) => prev.filter((i) => i.id !== itemId));
+    }, []);
+
+    // Queue Processor: Reacts to changes in uploadQueue
+    useEffect(() => {
+      // Don't start another process if one is already compressing or uploading
+      const active = uploadQueue.some((i) => i.status === "compressing" || i.status === "uploading");
+      if (active) return;
+
+      // Find the next waiting item
+      const nextItem = uploadQueue.find((i) => i.status === "waiting");
+      if (nextItem) {
+        processQueueItem(nextItem.id);
+      }
+    }, [uploadQueue, processQueueItem]);
+
+    const wasUploadingRef = useRef(false);
+    useEffect(() => {
+      const activeCount = uploadQueue.filter(
+        (i) => i.status === "compressing" || i.status === "uploading" || i.status === "waiting"
+      ).length;
+      const isCurrentlyUploading = activeCount > 0;
+
+      if (wasUploadingRef.current && !isCurrentlyUploading) {
+        onUploadComplete?.();
+      }
+      wasUploadingRef.current = isCurrentlyUploading;
+    }, [uploadQueue, onUploadComplete]);
+
     const handleFiles = useCallback(
       async (fileList: FileList | File[]) => {
         const files = Array.from(fileList);
@@ -347,36 +486,18 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           return;
         }
 
-        // Immediate upload mode — compress then upload ALL files in parallel
-        const fileNames = valid.map((f) => f.name);
-        setUploadingFiles(fileNames);
+        // Immediate upload mode — queue files and process them sequentially
+        const newItems: QueueItem[] = valid.map((file, idx) => ({
+          id: `${file.name}-${Date.now()}-${idx}`,
+          file,
+          name: file.name,
+          size: file.size,
+          status: "waiting",
+        }));
 
-        // Step 1: Compress all images client-side (instant, <100ms)
-        const compressed = await Promise.all(valid.map(compressImage));
-
-        // Step 2: Upload compressed files in parallel
-        const results = await Promise.all(
-          compressed.map(async (file) => {
-            const url = await uploadToR2(file);
-            if (!url) {
-              setError(`Failed to upload "${file.name}"`);
-            }
-            return url;
-          })
-        );
-
-        const uploadedUrls = results.filter(Boolean) as string[];
-
-        setUploadingFiles([]);
-
-        if (uploadedUrls.length > 0) {
-          const newValue = multiple
-            ? [...value, ...uploadedUrls]
-            : uploadedUrls.slice(0, 1);
-          onChange?.(newValue);
-        }
+        setUploadQueue((prev) => [...prev, ...newItems]);
       },
-      [validateFiles, uploadImmediately, uploadToR2, onFilesSelected, onChange, value, multiple]
+      [validateFiles, uploadImmediately, onFilesSelected]
     );
 
     // ------------------------------------------------------------------
@@ -458,8 +579,10 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // Render
     // ------------------------------------------------------------------
 
-    const isUploading = uploadingFiles.length > 0;
-    const hasFiles = value.length > 0 || isUploading;
+    const isUploading = uploadQueue.some(
+      (i) => i.status === "compressing" || i.status === "uploading" || i.status === "waiting"
+    );
+    const hasFiles = value.length > 0 || uploadQueue.length > 0;
 
     return (
       <div ref={ref} className={cn("space-y-2", className)}>
@@ -482,8 +605,13 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
                 disabled={disabled}
               />
             ))}
-            {uploadingFiles.map((name) => (
-              <UploadingItem key={name} name={name} />
+            {uploadQueue.map((item) => (
+              <QueuePreviewItem
+                key={item.id}
+                item={item}
+                onRemove={() => handleCancelQueueItem(item.id)}
+                disabled={disabled}
+              />
             ))}
           </div>
         )}
@@ -513,7 +641,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
               <>
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 <p className="text-sm text-primary font-medium">
-                  Uploading {uploadingFiles.length} file{uploadingFiles.length > 1 ? "s" : ""}…
+                  Uploading {uploadQueue.filter((i) => i.status !== "error").length} file(s)…
                 </p>
               </>
             ) : (
