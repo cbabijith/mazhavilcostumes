@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { X, Minus, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
+import { buildOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
 
 interface ProductSummary {
   name: string;
@@ -67,6 +68,13 @@ export default function WhatsAppOrderModal({
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
+    const { rentalDays, totalRent } = calculateRentalPrice(
+      product.price_per_day,
+      quantity,
+      startDate,
+      endDate
+    );
+
     const message = buildOrderMessage({
       productName: product.name,
       price: product.price_per_day,
@@ -77,6 +85,8 @@ export default function WhatsAppOrderModal({
       customerAddress: address.trim(),
       startDate,
       endDate,
+      rentalDays,
+      totalRent,
     });
 
     window.open(buildWhatsAppUrl(message), "_blank");
@@ -100,12 +110,12 @@ export default function WhatsAppOrderModal({
       {/* Modal */}
       <div
         className={cn(
-          "relative w-full sm:max-w-md mx-auto bg-ivory rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
+          "relative w-full sm:max-w-md mx-auto bg-ivory rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] flex flex-col max-h-[85vh] sm:max-h-[90vh]",
           open ? "translate-y-0 sm:scale-100" : "translate-y-full sm:translate-y-0 sm:scale-95"
         )}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-[var(--border-silk)]">
+        <div className="flex items-start justify-between px-6 py-5 border-b border-[var(--border-silk)] shrink-0">
           <div>
             <span className="text-[10px] uppercase tracking-[0.3em] text-rosegold font-semibold">
               Reserve Now
@@ -123,13 +133,17 @@ export default function WhatsAppOrderModal({
           </button>
         </div>
 
-        {/* Product summary */}
-        <div className="px-6 py-4 bg-silk border-b border-[var(--border-silk)] flex items-center gap-4">
+        {/* Scrollable content container */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Product summary */}
+          <div className="px-6 py-4 bg-silk border-b border-[var(--border-silk)] flex items-center gap-4">
           {product.image && (
-            <div className="w-14 h-14 rounded-2xl overflow-hidden bg-white border border-[var(--border-silk)] shrink-0">
-              <img
+            <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-white border border-[var(--border-silk)] shrink-0">
+              <Image
                 src={product.image}
                 alt={product.name}
+                fill
+                sizes="56px"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -275,6 +289,29 @@ export default function WhatsAppOrderModal({
             </div>
           </div>
 
+          {/* Dynamic Pricing Summary */}
+          {(() => {
+            const { rentalDays, totalRent } = calculateRentalPrice(
+              product.price_per_day,
+              quantity,
+              startDate,
+              endDate
+            );
+            if (rentalDays <= 0) return null;
+            return (
+              <div className="p-4 bg-silk rounded-2xl border border-[var(--border-silk)] flex items-center justify-between text-xs font-sans text-heading">
+                <div>
+                  <span className="text-muted-foreground block text-[9px] uppercase tracking-wider mb-0.5">Duration</span>
+                  <span className="font-bold text-sm">{rentalDays} {rentalDays === 1 ? "Day" : "Days"}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-muted-foreground block text-[9px] uppercase tracking-wider mb-0.5">Estimated Rent</span>
+                  <span className="font-bold text-rosegold text-base">₹{totalRent.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            );
+          })()}
+
           <div>
             <label className="text-[10px] uppercase tracking-[0.2em] text-body font-semibold block mb-2">
               Quantity
@@ -314,6 +351,7 @@ export default function WhatsAppOrderModal({
             We&apos;ll confirm availability on WhatsApp shortly
           </p>
         </form>
+        </div>
       </div>
     </div>
   );

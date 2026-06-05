@@ -16,7 +16,6 @@ interface HeaderProps {
 
 export default function Header({ store, categories }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const router = useRouter();
@@ -37,12 +36,6 @@ export default function Header({ store, categories }: HeaderProps) {
     window.addEventListener("scroll", handleScroll, { passive: true });
     loadCounts();
 
-    // Track viewport size for category bar behavior
-    const mediaQuery = window.matchMedia("(min-width: 768px)");
-    setIsDesktop(mediaQuery.matches);
-    const handleMedia = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mediaQuery.addEventListener("change", handleMedia);
-
     const handleCartUpdate = (e: any) => setCartCount(e.detail);
     const handleWishUpdate = (e: any) => setWishlistCount(e.detail);
 
@@ -51,14 +44,12 @@ export default function Header({ store, categories }: HeaderProps) {
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      mediaQuery.removeEventListener("change", handleMedia);
       window.removeEventListener("paris_cart_updated", handleCartUpdate);
       window.removeEventListener("paris_wishlist_updated", handleWishUpdate);
     };
   }, [isScrolled]);
 
-  // Only collapse categories to badges on desktop when scrolled
-  const compactCategories = isScrolled && isDesktop;
+  const compactCategories = false;
 
   const storeName = store?.name || "Mazhavil Costumes";
   const logoUrl = store?.logo_url || "/logo_mazhavil.jpeg";
@@ -67,15 +58,14 @@ export default function Header({ store, categories }: HeaderProps) {
 
   const navLinks = [
     { label: "Collections", href: "/collections" },
-    { label: "About", href: "/about" },
   ];
 
   return (
     <>
       <nav
         className={cn(
-          "sticky top-0 z-50 transition-all duration-300 border-b bg-white",
-          isScrolled ? "py-2 border-[var(--border-silk)] shadow-sm" : "py-4 border-transparent"
+          "sticky top-0 z-50 transition-all duration-300 border-b bg-white py-4",
+          isScrolled ? "border-[var(--border-silk)] shadow-sm" : "border-transparent"
         )}
       >
         <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12">
@@ -88,10 +78,7 @@ export default function Header({ store, categories }: HeaderProps) {
                   alt={storeName}
                   width={140}
                   height={40}
-                  className={cn(
-                    "w-auto object-contain transition-all duration-500",
-                    isScrolled ? "h-7 sm:h-8" : "h-9 sm:h-10 md:h-12"
-                  )}
+                  className="w-auto object-contain transition-all duration-500 h-9 sm:h-10 md:h-12"
                 />
               </div>
               <span className="hidden sm:inline text-sm sm:text-base md:text-xl font-serif tracking-[0.2em] uppercase text-rosegold transition-colors leading-none">
@@ -152,59 +139,41 @@ export default function Header({ store, categories }: HeaderProps) {
         {/* Category Bar */}
         {displayCategories.length > 0 && (
           <div className="border-t border-[var(--border-silk)] mt-2">
-            <div className="w-full sm:px-6 lg:px-12 lg:max-w-[1600px] lg:mx-auto">
-              <div className="flex items-center overflow-x-auto gap-4 sm:gap-6 py-3 hide-scrollbar md:justify-center">
+            <div className="w-full lg:max-w-[1600px] lg:mx-auto">
+              <div className="flex items-center overflow-x-auto gap-4 sm:gap-6 py-3 hide-scrollbar px-6 sm:px-8 lg:px-12">
                 {/* "For You" Circle */}
                 <Link
                   href="/collections"
-                  className={cn(
-                    "flex items-center gap-2 shrink-0 transition-all duration-300 ml-4 luxury-link",
-                    compactCategories ? "px-4 py-1.5 rounded-full bg-silk hover:bg-rosegold/10" : "flex-col h-20 justify-center"
-                  )}
+                  className="flex items-center gap-2 shrink-0 transition-all duration-300 luxury-link flex-col h-20 justify-center"
                 >
-                  {!compactCategories ? (
-                    <>
-                      <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white shadow-lg shadow-rosegold/30 border-2 border-white transition-transform group-active:scale-95 group-hover:shadow-rosegold/50">
-                        <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight">For<br/>You</span>
-                      </div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-rosegold leading-none transition-all">Discovery</span>
-                    </>
-                  ) : (
-                    <span className="text-xs font-bold uppercase tracking-widest text-rosegold">For You</span>
-                  )}
+                  <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white shadow-lg shadow-rosegold/30 border-2 border-white transition-transform group-active:scale-95 group-hover:shadow-rosegold/50">
+                    <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight">For<br/>You</span>
+                  </div>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-rosegold leading-none transition-all">Discovery</span>
                 </Link>
 
                 {displayCategories.map((category, index) => (
                   <Link
                     key={category.id || index}
                     href={`/collections?category_id=${category.id}`}
-                    className={cn(
-                      "flex items-center snap-start group shrink-0 transition-all duration-300 luxury-link",
-                      compactCategories ? "px-4 py-1.5 rounded-full bg-silk hover:bg-rosegold/10" : "flex-col gap-2 h-20 justify-center"
-                    )}
+                    className="flex items-center snap-start group shrink-0 transition-all duration-300 luxury-link flex-col gap-2 h-20 justify-center"
                   >
-                    {!compactCategories ? (
-                      <>
-                        <div className="relative size-12 sm:size-14 rounded-full overflow-hidden bg-white border border-[var(--border-silk)] shadow-sm group-hover:border-rosegold transition-all group-active:scale-95">
-                          {category.image_url && category.image_url.trim() !== "" ? (
-                            <img
-                              src={category.image_url}
-                              alt={category.name}
-                              className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-silk text-rosegold/30 text-lg">💎</div>
-                          )}
-                        </div>
-                        <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-body group-hover:text-rosegold transition-all leading-none truncate max-w-[70px]">
-                          {category.name.split(' ')[0]}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-xs font-bold uppercase tracking-widest text-body group-hover:text-rosegold transition-all">
-                        {category.name.split(' ')[0]}
-                      </span>
-                    )}
+                    <div className="relative size-12 sm:size-14 rounded-full overflow-hidden bg-white border border-[var(--border-silk)] shadow-sm group-hover:border-rosegold transition-all group-active:scale-95">
+                      {category.image_url && category.image_url.trim() !== "" ? (
+                        <Image
+                          src={category.image_url}
+                          alt={category.name}
+                          fill
+                          sizes="(max-width: 640px) 48px, 56px"
+                          className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-silk text-rosegold/30 text-lg">👗</div>
+                      )}
+                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-body group-hover:text-rosegold transition-all leading-none truncate max-w-[70px]">
+                      {category.name.split(' ')[0]}
+                    </span>
                   </Link>
                 ))}
               </div>

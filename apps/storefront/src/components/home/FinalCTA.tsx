@@ -9,12 +9,12 @@ export default function FinalCTA() {
 
       <div className="max-w-[1600px] mx-auto text-center relative z-10">
         <div className="animate-fadeInUp">
-          <span className="section-eyebrow justify-center after:content-[''] after:w-8 after:h-px after:bg-rosegold-light">Your Masterpiece Awaits</span>
+          <span className="section-eyebrow justify-center after:content-[''] after:w-8 after:h-px after:bg-rosegold-light">Your Performance Awaits</span>
           <h2 className="text-3xl sm:text-5xl md:text-8xl font-serif text-heading mb-4 sm:mb-6 md:mb-8 tracking-tight leading-[1.3] md:leading-[1.2]">
-            Complete Your <br className="hidden sm:block" /> <em>Bridal Ensemble</em>
+            Dress for <br className="hidden sm:block" /> the <em>Spotlight</em>
           </h2>
           <p className="text-sm sm:text-lg md:text-xl text-body font-light mb-4 sm:mb-6 md:mb-8 max-w-2xl mx-auto leading-relaxed px-4">
-            Discover our curated collection of luxury costumes, handcrafted to make your special day truly unforgettable. Elegance is just a click away.
+            Rent Kerala's most exquisite collection of classical, folk, and cinematic dance costumes. Crafted with premium fabrics to bring elegance, color, and grace to every movement.
           </p>
         </div>
 

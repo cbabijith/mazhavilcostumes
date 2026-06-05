@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCategories, getProducts } from "@/lib/supabase/queries";
+import { getProducts } from "@/lib/supabase/queries";
+import { getCachedCategories } from "@/lib/supabase/cached-queries";
 import CollectionsClient from "./CollectionsClient";
 
 interface CollectionsPageProps {
@@ -11,6 +12,7 @@ interface CollectionsPageProps {
     q?: string;
     sort?: string;
     featured?: string;
+    page?: string;
   }>;
 }
 
@@ -22,17 +24,23 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
   const categoryId = params.category_id;
   const searchQuery = params.q;
   const isFeatured = params.featured === "true";
+  const currentPage = Math.max(1, parseInt(params.page || "1", 10));
+  const limit = 24;
+  const offset = (currentPage - 1) * limit;
 
   // Fetch data in parallel
-  const [categories, { products }] = await Promise.all([
-    getCategories(store.id),
+  const [categories, productsData] = await Promise.all([
+    getCachedCategories(store.id),
     getProducts(store.id, {
       categoryId,
       search: searchQuery,
       featured: isFeatured,
-      limit: 50,
+      limit,
+      offset,
     }),
   ]);
+
+  const { products, total } = productsData;
 
   return (
     <main className="min-h-screen bg-silk selection:bg-rosegold/20 pb-20 lg:pb-0">
@@ -44,6 +52,9 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
           categories={categories}
           initialCategoryId={categoryId}
           initialSearchQuery={searchQuery}
+          total={total}
+          currentPage={currentPage}
+          itemsPerPage={limit}
         />
       </Suspense>
 
@@ -51,3 +62,4 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
     </main>
   );
 }
+

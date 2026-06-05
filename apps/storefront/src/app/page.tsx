@@ -11,7 +11,8 @@ import FinalCTA from "@/components/home/FinalCTA";
 import Footer from "@/components/home/Footer";
 import TrustBadges from "@/components/home/TrustBadges";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCategories, getFeaturedProducts, getNewArrivals, getHeroBanners, getEditorialBanners, getSplitBanners } from "@/lib/supabase/queries";
+import { getFeaturedProducts, getNewArrivals } from "@/lib/supabase/queries";
+import { getCachedCategories, getCachedHeroBanners, getCachedEditorialBanners, getCachedSplitBanners } from "@/lib/supabase/cached-queries";
 
 async function getStoreData() {
   const store = await getParisBridalsStore();
@@ -36,10 +37,10 @@ export default async function Home() {
 
   // Fetch data in parallel — each banner type has its own optimized query
   const [heroBanners, editorialBanners, splitBanners, categories, featuredProducts, newArrivals] = await Promise.all([
-    getHeroBanners(),
-    getEditorialBanners(),
-    getSplitBanners(),
-    getCategories(storeId),
+    getCachedHeroBanners(),
+    getCachedEditorialBanners(),
+    getCachedSplitBanners(),
+    getCachedCategories(storeId),
     getFeaturedProducts(storeId, 8),
     getNewArrivals(storeId, 10),
   ]);

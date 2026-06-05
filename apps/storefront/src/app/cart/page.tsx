@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
+import Image from "next/image";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { Button } from "@/components/ui/button";
 import { Trash2, ShoppingBag, Calendar } from "lucide-react";
-import { buildWishlistMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
+import { buildWishlistMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface CartItem {
   id: string;
@@ -53,12 +55,22 @@ export default function CartPage() {
     }
     setError("");
 
-    const items = cartItems.map((item) => ({
-      name: item.name,
-      price: item.price_per_day,
-      startDate,
-      endDate,
-    }));
+    const items = cartItems.map((item) => {
+      const { rentalDays, totalRent } = calculateRentalPrice(
+        item.price_per_day,
+        1,
+        startDate,
+        endDate
+      );
+      return {
+        name: item.name,
+        price: item.price_per_day,
+        startDate,
+        endDate,
+        rentalDays,
+        totalRent,
+      };
+    });
     const message = buildWishlistMessage(items);
     window.open(buildWhatsAppUrl(message), "_blank");
   };
@@ -139,9 +151,11 @@ export default function CartPage() {
                   >
                     <div className="relative aspect-square">
                       {item.images?.[0] && (
-                        <img
+                        <Image
                           src={item.images[0]}
                           alt={item.name}
+                          fill
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 300px"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       )}
@@ -155,7 +169,23 @@ export default function CartPage() {
                     </div>
                     <div className="p-5">
                       <h3 className="font-serif text-heading text-lg mb-2 line-clamp-2">{item.name}</h3>
-                      <p className="text-body text-sm mb-3">₹{item.price_per_day.toLocaleString("en-IN")}/day</p>
+                      <p className={cn("text-body text-sm", (startDate && endDate) ? "mb-1" : "mb-3")}>
+                        ₹{item.price_per_day.toLocaleString("en-IN")}/day
+                      </p>
+                      {(() => {
+                        const { rentalDays, totalRent } = calculateRentalPrice(
+                          item.price_per_day,
+                          1,
+                          startDate,
+                          endDate
+                        );
+                        if (rentalDays <= 0) return null;
+                        return (
+                          <p className="text-xs text-rosegold font-sans font-medium mb-3">
+                            Est. Rent ({rentalDays} {rentalDays === 1 ? "day" : "days"}): <span className="font-bold">₹{totalRent.toLocaleString("en-IN")}</span>
+                          </p>
+                        );
+                      })()}
                       <Link href={`/product/${item.id}`}>
                         <Button variant="outline" className="w-full py-3 rounded-full text-xs uppercase tracking-widest font-bold border-rosegold text-rosegold hover:bg-rosegold hover:text-white transition-all">
                           View Details
@@ -165,6 +195,37 @@ export default function CartPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Dynamic Enquiry Summary */}
+              {(() => {
+                const { rentalDays } = calculateRentalPrice(0, 1, startDate, endDate);
+                if (rentalDays <= 0) return null;
+                const grandTotal = cartItems.reduce((acc, item) => {
+                  const { totalRent } = calculateRentalPrice(item.price_per_day, 1, startDate, endDate);
+                  return acc + totalRent;
+                }, 0);
+                return (
+                  <div className="max-w-xl mx-auto mb-12 bg-white p-6 rounded-[2rem] shadow-silk border border-[var(--border-silk)]">
+                    <h3 className="text-sm font-semibold text-heading mb-4 uppercase tracking-wider">Enquiry Summary</h3>
+                    <div className="space-y-2.5 text-sm font-sans text-body">
+                      <div className="flex justify-between">
+                        <span>Duration:</span>
+                        <span className="font-semibold text-heading">{rentalDays} {rentalDays === 1 ? "day" : "days"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Selected Items:</span>
+                        <span className="font-semibold text-heading">{cartItems.length}</span>
+                      </div>
+                      <div className="border-t border-[var(--border-silk)] pt-2.5 flex justify-between text-base font-serif text-heading">
+                        <span>Estimated Total Rent:</span>
+                        <span className="font-bold text-rosegold text-lg">
+                          ₹{grandTotal.toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="fixed bottom-24 left-3 right-3 p-4 bg-white/95 backdrop-blur-md border border-[var(--border-silk)] rounded-2xl lg:hidden z-40 shadow-lg">
                 <Button

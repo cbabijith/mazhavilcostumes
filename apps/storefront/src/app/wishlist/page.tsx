@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
+import Image from "next/image";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { Button } from "@/components/ui/button";
 import { Heart, Trash2 } from "lucide-react";
@@ -82,9 +83,11 @@ export default function WishlistPage() {
                 >
                   <div className="relative aspect-square">
                     {item.images?.[0] && (
-                      <img
+                      <Image
                         src={item.images[0]}
                         alt={item.name}
+                        fill
+                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 300px"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     )}
