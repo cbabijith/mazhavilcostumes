@@ -22,7 +22,7 @@ const fetchStoreConfig = unstable_cache(
 );
 
 /**
- * Get Mazhavil Costumes store data
+ * Get Mazhavil Dance Costumes store data
  * First tries by email, then by slug as fallback
  */
 export async function getParisBridalsStore() {

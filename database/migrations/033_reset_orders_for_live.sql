@@ -1,4 +1,4 @@
--- Mazhavil Costumes — Clean Order Data for Live Launch
+-- Mazhavil Dance Costumes — Clean Order Data for Live Launch
 -- ============================================================================
 -- Description:
 -- Clears all transactional order data (orders, items, status history, payments,

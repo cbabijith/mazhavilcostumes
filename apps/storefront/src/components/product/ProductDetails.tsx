@@ -43,6 +43,25 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     setIsInCart(cart.some((item: any) => item.id === product.id));
   }, [product.id]);
 
+  useEffect(() => {
+    if (!product.id) return;
+    try {
+      const recentlyViewed = JSON.parse(localStorage.getItem("recently_viewed") || "[]");
+      const filtered = recentlyViewed.filter((item: any) => item.id !== product.id);
+      const updated = [
+        {
+          id: product.id,
+          name: product.name,
+          images: product.images,
+        },
+        ...filtered,
+      ].slice(0, 6);
+      localStorage.setItem("recently_viewed", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to update recently viewed products history", e);
+    }
+  }, [product.id, product.name, product.images]);
+
   const handleCartAction = () => {
     if (isInCart) {
       router.push("/cart");
@@ -170,27 +189,9 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                 </span>
               )}
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif text-heading tracking-tight leading-[1.1] mb-3 sm:mb-4">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-sans text-heading tracking-tight leading-[1.1] mb-6">
                 {product.name}
               </h1>
-
-              <div className="flex items-baseline gap-3 mb-5 sm:mb-6">
-                <p className="text-3xl sm:text-4xl font-serif text-rosegold font-semibold">
-                  ₹{product.price_per_day.toLocaleString("en-IN")}
-                </p>
-                <span className="text-xs sm:text-sm uppercase tracking-[0.2em] text-caption font-medium">
-                  for your event
-                </span>
-              </div>
-
-              {product.security_deposit > 0 && (
-                <div className="text-xs text-body mb-5 sm:mb-6">
-                  Refundable security deposit:{" "}
-                  <span className="font-semibold text-heading">
-                    ₹{product.security_deposit.toLocaleString("en-IN")}
-                  </span>
-                </div>
-              )}
 
               {product.description && (
                 <p className="text-sm sm:text-base text-body leading-relaxed mb-6 sm:mb-8 font-light">
@@ -221,7 +222,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={() => setModalOpen(true)}
-                  className="shimmer-btn w-full py-6 rounded-full text-xs uppercase tracking-[0.2em] font-bold border-none shadow-xl"
+                  className="shimmer-btn hidden lg:inline-flex w-full py-6 rounded-full text-xs uppercase tracking-[0.2em] font-bold border-none shadow-xl"
                 >
                   Book for your Event
                 </Button>
@@ -264,7 +265,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                   ✓ Free fittings & styling
                 </p>
                 <p className="text-xs text-caption uppercase tracking-widest">
-                  ✓ Trusted by 500+ brides
+                  ✓ Trusted by 500+ dancers
                 </p>
               </div>
             </div>
@@ -274,19 +275,10 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
       {/* Sticky mobile order bar (visible only on product pages, mobile only) */}
       <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-[var(--border-silk)] shadow-[0_-4px_24px_rgba(183,110,121,0.08)]">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-caption leading-none mb-1">
-              Rental Price
-            </p>
-            <p className="text-base font-serif text-rosegold font-semibold leading-none">
-              ₹{product.price_per_day.toLocaleString("en-IN")}
-              <span className="text-[10px] text-caption ml-1 font-sans">for event</span>
-            </p>
-          </div>
+        <div className="px-4 py-3">
           <Button
             onClick={() => setModalOpen(true)}
-            className="shimmer-btn flex-1 py-3 rounded-full text-xs font-semibold tracking-[0.15em] text-white uppercase"
+            className="shimmer-btn w-full py-3 rounded-full text-xs font-semibold tracking-[0.15em] text-white uppercase"
           >
             Book for Event
           </Button>

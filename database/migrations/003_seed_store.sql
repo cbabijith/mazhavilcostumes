@@ -1,13 +1,13 @@
 -- ============================================================================
 -- Migration 003: Seed Store and Main Branch
--- Creates the Mazhavil Costumes store and its main branch.
+-- Creates the Mazhavil Dance Costumes store and its main branch.
 -- This MUST run before creating the super admin (004).
 -- ============================================================================
 
 -- Create the store
 INSERT INTO stores (name, slug, email, phone, address, is_active, subscription_status)
 VALUES (
-  'Mazhavil Costumes',
+  'Mazhavil Dance Costumes',
   'mazhavil-costumes',
   'mazhavildancecostumes01@gmail.com',        -- ← Update with real email
   '+919447923234',                      -- ← Update with real phone

@@ -1,6 +1,6 @@
-# AGENTS.md — Mazhavil Costumes Development Rules
+# AGENTS.md — Mazhavil Dance Costumes Development Rules
 
-> This document serves as the single source of truth for AI agents working on the Mazhavil Costumes monorepo. Read this BEFORE writing any code.
+> This document serves as the single source of truth for AI agents working on the Mazhavil Dance Costumes monorepo. Read this BEFORE writing any code.
 
 ---
 
@@ -39,7 +39,7 @@
 
 ## 1. Project Overview
 
-**Business**: Mazhavil Costumes — a single-shop costumes rental business (NOT multi-tenant SaaS).
+**Business**: Mazhavil Dance Costumes — a single-shop costumes rental business (NOT multi-tenant SaaS).
 **Monorepo**: pnpm workspaces + Turborepo
 **Tech Stack**: Next.js 16, React 19, TypeScript (strict), Tailwind CSS 4, Supabase, Cloudflare R2, shadcn/ui (new-york style)
 
@@ -462,7 +462,7 @@ components/
 - Luxury minimalist aesthetic (ivory, gold, charcoal palette)
 - Mobile-first responsive design
 - Bottom mobile navigation bar
-- Vendor/store-specific data filtering (only show Mazhavil Costumes content)
+- Vendor/store-specific data filtering (only show Mazhavil Dance Costumes content)
 
 ### Storefront Data Access
 - The Storefront MUST follow the exact same 5-layer architecture as the Admin app (`Domain → Repository → Service → Hooks → Components/Pages`).

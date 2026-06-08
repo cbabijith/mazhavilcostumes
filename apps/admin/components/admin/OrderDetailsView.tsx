@@ -244,14 +244,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleStartOrder = async () => {
     if (!order) return;
 
-    // Check if the scheduled return date has already passed
+    const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
+    const isBackdated = order.start_date < creationDateStr;
+
+    // Check if the scheduled return date has already passed (only for normal orders)
     const today = new Date().toISOString().split('T')[0];
     const todayDate = new Date(today);
     const endDate = new Date(order.end_date);
-    if (endDate < todayDate) {
+    if (!isBackdated && endDate < todayDate) {
       showError("Rental Expired", "Cannot start a rental whose scheduled return date has already passed. Please create a new order instead.");
       return;
     }
+
+    const checkStartDate = isBackdated ? order.start_date : today;
 
     setIsCheckingStock(true);
     try {
@@ -266,7 +271,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items,
-          start_date: today,
+          start_date: checkStartDate,
           end_date: order.end_date,
           exclude_order_id: order.id,
         }),
@@ -286,7 +291,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         id: order.id,
         data: {
           status: OrderStatus.ONGOING,
-          start_date: today,
+          start_date: checkStartDate,
         }
       });
     } catch (err) {
@@ -483,6 +488,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const getStatusDisplay = (status: string, endDateStr?: string) => {
     const isExpired = (() => {
       if (!endDateStr || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
+      const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
+      const isBackdated = order.start_date < creationDateStr;
+      if (isBackdated) return false;
+
       const end = new Date(endDateStr);
       const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
       const today = new Date();
@@ -595,7 +604,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             const today = startOfDay(new Date());
             const rentalStart = startOfDay(new Date(order.start_date));
             const rentalEnd = startOfDay(new Date(order.end_date));
-            const isExpired = today > rentalEnd;
+            
+            const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
+            const isBackdated = order.start_date < creationDateStr;
+            const isExpired = !isBackdated && today > rentalEnd;
             const isEarlyStart = today < rentalStart;
 
             if (isExpired) {

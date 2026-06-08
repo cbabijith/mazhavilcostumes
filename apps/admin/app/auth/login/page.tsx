@@ -51,7 +51,7 @@ export default function LoginPage() {
         {/* Top Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl p-2.5 border border-white/20 flex items-center justify-center">
-             <img src="/logo.jpeg" alt="Mazhavil Costumes Logo" className="w-full h-full object-contain" />
+             <img src="/logo.jpeg" alt="Mazhavil Dance Costumes Logo" className="w-full h-full object-contain" />
           </div>
           <span className="text-2xl font-bold tracking-tight text-white uppercase tracking-widest">
             Mazhavil Dance Costumes
@@ -68,7 +68,7 @@ export default function LoginPage() {
             Manage your <span className="font-semibold text-amber-200">luxury rental</span> collection.
           </h1>
           <p className="text-slate-400 text-lg font-light leading-relaxed">
-            The exclusive administration suite for Mazhavil Costumes. Seamlessly control inventory, process orders, and curate the perfect experience for your clients.
+            The exclusive administration suite for Mazhavil Dance Costumes. Seamlessly control inventory, process orders, and curate the perfect experience for your clients.
           </p>
         </div>
       </div>
@@ -80,10 +80,10 @@ export default function LoginPage() {
           {/* Mobile Header (Only visible on small screens) */}
           <div className="lg:hidden text-center space-y-4 mb-8">
              <div className="w-16 h-16 mx-auto bg-slate-950 rounded-2xl p-3 shadow-xl">
-               <img src="/logo.jpeg" alt="Mazhavil Costumes" className="w-full h-full object-contain" />
+               <img src="/logo.jpeg" alt="Mazhavil Dance Costumes" className="w-full h-full object-contain" />
              </div>
              <div>
-               <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase">Mazhavil Costumes</h1>
+               <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase">Mazhavil Dance Costumes</h1>
                <p className="text-sm text-slate-500 mt-1 uppercase tracking-widest">Admin Portal</p>
              </div>
           </div>

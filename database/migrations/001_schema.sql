@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration 001: Complete Schema for Mazhavil Costumes
+-- Migration 001: Complete Schema for Mazhavil Dance Costumes
 -- Creates ALL tables, columns, indexes, and triggers in their final state.
 -- Run this FIRST on a fresh Supabase project.
 -- ============================================================================

@@ -20,7 +20,7 @@ const badges = [
   {
     icon: Star,
     title: "Trusted Service",
-    description: "Over 500+ brides adorned across the region",
+    description: "Over 500+ dancers adorned across the region",
   },
 ];
 

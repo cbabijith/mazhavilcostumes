@@ -155,10 +155,15 @@ export default function ContactPage() {
                       <Phone size={18} strokeWidth={1.5} />
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Phone</p>
-                      <a href={`tel:${DISPLAY_PHONE}`} className="text-heading font-medium hover:text-rosegold transition-colors">
-                        {DISPLAY_PHONE}
-                      </a>
+                      <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Mob / Whatsapp</p>
+                      <div className="flex flex-col gap-1">
+                        <a href="tel:9446961765" className="text-heading font-medium hover:text-rosegold transition-colors">
+                          +91 94469 61765
+                        </a>
+                        <a href="tel:9447961765" className="text-heading font-medium hover:text-rosegold transition-colors">
+                          +91 94479 61765
+                        </a>
+                      </div>
                     </div>
                   </div>
 
@@ -168,13 +173,9 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Email</p>
-                      {store?.email ? (
-                        <a href={`mailto:${store.email}`} className="text-heading font-medium hover:text-rosegold transition-colors">
-                          {store.email}
-                        </a>
-                      ) : (
-                        <p className="text-body text-sm">hello@mazhavilcostumes.com</p>
-                      )}
+                      <a href="mailto:mazhavildancecostumes@gmail.com" className="text-heading font-medium hover:text-rosegold transition-colors">
+                        mazhavildancecostumes@gmail.com
+                      </a>
                     </div>
                   </div>
 

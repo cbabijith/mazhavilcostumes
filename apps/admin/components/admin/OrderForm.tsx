@@ -141,20 +141,19 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   // Pricing multiplier: base price covers first 3 days, each extra day adds 1×
   const pricingMultiplier = useMemo(() => Math.max(1, rentalDays - 2), [rentalDays]);
 
-  // Minimum allowed start date (today for new, original start date for edit)
-  const minAllowedDate = useMemo(() => {
-    const today = startOfDay(new Date());
-    return isEditing && initialData
-      ? startOfDay(parseDateLocal(initialData.start_date || initialData.rental_start_date))
-      : today;
-  }, [isEditing, initialData]);
-
-  // Date validation: return date must be strictly after pickup date, and pickup date cannot be in the past
+  // Date validation: return date must be on or after pickup date
   const isDateInvalid = useMemo(() => {
     const start = startOfDay(startDate);
     const end = startOfDay(endDate);
-    return end <= start || start < minAllowedDate;
-  }, [startDate, endDate, minAllowedDate]);
+    return end < start;
+  }, [startDate, endDate]);
+
+  // Check if this is a backdated order (pickup date is in the past)
+  const isBackdated = useMemo(() => {
+    const start = startOfDay(startDate);
+    const today = startOfDay(new Date());
+    return start < today;
+  }, [startDate]);
 
   // Cart Calculations — with per-item discounts + order discount + GST-inclusive breakdown
   const cartTotals = useMemo(() => {
@@ -762,7 +761,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   type="date"
                   className="h-12 border-slate-200 focus:border-slate-900 text-base"
                   value={format(startDate, "yyyy-MM-dd")}
-                  min={format(minAllowedDate, "yyyy-MM-dd")}
                   onChange={(e) => {
                     const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
@@ -789,13 +787,16 @@ export default function OrderForm({ initialData }: OrderFormProps) {
               </div>
             </div>
             {isDateInvalid && (
+              <div className="flex items-center gap-2 p-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-red-500" />
+                <span>Return date cannot be before the pickup date. Please choose a valid return date.</span>
+              </div>
+            )}
+
+            {isBackdated && (
               <div className="flex items-center gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
                 <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-500" />
-                <span>
-                  {startOfDay(startDate) < minAllowedDate
-                    ? "Pickup date cannot be in the past. Please choose a valid pickup date."
-                    : "Return date must be after the pickup date. Please choose a valid return date."}
-                </span>
+                <span>⚠️ Backdated Bill: You are creating/editing an order with a pickup date in the past.</span>
               </div>
             )}
 

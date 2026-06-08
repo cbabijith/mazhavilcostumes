@@ -100,8 +100,7 @@ export default function WishlistPage() {
                     </button>
                   </div>
                   <div className="p-5">
-                    <h3 className="font-serif text-heading text-lg mb-2 line-clamp-2">{item.name}</h3>
-                    <p className="text-body text-sm mb-3">₹{item.price_per_day.toLocaleString("en-IN")}/day</p>
+                    <h3 className="font-sans text-heading text-lg mb-2 line-clamp-2">{item.name}</h3>
                     <div className="flex gap-2">
                        <Link href={`/product/${item.id}`} className="flex-1">
                         <Button variant="outline" className="w-full py-3 rounded-full text-[10px] uppercase tracking-widest font-bold border-rosegold text-rosegold hover:bg-rosegold hover:text-white transition-all">

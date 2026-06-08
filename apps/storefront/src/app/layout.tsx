@@ -18,14 +18,14 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Costumes — Premium Costumes Rental",
+  title: "Mazhavil Dance Costumes — Premium Costumes Rental",
   description:
     "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
   keywords: [
     "bridal costumes rental",
     "wedding costumes",
     "Kerala costumes rental",
-    "Mazhavil Costumes",
+    "Mazhavil Dance Costumes",
     "premium costumes",
   ],
   icons: {

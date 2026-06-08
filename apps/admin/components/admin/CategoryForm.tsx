@@ -64,7 +64,7 @@ export default function CategoryForm({
     image_url: category?.image_url || "",
     sort_order: category?.sort_order || 0,
     is_active: category?.is_active ?? true,
-    is_global: true, // Always global — Mazhavil Costumes is a single-shop business
+    is_global: true, // Always global — Mazhavil Dance Costumes is a single-shop business
     parent_id: (category?.parent_id ?? defaultParentId ?? null) as string | null,
     store_id: user?.store_id || null,
     gst_percentage: category?.gst_percentage ?? 5,

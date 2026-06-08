@@ -24,6 +24,8 @@ interface OrderStatusBadgeProps {
   status: OrderStatus;
   is_late?: boolean;
   end_date?: string;
+  start_date?: string;
+  created_at?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -82,7 +84,7 @@ const DEFAULT_CONFIG = {
   className: "bg-slate-100 text-slate-600 border-slate-200",
 };
 
-function OrderStatusBadgeInner({ status, is_late, end_date }: OrderStatusBadgeProps) {
+function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_at }: OrderStatusBadgeProps) {
   // If order is late, show Late badge instead of status badge
   if (is_late) {
     return (
@@ -96,6 +98,14 @@ function OrderStatusBadgeInner({ status, is_late, end_date }: OrderStatusBadgePr
   const isExpired = React.useMemo(() => {
     if (!end_date || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
     
+    // Bypass for backdated orders (start_date < created_at date portion)
+    if (start_date && created_at) {
+      const creationDateStr = created_at.split('T')[0];
+      if (start_date < creationDateStr) {
+        return false;
+      }
+    }
+    
     const end = new Date(end_date);
     const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
     
@@ -103,7 +113,7 @@ function OrderStatusBadgeInner({ status, is_late, end_date }: OrderStatusBadgePr
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
     return endMidnight < todayMidnight;
-  }, [status, end_date]);
+  }, [status, end_date, start_date, created_at]);
 
   if (isExpired) {
     return (

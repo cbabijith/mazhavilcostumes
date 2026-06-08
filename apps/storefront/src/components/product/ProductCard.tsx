@@ -54,12 +54,9 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
 
       {/* Product Info */}
       <div className="mt-2.5 sm:mt-3 text-center px-0.5">
-        <h3 className="text-[13px] sm:text-sm md:text-base font-serif text-heading mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
+        <h3 className="text-[13px] sm:text-sm md:text-base font-sans text-heading mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
           {product.name}
         </h3>
-        <p className="text-[13px] sm:text-sm md:text-base text-rosegold font-semibold font-serif">
-          ₹{product.price_per_day.toLocaleString('en-IN')}<span className="text-[9px] sm:text-[10px] text-caption font-sans ml-0.5">/day</span>
-        </p>
       </div>
     </Link>
   );

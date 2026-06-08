@@ -26,7 +26,7 @@ export default async function MembershipPage() {
     },
     {
       title: "Personal Stylist",
-      desc: "One-on-one consultation with our bridal costumes experts to match your outfit and theme.",
+      desc: "One-on-one consultation with our classical dance costume experts to match your outfit and theme.",
       icon: Heart,
     },
   ];
@@ -42,7 +42,7 @@ export default async function MembershipPage() {
           Paris <em className="text-rosegold italic">Privé</em>
         </h1>
         <p className="text-body max-w-2xl mx-auto font-light text-lg">
-          Join our exclusive membership program designed for brides and costumes enthusiasts who seek the extraordinary.
+          Join our exclusive membership program designed for dancers and costumes enthusiasts who seek the extraordinary.
         </p>
       </section>
 
@@ -90,7 +90,7 @@ export default async function MembershipPage() {
            <div className="w-full md:w-[40%] bg-rosegold/5 p-8 sm:p-16 flex flex-col justify-center text-center">
               <div className="text-5xl font-serif text-rosegold mb-2">₹4,999</div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-8">Annual Membership</div>
-              <p className="text-xs text-body italic opacity-60">"The best investment for a grand bridal look."</p>
+              <p className="text-xs text-body italic opacity-60">"The best investment for a grand classical look."</p>
            </div>
         </div>
       </section>

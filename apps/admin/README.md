@@ -1,6 +1,6 @@
-# Mazhavil Costumes Admin Dashboard
+# Mazhavil Dance Costumes Admin Dashboard
 
-A modern, responsive admin dashboard for managing the Mazhavil Costumes e-commerce platform. Built with Next.js 16, TypeScript, Tailwind CSS, and Supabase.
+A modern, responsive admin dashboard for managing the Mazhavil Dance Costumes e-commerce platform. Built with Next.js 16, TypeScript, Tailwind CSS, and Supabase.
 
 ## 🚀 Quick Start
 
@@ -384,4 +384,4 @@ pnpm build
 
 ## 📄 License
 
-This project is proprietary to Mazhavil Costumes. All rights reserved.
+This project is proprietary to Mazhavil Dance Costumes. All rights reserved.

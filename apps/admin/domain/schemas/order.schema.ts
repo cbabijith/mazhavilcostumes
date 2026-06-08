@@ -38,15 +38,6 @@ export const CreateOrderSchema = z.object({
 }, {
   message: "Rental end date cannot be before start date",
   path: ["rental_end_date"],
-}).refine((data) => {
-  const start = new Date(data.rental_start_date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const startDate = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  return startDate >= today;
-}, {
-  message: "Rental start date cannot be in the past",
-  path: ["rental_start_date"],
 });
 
 export const UpdateOrderSchema = z.object({

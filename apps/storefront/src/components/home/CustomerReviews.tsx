@@ -12,8 +12,8 @@ export default function CustomerReviews() {
       <div className="max-w-[1600px] mx-auto relative z-10">
         <div className="text-center mb-4 sm:mb-6 md:mb-8 animate-fadeInUp px-6 md:px-12">
           <span className="section-eyebrow justify-center after:content-[''] after:w-8 after:h-px after:bg-rosegold-light">Testimonials</span>
-          <h2 className="section-title">What Our <em>Brides Say</em></h2>
-          <p className="text-caption text-xs tracking-widest uppercase mt-3">Real stories from real celebrations</p>
+          <h2 className="section-title">Customer <em>Feedback</em></h2>
+          <p className="text-caption text-xs tracking-widest uppercase mt-3">Real stories from stage performances</p>
         </div>
 
         {/* Mobile: horizontal snap carousel */}
