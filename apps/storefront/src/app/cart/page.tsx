@@ -168,24 +168,7 @@ export default function CartPage() {
                       </button>
                     </div>
                     <div className="p-5">
-                      <h3 className="font-serif text-heading text-lg mb-2 line-clamp-2">{item.name}</h3>
-                      <p className={cn("text-body text-sm", (startDate && endDate) ? "mb-1" : "mb-3")}>
-                        ₹{item.price_per_day.toLocaleString("en-IN")}/day
-                      </p>
-                      {(() => {
-                        const { rentalDays, totalRent } = calculateRentalPrice(
-                          item.price_per_day,
-                          1,
-                          startDate,
-                          endDate
-                        );
-                        if (rentalDays <= 0) return null;
-                        return (
-                          <p className="text-xs text-rosegold font-sans font-medium mb-3">
-                            Est. Rent ({rentalDays} {rentalDays === 1 ? "day" : "days"}): <span className="font-bold">₹{totalRent.toLocaleString("en-IN")}</span>
-                          </p>
-                        );
-                      })()}
+                      <h3 className="font-sans text-heading text-lg mb-4 line-clamp-2">{item.name}</h3>
                       <Link href={`/product/${item.id}`}>
                         <Button variant="outline" className="w-full py-3 rounded-full text-xs uppercase tracking-widest font-bold border-rosegold text-rosegold hover:bg-rosegold hover:text-white transition-all">
                           View Details
@@ -200,10 +183,6 @@ export default function CartPage() {
               {(() => {
                 const { rentalDays } = calculateRentalPrice(0, 1, startDate, endDate);
                 if (rentalDays <= 0) return null;
-                const grandTotal = cartItems.reduce((acc, item) => {
-                  const { totalRent } = calculateRentalPrice(item.price_per_day, 1, startDate, endDate);
-                  return acc + totalRent;
-                }, 0);
                 return (
                   <div className="max-w-xl mx-auto mb-12 bg-white p-6 rounded-[2rem] shadow-silk border border-[var(--border-silk)]">
                     <h3 className="text-sm font-semibold text-heading mb-4 uppercase tracking-wider">Enquiry Summary</h3>
@@ -215,12 +194,6 @@ export default function CartPage() {
                       <div className="flex justify-between">
                         <span>Selected Items:</span>
                         <span className="font-semibold text-heading">{cartItems.length}</span>
-                      </div>
-                      <div className="border-t border-[var(--border-silk)] pt-2.5 flex justify-between text-base font-serif text-heading">
-                        <span>Estimated Total Rent:</span>
-                        <span className="font-bold text-rosegold text-lg">
-                          ₹{grandTotal.toLocaleString("en-IN")}
-                        </span>
                       </div>
                     </div>
                   </div>

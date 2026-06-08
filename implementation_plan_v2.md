@@ -1,4 +1,4 @@
-# Mazhavil Costumes — Implementation Plan v2 (GST, RBAC & Reporting Corrections)
+# Mazhavil Dance Costumes — Implementation Plan v2 (GST, RBAC & Reporting Corrections)
 
 > **Created:** 2026-05-04 | **Total Phases:** 6 | **Estimate:** ~14 hrs
 

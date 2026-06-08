@@ -1,6 +1,6 @@
-// Shared WhatsApp ordering config for Mazhavil Costumes
-export const WHATSAPP_NUMBER = "919447923234";
-export const DISPLAY_PHONE = "+91 94479 23234";
+// Shared WhatsApp ordering config for Mazhavil Dance Costumes
+export const WHATSAPP_NUMBER = "919446961765";
+export const DISPLAY_PHONE = "+91 94469 61765 / +91 94479 61765";
 
 export function calculateRentalPrice(
   pricePerDay: number,
@@ -49,7 +49,7 @@ export function buildOrderMessage(o: OrderDetails): string {
   });
 
   const lines = [
-    "Hello Mazhavil Costumes! 👋",
+    "Hello Mazhavil Dance Costumes! 👋",
     "",
     "*New Rental Enquiry*",
     "",
@@ -57,18 +57,12 @@ export function buildOrderMessage(o: OrderDetails): string {
   ];
 
   if (o.categoryName) lines.push(`🏷️ *Category:* ${o.categoryName}`);
-  lines.push(`💰 *Rental Price:* ₹${o.price.toLocaleString("en-IN")}/day`);
   lines.push(`🔢 *Quantity:* ${o.quantity}`);
   lines.push("");
   lines.push(`🗓️ *Rental Start Date:* ${o.startDate}`);
   lines.push(`⏳ *Rental End Date:* ${o.endDate}`);
   if (o.rentalDays) {
     lines.push(`⏱️ *Duration:* ${o.rentalDays} days`);
-  }
-  if (o.totalRent) {
-    lines.push(`💵 *Total Estimated Rent:* ₹${o.totalRent.toLocaleString("en-IN")}`);
-  } else {
-    lines.push(`💰 *Rental Price for Event:* ₹${o.price.toLocaleString("en-IN")}`);
   }
   lines.push(`📅 *Enquiry Date:* ${today}`);
   lines.push("");
@@ -98,7 +92,7 @@ interface WishlistItem {
 
 export function buildWishlistMessage(items: WishlistItem[]): string {
   const lines = [
-    "Hello Mazhavil Costumes! 👋",
+    "Hello Mazhavil Dance Costumes! 👋",
     "",
     "*Wishlist Enquiry*",
     "",
@@ -110,11 +104,9 @@ export function buildWishlistMessage(items: WishlistItem[]): string {
     lines.push("I'm interested in these items for my event:");
     items.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.name}`);
-      lines.push(`   💰 Rental: ₹${item.price.toLocaleString("en-IN")}/day`);
       if (item.startDate && item.endDate) {
-        if (item.rentalDays && item.totalRent) {
+        if (item.rentalDays) {
           lines.push(`   🗓️ Dates: ${item.startDate} to ${item.endDate} (${item.rentalDays} days)`);
-          lines.push(`   💵 *Estimated Rent:* ₹${item.totalRent.toLocaleString("en-IN")}`);
         } else {
           lines.push(`   🗓️ Dates: ${item.startDate} to ${item.endDate}`);
         }
@@ -136,7 +128,7 @@ interface CartItem extends WishlistItem {
 
 export function buildCartMessage(items: CartItem[]): string {
   const lines = [
-    "Hello Mazhavil Costumes! 👋",
+    "Hello Mazhavil Dance Costumes! 👋",
     "",
     "*Booking Enquiry*",
     "",
@@ -147,13 +139,12 @@ export function buildCartMessage(items: CartItem[]): string {
   } else {
     items.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.name}`);
-      lines.push(`   Rental: ₹${item.price}/day`);
       lines.push(`   Dates: ${item.startDate} to ${item.endDate}`);
     });
   }
 
   lines.push("");
-  lines.push("Please confirm availability and total cost. Thank you! 🙏");
+  lines.push("Please confirm availability. Thank you! 🙏");
 
   return lines.join("\n");
 }
@@ -161,7 +152,7 @@ export function buildCartMessage(items: CartItem[]): string {
 // Contact message builder
 export function buildContactMessage(name: string, phone: string, message: string): string {
   const lines = [
-    "Hello Mazhavil Costumes! 👋",
+    "Hello Mazhavil Dance Costumes! 👋",
     "",
     "*New Enquiry*",
     "",
@@ -187,7 +178,7 @@ interface CheckoutDetails {
 
 export function buildCheckoutMessage(details: CheckoutDetails): string {
   const lines = [
-    "Hello Mazhavil Costumes! 👋",
+    "Hello Mazhavil Dance Costumes! 👋",
     "",
     "*New Booking Request*",
     "",
@@ -195,7 +186,6 @@ export function buildCheckoutMessage(details: CheckoutDetails): string {
 
   details.items.forEach((item, index) => {
     lines.push(`${index + 1}. ${item.name}`);
-    lines.push(`   Rental: ₹${item.price}/day`);
     lines.push(`   Dates: ${item.startDate} to ${item.endDate}`);
   });
 
@@ -206,7 +196,7 @@ export function buildCheckoutMessage(details: CheckoutDetails): string {
   lines.push(`Name: ${details.customerName}`);
   lines.push(`Phone: ${details.customerPhone}`);
   lines.push("");
-  lines.push("Please confirm availability and final amount. Thank you! 🙏");
+  lines.push("Please confirm availability. Thank you! 🙏");
 
   return lines.join("\n");
 }

@@ -10,7 +10,7 @@ interface MobileCTABarProps {
 }
 
 export default function MobileCTABar({ store }: MobileCTABarProps) {
-  const whatsappUrl = buildWhatsAppUrl("Hi, I'm interested in renting costumes from Mazhavil Costumes.");
+  const whatsappUrl = buildWhatsAppUrl("Hi, I'm interested in renting costumes from Mazhavil Dance Costumes.");
 
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-[var(--border-silk)] safe-area-bottom shadow-[0_-4px_24px_rgba(183,110,121,0.08)]">

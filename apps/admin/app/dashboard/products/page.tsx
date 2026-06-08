@@ -194,7 +194,7 @@ function ProductsContent() {
         p.quantity || 0
       ]);
 
-      const titleRow = ['Mazhavil Costumes Catalog', '', '', '', '', '', ''];
+      const titleRow = ['Mazhavil Dance Costumes Catalog', '', '', '', '', '', ''];
       const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
 
       const sheetData = [titleRow, headerRow, ...dataRows];

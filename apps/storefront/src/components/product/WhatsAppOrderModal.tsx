@@ -152,10 +152,7 @@ export default function WhatsAppOrderModal({
             <p className="text-[10px] uppercase tracking-widest text-caption mb-0.5">
               You&apos;re ordering
             </p>
-            <p className="text-sm font-serif text-heading line-clamp-1">{product.name}</p>
-            <p className="text-sm text-rosegold font-semibold">
-              ₹{product.price_per_day.toLocaleString("en-IN")} for event
-            </p>
+            <p className="text-sm font-sans text-heading line-clamp-1">{product.name}</p>
           </div>
         </div>
 
@@ -289,10 +286,10 @@ export default function WhatsAppOrderModal({
             </div>
           </div>
 
-          {/* Dynamic Pricing Summary */}
+          {/* Dynamic Duration Summary */}
           {(() => {
-            const { rentalDays, totalRent } = calculateRentalPrice(
-              product.price_per_day,
+            const { rentalDays } = calculateRentalPrice(
+              0,
               quantity,
               startDate,
               endDate
@@ -303,10 +300,6 @@ export default function WhatsAppOrderModal({
                 <div>
                   <span className="text-muted-foreground block text-[9px] uppercase tracking-wider mb-0.5">Duration</span>
                   <span className="font-bold text-sm">{rentalDays} {rentalDays === 1 ? "Day" : "Days"}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-muted-foreground block text-[9px] uppercase tracking-wider mb-0.5">Estimated Rent</span>
-                  <span className="font-bold text-rosegold text-base">₹{totalRent.toLocaleString("en-IN")}</span>
                 </div>
               </div>
             );

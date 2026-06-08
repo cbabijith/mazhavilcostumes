@@ -286,14 +286,10 @@ function CollectionProductCard({ product }: { product: Product }) {
 
       {/* Product Info */}
       <div className="mt-2.5 sm:mt-4 text-center sm:text-left px-0.5">
-        <h3 className="text-[13px] sm:text-sm lg:text-base font-serif text-heading mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
+        <h3 className="text-[13px] sm:text-sm lg:text-base font-sans text-heading mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
           {product.name}
         </h3>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2.5 justify-center sm:justify-start">
-          <span className="text-rosegold font-bold font-serif text-sm sm:text-base lg:text-lg">
-            ₹{product.price_per_day.toLocaleString("en-IN")}<span className="text-[9px] sm:text-[10px] font-sans text-muted-foreground ml-0.5">/day</span>
-          </span>
-          <span className="hidden sm:inline-block w-px h-3 bg-[var(--border-silk)]" />
+        <div className="flex justify-center sm:justify-start">
           <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-muted-foreground font-medium">
             Sanitized
           </span>

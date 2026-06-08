@@ -148,8 +148,7 @@ export default function SearchClient({ categories, featured }: SearchClientProps
                     <div className="absolute inset-0 bg-rosegold/5" />
                   )}
                 </div>
-                <h4 className="text-xs font-serif font-bold text-heading line-clamp-1">{product.name}</h4>
-                <p className="text-[10px] text-rosegold font-bold">₹{product.price_per_day}/day</p>
+                <h4 className="text-xs font-sans font-bold text-heading line-clamp-1">{product.name}</h4>
               </button>
             ))}
           </div>

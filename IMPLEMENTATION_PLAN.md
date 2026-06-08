@@ -1,4 +1,4 @@
-# Mazhavil Costumes — Implementation Plan
+# Mazhavil Dance Costumes — Implementation Plan
 
 > **Created:** 2026-05-02 | **Total Phases:** 5 | **Total Estimate:** ~16 hrs
 

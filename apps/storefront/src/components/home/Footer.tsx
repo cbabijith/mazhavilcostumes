@@ -7,6 +7,18 @@ import { Store, Category } from "@/lib/supabase/queries";
 import { Separator } from "@/components/ui/separator";
 import { DISPLAY_PHONE } from "@/lib/whatsapp";
 
+const WhatsAppIcon = ({ className, size = 14 }: { className?: string; size?: number }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    className={className}
+    fill="currentColor"
+  >
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L0 24l6.335-1.662c1.746.953 3.71 1.458 5.704 1.459h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+  </svg>
+);
+
 interface FooterProps {
   store: Store | null;
   categories?: Category[];
@@ -39,8 +51,8 @@ export default function Footer({ store, categories: initialCategories }: FooterP
     loadCategories();
   }, [store?.id, initialCategories]);
 
-  const storeName = store?.name || "Mazhavil Costumes";
-  const storeEmail = store?.email || "hello@mazhavilcostumes.com";
+  const storeName = store?.name || "Mazhavil Dance Costumes";
+  const storeEmail = "mazhavildancecostumes@gmail.com";
   const storePhone = DISPLAY_PHONE;
 
   return (
@@ -49,10 +61,20 @@ export default function Footer({ store, categories: initialCategories }: FooterP
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12 mb-8 sm:mb-10">
           <div className="lg:col-span-1">
             <Link href="/" className="block mb-4 sm:mb-6 group">
-              <span className="text-xl sm:text-2xl font-serif text-rosegold tracking-[0.1em] uppercase transition-colors">{storeName}</span>
+              <div className="flex flex-col text-left justify-center">
+                <span className="text-sm sm:text-base md:text-lg font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight">
+                  Mazhavil Dance Costumes
+                </span>
+                <span 
+                  className="w-full text-left text-[10px] sm:text-[11px] md:text-[12px] tracking-[0.4em] text-body uppercase opacity-80 leading-none mt-2 font-medium font-sans block italic"
+                  style={{ marginRight: "-0.4em" }}
+                >
+                  Karamana | Trivandrum
+                </span>
+              </div>
             </Link>
             <p className="text-sm text-body font-light leading-relaxed mb-4 sm:mb-6 max-w-xs">
-              Crafting timeless beauty for those who celebrate life's most precious beginning. Luxury bridal costumes, defined by elegance.
+              Premium classical and traditional dance costumes for rent. Crafted with heritage, designed for the stage.
             </p>
             <div className="flex gap-3 sm:gap-4 md:gap-5">
               {[Instagram, Facebook, Twitter].map((Icon, idx) => (
@@ -68,38 +90,29 @@ export default function Footer({ store, categories: initialCategories }: FooterP
           </div>
 
           <div>
-            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Collections</h4>
+            <h4 className="text-xs sm:text-sm uppercase tracking-[0.2em] font-bold text-rosegold mb-4 sm:mb-6">Policies</h4>
             <ul className="space-y-2 sm:space-y-3">
-              {categories.slice(0, 5).map((category) => (
-                <li key={category.id}>
-                  <Link
-                    href={`/collections?category_id=${category.id}`}
-                    className="text-sm text-body font-light hover:text-rosegold transition-colors"
-                  >
-                    {category.name}
-                  </Link>
-                </li>
-              ))}
-              {categories.length === 0 && (
-                <li>
-                  <Link
-                    href="/collections"
-                    className="text-sm text-body font-light hover:text-rosegold transition-colors"
-                  >
-                    All Collections
-                  </Link>
-                </li>
-              )}
+              <li>
+                <Link href="/legal/terms" className="text-sm text-body font-light hover:text-rosegold transition-colors">
+                  Terms of Service
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal/privacy" className="text-sm text-body font-light hover:text-rosegold transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Concierge</h4>
+            <h4 className="text-xs sm:text-sm uppercase tracking-[0.2em] font-bold text-rosegold mb-4 sm:mb-6">Concierge</h4>
             <ul className="space-y-2 sm:space-y-3">
               {[
+                { label: "About Us", href: "/about" },
                 { label: "Gallery", href: "/gallery" },
+                { label: "Costume Care", href: "/care" },
                 { label: "FAQs", href: "/faqs" },
-                { label: "Policies", href: "/legal/terms" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link href={link.href} className="text-sm text-body font-light hover:text-rosegold transition-colors">
@@ -110,9 +123,8 @@ export default function Footer({ store, categories: initialCategories }: FooterP
             </ul>
           </div>
 
-
           <div>
-            <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-rosegold mb-4 sm:mb-6">Get in Touch</h4>
+            <h4 className="text-xs sm:text-sm uppercase tracking-[0.2em] font-bold text-rosegold mb-4 sm:mb-6">Get in Touch</h4>
             <ul className="space-y-3 sm:space-y-4">
               <li className="flex gap-3 sm:gap-4 items-start group">
                 <div className="w-8 h-8 rounded-full bg-rosegold/5 flex items-center justify-center group-hover:bg-rosegold transition-colors duration-500 shrink-0">
@@ -125,33 +137,75 @@ export default function Footer({ store, categories: initialCategories }: FooterP
                   </a>
                 </div>
               </li>
-              {storePhone && (
-                <li className="flex gap-3 sm:gap-4 items-start group">
-                  <div className="w-8 h-8 rounded-full bg-rosegold/5 flex items-center justify-center group-hover:bg-rosegold transition-colors duration-500 shrink-0">
-                    <Phone size={14} className="text-rosegold group-hover:text-white transition-colors" />
+              <li className="flex gap-3 sm:gap-4 items-start">
+                <div className="flex flex-col gap-4 w-full">
+                  {/* Number 1 Row */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5 shrink-0">
+                      <a 
+                        href="tel:9446961765" 
+                        title="Call +91 94469 61765"
+                        className="w-8 h-8 rounded-full bg-rosegold/5 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white transition-all duration-300 border border-border-silk"
+                      >
+                        <Phone size={13} strokeWidth={1.8} />
+                      </a>
+                      <a 
+                        href="https://wa.me/919446961765" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        title="WhatsApp +91 94469 61765"
+                        className="w-8 h-8 rounded-full bg-emerald-500/5 flex items-center justify-center text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all duration-300 border border-emerald-500/10"
+                      >
+                        <WhatsAppIcon size={13} />
+                      </a>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-widest text-caption leading-none mb-1">Mob / Whatsapp</p>
+                      <span className="text-sm text-heading font-medium leading-none block">
+                        +91 94469 61765
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-caption mb-1">Phone</p>
-                    <a href={`tel:${storePhone}`} className="text-sm text-heading font-medium hover:text-rosegold transition-colors">
-                      {storePhone}
-                    </a>
+
+                  {/* Number 2 Row */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex gap-1.5 shrink-0">
+                      <a 
+                        href="tel:9447961765" 
+                        title="Call +91 94479 61765"
+                        className="w-8 h-8 rounded-full bg-rosegold/5 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white transition-all duration-300 border border-border-silk"
+                      >
+                        <Phone size={13} strokeWidth={1.8} />
+                      </a>
+                      <a 
+                        href="https://wa.me/919447961765" 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        title="WhatsApp +91 94479 61765"
+                        className="w-8 h-8 rounded-full bg-emerald-500/5 flex items-center justify-center text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all duration-300 border border-emerald-500/10"
+                      >
+                        <WhatsAppIcon size={13} />
+                      </a>
+                    </div>
+                    <div>
+                      <p className="text-[9px] uppercase tracking-widest text-caption leading-none mb-1">Mob / Whatsapp</p>
+                      <span className="text-sm text-heading font-medium leading-none block">
+                        +91 94479 61765
+                      </span>
+                    </div>
                   </div>
-                </li>
-              )}
+                </div>
+              </li>
             </ul>
           </div>
         </div>
 
         <Separator className="bg-border-silk mb-8 sm:mb-12" />
 
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-6 sm:gap-8">
-          <p className="text-[9px] uppercase tracking-[0.3em] text-caption text-center sm:text-left">
+        <div className="flex justify-center items-center">
+          <p className="text-[9px] uppercase tracking-[0.3em] text-caption text-center">
             © 2026 {storeName}. Handcrafted with Love.
           </p>
-          <div className="flex gap-6 sm:gap-10">
-            <Link href="/legal/terms" className="text-[9px] uppercase tracking-[0.3em] text-caption hover:text-rosegold transition-colors">Terms of Service</Link>
-            <Link href="/legal/privacy" className="text-[9px] uppercase tracking-[0.3em] text-caption hover:text-rosegold transition-colors">Privacy Policy</Link>
-          </div>
         </div>
       </div>
     </footer>

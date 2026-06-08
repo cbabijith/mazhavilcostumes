@@ -1,6 +1,6 @@
 # Analysis of Order Module, Buffer Operations, and Cleaning Workflow
 
-This document provides a comprehensive analysis of how Mazhavil Costumes manages product availability, rental buffers, and the cleaning lifecycle, especially when multiple orders are placed close to each other.
+This document provides a comprehensive analysis of how Mazhavil Dance Costumes manages product availability, rental buffers, and the cleaning lifecycle, especially when multiple orders are placed close to each other.
 
 ---
 

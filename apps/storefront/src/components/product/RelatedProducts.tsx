@@ -59,12 +59,9 @@ export default function RelatedProducts({
                     <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/8 to-transparent pointer-events-none" />
                   </div>
                   <div className="mt-2.5 px-0.5">
-                    <h3 className="text-[13px] font-serif text-heading mb-1 line-clamp-1 group-hover:text-rosegold transition-colors">
+                    <h3 className="text-[13px] font-sans text-heading mb-1 line-clamp-1 group-hover:text-rosegold transition-colors">
                       {product.name}
                     </h3>
-                    <p className="text-xs text-rosegold font-bold font-serif">
-                      ₹{product.price_per_day.toLocaleString("en-IN")}/day
-                    </p>
                   </div>
                 </Link>
               );
@@ -101,12 +98,9 @@ export default function RelatedProducts({
                   <div className="absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/8 to-transparent pointer-events-none" />
                 </div>
                 <div className="mt-4 px-1">
-                  <h3 className="text-[15px] font-serif text-heading mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors">
+                  <h3 className="text-[15px] font-sans text-heading mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors">
                     {product.name}
                   </h3>
-                  <p className="text-[13px] text-rosegold font-bold font-serif">
-                    ₹{product.price_per_day.toLocaleString("en-IN")}/day
-                  </p>
                 </div>
               </Link>
             );

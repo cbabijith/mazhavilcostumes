@@ -14,9 +14,9 @@ export interface Review {
 }
 
 export const reviews: Review[] = [
-  { id: "r1", name: "Anita Mathew", text: "The costumes looked premium in every photo and the booking process was smooth from start to finish.", rating: 5, occasion: "Church Wedding, Kottayam" },
-  { id: "r2", name: "Deepa Nair", text: "The set matched my saree perfectly and everyone assumed it was custom bridal costumes.", rating: 5, occasion: "Temple Wedding, Ernakulam" },
-  { id: "r3", name: "Fathima Rashid", text: "I booked quickly on WhatsApp, got a fast response, and the bridal set was exactly what I expected.", rating: 5, occasion: "Reception Booking, Thrissur" },
+  { id: "r1", name: "Aswathy Nair", text: "The Bharatanatyam costume was perfectly stitched, vibrant, and looked absolutely stunning on stage. The temple jewelry set included was in pristine condition.", rating: 5, occasion: "Arangetram, Trivandrum" },
+  { id: "r2", name: "Devika Sajeev", text: "Rented Mohiniyattam costumes for our college group dance. Extremely clean, well-maintained, and the sizing fit perfectly. Will definitely rent again!", rating: 5, occasion: "Youth Festival, Kozhikode" },
+  { id: "r3", name: "Rahul Krishnan", text: "Superb collection of folk and classical dance costumes. Easy booking over WhatsApp and prompt delivery. Highly recommended for school events.", rating: 5, occasion: "Annual Day Function, Kollam" },
 ];
 
 // ── Editorial Banners ─────────────────────────────────────────────────

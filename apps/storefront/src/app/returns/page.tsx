@@ -35,7 +35,7 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Return Process</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Returns must be made within 1-2 days after your event as agreed during booking. 
+                    Returns must be made within 1-2 days after your event as agreed during booking.
                     We'll arrange pickup from your location or you can drop off at our store.
                   </p>
                   <ul className="text-body text-sm space-y-2">
@@ -64,8 +64,8 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Normal Wear & Tear</h2>
                   <p className="text-body text-sm leading-relaxed">
-                    Minor wear from normal use is expected and accepted. This includes slight tarnishing, 
-                    minor scratches from handling, and loose stones that can be tightened. No charges apply 
+                    Minor wear from normal use is expected and accepted. This includes slight tarnishing,
+                    minor scratches from handling, and loose stones that can be tightened. No charges apply
                     for normal wear.
                   </p>
                 </div>
@@ -80,7 +80,7 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Damage Charges</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Significant damage beyond normal wear will be assessed and charged from your security 
+                    Significant damage beyond normal wear will be assessed and charged from your security
                     deposit. This includes:
                   </p>
                   <ul className="text-body text-sm space-y-2">
@@ -90,15 +90,15 @@ export default async function ReturnsPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                    Bent or broken metal components
+                      Bent or broken metal components
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                    Lost items (charged at retail value)
+                      Lost items (charged at retail value)
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                    Chemical damage from perfumes/hairsprays
+                      Chemical damage from perfumes/hairsprays
                     </li>
                   </ul>
                 </div>
@@ -113,7 +113,7 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Security Deposit Refund</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Your security deposit is refunded within 3-5 business days after return inspection.
+                    Your security deposit is refunded within next business day after return inspection.
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">

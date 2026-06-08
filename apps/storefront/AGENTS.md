@@ -20,7 +20,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Photography-led, breathing whitespace
 
 ## Data Rules
-- **Vendor-specific filtering**: Only show Mazhavil Costumes store data (filter by `store_id`)
+- **Vendor-specific filtering**: Only show Mazhavil Dance Costumes store data (filter by `store_id`)
 - All banners, categories, products MUST come from database — no hardcoded content
 - No hardcoded image URLs — use R2/database URLs
 

@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import OrderDetailsView from "@/components/admin/OrderDetailsView";
 
 export const metadata: Metadata = {
-  title: "Order Details | Mazhavil Costumes",
+  title: "Order Details | Mazhavil Dance Costumes",
   description: "View and process returns for order",
 };
 

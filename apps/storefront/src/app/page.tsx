@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import Header from "@/components/home/Header";
 import HeroCarousel from "@/components/home/HeroCarousel";
-import FeaturedProducts from "@/components/home/FeaturedProducts";
 import NewArrivals from "@/components/home/NewArrivals";
+import RecentlyViewed from "@/components/home/RecentlyViewed";
 import EditorialBanner from "@/components/home/EditorialBanner";
 import SplitPromoBanners from "@/components/home/SplitPromoBanners";
 import HowItWorks from "@/components/home/HowItWorks";
@@ -26,7 +26,7 @@ export default async function Home() {
     return (
       <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-center bg-silk min-h-screen">
         <div className="text-center animate-fadeInUp">
-          <h1 className="text-4xl font-serif text-heading mb-4">Mazhavil Costumes</h1>
+          <h1 className="text-4xl font-serif text-heading mb-4">Mazhavil Dance Costumes</h1>
           <p className="text-body font-light">Elegance is taking a moment. Please check back soon.</p>
         </div>
       </div>
@@ -36,12 +36,11 @@ export default async function Home() {
   const storeId = store.id;
 
   // Fetch data in parallel — each banner type has its own optimized query
-  const [heroBanners, editorialBanners, splitBanners, categories, featuredProducts, newArrivals] = await Promise.all([
+  const [heroBanners, editorialBanners, splitBanners, categories, newArrivals] = await Promise.all([
     getCachedHeroBanners(),
     getCachedEditorialBanners(),
     getCachedSplitBanners(),
     getCachedCategories(storeId),
-    getFeaturedProducts(storeId, 8),
     getNewArrivals(storeId, 10),
   ]);
 
@@ -53,10 +52,8 @@ export default async function Home() {
       {/* 2. Hero Carousel — only if hero banners exist */}
       {heroBanners.length > 0 && <HeroCarousel banners={heroBanners} />}
 
-      {/* 3. Featured Masterpieces */}
-      <Suspense fallback={<div className="h-[800px] animate-pulse bg-white" />}>
-        <FeaturedProducts products={featuredProducts} />
-      </Suspense>
+      {/* Recently Viewed Products */}
+      <RecentlyViewed />
 
       {/* 4. Trust Badges */}
       <TrustBadges />

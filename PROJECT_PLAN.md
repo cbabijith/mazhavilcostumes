@@ -1,6 +1,6 @@
-# Mazhavil Costumes Standalone Project Plan
+# Mazhavil Dance Costumes Standalone Project Plan
 
-This plan outlines the creation of a standalone monorepo for Mazhavil Costumes costumes rental business with admin dashboard and customer storefront, using clean architecture, shadcn/ui components, Supabase database, and Cloudflare R2 storage.
+This plan outlines the creation of a standalone monorepo for Mazhavil Dance Costumes costumes rental business with admin dashboard and customer storefront, using clean architecture, shadcn/ui components, Supabase database, and Cloudflare R2 storage.
 
 ## Project Overview
 
@@ -1317,7 +1317,7 @@ export async function generateMetadata({ params }): Promise<Metadata> {
   const product = await getProduct(params.id);
   
   return {
-    title: `${product.name} | Mazhavil Costumes - Costumes Rental`,
+    title: `${product.name} | Mazhavil Dance Costumes - Costumes Rental`,
     description: product.description,
     openGraph: {
       title: product.name,
@@ -1356,7 +1356,7 @@ const productSchema = {
 const localBusinessSchema = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
-  name: 'Mazhavil Costumes',
+  name: 'Mazhavil Dance Costumes',
   address: {
     streetAddress: '123 Main Street',
     addressLocality: 'Chennai',
@@ -1569,7 +1569,7 @@ R2_PUBLIC_URL=https://your-cdn-url.com
 
 **Store Configuration**
 ```
-NEXT_PUBLIC_STORE_NAME=Mazhavil Costumes
+NEXT_PUBLIC_STORE_NAME=Mazhavil Dance Costumes
 NEXT_PUBLIC_STORE_GSTIN=29ABCDE1234F1Z5
 NEXT_PUBLIC_WHATSAPP_NUMBER=919876543210
 NEXT_PUBLIC_CURRENCY=INR

@@ -236,11 +236,11 @@ export class OrderService {
   async checkAvailability(productId: string, startDate: string, endDate: string, branchId?: string, excludeOrderId?: string): Promise<RepositoryResult<{ available: number; availableWithPriority: number; total: number; peakReserved: number; overlappingOrders: any[]; priorityCleaningNeeded: boolean; priorityCleaningInfo: any[] }>> {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    if (start >= end) {
+    if (start > end) {
       return {
         data: null,
         error: {
-          message: 'Rental end date must be after start date',
+          message: 'Rental end date cannot be before start date',
           code: 'VALIDATION_ERROR'
         } as any,
         success: false,
@@ -327,11 +327,11 @@ export class OrderService {
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
     
-    if (startDate >= endDate) {
+    if (startDate > endDate) {
       return {
         data: null,
         error: {
-          message: 'Rental end date must be after start date',
+          message: 'Rental end date cannot be before start date',
           code: 'VALIDATION_ERROR'
         } as any,
         success: false,
@@ -563,47 +563,29 @@ export class OrderService {
         };
       }
 
-      // Block starting a rental if its scheduled return date has already passed
+      // Block starting a rental if its scheduled return date has already passed (except for backdated orders)
       const isStarting = ['ongoing', 'in_use', 'delivered'].includes(newStatus) &&
                          !['ongoing', 'in_use', 'delivered', 'returned', 'completed'].includes(currentStatus);
       if (isStarting) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const endDateVal = new Date(existingOrder.data.end_date);
-        const endDate = new Date(endDateVal.getFullYear(), endDateVal.getMonth(), endDateVal.getDate());
-        if (endDate < today) {
-          return {
-            data: null,
-            error: {
-              message: 'Cannot start a rental whose return date has already passed. Please create a new order instead.',
-              code: 'VALIDATION_ERROR'
-            } as any,
-            success: false,
-          };
-        }
-      }
-    }
+        const creationDateStr = new Date(existingOrder.data.created_at).toLocaleDateString('en-CA');
+        const isBackdated = existingOrder.data.start_date < creationDateStr;
 
-    // Validate start date is not being changed to a past date
-    if (data.start_date) {
-      const newStartVal = new Date(data.start_date);
-      const newStart = new Date(newStartVal.getFullYear(), newStartVal.getMonth(), newStartVal.getDate());
-      
-      const oldStartVal = new Date(existingOrder.data.start_date);
-      const oldStart = new Date(oldStartVal.getFullYear(), oldStartVal.getMonth(), oldStartVal.getDate());
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      if (newStart.getTime() !== oldStart.getTime() && newStart < today) {
-        return {
-          data: null,
-          error: {
-            message: 'Rental start date cannot be in the past',
-            code: 'VALIDATION_ERROR'
-          } as any,
-          success: false,
-        };
+        if (!isBackdated) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const endDateVal = new Date(existingOrder.data.end_date);
+          const endDate = new Date(endDateVal.getFullYear(), endDateVal.getMonth(), endDateVal.getDate());
+          if (endDate < today) {
+            return {
+              data: null,
+              error: {
+                message: 'Cannot start a rental whose return date has already passed. Please create a new order instead.',
+                code: 'VALIDATION_ERROR'
+              } as any,
+              success: false,
+            };
+          }
+        }
       }
     }
 
@@ -615,11 +597,11 @@ export class OrderService {
       const startDate = new Date(startDateVal);
       const endDate = new Date(endDateVal);
       
-      if (startDate >= endDate) {
+      if (startDate > endDate) {
         return {
           data: null,
           error: {
-            message: 'Rental end date must be after start date',
+            message: 'Rental end date cannot be before start date',
             code: 'VALIDATION_ERROR'
           } as any,
           success: false,
