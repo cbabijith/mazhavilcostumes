@@ -1,0 +1,19 @@
+# Prevent agent from scanning heavy directories to reduce token cost
+node_modules/
+.next/
+.turbo/
+.git/
+.dart_tool/
+android/
+ios/
+build/
+dist/
+pnpm-lock.yaml
+graphify-out/cache/
+*.xlsx
+*.jpeg
+*.jpg
+*.png
+*.svg
+*.pdf
+backups/

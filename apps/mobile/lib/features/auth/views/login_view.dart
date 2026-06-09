@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
@@ -33,12 +34,18 @@ class _LoginViewState extends ConsumerState<LoginView> {
         MaterialPageRoute(builder: (_) => const MainLayout()),
       );
     } else if (mounted) {
+      final errorMsg = ref.read(authProvider).error ?? AppStrings.invalidCredentials;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text(AppStrings.invalidCredentials),
+          content: SelectableText(errorMsg),
           backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppSizes.radiusMedium)),
+          action: SnackBarAction(
+            label: 'Copy',
+            textColor: Colors.white,
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: errorMsg));
+            },
+          ),
         ),
       );
     }

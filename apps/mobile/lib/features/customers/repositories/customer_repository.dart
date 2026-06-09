@@ -1,4 +1,5 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:dio/dio.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/customer.dart';
 
 class PaginatedCustomers {
@@ -21,11 +22,11 @@ class PaginatedCustomers {
   });
 }
 
-/// Repository layer for Customers communicating directly with Supabase.
+/// Repository layer for Customers communicating with Next.js API via Dio.
 class CustomerRepository {
-  final _supabase = Supabase.instance.client;
+  final _api = apiClient;
 
-  /// Fetch all customers from Supabase with pagination.
+  /// Fetch all customers from Next.js API with pagination.
   Future<PaginatedCustomers> getCustomers({
     int page = 1,
     int limit = 20,
@@ -33,44 +34,37 @@ class CustomerRepository {
     String? phone,
     String sortBy = 'created_at',
     String sortOrder = 'desc',
+    CancelToken? cancelToken,
   }) async {
     try {
-      final fromIndex = (page - 1) * limit;
-      final toIndex = fromIndex + limit - 1;
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+        'sort_by': sortBy,
+        'sort_order': sortOrder,
+      };
 
-      var dbQuery = _supabase.from('customers').select('*');
-
-      // Filter by search query (name or email)
       if (query != null && query.isNotEmpty) {
-        dbQuery = dbQuery.or('name.ilike.%$query%,email.ilike.%$query%');
-      }
-
-      // Filter by phone
-      if (phone != null && phone.isNotEmpty) {
-        dbQuery = dbQuery.ilike('phone', '%$phone%');
-      }
-
-      final response = await dbQuery
-          .order(sortBy, ascending: sortOrder == 'asc')
-          .range(fromIndex, toIndex);
-
-      final List<dynamic> data = response as List<dynamic>? ?? [];
-
-      // Fetch Total Count using a lightweight ID select
-      var countQuery = _supabase.from('customers').select('id');
-      if (query != null && query.isNotEmpty) {
-        countQuery = countQuery.or('name.ilike.%$query%,email.ilike.%$query%');
+        queryParams['query'] = query;
       }
       if (phone != null && phone.isNotEmpty) {
-        countQuery = countQuery.ilike('phone', '%$phone%');
+        queryParams['phone'] = phone;
       }
-      final countResult = await countQuery;
-      final int totalCount = (countResult as List).length;
-      final int totalPages = (totalCount / limit).ceil();
+
+      final response = await _api.get(
+        '/customers',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
+
+      final data = response.data;
+      final customersData = data['customers'] as List<dynamic>? ?? [];
+      final total = data['total'] as int? ?? 0;
+      final totalPages = (total / limit).ceil();
 
       return PaginatedCustomers(
-        customers: data.map((e) => Customer.fromJson(e as Map<String, dynamic>)).toList(),
-        total: totalCount,
+        customers: customersData.map((e) => Customer.fromJson(e as Map<String, dynamic>)).toList(),
+        total: total,
         page: page,
         limit: limit,
         totalPages: totalPages > 0 ? totalPages : 1,
@@ -83,39 +77,56 @@ class CustomerRepository {
   }
 
   /// Fetch a single customer by ID.
-  Future<Customer> getCustomerById(String id) async {
+  Future<Customer> getCustomerById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('customers').select().eq('id', id).single();
-      return Customer.fromJson(response);
+      final response = await _api.get(
+        '/customers/$id',
+        cancelToken: cancelToken,
+      );
+
+      return Customer.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to load customer: $e');
     }
   }
 
   /// Create a new customer.
-  Future<Customer> createCustomer(Map<String, dynamic> body) async {
+  Future<Customer> createCustomer(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('customers').insert(body).select().single();
-      return Customer.fromJson(response);
+      final response = await _api.post(
+        '/customers',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Customer.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to create customer: $e');
     }
   }
 
   /// Update an existing customer.
-  Future<Customer> updateCustomer(String id, Map<String, dynamic> body) async {
+  Future<Customer> updateCustomer(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('customers').update(body).eq('id', id).select().single();
-      return Customer.fromJson(response);
+      final response = await _api.patch(
+        '/customers/$id',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Customer.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to update customer: $e');
     }
   }
 
   /// Delete a customer.
-  Future<void> deleteCustomer(String id) async {
+  Future<void> deleteCustomer(String id, {CancelToken? cancelToken}) async {
     try {
-      await _supabase.from('customers').delete().eq('id', id);
+      await _api.delete(
+        '/customers/$id',
+        cancelToken: cancelToken,
+      );
     } catch (e) {
       throw Exception('Failed to delete customer: $e');
     }

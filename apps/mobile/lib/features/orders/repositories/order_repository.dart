@@ -10,6 +10,8 @@ class PaginatedOrders {
   final int totalPages;
   final bool hasNext;
   final bool hasPrev;
+  final int? actionNeededCount;
+  final int? conflictCount;
 
   PaginatedOrders({
     required this.orders,
@@ -19,14 +21,16 @@ class PaginatedOrders {
     required this.totalPages,
     required this.hasNext,
     required this.hasPrev,
+    this.actionNeededCount,
+    this.conflictCount,
   });
 }
 
-/// Repository layer for Orders communicating directly with Supabase.
+/// Repository layer for Orders communicating with Next.js API via Dio.
 class OrderRepository {
-  final _supabase = Supabase.instance.client;
+  final _api = apiClient;
 
-  /// Fetch all orders from Supabase with pagination.
+  /// Fetch all orders from Next.js API with pagination.
   Future<PaginatedOrders> getOrders({
     int page = 1,
     int limit = 25,
@@ -37,10 +41,13 @@ class OrderRepository {
     String? dateFilter,
     String? dateFrom,
     String? dateTo,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final fromIndex = (page - 1) * limit;
-      final toIndex = fromIndex + limit - 1;
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'limit': limit,
+      };
 
       // Base query fetching order, customer info, branch info, and order items.
       var dbQuery = _supabase.from('orders').select('''
@@ -99,37 +106,48 @@ class OrderRepository {
         countQuery = countQuery.eq('customer_id', customerId);
       }
       if (branchId != null && branchId.isNotEmpty) {
-        countQuery = countQuery.eq('branch_id', branchId);
+        queryParams['branch_id'] = branchId;
       }
       if (status != null && status.isNotEmpty) {
-        if (status == 'late_return') {
-          countQuery = countQuery.eq('is_late', true);
-        } else {
-          countQuery = countQuery.eq('status', status);
-        }
+        queryParams['status'] = status;
       }
       if (query != null && query.isNotEmpty) {
-        countQuery = countQuery.or('notes.ilike.%$query%');
+        queryParams['query'] = query;
+      }
+      if (dateFilter != null && dateFilter.isNotEmpty) {
+        queryParams['date_filter'] = dateFilter;
       }
       if (dateFrom != null && dateFrom.isNotEmpty) {
-        countQuery = countQuery.gte('start_date', dateFrom);
+        queryParams['date_from'] = dateFrom;
       }
       if (dateTo != null && dateTo.isNotEmpty) {
-        countQuery = countQuery.lte('end_date', dateTo);
+        queryParams['date_to'] = dateTo;
       }
 
-      final countResult = await countQuery;
-      final int totalCount = (countResult as List).length;
-      final int totalPages = (totalCount / limit).ceil();
+      final response = await _api.get(
+        '/orders',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
+
+      final responseData = response.data;
+      final ordersData = responseData['data'] as List<dynamic>? ?? [];
+      final meta = responseData['meta'] as Map<String, dynamic>? ?? {};
+
+      final orders = ordersData
+          .map((e) => Order.fromJson(e as Map<String, dynamic>))
+          .toList();
 
       return PaginatedOrders(
-        orders: data.map((e) => Order.fromJson(e as Map<String, dynamic>)).toList(),
-        total: totalCount,
+        orders: orders,
+        total: meta['total'] as int? ?? 0,
         page: page,
         limit: limit,
-        totalPages: totalPages > 0 ? totalPages : 1,
-        hasNext: page < totalPages,
-        hasPrev: page > 1,
+        totalPages: meta['totalPages'] as int? ?? 1,
+        hasNext: meta['hasNext'] as bool? ?? false,
+        hasPrev: meta['hasPrev'] as bool? ?? false,
+        actionNeededCount: meta['actionNeededCount'] as int?,
+        conflictCount: meta['conflictCount'] as int?,
       );
     } catch (e) {
       throw Exception('Failed to load orders: $e');
@@ -137,7 +155,7 @@ class OrderRepository {
   }
 
   /// Fetch a single order by ID.
-  Future<Order> getOrderById(String id) async {
+  Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async {
     try {
       final response = await _supabase.from('orders').select('''
         *,
@@ -158,72 +176,97 @@ class OrderRepository {
   }
 
   /// Create a new order.
-  Future<Order> createOrder(Map<String, dynamic> body) async {
+  Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('orders').insert(body).select().single();
-      return Order.fromJson(response);
+      final response = await _api.post(
+        '/orders',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Order.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to create order: $e');
     }
   }
 
   /// Update an existing order.
-  Future<Order> updateOrder(String id, Map<String, dynamic> body) async {
+  Future<Order> updateOrder(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('orders').update(body).eq('id', id).select().single();
-      return Order.fromJson(response);
+      final response = await _api.patch(
+        '/orders/$id',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Order.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to update order: $e');
     }
   }
 
   /// Delete an order.
-  Future<void> deleteOrder(String id) async {
+  Future<void> deleteOrder(String id, {CancelToken? cancelToken}) async {
     try {
-      await _supabase.from('orders').delete().eq('id', id);
+      await _api.delete(
+        '/orders/$id',
+        cancelToken: cancelToken,
+      );
     } catch (e) {
       throw Exception('Failed to delete order: $e');
     }
   }
 
-  /// Record/collect a payment transaction for an order
-  Future<void> collectPayment({
-    required String orderId,
-    required double amount,
-    required String paymentMode,
-    required String paymentType,
-    String? notes,
+  /// Check availability for order items
+  Future<Map<String, dynamic>> checkAvailability({
+    required List<Map<String, dynamic>> items,
+    required String startDate,
+    required String endDate,
+    required String branchId,
+    String? excludeOrderId,
+    CancelToken? cancelToken,
   }) async {
     try {
-      await _supabase.from('payments').insert({
-        'order_id': orderId,
-        'amount': amount,
-        'payment_mode': paymentMode,
-        'payment_type': paymentType,
-        'notes': notes,
-        'payment_date': DateTime.now().toIso8601String(),
-      });
+      final response = await _api.post(
+        '/orders/check-availability',
+        data: {
+          'items': items,
+          'start_date': startDate,
+          'end_date': endDate,
+          'branch_id': branchId,
+          if (excludeOrderId != null) 'exclude_order_id': excludeOrderId,
+        },
+        cancelToken: cancelToken,
+      );
+
+      return response.data;
     } catch (e) {
-      throw Exception('Failed to record payment: $e');
+      throw Exception('Failed to check availability: $e');
     }
   }
 
   /// Process returning of items in the order
-  Future<void> processReturn({
+  Future<Order> processReturn({
     required String orderId,
     required List<Map<String, dynamic>> items,
     String? notes,
     double? lateFee,
     double? discount,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final updates = {
-        'status': 'returned',
-        if (notes != null) 'notes': notes,
-        if (lateFee != null) 'late_fee': lateFee,
-        if (discount != null) 'discount': discount,
-      };
-      await _supabase.from('orders').update(updates).eq('id', orderId);
+      final response = await _api.post(
+        '/orders/$orderId/return',
+        data: {
+          'items': items,
+          if (notes != null) 'notes': notes,
+          if (lateFee != null) 'late_fee': lateFee,
+          if (discount != null) 'discount': discount,
+        },
+        cancelToken: cancelToken,
+      );
+
+      return Order.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to process order return: $e');
     }

@@ -6,6 +6,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
+import '../../categories/viewmodels/providers/category_provider.dart';
 import '../viewmodels/providers/product_provider.dart';
 import '../repositories/product_repository.dart';
 import '../models/product.dart';
@@ -120,27 +121,69 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
   }
 
   Widget _buildCategoryChipsRow(AsyncValue<PaginatedProducts> productsAsync, String currentCategory) {
+    final categoriesAsync = ref.watch(categoriesProvider);
     final countsAsync = ref.watch(categoryProductCountsProvider);
-    final totalCountAsync = ref.watch(totalProductCountProvider);
+    final totalCount = productsAsync.value?.total ?? 0;
 
-    return countsAsync.when(
-      data: (categoryCounts) {
-        final totalCount = totalCountAsync.value ?? 0;
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              _buildCategoryChip('All', totalCount, currentCategory),
-              SizedBox(width: Responsive.w(8)),
-              ...categoryCounts.entries.map((entry) {
-                return Padding(
-                  padding: Responsive.only(right: 8),
-                  child: _buildCategoryChip(entry.key, entry.value, currentCategory),
-                );
-              }),
-            ],
+    return categoriesAsync.when(
+      data: (categories) {
+        return countsAsync.when(
+          data: (categoryCounts) {
+            // Build a map of category ID -> name
+            final categoryMap = {for (var cat in categories) cat.id: cat.name};
+            
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  _buildCategoryChip('All', totalCount, currentCategory),
+                  SizedBox(width: Responsive.w(8)),
+                  ...categories.map((cat) {
+                    final count = categoryCounts[cat.id] ?? 0;
+                    return Padding(
+                      padding: Responsive.only(right: 8),
+                      child: _buildCategoryChip(cat.name, count, currentCategory),
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
+          loading: () => SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                _buildCategoryChip('All', totalCount, currentCategory),
+                SizedBox(width: Responsive.w(8)),
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+                ),
+              ],
+            ),
           ),
+          error: (_, __) {
+            // Fallback: show categories without counts if counts endpoint fails
+            return SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  _buildCategoryChip('All', totalCount, currentCategory),
+                  SizedBox(width: Responsive.w(8)),
+                  ...categories.map((cat) {
+                    return Padding(
+                      padding: Responsive.only(right: 8),
+                      child: _buildCategoryChip(cat.name, 0, currentCategory),
+                    );
+                  }),
+                ],
+              ),
+            );
+          },
         );
       },
       loading: () => SingleChildScrollView(
@@ -148,7 +191,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         padding: Responsive.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
-            _buildCategoryChip('All', totalCountAsync.value ?? 0, currentCategory),
+            _buildCategoryChip('All', totalCount, currentCategory),
             SizedBox(width: Responsive.w(8)),
             const SizedBox(
               width: 16,

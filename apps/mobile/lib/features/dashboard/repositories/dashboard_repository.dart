@@ -1,4 +1,5 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:dio/dio.dart';
+import '../../../core/supabase/api_client.dart';
 import '../domain/operational_card.dart';
 
 class DashboardProduct {
@@ -130,112 +131,60 @@ class DashboardMetrics {
 }
 
 class DashboardRepository {
-  final supabase = Supabase.instance.client;
+  final _api = apiClient;
 
-  Future<DashboardMetrics> getMetrics({String? branchId}) async {
-    // TODO: Implement using Supabase queries if needed
-    throw UnimplementedError('getMetrics not implemented for Supabase direct access');
+  Future<DashboardMetrics> getMetrics({String? branchId, CancelToken? cancelToken}) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (branchId != null && branchId.isNotEmpty) {
+        queryParams['branch_id'] = branchId;
+      }
+
+      final response = await _api.get(
+        '/dashboard/mobile-metrics',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
+
+      return DashboardMetrics.fromJson(response.data);
+    } catch (e) {
+      throw Exception('Failed to load dashboard metrics: $e');
+    }
   }
 
-  Future<OperationalMetrics> getOperationalMetrics({String? branchId}) async {
+  Future<OperationalMetrics> getOperationalMetrics({String? branchId, CancelToken? cancelToken}) async {
     try {
-      // Get IST date context
-      final now = DateTime.now();
-      final istDateStr = DateTime(now.year, now.month, now.day).toIso8601String().split('T')[0];
-      final todayStart = DateTime(now.year, now.month, now.day, 0, 0, 0).toIso8601String();
-      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
-      final yesterdayStr = DateTime(now.year, now.month, now.day - 1).toIso8601String().split('T')[0];
-      final tomorrowStr = DateTime(now.year, now.month, now.day + 1).toIso8601String().split('T')[0];
-      final next5DaysStr = DateTime(now.year, now.month, now.day + 5).toIso8601String().split('T')[0];
+      final queryParams = <String, dynamic>{};
+      if (branchId != null && branchId.isNotEmpty) {
+        queryParams['branch_id'] = branchId;
+      }
 
-      print('[DashboardRepository] Calling Supabase RPC with branchId: $branchId');
+      final response = await _api.get(
+        '/dashboard/operational',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
 
-      final response = await supabase.rpc('get_operational_dashboard_metrics', params: {
-        'p_today_start': todayStart,
-        'p_today_end': todayEnd,
-        'p_today_date': istDateStr,
-        'p_yesterday_date': yesterdayStr,
-        'p_tomorrow_date': tomorrowStr,
-        'p_next_5_days_date': next5DaysStr,
-        'p_branch_id': branchId,
-      });
+      final data = response.data;
+      final cardsData = data['cards'] as List<dynamic>? ?? [];
 
-      print('[DashboardRepository] RPC Response: $response');
-
-      final rpcData = response as Map<String, dynamic>? ?? {
-        'todaysBookings': 0,
-        'todaysDeliveryTotal': 0,
-        'todaysDeliveryDone': 0,
-        'todaysReturnTotal': 0,
-        'todaysReturnDone': 0,
-        'prepareDeliveries': 0,
-        'pendingDeliveries': 0,
-        'pendingReturns': 0,
-        'revenueDueCount': 0,
-        'revenueDueAmount': 0,
-      };
-
-      final cards = [
-        OperationalCard(
-          label: "Today's Bookings",
-          orderCount: (rpcData['todaysBookings'] as num?)?.toInt() ?? 0,
-          icon: 'calendar-plus',
-          color: 'blue',
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Today's Delivery",
-          orderCount: (rpcData['todaysDeliveryTotal'] as num?)?.toInt() ?? 0,
-          icon: 'truck',
-          color: 'emerald',
-          completedCount: (rpcData['todaysDeliveryDone'] as num?)?.toInt() ?? 0,
-          totalCount: (rpcData['todaysDeliveryTotal'] as num?)?.toInt() ?? 0,
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Today's Return",
-          orderCount: (rpcData['todaysReturnTotal'] as num?)?.toInt() ?? 0,
-          icon: 'package-check',
-          color: 'violet',
-          completedCount: (rpcData['todaysReturnDone'] as num?)?.toInt() ?? 0,
-          totalCount: (rpcData['todaysReturnTotal'] as num?)?.toInt() ?? 0,
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Prepare Delivery (5d)",
-          orderCount: (rpcData['prepareDeliveries'] as num?)?.toInt() ?? 0,
-          icon: 'boxes',
-          color: 'amber',
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Pending Delivery",
-          orderCount: (rpcData['pendingDeliveries'] as num?)?.toInt() ?? 0,
-          icon: 'alert-triangle',
-          color: 'rose',
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Pending Return",
-          orderCount: (rpcData['pendingReturns'] as num?)?.toInt() ?? 0,
-          icon: 'clock-alert',
-          color: 'red',
-          filterUrl: '',
-        ),
-        OperationalCard(
-          label: "Revenue Due",
-          orderCount: (rpcData['revenueDueCount'] as num?)?.toInt() ?? 0,
-          amount: (rpcData['revenueDueAmount'] as num?)?.toDouble() ?? 0,
-          icon: 'banknote',
-          color: 'indigo',
-          filterUrl: '',
-        ),
-      ];
+      final cards = cardsData.map((cardData) {
+        final card = cardData as Map<String, dynamic>;
+        return OperationalCard(
+          label: card['label'] as String? ?? '',
+          orderCount: (card['orderCount'] as num?)?.toInt() ?? 0,
+          icon: card['icon'] as String? ?? '',
+          color: card['color'] as String? ?? '',
+          filterUrl: card['filterUrl'] as String? ?? '',
+          completedCount: (card['completedCount'] as num?)?.toInt(),
+          totalCount: (card['totalCount'] as num?)?.toInt(),
+          amount: (card['amount'] as num?)?.toDouble(),
+        );
+      }).toList();
 
       return OperationalMetrics(cards: cards);
     } catch (e) {
-      print('[DashboardRepository] Error: $e');
-      rethrow;
+      throw Exception('Failed to load operational metrics: $e');
     }
   }
 }

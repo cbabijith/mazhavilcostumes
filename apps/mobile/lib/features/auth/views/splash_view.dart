@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/main_layout.dart';
+import '../viewmodels/auth_provider.dart';
 import 'login_view.dart';
 
-class SplashView extends StatefulWidget {
+class SplashView extends ConsumerStatefulWidget {
   const SplashView({super.key});
 
   @override
-  State<SplashView> createState() => _SplashViewState();
+  ConsumerState<SplashView> createState() => _SplashViewState();
 }
 
-class _SplashViewState extends State<SplashView> with SingleTickerProviderStateMixin {
+class _SplashViewState extends ConsumerState<SplashView> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -44,11 +45,12 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
     await Future.delayed(const Duration(milliseconds: 1500));
     
     try {
-      // Check if user is logged in using Supabase
-      final user = Supabase.instance.client.auth.currentUser;
+      // Check if user is logged in by loading the stored session token
+      final authService = ref.read(authServiceProvider);
+      final isAuth = await authService.loadSession();
       
       if (mounted) {
-        if (user != null) {
+        if (isAuth) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const MainLayout()),
           );

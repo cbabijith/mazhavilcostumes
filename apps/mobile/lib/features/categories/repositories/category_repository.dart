@@ -1,21 +1,21 @@
 import 'package:dio/dio.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/category.dart';
 
-/// Repository layer for Categories communicating directly with Supabase.
+/// Repository layer for Categories communicating with Next.js API via Dio.
 class CategoryRepository {
-  final _supabase = Supabase.instance.client;
+  final _api = apiClient;
 
   /// Fetch all categories (sorted by sort_order, then name).
   Future<List<Category>> getCategories({CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase
-          .from('categories')
-          .select()
-          .order('sort_order', ascending: true)
-          .order('name', ascending: true);
+      final response = await _api.get(
+        '/categories',
+        cancelToken: cancelToken,
+      );
 
-      final List<dynamic> data = response as List<dynamic>? ?? [];
+      // Response structure: { success: true, data: [...] }
+      final data = response.data['data'] as List<dynamic>? ?? [];
       return data.map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       throw Exception('Failed to load categories: $e');
@@ -25,8 +25,12 @@ class CategoryRepository {
   /// Fetch a single category by ID.
   Future<Category> getCategoryById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('categories').select().eq('id', id).single();
-      return Category.fromJson(response);
+      final response = await _api.get(
+        '/categories/$id',
+        cancelToken: cancelToken,
+      );
+
+      return Category.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to load category: $e');
     }
@@ -35,8 +39,13 @@ class CategoryRepository {
   /// Create a new category.
   Future<Category> createCategory(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('categories').insert(body).select().single();
-      return Category.fromJson(response);
+      final response = await _api.post(
+        '/categories',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Category.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to create category: $e');
     }
@@ -45,8 +54,13 @@ class CategoryRepository {
   /// Update an existing category (partial update).
   Future<Category> updateCategory(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('categories').update(body).eq('id', id).select().single();
-      return Category.fromJson(response);
+      final response = await _api.patch(
+        '/categories/$id',
+        data: body,
+        cancelToken: cancelToken,
+      );
+
+      return Category.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to update category: $e');
     }
@@ -55,7 +69,10 @@ class CategoryRepository {
   /// Delete a category (pre-checks should be done before calling this).
   Future<void> deleteCategory(String id, {CancelToken? cancelToken}) async {
     try {
-      await _supabase.from('categories').delete().eq('id', id);
+      await _api.delete(
+        '/categories/$id',
+        cancelToken: cancelToken,
+      );
     } catch (e) {
       throw Exception('Failed to delete category: $e');
     }
@@ -64,48 +81,25 @@ class CategoryRepository {
   /// Fetch counts of products per category from the server.
   Future<Map<String, int>> getCategoryProductCounts({CancelToken? cancelToken}) async {
     try {
-      final List<dynamic> response = await _supabase
-          .from('categories')
-          .select('name, products:products!products_category_id_fkey(count)');
+      final response = await _api.get(
+        '/categories/product-counts',
+        cancelToken: cancelToken,
+      );
 
-      final Map<String, int> counts = {};
-      for (final row in response) {
-        if (row is Map) {
-          final name = row['name'] as String?;
-          final products = row['products'];
-          int count = 0;
-          if (products is List && products.isNotEmpty) {
-            final countVal = products.first['count'];
-            if (countVal is num) {
-              count = countVal.toInt();
-            }
-          } else if (products is Map && products.containsKey('count')) {
-            final countVal = products['count'];
-            if (countVal is num) {
-              count = countVal.toInt();
-            }
-          }
-          if (name != null && count > 0) {
-            counts[name] = (counts[name] ?? 0) + count;
-          }
-        }
-      }
-      return counts;
+      // Response structure: { success: true, data: { "category_id": count, ... } }
+      final data = response.data['data'] as Map<String, dynamic>? ?? {};
+      return data.map((key, value) => MapEntry(key, (value as num).toInt()));
     } catch (e) {
-      throw Exception('Failed to load category product counts: $e');
+      // Return empty map on error to not block UI
+      return {};
     }
   }
 
   /// Fetch total count of products in the store.
+  /// NOTE: This endpoint doesn't exist in the current backend API.
+  /// Use the total from the products list response instead.
   Future<int> getTotalProductCount({CancelToken? cancelToken}) async {
-    try {
-      final response = await _supabase
-          .from('products')
-          .select('id')
-          .count(CountOption.exact);
-      return response.count;
-    } catch (e) {
-      throw Exception('Failed to load total product count: $e');
-    }
+    // Backend endpoint doesn't exist - return 0, use products list total instead
+    return 0;
   }
 }
