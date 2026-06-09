@@ -38,15 +38,27 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     ref.keepAlive();
     _currentPage = 1;
     _currentBranchId = ref.watch(effectiveBranchIdProvider);
-    final category = ref.watch(productCategoryFilterProvider);
+    final categoryName = ref.watch(productCategoryFilterProvider);
     final cancelToken = CancelToken();
     ref.onDispose(cancelToken.cancel);
     final repo = ref.watch(productRepositoryProvider);
+    
+    // Map category name to ID for API call
+    String? categoryId;
+    if (categoryName != 'All') {
+      final categories = ref.read(categoriesProvider).value ?? [];
+      final category = categories.firstWhere(
+        (c) => c.name == categoryName,
+        orElse: () => categories.first,
+      );
+      categoryId = category.id;
+    }
+    
     return repo.getProducts(
       page: _currentPage,
       search: _currentSearch,
       branchId: _currentBranchId,
-      category: category,
+      category: categoryId,
       cancelToken: cancelToken,
     );
   }
@@ -57,12 +69,23 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
-      final category = ref.read(productCategoryFilterProvider);
+      final categoryName = ref.read(productCategoryFilterProvider);
+      
+      String? categoryId;
+      if (categoryName != 'All') {
+        final categories = ref.read(categoriesProvider).value ?? [];
+        final category = categories.firstWhere(
+          (c) => c.name == categoryName,
+          orElse: () => categories.first,
+        );
+        categoryId = category.id;
+      }
+      
       return repo.getProducts(
         page: _currentPage,
         search: _currentSearch,
         branchId: _currentBranchId,
-        category: category,
+        category: categoryId,
       );
     });
   }
@@ -73,12 +96,23 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
-      final category = ref.read(productCategoryFilterProvider);
+      final categoryName = ref.read(productCategoryFilterProvider);
+      
+      String? categoryId;
+      if (categoryName != 'All') {
+        final categories = ref.read(categoriesProvider).value ?? [];
+        final category = categories.firstWhere(
+          (c) => c.name == categoryName,
+          orElse: () => categories.first,
+        );
+        categoryId = category.id;
+      }
+      
       return repo.getProducts(
         page: _currentPage,
         search: _currentSearch,
         branchId: _currentBranchId,
-        category: category,
+        category: categoryId,
       );
     });
   }
@@ -92,12 +126,23 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     _isLoadingMore = true;
     try {
       final repo = ref.read(productRepositoryProvider);
-      final category = ref.read(productCategoryFilterProvider);
+      final categoryName = ref.read(productCategoryFilterProvider);
+      
+      String? categoryId;
+      if (categoryName != 'All') {
+        final categories = ref.read(categoriesProvider).value ?? [];
+        final category = categories.firstWhere(
+          (c) => c.name == categoryName,
+          orElse: () => categories.first,
+        );
+        categoryId = category.id;
+      }
+      
       final nextPageData = await repo.getProducts(
         page: _currentPage + 1,
         search: _currentSearch,
         branchId: _currentBranchId,
-        category: category,
+        category: categoryId,
       );
 
       _currentPage++;

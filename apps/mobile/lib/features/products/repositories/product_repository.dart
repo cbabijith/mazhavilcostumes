@@ -56,8 +56,13 @@ class ProductRepository {
       );
 
       final data = response.data;
-      final productsData = data['products'] as List<dynamic>? ?? [];
-      final total = data['total'] as int? ?? 0;
+      
+      // Handle both response structures: { success: true, data: { products: [...] } } and { products: [...] }
+      final productsData = data['data']?['products'] as List<dynamic>? ?? 
+                          data['products'] as List<dynamic>? ?? [];
+      final total = data['data']?['total'] as int? ?? 
+                   data['total'] as int? ?? 
+                   productsData.length;
       final totalPages = (total / limit).ceil();
 
       return PaginatedProducts(

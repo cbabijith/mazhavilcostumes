@@ -86,8 +86,22 @@ class AuthService {
   /// Persist the session tokens and user info to secure storage.
   Future<void> _persistSession(Map<String, dynamic> data) async {
     _cachedToken = data['access_token'] as String?;
-    await _storage.write(key: _accessTokenKey, value: data['access_token']);
-    await _storage.write(key: _refreshTokenKey, value: data['refresh_token']);
+    debugPrint('[AuthService] Caching token: ${_cachedToken?.substring(0, 20)}...');
+
+    try {
+      await _storage.write(key: _accessTokenKey, value: data['access_token']);
+      debugPrint('[AuthService] access_token saved');
+    } catch (e) {
+      debugPrint('[AuthService] Failed to save access_token: $e');
+    }
+
+    try {
+      await _storage.write(key: _refreshTokenKey, value: data['refresh_token']);
+      debugPrint('[AuthService] refresh_token saved');
+    } catch (e) {
+      debugPrint('[AuthService] Failed to save refresh_token: $e');
+    }
+
     await _storage.write(key: _userIdKey, value: data['id']);
     await _storage.write(key: _userEmailKey, value: data['email']);
     await _storage.write(key: _userRoleKey, value: data['role']);

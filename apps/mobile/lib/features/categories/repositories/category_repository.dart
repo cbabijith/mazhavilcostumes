@@ -14,7 +14,8 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
 
-      final data = response.data as List<dynamic>? ?? [];
+      // Response structure: { success: true, data: [...] }
+      final data = response.data['data'] as List<dynamic>? ?? [];
       return data.map((e) => Category.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       throw Exception('Failed to load categories: $e');
@@ -85,24 +86,20 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
 
-      final data = response.data as Map<String, dynamic>? ?? {};
+      // Response structure: { success: true, data: { "category_id": count, ... } }
+      final data = response.data['data'] as Map<String, dynamic>? ?? {};
       return data.map((key, value) => MapEntry(key, (value as num).toInt()));
     } catch (e) {
-      throw Exception('Failed to load category product counts: $e');
+      // Return empty map on error to not block UI
+      return {};
     }
   }
 
   /// Fetch total count of products in the store.
+  /// NOTE: This endpoint doesn't exist in the current backend API.
+  /// Use the total from the products list response instead.
   Future<int> getTotalProductCount({CancelToken? cancelToken}) async {
-    try {
-      final response = await _api.get(
-        '/products/count',
-        cancelToken: cancelToken,
-      );
-
-      return response.data['count'] as int? ?? 0;
-    } catch (e) {
-      throw Exception('Failed to load total product count: $e');
-    }
+    // Backend endpoint doesn't exist - return 0, use products list total instead
+    return 0;
   }
 }
