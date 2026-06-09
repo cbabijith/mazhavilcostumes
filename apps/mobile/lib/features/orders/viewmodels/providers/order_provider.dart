@@ -8,23 +8,111 @@ final orderRepositoryProvider = Provider<OrderRepository>((ref) {
   return OrderRepository();
 });
 
-// Orders list provider
-final ordersProvider = FutureProvider.autoDispose.family<PaginatedOrders, Map<String, dynamic>>((ref, params) async {
-  final repository = ref.watch(orderRepositoryProvider);
-  final cancelToken = ref.watch(cancelTokenProvider);
-  
-  return repository.getOrders(
-    page: params['page'] ?? 1,
-    limit: params['limit'] ?? 25,
-    customerId: params['customerId'],
-    branchId: params['branchId'],
-    status: params['status'],
-    query: params['query'],
-    dateFilter: params['dateFilter'],
-    dateFrom: params['dateFrom'],
-    dateTo: params['dateTo'],
-    cancelToken: cancelToken,
-  );
+// Orders list provider and notifier
+class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
+  int _currentPage = 1;
+  bool _isLoadingMore = false;
+  String _currentSearch = '';
+  String? _currentStatus;
+  String? _currentBranchId;
+
+  @override
+  Future<PaginatedOrders> build() async {
+    ref.keepAlive();
+    _currentPage = 1;
+    final repo = ref.watch(orderRepositoryProvider);
+    return repo.getOrders(
+      page: _currentPage,
+      limit: 25,
+      query: _currentSearch,
+      status: _currentStatus,
+      branchId: _currentBranchId,
+    );
+  }
+
+  Future<void> search(String query) async {
+    _currentSearch = query;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 25,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+      );
+    });
+  }
+
+  Future<void> filterByStatus(String? status) async {
+    _currentStatus = status;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 25,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+      );
+    });
+  }
+
+  Future<void> filterByBranch(String? branchId) async {
+    _currentBranchId = branchId;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 25,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+      );
+    });
+  }
+
+  Future<void> loadMore() async {
+    if (_isLoadingMore || !state.hasValue) return;
+
+    final currentData = state.value!;
+    if (_currentPage >= currentData.totalPages) return;
+
+    _isLoadingMore = true;
+    try {
+      final repo = ref.read(orderRepositoryProvider);
+      final nextPageData = await repo.getOrders(
+        page: _currentPage + 1,
+        limit: 25,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+      );
+
+      _currentPage++;
+      state = AsyncValue.data(PaginatedOrders(
+        orders: [...currentData.orders, ...nextPageData.orders],
+        total: nextPageData.total,
+        page: nextPageData.page,
+        limit: nextPageData.limit,
+        totalPages: nextPageData.totalPages,
+        hasNext: nextPageData.hasNext,
+        hasPrev: nextPageData.hasPrev,
+      ));
+    } finally {
+      _isLoadingMore = false;
+    }
+  }
+}
+
+final ordersProvider = AsyncNotifierProvider<OrdersNotifier, PaginatedOrders>(() {
+  return OrdersNotifier();
 });
 
 // Single order provider
@@ -124,9 +212,43 @@ class OrderOperations {
       cancelToken: cancelToken,
     );
   }
+
+  Future<void> updatePayment({
+    required String paymentId,
+    required String paymentMode,
+    String? notes,
+  }) async {
+    await _repository.updatePayment(
+      paymentId: paymentId,
+      paymentMode: paymentMode,
+      notes: notes,
+    );
+  }
+
+  Future<Map<String, dynamic>> checkAvailability({
+    required String startDate,
+    required String endDate,
+    required String branchId,
+    required List<Map<String, dynamic>> items,
+    String? excludeOrderId,
+  }) async {
+    return await _repository.checkAvailability(
+      startDate: startDate,
+      endDate: endDate,
+      branchId: branchId,
+      items: items,
+      excludeOrderId: excludeOrderId,
+    );
+  }
 }
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {
   final repository = ref.watch(orderRepositoryProvider);
   return OrderOperations(repository);
 });
+
+final orderPaymentsProvider = FutureProvider.family.autoDispose<List<PaymentTransaction>, String>((ref, id) async {
+  final repository = ref.watch(orderRepositoryProvider);
+  return repository.getOrderPayments(id);
+});
+
