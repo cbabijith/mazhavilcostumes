@@ -30,10 +30,13 @@ class AuthState {
   }
 }
 
+// Auth service provider
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService();
+});
+
 // Auth notifier using Riverpod 3.x pattern
 class AuthNotifier extends Notifier<AuthState> {
-  AuthService get _authService => ref.read(authServiceProvider);
-
   @override
   AuthState build() {
     // Start with loading false to allow form interaction
@@ -43,9 +46,10 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> _checkAuthStatus() async {
-    final isAuth = _authService.isAuthenticated();
+    final authService = ref.read(authServiceProvider);
+    final isAuth = authService.isAuthenticated();
     if (isAuth) {
-      final user = await _authService.getCurrentUser();
+      final user = await authService.getCurrentUser();
       state = AuthState(
         isAuthenticated: true,
         user: user,
@@ -62,19 +66,40 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<bool> login(String email, String password) async {
     state = AuthState(isLoading: true, error: null);
-    
-    final user = await _authService.login(email, password);
-    if (user != null) {
+
+    try {
+      final authService = ref.read(authServiceProvider);
+
+      // Global 15-second timeout so the UI never hangs forever
+      final user = await authService
+          .login(email, password)
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              throw Exception(
+                'Login timed out. The app could not reach the server.',
+              );
+            },
+          );
+
+      if (user != null) {
+        state = AuthState(
+          isAuthenticated: true,
+          user: user,
+          isLoading: false,
+        );
+        return true;
+      } else {
+        state = AuthState(
+          isLoading: false,
+          error: 'Login failed. Please check your credentials.',
+        );
+        return false;
+      }
+    } catch (e) {
       state = AuthState(
-        isAuthenticated: true,
-        user: user,
         isLoading: false,
-      );
-      return true;
-    } else {
-      state = AuthState(
-        isLoading: false,
-        error: 'Login failed. Please check your credentials.',
+        error: 'Login error: $e',
       );
       return false;
     }
@@ -82,7 +107,8 @@ class AuthNotifier extends Notifier<AuthState> {
 
   Future<void> logout() async {
     state = AuthState(isLoading: true);
-    await _authService.logout();
+    final authService = ref.read(authServiceProvider);
+    await authService.logout();
     state = AuthState(
       isAuthenticated: false,
       user: null,
@@ -90,11 +116,6 @@ class AuthNotifier extends Notifier<AuthState> {
     );
   }
 }
-
-// Auth service provider
-final authServiceProvider = Provider<AuthService>((ref) {
-  return authService;
-});
 
 // Auth state provider using Riverpod 3.x pattern
 final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
