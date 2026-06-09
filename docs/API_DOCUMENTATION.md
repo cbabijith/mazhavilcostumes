@@ -1,6 +1,6 @@
 # Mazhavil Dance Costumes - API Documentation
 
-**Version**: 1.0.0  
+**Version**: 1.2.0  
 **Base URL**: `https://mazhavilcostumes-admin.vercel.app/api`  
 **Local URL**: `http://localhost:3001/api`  
 **Authentication**: Bearer Token (required for all endpoints)
@@ -94,7 +94,7 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `query` | string | Search by name, SKU, barcode, slug | - |
+| `query` | string | Search by name, SKU, barcode, slug (case-insensitive, partial match) | - |
 | `category_id` | string | Filter by category UUID | - |
 | `store_id` | string | Filter by store UUID | - |
 | `branch_id` | string | Filter by branch UUID | - |
@@ -103,8 +103,8 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 | `in_stock` | boolean | Filter in-stock products | - |
 | `min_price` | number | Minimum price filter | - |
 | `max_price` | number | Maximum price filter | - |
-| `sort_by` | string | Sort field: `name`, `price`, `created_at`, `stock` | `created_at` |
-| `sort_order` | string | `asc` or `desc` | `desc` |
+| `sort_by` | string | Sort field: `name`, `price`, `created_at`, `stock` | `name` |
+| `sort_order` | string | `asc` or `desc` | `asc` |
 | `page` | number | Page number | `1` |
 | `limit` | number | Items per page (max 100) | `20` |
 
@@ -112,6 +112,29 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 ```bash
 GET /api/products?limit=100&status=active
 ```
+
+**Search Examples**:
+```bash
+# Search by name
+GET /api/products?query=bharathanattyam
+
+# Search by SKU
+GET /api/products?query=BHN-36
+
+# Search by barcode
+GET /api/products?query=BHN-36/46
+
+# Search with pagination
+GET /api/products?query=red&limit=20&page=1
+```
+
+**Search Behavior**:
+- Server-side search using Supabase database queries
+- Case-insensitive matching
+- Partial string matching (wildcards)
+- Searches across: `name`, `slug`, `sku`, `barcode`
+- Normalizes spaces to hyphens (e.g., "Black Red" also matches "Black-Red")
+- OR logic: matches if ANY field contains the search term
 
 **Response** (200 OK):
 ```json
