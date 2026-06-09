@@ -71,10 +71,15 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
         }
 
         // 2. Query Supabase directly
+        final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(code);
+        final orFilter = isUuid 
+            ? 'sku.eq.$code,barcode.eq.$code,id.eq.$code' 
+            : 'sku.eq.$code,barcode.eq.$code';
+
         final response = await Supabase.instance.client
             .from('products')
             .select('id')
-            .or('sku.eq."$code",barcode.eq."$code",id.eq."$code"')
+            .or(orFilter)
             .maybeSingle();
 
         if (response != null && response['id'] != null) {

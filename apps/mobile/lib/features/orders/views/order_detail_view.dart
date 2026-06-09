@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/responsive.dart';
+import '../../products/views/qr_scanner_dialog.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
+import 'order_form_view.dart';
 
 class OrderDetailView extends ConsumerStatefulWidget {
   final Order order;
@@ -53,11 +56,24 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
-        title: Text('Order #${_currentOrder.id.substring(0, 8)}',
-            style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: _primary)),
+        title: Text(
+          '#${_currentOrder.id.substring(0, 8)} - ${_currentOrder.customer?.name ?? 'Unknown'}',
+          style: TextStyle(
+            fontSize: Responsive.sp(15),
+            fontWeight: FontWeight.bold,
+            color: _primary,
+          ),
+        ),
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
+        iconTheme: const IconThemeData(color: Colors.black),
         actions: [
+          IconButton(
+            icon: Icon(Icons.edit_outlined, size: Responsive.icon(22), color: _primary),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
+                .then((_) => _refreshOrder()),
+          ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, size: Responsive.icon(22), color: _primary),
             onPressed: _refreshOrder,
@@ -76,6 +92,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildStatusHeader(),
+                  SizedBox(height: Responsive.h(12)),
+                  _buildUrgentAlertBanner(),
+                  SizedBox(height: Responsive.h(12)),
+                  _buildLogisticsQuickStats(),
                   SizedBox(height: Responsive.h(16)),
                   _buildInfoCard(
                     title: 'Customer Information',
@@ -104,6 +124,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     ],
                   ),
                   SizedBox(height: Responsive.h(16)),
+                  _buildItemsCard(),
+                  SizedBox(height: Responsive.h(16)),
                   _buildInfoCard(
                     title: 'Financial Information',
                     icon: Icons.account_balance_wallet_outlined,
@@ -127,7 +149,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     ],
                   ),
                   SizedBox(height: Responsive.h(16)),
-                  _buildItemsCard(),
+                  _buildPaymentsCard(),
                   SizedBox(height: Responsive.h(16)),
                   _buildInfoCard(
                     title: 'Logistics Details',
@@ -203,6 +225,122 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildUrgentAlertBanner() {
+    if (!_currentOrder.hasStockConflict) return const SizedBox.shrink();
+
+    final conflicts = _currentOrder.conflictDetails ?? [];
+
+    return Container(
+      width: double.infinity,
+      padding: Responsive.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        border: Border.all(color: Colors.red[300]!, width: 1.5),
+        borderRadius: BorderRadius.circular(Responsive.r(10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: Responsive.icon(20)),
+              SizedBox(width: Responsive.w(8)),
+              Expanded(
+                child: Text(
+                  'URGENT: Stock Conflict Detected',
+                  style: TextStyle(
+                    color: Colors.red[900],
+                    fontWeight: FontWeight.bold,
+                    fontSize: Responsive.sp(13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (conflicts.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(8)),
+            ...conflicts.map((c) {
+              final name = c['productName'] ?? 'Unknown Product';
+              final short = c['shortfall'] ?? 0;
+              return Padding(
+                padding: Responsive.symmetric(vertical: 2),
+                child: Text(
+                  '• $name: Shortfall of $short pc(s)',
+                  style: TextStyle(
+                    color: Colors.red[850],
+                    fontSize: Responsive.sp(11),
+                  ),
+                ),
+              );
+            }),
+          ] else
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Shortfall of product units for this booking detected.',
+                style: TextStyle(color: Colors.red[850], fontSize: Responsive.sp(11)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogisticsQuickStats() {
+    return Container(
+      padding: Responsive.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(12)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildQuickStatItem('OUT (PICKUP)', _formatDate(_currentOrder.startDate), Icons.login_rounded),
+          Container(height: 24, width: 1, color: Colors.grey[200]),
+          _buildQuickStatItem('IN (RETURN)', _formatDate(_currentOrder.endDate), Icons.logout_rounded),
+          Container(height: 24, width: 1, color: Colors.grey[200]),
+          _buildQuickStatItem('TOTAL ITEMS', '${_currentOrder.items?.fold(0, (sum, i) => sum + i.quantity) ?? 0} pcs',
+              Icons.shopping_bag_outlined),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStatItem(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: Responsive.icon(14), color: Colors.grey[500]),
+            SizedBox(width: Responsive.w(4)),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: Responsive.sp(10),
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[500],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: Responsive.h(4)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: Responsive.sp(12),
+            fontWeight: FontWeight.bold,
+            color: _primary,
+          ),
+        ),
+      ],
     );
   }
 
@@ -375,6 +513,131 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
+  Widget _buildPaymentsCard() {
+    final paymentsAsync = ref.watch(orderPaymentsProvider(_currentOrder.id));
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: Responsive.all(12),
+            child: Row(
+              children: [
+                Icon(Icons.payment_rounded, size: Responsive.icon(20), color: _primary),
+                SizedBox(width: Responsive.w(8)),
+                Text(
+                  'Transaction History',
+                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: _primary),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          paymentsAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (err, _) => Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Error loading payments: $err', style: const TextStyle(color: Colors.red)),
+            ),
+            data: (transactions) {
+              if (transactions.isEmpty) {
+                return Padding(
+                  padding: Responsive.all(16),
+                  child: Text(
+                    'No transactions recorded.',
+                    style: TextStyle(color: Colors.grey[500], fontSize: Responsive.sp(12)),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: transactions.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, index) {
+                  final tx = transactions[index];
+                  return Padding(
+                    padding: Responsive.all(12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    tx.paymentType.toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(11),
+                                      fontWeight: FontWeight.w800,
+                                      color: _getTransactionTypeColor(tx.paymentType),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '₹${tx.amount.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(13),
+                                      fontWeight: FontWeight.bold,
+                                      color: _primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: Responsive.h(4)),
+                              Text(
+                                'Mode: ${tx.paymentMode.toUpperCase()}  |  ${_formatDate(tx.paymentDate)}',
+                                style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[600]),
+                              ),
+                              if (tx.notes != null && tx.notes!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Text(
+                                    'Notes: ${tx.notes}',
+                                    style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[500], fontStyle: FontStyle.italic),
+                                  ),
+                                ),
+                              if (tx.createdByName != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
+                                  child: Text(
+                                    'Processed by: ${tx.createdByName}',
+                                    style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[400]),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined, size: Responsive.icon(16), color: Colors.blue),
+                          onPressed: () => _openEditTransactionDialog(tx),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildActionsRow() {
     final actions = <Widget>[];
 
@@ -389,7 +652,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               padding: Responsive.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            onPressed: () => _updateStatus(OrderStatus.ongoing),
+            onPressed: _startRentalWithCheck,
             icon: const Icon(Icons.play_arrow_rounded),
             label: const Text('Start Rental'),
           ),
@@ -436,6 +699,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       );
     }
 
+    // Cancel order button
+    if (_currentOrder.status != OrderStatus.cancelled && _currentOrder.status != OrderStatus.completed) {
+      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(12)));
+      actions.add(
+        Expanded(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.red),
+              foregroundColor: Colors.red,
+              padding: Responsive.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: _openCancelDialog,
+            icon: const Icon(Icons.cancel_outlined),
+            label: const Text('Cancel Order'),
+          ),
+        ),
+      );
+    }
+
     if (actions.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -443,30 +726,185 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     return Row(children: actions);
   }
 
-  Future<void> _updateStatus(OrderStatus newStatus) async {
+  Future<void> _startRentalWithCheck() async {
     setState(() => _isLoading = true);
+
     try {
-      await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {'status': newStatus.name});
+      final itemsPayload = (_currentOrder.items ?? []).map((i) => {
+        'product_id': i.productId,
+        'quantity': i.quantity,
+      }).toList();
+
+      final checkResult = await ref.read(orderOperationsProvider).checkAvailability(
+        startDate: _currentOrder.startDate,
+        endDate: _currentOrder.endDate,
+        branchId: _currentOrder.branchId,
+        items: itemsPayload,
+        excludeOrderId: _currentOrder.id,
+      );
+
+      final allAvailable = checkResult['allAvailable'] ?? false;
+
+      if (!allAvailable) {
+        setState(() => _isLoading = false);
+        if (mounted) {
+          final itemsList = checkResult['items'] as List<dynamic>? ?? [];
+          _showFulfillmentFailedModal(itemsList);
+        }
+        return;
+      }
+
+      // If available, transition status to ongoing
+      await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {'status': 'ongoing'});
       await _refreshOrder();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Order marked as ${newStatus.name}')),
+          const SnackBar(content: Text('Rental started successfully!')),
         );
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating status: $e')),
+          SnackBar(content: Text('Availability check failed: $e')),
         );
       }
     }
   }
 
+  void _showFulfillmentFailedModal(List<dynamic> itemsList) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline_rounded, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Fulfillment Blocked'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Stock shortfall detected for the selected period:'),
+              const SizedBox(height: 12),
+              ...itemsList.where((i) => !(i['isAvailable'] as bool? ?? true)).map((i) {
+                final name = i['product_name'] ?? 'Product';
+                final avail = i['available'] ?? 0;
+                final req = i['requested'] ?? 0;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Text(
+                    '• $name: Requested $req, but only $avail available.',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent),
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _openCancelDialog() {
+    final reasonController = TextEditingController();
+    final refundController = TextEditingController(text: '0');
+    final paidAmount = _currentOrder.amountPaid;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Cancel Order'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Are you sure you want to cancel this order?'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  labelText: 'Cancellation Reason',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (paidAmount > 0) ...[
+                const SizedBox(height: 12),
+                Text('Total Paid so far: ₹$paidAmount'),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: refundController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Refund Amount (₹)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              onPressed: () async {
+                final reason = reasonController.text.trim();
+                if (reason.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please enter a cancellation reason')),
+                  );
+                  return;
+                }
+                final refund = double.tryParse(refundController.text) ?? 0.0;
+                Navigator.pop(context);
+                setState(() => _isLoading = true);
+                try {
+                  await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
+                    'status': 'cancelled',
+                    'cancellation_reason': reason,
+                    if (paidAmount > 0) 'refund_amount': refund,
+                  });
+                  await _refreshOrder();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Order cancelled successfully')),
+                    );
+                  }
+                } catch (e) {
+                  setState(() => _isLoading = false);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Cancellation failed: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Confirm Cancel'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _openPaymentDialog() {
-    final amountController = TextEditingController(text: (_currentOrder.totalAmount - _currentOrder.amountPaid).toStringAsFixed(0));
+    final maxCollect = _currentOrder.totalAmount - _currentOrder.amountPaid;
+    final amountController = TextEditingController(text: maxCollect.toStringAsFixed(0));
     String paymentMode = 'upi';
-    String paymentType = 'payment';
+    String paymentType = 'final';
 
     showModalBottomSheet(
       context: context,
@@ -491,6 +929,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     'Collect Payment',
                     style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Balance Due: ₹${maxCollect.toStringAsFixed(2)}',
+                    style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                  ),
                   SizedBox(height: Responsive.h(16)),
                   TextField(
                     controller: amountController,
@@ -511,7 +954,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     items: const [
                       DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
                       DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                      DropdownMenuItem(value: 'card', child: Text('Card')),
                       DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
+                      DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
                     ],
                     onChanged: (val) {
                       if (val != null) setModalState(() => paymentMode = val);
@@ -525,8 +970,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'payment', child: Text('Rental Payment')),
-                      DropdownMenuItem(value: 'deposit', child: Text('Advance Deposit')),
+                      DropdownMenuItem(value: 'advance', child: Text('Advance Deposit')),
+                      DropdownMenuItem(value: 'final', child: Text('Final Settlement')),
+                      DropdownMenuItem(value: 'refund', child: Text('Refund')),
+                      DropdownMenuItem(value: 'adjustment', child: Text('Adjustment')),
                     ],
                     onChanged: (val) {
                       if (val != null) setModalState(() => paymentType = val);
@@ -550,6 +997,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                           );
                           return;
                         }
+
+                        if (amt > maxCollect && paymentType != 'refund') {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Warning: Amount exceeds balance due of ₹${maxCollect.toStringAsFixed(0)}')),
+                          );
+                          return;
+                        }
+
                         Navigator.pop(context);
                         setState(() => _isLoading = true);
                         try {
@@ -560,6 +1015,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                                 paymentType: paymentType,
                               );
                           await _refreshOrder();
+                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Payment recorded successfully')),
@@ -586,18 +1042,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     );
   }
 
-  void _openReturnDialog() {
-    final items = _currentOrder.items ?? [];
-    final returnQuantities = <String, int>{};
-    final returnConditions = <String, ConditionRating>{};
-    final lateFeeController = TextEditingController(text: '0');
-    final damageChargesController = TextEditingController(text: '0');
-    final notesController = TextEditingController();
-
-    for (final item in items) {
-      returnQuantities[item.id] = item.quantity - (item.returnedQuantity ?? 0);
-      returnConditions[item.id] = ConditionRating.good;
-    }
+  void _openEditTransactionDialog(PaymentTransaction tx) {
+    String paymentMode = tx.paymentMode;
+    final notesController = TextEditingController(text: tx.notes);
 
     showModalBottomSheet(
       context: context,
@@ -614,76 +1061,392 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 top: 16,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
               ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Edit Transaction Details',
+                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Amount: ₹${tx.amount.toStringAsFixed(2)}  |  Type: ${tx.paymentType.toUpperCase()}',
+                    style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  DropdownButtonFormField<String>(
+                    value: paymentMode,
+                    decoration: InputDecoration(
+                      labelText: 'Payment Mode',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
+                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                      DropdownMenuItem(value: 'card', child: Text('Card')),
+                      DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
+                      DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => paymentMode = val);
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: notesController,
+                    decoration: InputDecoration(
+                      labelText: 'Notes',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        setState(() => _isLoading = true);
+                        try {
+                          await ref.read(orderOperationsProvider).updatePayment(
+                            paymentId: tx.id,
+                            paymentMode: paymentMode,
+                            notes: notesController.text.trim(),
+                          );
+                          await _refreshOrder();
+                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Transaction updated successfully')),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to update transaction: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Update Transaction'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openReturnDialog() {
+    final items = _currentOrder.items ?? [];
+    final returnQuantities = <String, int>{};
+    final returnConditions = <String, ConditionRating>{};
+    final damageQuantities = <String, int>{};
+    final damageCharges = <String, double>{};
+    final damageDescriptions = <String, String>{};
+
+    final lateFeeController = TextEditingController(text: '0');
+    final discountController = TextEditingController(text: '0');
+    final notesController = TextEditingController();
+
+    // Default initialization
+    for (final item in items) {
+      final maxReturn = item.quantity - (item.returnedQuantity ?? 0);
+      returnQuantities[item.id] = maxReturn;
+      returnConditions[item.id] = ConditionRating.good;
+      damageQuantities[item.id] = 0;
+      damageCharges[item.id] = 0.0;
+      damageDescriptions[item.id] = '';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            double liveDamageTotal = 0.0;
+            returnConditions.forEach((itemId, cond) {
+              if (cond == ConditionRating.damaged) {
+                liveDamageTotal += damageCharges[itemId] ?? 0.0;
+              }
+            });
+
+            final double parsedLate = double.tryParse(lateFeeController.text) ?? 0.0;
+            final double parsedDiscount = double.tryParse(discountController.text) ?? 0.0;
+            final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid + liveDamageTotal + parsedLate - parsedDiscount;
+
+            // Barcode scan function
+            void handleBarcodeScan() {
+              showDialog(
+                context: context,
+                builder: (context) => QRScannerDialog(
+                  onRawCodeScanned: (rawCode) async {
+                    try {
+                      final response = await Supabase.instance.client
+                          .from('products')
+                          .select('id')
+                          .or('sku.eq.$rawCode,barcode.eq.$rawCode')
+                          .maybeSingle();
+
+                      if (response != null && response['id'] != null) {
+                        final matchedId = response['id'] as String;
+                        final matchedItem = items.firstWhere(
+                          (item) => item.productId == matchedId,
+                          orElse: () => throw Exception('Product not found in this order'),
+                        );
+
+                        setModalState(() {
+                          final maxReturn = matchedItem.quantity - (matchedItem.returnedQuantity ?? 0);
+                          returnQuantities[matchedItem.id] = maxReturn;
+                          returnConditions[matchedItem.id] = ConditionRating.good;
+                        });
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Item marked as GOOD: ${matchedItem.product?.name ?? "Product"}'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('No matching item in order for barcode/SKU')),
+                          );
+                        }
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error resolving barcode: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Process Returns',
-                      style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Process Returns Check-In',
+                          style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.qr_code_scanner_rounded, color: _primary, size: Responsive.icon(22)),
+                          onPressed: handleBarcodeScan,
+                        ),
+                      ],
                     ),
-                    SizedBox(height: Responsive.h(16)),
+                    const Divider(),
                     ...items.map((item) {
                       final maxReturn = item.quantity - (item.returnedQuantity ?? 0);
                       if (maxReturn <= 0) return const SizedBox.shrink();
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Row(
-                            children: [
-                              const Text('Qty: '),
-                              DropdownButton<int>(
-                                value: returnQuantities[item.id],
-                                items: List.generate(maxReturn + 1, (i) => i)
-                                    .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
-                                    .toList(),
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setModalState(() => returnQuantities[item.id] = val);
-                                  }
-                                },
+                      final currentCondition = returnConditions[item.id];
+
+                      return Container(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          border: Border.all(color: Colors.grey[200]!),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Text('Qty: '),
+                                DropdownButton<int>(
+                                  value: returnQuantities[item.id],
+                                  items: List.generate(maxReturn + 1, (i) => i)
+                                      .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() => returnQuantities[item.id] = val);
+                                    }
+                                  },
+                                ),
+                                const Spacer(),
+                                const Text('Condition: '),
+                                DropdownButton<ConditionRating>(
+                                  value: currentCondition,
+                                  items: ConditionRating.values
+                                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name.toUpperCase())))
+                                      .toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() => returnConditions[item.id] = val);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                            if (currentCondition == ConditionRating.damaged) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Text('Damaged Qty: '),
+                                  DropdownButton<int>(
+                                    value: damageQuantities[item.id],
+                                    items: List.generate(returnQuantities[item.id]! + 1, (i) => i)
+                                        .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
+                                        .toList(),
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        setModalState(() => damageQuantities[item.id] = val);
+                                      }
+                                    },
+                                  ),
+                                  const Spacer(),
+                                  SizedBox(
+                                    width: Responsive.w(120),
+                                    child: TextField(
+                                      keyboardType: TextInputType.number,
+                                      decoration: const InputDecoration(labelText: 'Damage Fee (₹)', isDense: true),
+                                      onChanged: (val) {
+                                        setModalState(() {
+                                          damageCharges[item.id] = double.tryParse(val) ?? 0.0;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const Spacer(),
-                              const Text('Condition: '),
-                              DropdownButton<ConditionRating>(
-                                value: returnConditions[item.id],
-                                items: ConditionRating.values
-                                    .map((e) => DropdownMenuItem(value: e, child: Text(e.name.toUpperCase())))
-                                    .toList(),
+                              const SizedBox(height: 8),
+                              TextField(
+                                decoration: const InputDecoration(labelText: 'Describe Damage', isDense: true),
                                 onChanged: (val) {
-                                  if (val != null) {
-                                    setModalState(() => returnConditions[item.id] = val);
-                                  }
+                                  damageDescriptions[item.id] = val;
                                 },
                               ),
                             ],
-                          ),
-                          const Divider(),
-                        ],
+                          ],
+                        ),
                       );
                     }),
-                    SizedBox(height: Responsive.h(8)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setModalState(() {
+                                for (final item in items) {
+                                  returnQuantities[item.id] = item.quantity - (item.returnedQuantity ?? 0);
+                                  returnConditions[item.id] = ConditionRating.excellent;
+                                }
+                              });
+                            },
+                            child: const Text('Mark All Good'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: lateFeeController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'Late Fee charges (₹)'),
+                      onChanged: (_) => setModalState(() {}),
                     ),
                     SizedBox(height: Responsive.h(12)),
                     TextField(
-                      controller: damageChargesController,
+                      controller: discountController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Damage Charges (₹)'),
+                      decoration: const InputDecoration(labelText: 'Discounts (₹)'),
+                      onChanged: (_) => setModalState(() {}),
                     ),
                     SizedBox(height: Responsive.h(12)),
                     TextField(
                       controller: notesController,
                       decoration: const InputDecoration(labelText: 'Return Notes'),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Live Return Financials Preview', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Damage Fees Total:'),
+                              Text('₹${liveDamageTotal.toStringAsFixed(2)}'),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Additional Late Fee:'),
+                              Text('₹${parsedLate.toStringAsFixed(2)}'),
+                            ],
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Additional Discount:'),
+                              Text('₹${parsedDiscount.toStringAsFixed(2)}'),
+                            ],
+                          ),
+                          const Divider(),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Projected Balance Due:', style: TextStyle(fontWeight: FontWeight.bold)),
+                              Text(
+                                '₹${balanceDue.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: balanceDue > 0 ? const Color(0xFFFF6B8A) : Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     SizedBox(height: Responsive.h(24)),
                     SizedBox(
@@ -703,6 +1466,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                                 'item_id': itemId,
                                 'returned_quantity': qty,
                                 'condition_rating': returnConditions[itemId]!.name.toLowerCase(),
+                                if (returnConditions[itemId] == ConditionRating.damaged) ...{
+                                  'damage_description': damageDescriptions[itemId],
+                                  'damage_charges': damageCharges[itemId],
+                                  'damaged_quantity': damageQuantities[itemId],
+                                }
                               });
                             }
                           });
@@ -722,7 +1490,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                                   items: returnItemsPayload,
                                   notes: notesController.text,
                                   lateFee: double.tryParse(lateFeeController.text) ?? 0.0,
-                                  discount: double.tryParse(damageChargesController.text) ?? 0.0,
+                                  discount: double.tryParse(discountController.text) ?? 0.0,
                                 );
                             await _refreshOrder();
                             if (mounted) {
@@ -739,7 +1507,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                             }
                           }
                         },
-                        child: const Text('Confirm Returns'),
+                        child: const Text('Settle & Submit Return'),
                       ),
                     ),
                   ],
@@ -807,6 +1575,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
     }
   }
 
+  Color _getTransactionTypeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'deposit':
+      case 'advance': return Colors.teal;
+      case 'final': return Colors.green;
+      case 'refund': return Colors.red;
+      case 'adjustment': return Colors.orange;
+      default: return Colors.blue;
+    }
+  }
+
   String _formatStatusName(OrderStatus s) {
     switch (s) {
       case OrderStatus.pending: return 'Pending';
@@ -822,7 +1601,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
       case OrderStatus.flagged: return 'Flagged';
     }
   }
-
 
   String _formatDate(String dateStr) {
     try {

@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/responsive.dart';
-import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'order_detail_view.dart';
 import 'order_form_view.dart';
 
@@ -20,7 +20,6 @@ class OrdersView extends ConsumerStatefulWidget {
 class _OrdersViewState extends ConsumerState<OrdersView> {
   final _searchController = TextEditingController();
   String? _selectedChip; // null = All
-  String _searchQuery = '';
 
   static const _primary = Color(0xFF434343);
   static const _accent = Color(0xFFF7C873);
@@ -47,14 +46,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
-    final canManage = ref.watch(canManageProvider);
-    final params = {
-      'page': 1,
-      'limit': 25,
-      'query': _searchQuery,
-      'status': _selectedChip,
-    };
-    final ordersAsync = ref.watch(ordersProvider(params));
+    final ordersAsync = ref.watch(ordersProvider);
 
     return Container(
       color: _bg,
@@ -85,21 +77,18 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
               ),
             ],
           ),
-          if (canManage)
             Positioned(
               right: Responsive.w(16),
               bottom: Responsive.h(16),
-              child: FloatingActionButton.extended(
+              child: FloatingActionButton(
                 heroTag: 'order_fab',
                 onPressed: () => Navigator.of(context)
                     .push(MaterialPageRoute(builder: (_) => const OrderFormView()))
                     .then((_) => ref.invalidate(ordersProvider)),
                 backgroundColor: _accent,
                 foregroundColor: _primary,
-                icon: Icon(Icons.add_rounded, size: Responsive.icon(24)),
-                label: Text('New Order',
-                    style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold)),
                 elevation: 3,
+                child: Icon(Icons.add_rounded, size: Responsive.icon(24)),
               ),
             ),
         ],
@@ -124,8 +113,11 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
         ),
         child: TextField(
           controller: _searchController,
+          onChanged: (val) {
+            ref.read(ordersProvider.notifier).search(val);
+          },
           onSubmitted: (val) {
-            setState(() => _searchQuery = val);
+            ref.read(ordersProvider.notifier).search(val);
           },
           textInputAction: TextInputAction.search,
           style: TextStyle(fontSize: Responsive.sp(15)),
@@ -138,7 +130,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                     icon: Icon(Icons.close_rounded, size: Responsive.icon(22), color: Colors.grey),
                     onPressed: () {
                       _searchController.clear();
-                      setState(() => _searchQuery = '');
+                      ref.read(ordersProvider.notifier).search('');
                     },
                   )
                 : null,
@@ -153,13 +145,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildFilterChips() {
-    final params = {
-      'page': 1,
-      'limit': 25,
-      'query': _searchQuery,
-      'status': _selectedChip,
-    };
-    final ordersAsync = ref.watch(ordersProvider(params));
+    final ordersAsync = ref.watch(ordersProvider);
     final allOrders = ordersAsync.value?.orders ?? [];
 
     return SingleChildScrollView(
@@ -178,6 +164,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
             child: GestureDetector(
               onTap: () {
                 setState(() => _selectedChip = entry.value);
+                ref.read(ordersProvider.notifier).filterByStatus(entry.value);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -290,24 +277,120 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                           Text(customerName,
                               style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w700, color: _primary),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Row(
+                            children: [
+                              Text(
+                                'ID: ${order.id.substring(0, 8).toUpperCase()}',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(10),
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                              SizedBox(width: Responsive.w(8)),
+                              Text(
+                                '• Booked: ${_fmtDate(order.createdAt)}',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(10),
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                            ],
+                          ),
                           if (customerPhone.isNotEmpty)
                             Text(customerPhone,
                                 style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[500]),
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
+                          SizedBox(height: Responsive.h(2)),
+                          Row(
+                            children: [
+                              if (order.branch != null) ...[
+                                Icon(Icons.storefront_rounded, size: Responsive.icon(12), color: Colors.grey[500]),
+                                SizedBox(width: Responsive.w(3)),
+                                Text(
+                                  order.branch!.name,
+                                  style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[600]),
+                                ),
+                                SizedBox(width: Responsive.w(8)),
+                              ],
+                              if (order.deliveryMethod != null) ...[
+                                Icon(
+                                  order.deliveryMethod == DeliveryMethod.pickup
+                                      ? Icons.shopping_bag_outlined
+                                      : Icons.local_shipping_outlined,
+                                  size: Responsive.icon(12),
+                                  color: Colors.grey[500],
+                                ),
+                                SizedBox(width: Responsive.w(3)),
+                                Text(
+                                  order.deliveryMethod == DeliveryMethod.pickup ? 'Pickup' : 'Delivery',
+                                  style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[600]),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: Responsive.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
-                      ),
-                      child: Text(
-                        order.isLate ? 'Overdue' : _formatStatus(order.status),
-                        style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w700, color: statusColor),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(Responsive.r(8)),
+                          ),
+                          child: Text(
+                            order.isLate ? 'Overdue' : _formatStatus(order.status),
+                            style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w700, color: statusColor),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (order.hasStockConflict && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled)
+                          Container(
+                            margin: Responsive.only(top: 4),
+                            padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFECEF),
+                              borderRadius: BorderRadius.circular(Responsive.r(6)),
+                              border: Border.all(color: const Color(0xFFFFCCD3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.warning_amber_rounded, size: Responsive.icon(10), color: const Color(0xFFFF3B30)),
+                                SizedBox(width: Responsive.w(3)),
+                                Text(
+                                  'Conflict',
+                                  style: TextStyle(fontSize: Responsive.sp(9), color: const Color(0xFFFF3B30), fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (order.hasPriorityCleaning && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled)
+                          Container(
+                            margin: Responsive.only(top: 4),
+                            padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF9E6),
+                              borderRadius: BorderRadius.circular(Responsive.r(6)),
+                              border: Border.all(color: const Color(0xFFFFECB3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.auto_awesome_rounded, size: Responsive.icon(10), color: const Color(0xFFFFB300)),
+                                SizedBox(width: Responsive.w(3)),
+                                Text(
+                                  'Priority Prep',
+                                  style: TextStyle(fontSize: Responsive.sp(9), color: const Color(0xFFFFB300), fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -339,6 +422,36 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     SizedBox(width: Responsive.w(8)),
+                    if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) ...[
+                      Container(
+                        padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: order.paymentStatus == PaymentStatus.paid 
+                              ? const Color(0xFFE8F5E9) 
+                              : order.paymentStatus == PaymentStatus.partial 
+                                  ? const Color(0xFFFFF3E0) 
+                                  : const Color(0xFFFFEBEE),
+                          borderRadius: BorderRadius.circular(Responsive.r(6)),
+                        ),
+                        child: Text(
+                          order.paymentStatus == PaymentStatus.paid 
+                              ? 'Paid' 
+                              : order.paymentStatus == PaymentStatus.partial 
+                                  ? 'Partial' 
+                                  : 'Unpaid',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(9), 
+                            fontWeight: FontWeight.bold,
+                            color: order.paymentStatus == PaymentStatus.paid 
+                                ? const Color(0xFF2E7D32) 
+                                : order.paymentStatus == PaymentStatus.partial 
+                                    ? const Color(0xFFEF6C00) 
+                                    : const Color(0xFFC62828),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(8)),
+                    ],
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -351,6 +464,80 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(10)),
+                Divider(height: 1, color: Colors.grey[200]),
+                SizedBox(height: Responsive.h(6)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (customerPhone.isNotEmpty) ...[
+                      TextButton.icon(
+                        onPressed: () async {
+                          final uri = Uri.parse('tel:$customerPhone');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          }
+                        },
+                        icon: Icon(Icons.phone_rounded, color: Colors.blue[700], size: Responsive.icon(16)),
+                        label: Text('Call', style: TextStyle(color: Colors.blue[700], fontSize: Responsive.sp(11), fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(
+                          padding: Responsive.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(12)),
+                      TextButton.icon(
+                        onPressed: () async {
+                          final cleanPhone = customerPhone.replaceAll(RegExp(r'\D'), '');
+                          final startFmt = _fmtDate(order.startDate);
+                          final endFmt = _fmtDate(order.endDate);
+                          final orderIdShort = order.id.substring(0, 8).toUpperCase();
+                          
+                          String message = '';
+                          switch (order.status) {
+                            case OrderStatus.pending:
+                            case OrderStatus.scheduled:
+                              message = 'Hi $customerName, this is regarding your upcoming order #$orderIdShort scheduled for $startFmt. Please confirm your availability.';
+                              break;
+                            case OrderStatus.ongoing:
+                            case OrderStatus.inUse:
+                              message = 'Hi $customerName, your order #$orderIdShort is currently active. Please remember to return by $endFmt.';
+                              break;
+                            case OrderStatus.partial:
+                              message = 'Hi $customerName, your order #$orderIdShort has partial returns pending. Please complete the return process.';
+                              break;
+                            case OrderStatus.returned:
+                              message = 'Hi $customerName, thank you for returning your order #$orderIdShort. We hope you had a great experience!';
+                              break;
+                            case OrderStatus.completed:
+                              message = 'Hi $customerName, your order #$orderIdShort has been completed. Thank you for choosing Mazhavil Dance Costumes!';
+                              break;
+                            case OrderStatus.cancelled:
+                              message = 'Hi $customerName, your order #$orderIdShort has been cancelled. Contact us if you need assistance.';
+                              break;
+                            case OrderStatus.flagged:
+                              message = 'Hi $customerName, there is an issue with your order #$orderIdShort. Please contact us immediately.';
+                              break;
+                            default:
+                              message = 'Hi $customerName, this is regarding your order #$orderIdShort at Mazhavil Dance Costumes.';
+                          }
+                          final uri = Uri.parse('https://wa.me/$cleanPhone?text=${Uri.encodeComponent(message)}');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        icon: Icon(Icons.chat_bubble_outline_rounded, color: Colors.green[700], size: Responsive.icon(16)),
+                        label: Text('WhatsApp', style: TextStyle(color: Colors.green[700], fontSize: Responsive.sp(11), fontWeight: FontWeight.bold)),
+                        style: TextButton.styleFrom(
+                          padding: Responsive.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ],
