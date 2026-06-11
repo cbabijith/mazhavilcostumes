@@ -64,11 +64,14 @@ class CustomerSearchState {
 }
 
 // Hybrid search provider - combines local cache search with remote API search
-class CustomerSearchNotifier extends AutoDisposeNotifier<CustomerSearchState> {
+class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   Timer? _debounceTimer;
 
   @override
   CustomerSearchState build() {
+    ref.onDispose(() {
+      _debounceTimer?.cancel();
+    });
     return CustomerSearchState();
   }
 
@@ -141,15 +144,9 @@ class CustomerSearchNotifier extends AutoDisposeNotifier<CustomerSearchState> {
     _debounceTimer?.cancel();
     state = CustomerSearchState();
   }
-
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    super.dispose();
-  }
 }
 
-final customerSearchProvider = AutoDisposeNotifierProvider<CustomerSearchNotifier, CustomerSearchState>(CustomerSearchNotifier.new, name: 'customerSearchProvider');
+final customerSearchProvider = NotifierProvider.autoDispose<CustomerSearchNotifier, CustomerSearchState>(CustomerSearchNotifier.new, name: 'customerSearchProvider');
 
 // Customer operations provider - simple function-based approach
 class CustomerOperations {
