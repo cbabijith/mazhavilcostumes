@@ -9,6 +9,8 @@ import '../../products/models/product.dart' as p_model;
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
+import '../../../core/supabase/api_client.dart';
+
 
 class OrderFormView extends ConsumerStatefulWidget {
   final Order? order;
@@ -47,12 +49,18 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   PaymentStatus? _selectedPaymentStatus = PaymentStatus.pending;
   DeliveryMethod? _selectedDeliveryMethod = DeliveryMethod.pickup;
   final List<OrderItemInput> _items = [];
+  final Set<String> _expandedBookings = {};
 
   // Totals calculations
   int _rentalDays = 1;
   double _subtotal = 0.0;
   double _gstAmount = 0.0;
   double _totalAmount = 0.0;
+
+  // Parity with website settings and discount types
+  bool _isGstEnabled = false;
+  String _orderDiscountType = 'flat'; // 'flat' | 'percent'
+  PaymentMethod? _advancePaymentMethod = PaymentMethod.cash;
 
   @override
   void initState() {
@@ -86,6 +94,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _selectedStatus = widget.order!.status;
       _selectedPaymentStatus = widget.order!.paymentStatus;
       _selectedDeliveryMethod = widget.order!.deliveryMethod;
+      _orderDiscountType = widget.order!.discountType;
+      _advancePaymentMethod = widget.order!.advancePaymentMethod ?? PaymentMethod.cash;
       
       if (widget.order!.items != null) {
         _items.addAll(widget.order!.items!.map((item) => OrderItemInput(
@@ -95,9 +105,27 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
               pricePerDay: item.pricePerDay,
               gstPercentage: item.gstPercentage,
               isAvailable: true,
+              discount: item.discount,
+              discountType: item.discountType,
             )));
       }
       _calculateTotals();
+    }
+    _fetchGstSettings();
+  }
+
+  Future<void> _fetchGstSettings() async {
+    try {
+      final response = await apiClient.get('/settings?key=is_gst_enabled');
+      if (response.statusCode == 200 && response.data != null) {
+        final val = response.data['data']?['value'];
+        setState(() {
+          _isGstEnabled = val == true || val == 'true';
+        });
+        _calculateTotals();
+      }
+    } catch (e) {
+      print('Error fetching GST settings: $e');
     }
   }
 
@@ -135,32 +163,51 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
 
     // 3. Sum up items
-    double itemsSum = 0.0;
-    for (final item in _items) {
-      itemsSum += item.quantity * item.pricePerDay * pricingMultiplier;
-    }
-
-    final discount = double.tryParse(_discountController.text) ?? 0.0;
-    final totalAfterDiscount = itemsSum - discount > 0 ? itemsSum - discount : 0.0;
-
-    // 4. GST-inclusive: the rent amount ALREADY includes GST
-    // Formula: base = amount / (1 + rate/100), gst = amount - base
-    // When there's an order-level discount, proportionally reduce GST
-    double totalGst = 0.0;
-    final double ratio = itemsSum > 0 ? totalAfterDiscount / itemsSum : 1.0;
+    double subtotal = 0.0;
+    double itemDiscountTotal = 0.0;
+    double totalGstAmount = 0.0;
 
     for (final item in _items) {
       final double lineTotal = item.quantity * item.pricePerDay * pricingMultiplier;
-      final double gstRate = item.gstPercentage > 0 ? item.gstPercentage : 18.0; // 18% standard fallback
-      final double base = lineTotal / (1 + gstRate / 100);
-      final double gst = lineTotal - base;
-      totalGst += gst * ratio;
+      final double itemDisc = item.discountType == 'percent'
+          ? lineTotal * (item.discount / 100)
+          : item.discount * item.quantity;
+      final double effectiveDisc = itemDisc < lineTotal ? itemDisc : lineTotal;
+
+      subtotal += lineTotal;
+      itemDiscountTotal += effectiveDisc;
+
+      final double lineAfterDiscount = lineTotal - effectiveDisc;
+      final double gstRate = item.gstPercentage;
+
+      if (_isGstEnabled && gstRate > 0) {
+        final double base = lineAfterDiscount / (1 + gstRate / 100);
+        final double gst = lineAfterDiscount - base;
+        totalGstAmount += gst;
+      }
+    }
+
+    final double afterItemDiscount = subtotal - itemDiscountTotal;
+
+    // Order-level discount
+    final double orderDiscountInput = double.tryParse(_discountController.text) ?? 0.0;
+    final double orderDiscAmt = _orderDiscountType == 'percent'
+        ? afterItemDiscount * (orderDiscountInput / 100)
+        : orderDiscountInput;
+    final double effectiveOrderDiscount = orderDiscAmt < afterItemDiscount ? orderDiscAmt : afterItemDiscount;
+
+    final double afterAllDiscounts = afterItemDiscount - effectiveOrderDiscount;
+    double gstAmount = totalGstAmount;
+
+    if (effectiveOrderDiscount > 0 && afterItemDiscount > 0) {
+      final double ratio = afterAllDiscounts / afterItemDiscount;
+      gstAmount = totalGstAmount * ratio;
     }
 
     setState(() {
-      _subtotal = itemsSum;
-      _gstAmount = totalGst;
-      _totalAmount = totalAfterDiscount;
+      _subtotal = subtotal;
+      _gstAmount = gstAmount;
+      _totalAmount = afterAllDiscounts;
     });
   }
 
@@ -272,28 +319,41 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             'quantity': item.quantity,
           }
         ],
+        excludeOrderId: widget.order?.id,
       );
 
       final itemsList = result['items'] as List<dynamic>? ?? [];
-      bool isAvail = true;
-      int minAvailable = 999;
-
-      for (final i in itemsList) {
+      if (itemsList.isNotEmpty) {
+        final i = itemsList.first;
         final isItemAvailable = i['isAvailable'] as bool? ?? true;
         final available = i['available'] as int? ?? 0;
-        if (!isItemAvailable) {
-          isAvail = false;
-        }
-        if (available < minAvailable) {
-          minAvailable = available;
-        }
-      }
+        final availableWithPriority = i['availableWithPriority'] as int? ?? 0;
+        final priorityCleaningNeeded = i['priorityCleaningNeeded'] as bool? ?? false;
+        final priorityCleaningInfo = i['priorityCleaningInfo'] as List<dynamic>? ?? [];
+        final overlappingOrders = i['overlappingOrders'] as List<dynamic>? ?? [];
 
-      setState(() {
-        item.isAvailable = isAvail;
-        item.availableStockInfo = isAvail ? null : 'Conflict (Max avail: $minAvailable)';
-        item.isChecking = false;
-      });
+        setState(() {
+          item.isAvailable = isItemAvailable;
+          item.available = available;
+          item.availableWithPriority = availableWithPriority;
+          item.priorityCleaningNeeded = priorityCleaningNeeded;
+          item.priorityCleaningInfo = priorityCleaningInfo;
+          item.overlappingOrders = overlappingOrders;
+          item.isChecking = false;
+
+          if (!isItemAvailable) {
+            item.availableStockInfo = 'Conflict (Max avail: $availableWithPriority)';
+          } else if (priorityCleaningNeeded) {
+            item.availableStockInfo = 'Priority cleaning needed (Avail: $available, Max with Priority: $availableWithPriority)';
+          } else {
+            item.availableStockInfo = null;
+          }
+        });
+      } else {
+        setState(() {
+          item.isChecking = false;
+        });
+      }
     } catch (_) {
       setState(() => item.isChecking = false);
     }
@@ -329,6 +389,18 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    // Date validation: return date cannot be before pickup date
+    if (_startDateController.text.isNotEmpty && _endDateController.text.isNotEmpty) {
+      final start = DateTime.parse(_startDateController.text);
+      final end = DateTime.parse(_endDateController.text);
+      if (end.isBefore(start)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Return date cannot be earlier than pickup date')),
+        );
+        return;
+      }
+    }
+
     // Check conflict warning
     final hasConflicts = _items.any((i) => !i.isAvailable);
     if (hasConflicts) {
@@ -350,8 +422,156 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       if (proceed != true) return;
     }
 
+    // Check priority cleaning items flow (only for new orders)
+    final List<OrderItemInput> priorityItems = _items.where((item) {
+      return item.productId.isNotEmpty && 
+             item.priorityCleaningNeeded && 
+             item.quantity > item.available;
+    }).toList();
+
+    bool confirmPriority = false;
+    if (priorityItems.isNotEmpty && widget.order == null) {
+      final List<Map<String, dynamic>> infoList = [];
+      for (final item in priorityItems) {
+        final neededExtra = item.quantity - item.available;
+        if (neededExtra <= 0) continue;
+
+        int accumulated = 0;
+        for (final info in item.priorityCleaningInfo) {
+          if (accumulated >= neededExtra) break;
+          final returningQuantity = info['returningQuantity'] as int? ?? 0;
+          final useFromThis = returningQuantity < (neededExtra - accumulated)
+              ? returningQuantity
+              : (neededExtra - accumulated);
+          
+          infoList.add({
+            'productName': item.productName,
+            'direction': info['direction'],
+            'usedQuantity': useFromThis,
+            'returningQuantity': returningQuantity,
+            'returningOrderCustomer': info['returningOrderCustomer'],
+            'returningOrderEndDate': info['returningOrderEndDate'],
+            'returningOrderStartDate': info['returningOrderStartDate'],
+          });
+          accumulated += useFromThis;
+        }
+      }
+
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Row(
+              children: [
+                Icon(Icons.flash_on_rounded, color: AppColors.warning, size: Responsive.icon(24)),
+                SizedBox(width: Responsive.w(8)),
+                Text(
+                  'Priority Cleaning Required',
+                  style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'The following products need priority cleaning to fulfill this order. Staff will be notified in the Cleaning Queue.',
+                    style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: infoList.length,
+                      separatorBuilder: (_, __) => SizedBox(height: Responsive.h(6)),
+                      itemBuilder: (context, i) {
+                        final info = infoList[i];
+                        final productName = info['productName'] as String;
+                        final direction = info['direction'] as String;
+                        final usedQty = info['usedQuantity'] as int;
+                        final returningQty = info['returningQuantity'] as int;
+                        final customer = info['returningOrderCustomer'] as String? ?? 'Unknown';
+                        
+                        String formatDt(String d) {
+                          if (d.isEmpty) return '';
+                          try {
+                            final date = DateTime.parse(d);
+                            final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            return '${months[date.month - 1]} ${date.day}';
+                          } catch (_) {
+                            return d;
+                          }
+                        }
+
+                        String desc = '';
+                        if (direction == 'returning_before') {
+                          final returningDate = info['returningOrderEndDate'] as String? ?? '';
+                          desc = '${usedQty == returningQty ? returningQty : "$usedQty of $returningQty"} units — rush-clean from $customer (returning ${formatDt(returningDate)})';
+                        } else {
+                          final pickupDate = info['returningOrderStartDate'] as String? ?? '';
+                          desc = '$usedQty ${usedQty == 1 ? 'unit' : 'units'} — skip prep for $customer (pickup ${formatDt(pickupDate)})';
+                        }
+
+                        return Container(
+                          padding: Responsive.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.05),
+                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.15)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                productName,
+                                style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                              ),
+                              SizedBox(height: Responsive.h(2)),
+                              Text(
+                                desc,
+                                style: TextStyle(fontSize: Responsive.sp(11), color: AppColors.warning, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Cancel', style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(13))),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => Navigator.pop(context, true),
+                icon: Icon(Icons.flash_on_rounded, size: Responsive.icon(16)),
+                label: Text('Confirm & Create', style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(13))),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (proceed != true) return;
+      confirmPriority = true;
+    }
+
     setState(() => _isLoading = true);
 
+    final double advanceAmount = double.tryParse(_advanceAmountController.text) ?? 0.0;
+    
     final body = {
       'customer_id': _selectedCustomerId,
       'branch_id': _selectedBranchId,
@@ -362,20 +582,36 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       'delivery_address': _deliveryAddressController.text.trim().isEmpty ? null : _deliveryAddressController.text.trim(),
       'pickup_address': _pickupAddressController.text.trim().isEmpty ? null : _pickupAddressController.text.trim(),
       'notes': _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+      'discount': double.tryParse(_discountController.text) ?? 0.0,
+      'discount_type': _orderDiscountType,
+      'advance_amount': advanceAmount,
+      'advance_collected': advanceAmount > 0,
+      'advance_payment_method': advanceAmount > 0 ? _advancePaymentMethod?.name : null,
+      'subtotal': _subtotal,
+      'gst_amount': _gstAmount,
+      'total_amount': _totalAmount,
+      'amount_paid': widget.order != null ? (double.tryParse(_amountPaidController.text) ?? advanceAmount) : advanceAmount,
+      'payment_status': widget.order != null 
+          ? _selectedPaymentStatus?.name 
+          : (advanceAmount > 0 
+              ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
+              : 'pending'),
       'items': _items.where((item) => item.productId.isNotEmpty).map((item) => {
         'product_id': item.productId,
         'quantity': item.quantity,
         'price_per_day': item.pricePerDay,
+        'discount': item.discount,
+        'discount_type': item.discountType,
       }).toList(),
     };
 
     if (widget.order != null) {
       body.addAll({
         'status': _selectedStatus?.name,
-        'advance_amount': double.tryParse(_advanceAmountController.text) ?? 0,
-        'amount_paid': double.tryParse(_amountPaidController.text) ?? 0,
-        'payment_status': _selectedPaymentStatus?.name,
-        'discount': double.tryParse(_discountController.text) ?? 0,
+      });
+    } else {
+      body.addAll({
+        'priority_cleaning_confirmed': confirmPriority,
       });
     }
 
@@ -405,6 +641,9 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final isEditing = widget.order != null;
+
+    // Listen to customerSearchProvider to keep it alive during typing
+    ref.listen(customerSearchProvider, (_, __) {});
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -479,40 +718,106 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                     _buildSectionHeader('Pricing Summary'),
                     _buildCard(children: [
                       _buildTotalSummaryRow('Subtotal', '₹${_subtotal.toStringAsFixed(2)}'),
-                      _buildTotalSummaryRow('GST (18% Standard)', '₹${_gstAmount.toStringAsFixed(2)}'),
+                      _buildTotalSummaryRow('GST (incl.)', '₹${_gstAmount.toStringAsFixed(2)}'),
                       SizedBox(height: Responsive.h(8)),
-                      TextFormField(
-                        controller: _discountController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: Responsive.sp(14)),
-                        decoration: InputDecoration(
-                          labelText: 'Flat Discount (₹)',
-                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onChanged: (_) => _calculateTotals(),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _discountController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(fontSize: Responsive.sp(14)),
+                              decoration: InputDecoration(
+                                labelText: 'Order Discount',
+                                contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onChanged: (_) => _calculateTotals(),
+                            ),
+                          ),
+                          SizedBox(width: Responsive.w(8)),
+                          Container(
+                            height: Responsive.h(48),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildDiscountTypeToggleButton(
+                                  label: '₹',
+                                  isSelected: _orderDiscountType == 'flat',
+                                  onTap: () {
+                                    setState(() {
+                                      _orderDiscountType = 'flat';
+                                    });
+                                    _calculateTotals();
+                                  },
+                                ),
+                                Container(width: 1, color: Colors.grey.shade300, height: Responsive.h(24)),
+                                _buildDiscountTypeToggleButton(
+                                  label: '%',
+                                  isSelected: _orderDiscountType == 'percent',
+                                  onTap: () {
+                                    setState(() {
+                                      _orderDiscountType = 'percent';
+                                    });
+                                    _calculateTotals();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const Divider(height: 24),
                       _buildTotalSummaryRow('Grand Total', '₹${_totalAmount.toStringAsFixed(2)}', isBold: true),
-                      if (isEditing) ...[
+                      SizedBox(height: Responsive.h(12)),
+                      TextFormField(
+                        controller: _advanceAmountController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontSize: Responsive.sp(14)),
+                        decoration: InputDecoration(
+                          labelText: 'Advance Collected (₹)',
+                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onChanged: (val) {
+                          setState(() {});
+                        },
+                      ),
+                      if ((double.tryParse(_advanceAmountController.text) ?? 0.0) > 0.0) ...[
                         SizedBox(height: Responsive.h(12)),
-                        TextFormField(
-                          controller: _advanceAmountController,
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(fontSize: Responsive.sp(14)),
+                        DropdownButtonFormField<PaymentMethod>(
+                          value: _advancePaymentMethod,
+                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
                           decoration: InputDecoration(
-                            labelText: 'Advance Collected (₹)',
+                            labelText: 'Advance Payment Method',
                             contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
+                          items: PaymentMethod.values.map((method) {
+                            return DropdownMenuItem(
+                              value: method,
+                              child: Text(method.name.toUpperCase()),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() {
+                              _advancePaymentMethod = val;
+                            });
+                          },
                         ),
+                      ],
+                      if (isEditing) ...[
                         SizedBox(height: Responsive.h(12)),
                         TextFormField(
                           controller: _amountPaidController,
                           keyboardType: TextInputType.number,
                           style: TextStyle(fontSize: Responsive.sp(14)),
                           decoration: InputDecoration(
-                            labelText: 'Amount Paid (₹)',
+                            labelText: 'Total Amount Paid (₹)',
                             contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           ),
@@ -701,14 +1006,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             ),
           ),
         ] else ...[
-          // Phone search input
+          // Name/phone search input
           TextField(
             controller: _phoneSearchController,
-            keyboardType: TextInputType.phone,
+            keyboardType: TextInputType.text,
             style: TextStyle(fontSize: Responsive.sp(14)),
             decoration: InputDecoration(
-              labelText: 'Phone Number',
-              hintText: 'Enter phone to search...',
+              labelText: 'Customer',
+              hintText: 'Search customer by name or phone...',
               hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
               prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(20)),
               suffixIcon: _phoneSearchController.text.isNotEmpty
@@ -729,17 +1034,17 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             onChanged: (value) {
               setState(() {
                 _searchQuery = value;
-                _showCustomerDropdown = value.length >= 3;
+                _showCustomerDropdown = value.isNotEmpty;
               });
               // Trigger hybrid search
-              if (value.length >= 3) {
+              if (value.isNotEmpty) {
                 ref.read(customerSearchProvider.notifier).search(value);
               } else {
                 ref.read(customerSearchProvider.notifier).clear();
               }
             },
             onTap: () {
-              if (_phoneSearchController.text.length >= 3) {
+              if (_phoneSearchController.text.isNotEmpty) {
                 setState(() => _showCustomerDropdown = true);
               }
             },
@@ -815,6 +1120,101 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
+  Widget _buildDiscountTypeToggleButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: Responsive.symmetric(horizontal: 16),
+        height: double.infinity,
+        alignment: Alignment.center,
+        color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: Responsive.sp(14),
+            fontWeight: FontWeight.bold,
+            color: isSelected ? AppColors.primary : Colors.grey[600],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBookingRow(dynamic b) {
+    final String customerName = b['customerName'] as String? ?? 'Unknown';
+    final int qty = b['quantity'] as int? ?? 1;
+    final String startStr = b['startDate'] as String? ?? '';
+    final String endStr = b['endDate'] as String? ?? '';
+    final String? bufferStart = b['bufferStartDate'] as String?;
+    final String? bufferEnd = b['bufferEndDate'] as String?;
+    final bool bufferSkipped = b['bufferSkipped'] as bool? ?? false;
+
+    String formatDt(String d) {
+      if (d.isEmpty) return '';
+      try {
+        final date = DateTime.parse(d);
+        final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        return '${months[date.month - 1]} ${date.day}';
+      } catch (_) {
+        return d;
+      }
+    }
+
+    final dateRange = '${formatDt(startStr)} – ${formatDt(endStr)}';
+    
+    return Container(
+      padding: Responsive.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '$customerName — $qty ${qty > 1 ? 'units' : 'unit'}',
+                  style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                dateRange,
+                style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey.shade600),
+              ),
+            ],
+          ),
+          if (bufferStart != null && bufferEnd != null) ...[
+            SizedBox(height: Responsive.h(2)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  bufferSkipped ? 'Gap: Skipped (Priority Cleaning ON)' : 'Gap: ${formatDt(bufferStart)} & ${formatDt(bufferEnd)}',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(9),
+                    color: bufferSkipped ? Colors.grey.shade400 : AppColors.warning,
+                    fontWeight: FontWeight.bold,
+                    decoration: bufferSkipped ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildItemCard(OrderItemInput item, int index) {
     return Container(
       margin: Responsive.only(bottom: 12),
@@ -822,7 +1222,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(Responsive.r(12)),
-        border: Border.all(color: item.isAvailable ? Colors.transparent : Colors.red.shade200, width: 1.5),
+        border: Border.all(color: item.isAvailable ? Colors.transparent : AppColors.error.withValues(alpha: 0.2), width: 1.5),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 2)),
         ],
@@ -836,7 +1236,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                   style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary)),
               const Spacer(),
               IconButton(
-                icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: Responsive.icon(20)),
+                icon: Icon(Icons.delete_outline_rounded, color: AppColors.error.withValues(alpha: 0.8), size: Responsive.icon(20)),
                 onPressed: () => _removeItem(index),
               ),
             ],
@@ -891,31 +1291,270 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
               ),
             ],
           ),
-          if (item.isChecking)
-            Padding(
-              padding: Responsive.only(top: 8),
+          SizedBox(height: Responsive.h(12)),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: item.discount == 0.0 ? '' : item.discount.toStringAsFixed(0),
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  decoration: InputDecoration(
+                    labelText: 'Item Discount',
+                    hintText: '0',
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (val) {
+                    setState(() {
+                      item.discount = double.tryParse(val) ?? 0.0;
+                    });
+                    _calculateTotals();
+                  },
+                ),
+              ),
+              SizedBox(width: Responsive.w(8)),
+              Container(
+                height: Responsive.h(48),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDiscountTypeToggleButton(
+                      label: '₹',
+                      isSelected: item.discountType == 'flat',
+                      onTap: () {
+                        setState(() {
+                          item.discountType = 'flat';
+                        });
+                        _calculateTotals();
+                      },
+                    ),
+                    Container(width: 1, color: Colors.grey.shade300, height: Responsive.h(24)),
+                    _buildDiscountTypeToggleButton(
+                      label: '%',
+                      isSelected: item.discountType == 'percent',
+                      onTap: () {
+                        setState(() {
+                          item.discountType = 'percent';
+                        });
+                        _calculateTotals();
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Live Availability Badge
+          if (item.productId.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(8)),
+            Container(
+              padding: Responsive.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: item.isChecking 
+                    ? Colors.grey.shade50 
+                    : (item.isAvailable 
+                        ? AppColors.success.withValues(alpha: 0.1) 
+                        : AppColors.error.withValues(alpha: 0.1)),
+                border: Border.all(
+                  color: item.isChecking
+                      ? Colors.grey.shade200
+                      : (item.isAvailable
+                          ? AppColors.success.withValues(alpha: 0.2)
+                          : AppColors.error.withValues(alpha: 0.2)),
+                ),
+                borderRadius: BorderRadius.circular(6),
+              ),
               child: Row(
                 children: [
-                  SizedBox(
+                  if (item.isChecking) ...[
+                    SizedBox(
                       width: Responsive.w(12),
                       height: Responsive.w(12),
-                      child: const CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary)),
-                  SizedBox(width: Responsive.w(6)),
-                  Text('Checking availability...', style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey)),
-                ],
-              ),
-            )
-          else if (item.availableStockInfo != null)
-            Padding(
-              padding: Responsive.only(top: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: Responsive.icon(16)),
-                  SizedBox(width: Responsive.w(4)),
-                  Text(item.availableStockInfo!, style: TextStyle(fontSize: Responsive.sp(11), color: Colors.orange)),
+                      child: const CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary),
+                    ),
+                    SizedBox(width: Responsive.w(6)),
+                    Text(
+                      'Checking availability...',
+                      style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey),
+                    ),
+                  ] else ...[
+                    Icon(
+                      item.isAvailable ? Icons.check_circle_outline_rounded : Icons.error_outline_rounded,
+                      color: item.isAvailable ? AppColors.success : AppColors.error,
+                      size: Responsive.icon(16),
+                    ),
+                    SizedBox(width: Responsive.w(6)),
+                    Expanded(
+                      child: Text(
+                        item.isAvailable
+                            ? '${item.available} of ${item.availableWithPriority} free for this period' + 
+                              (item.priorityCleaningNeeded ? ' (with priority cleaning)' : '')
+                            : 'Unavailable — only ${item.available} free (need ${item.quantity})',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(11),
+                          fontWeight: FontWeight.bold,
+                          color: item.isAvailable ? AppColors.success : AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
+          ],
+          // Auto Priority Cleaning Warning Banner
+          if (item.productId.isNotEmpty && item.priorityCleaningNeeded && item.quantity > item.available) ...[
+            SizedBox(height: Responsive.h(8)),
+            Container(
+              padding: Responsive.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.flash_on_rounded, color: AppColors.warning, size: Responsive.icon(16)),
+                      SizedBox(width: Responsive.w(4)),
+                      Expanded(
+                        child: Text(
+                          '${item.available} freely available, need ${item.quantity - item.available} via priority cleaning',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(11),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  ...(() {
+                    final neededExtra = item.quantity - item.available;
+                    int accumulated = 0;
+                    final List<Widget> list = [];
+                    for (final info in item.priorityCleaningInfo) {
+                      if (accumulated >= neededExtra) break;
+                      final returningQuantity = info['returningQuantity'] as int? ?? 0;
+                      final useFromThis = returningQuantity < (neededExtra - accumulated)
+                          ? returningQuantity
+                          : (neededExtra - accumulated);
+                      
+                      final String direction = info['direction'] as String? ?? '';
+                      final String customer = info['returningOrderCustomer'] as String? ?? 'Unknown';
+                      
+                      String formatDt(String d) {
+                        if (d.isEmpty) return '';
+                        try {
+                          final date = DateTime.parse(d);
+                          final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                          return '${months[date.month - 1]} ${date.day}';
+                        } catch (_) {
+                          return d;
+                        }
+                      }
+
+                      Widget textWidget;
+                      if (direction == 'returning_before') {
+                        final returningDate = info['returningOrderEndDate'] as String? ?? '';
+                        textWidget = Text(
+                          '⚡ $useFromThis units — rush-clean from $customer (returning ${formatDt(returningDate)})',
+                          style: TextStyle(fontSize: Responsive.sp(10), color: AppColors.warning),
+                        );
+                      } else {
+                        final pickupDate = info['returningOrderStartDate'] as String? ?? '';
+                        textWidget = Text(
+                          '⚡ $useFromThis units — skip prep for $customer (pickup ${formatDt(pickupDate)})',
+                          style: TextStyle(fontSize: Responsive.sp(10), color: AppColors.warning),
+                        );
+                      }
+
+                      list.add(Padding(
+                        padding: Responsive.only(top: 4, left: 20),
+                        child: textWidget,
+                      ));
+                      accumulated += useFromThis;
+                    }
+                    return list;
+                  }())
+                ],
+              ),
+            ),
+          ],
+          // Existing Bookings Section
+          if (item.productId.isNotEmpty && item.overlappingOrders.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(8)),
+            StatefulBuilder(
+              builder: (context, setStateBuilder) {
+                final isExpanded = _expandedBookings.contains(item.productId);
+                final firstBooking = item.overlappingOrders.first;
+                final remainingCount = item.overlappingOrders.length - 1;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'EXISTING BOOKINGS',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(10),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        if (remainingCount > 0)
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                if (isExpanded) {
+                                  _expandedBookings.remove(item.productId);
+                                } else {
+                                  _expandedBookings.add(item.productId);
+                                }
+                              });
+                              setStateBuilder(() {});
+                            },
+                            child: Row(
+                              children: [
+                                Text(
+                                  isExpanded ? 'Collapse' : '+$remainingCount more',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(10),
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Icon(
+                                  isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                  size: Responsive.icon(14),
+                                  color: AppColors.primary,
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: Responsive.h(4)),
+                    _buildBookingRow(firstBooking),
+                    if (isExpanded)
+                      ...item.overlappingOrders.skip(1).map((b) => Padding(
+                            padding: Responsive.only(top: 4),
+                            child: _buildBookingRow(b),
+                          )),
+                  ],
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -959,6 +1598,15 @@ class OrderItemInput {
   bool isChecking = false;
   String? availableStockInfo;
 
+  // Parity with website
+  double discount = 0.0;
+  String discountType = 'flat'; // 'flat' | 'percent'
+  int available = 0;
+  int availableWithPriority = 0;
+  bool priorityCleaningNeeded = false;
+  List<dynamic> priorityCleaningInfo = const [];
+  List<dynamic> overlappingOrders = const [];
+
   OrderItemInput({
     this.productId = '',
     this.productName = '',
@@ -966,6 +1614,13 @@ class OrderItemInput {
     this.pricePerDay = 0.0,
     this.gstPercentage = 0.0,
     this.isAvailable = true,
+    this.discount = 0.0,
+    this.discountType = 'flat',
+    this.available = 0,
+    this.availableWithPriority = 0,
+    this.priorityCleaningNeeded = false,
+    this.priorityCleaningInfo = const [],
+    this.overlappingOrders = const [],
   });
 }
 
@@ -1059,14 +1714,17 @@ class _SearchSelectorDialogState extends State<_SearchSelectorDialog> {
                           separatorBuilder: (context, index) => const Divider(height: 1),
                           itemBuilder: (context, i) {
                              final item = _results[i];
-                             return ListTile(
-                               contentPadding: Responsive.symmetric(horizontal: 8, vertical: 4),
-                               title: Text(item.label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(14))),
-                               subtitle: Text(item.subtitle, style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(12))),
-                               onTap: () {
-                                 widget.onSelect(item);
-                                 Navigator.pop(context);
-                               },
+                             return Material(
+                               type: MaterialType.transparency,
+                               child: ListTile(
+                                 contentPadding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                                 title: Text(item.label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(14))),
+                                 subtitle: Text(item.subtitle, style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(12))),
+                                 onTap: () {
+                                   widget.onSelect(item);
+                                   Navigator.pop(context);
+                                 },
+                               ),
                              );
                           },
                         ),
@@ -1116,92 +1774,100 @@ class _CustomerSearchDropdown extends ConsumerWidget {
           BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
         ],
       ),
-      child: searchState.isLoading && customers.isEmpty
-          ? Center(
-              child: Padding(
-                padding: Responsive.all(16),
-                child: const CircularProgressIndicator(color: AppColors.primary),
-              ),
-            )
-          : searchState.error != null && customers.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: Responsive.all(16),
-                    child: Text('Error loading customers', style: TextStyle(color: Colors.red, fontSize: Responsive.sp(12))),
-                  ),
-                )
-              : customers.isEmpty
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Padding(
-                          padding: Responsive.all(16),
-                          child: Text(
-                            'No customer found',
-                            style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(13)),
-                          ),
-                        ),
-                        Container(
-                          width: double.infinity,
-                          padding: Responsive.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            border: Border(top: BorderSide(color: Colors.grey.shade200)),
-                          ),
-                          child: InkWell(
-                            onTap: () {
-                              onClose();
-                              onAddCustomer();
-                            },
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(18)),
-                                SizedBox(width: Responsive.w(8)),
-                                Text(
-                                  'Add New Customer',
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: Responsive.sp(13),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: customers.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final customer = customers[index];
-                        return ListTile(
-                          contentPadding: Responsive.symmetric(horizontal: 12, vertical: 4),
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                            child: Text(
-                              customer.name.isNotEmpty ? customer.name[0].toUpperCase() : 'C',
-                              style: TextStyle(color: AppColors.primary, fontSize: Responsive.sp(14), fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          title: Text(
-                            customer.name,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(13)),
-                          ),
-                          subtitle: Text(
-                            customer.phone,
-                            style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
-                          ),
-                          onTap: () {
-                            onSelectCustomer(customer);
-                            onClose();
-                          },
-                        );
-                      },
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(8)),
+        clipBehavior: Clip.antiAlias,
+        child: (searchState.isLoading || searchState.isSearchingRemote) && customers.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: Responsive.all(16),
+                  child: const CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            : searchState.error != null && customers.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: Responsive.all(16),
+                      child: Text('Error loading customers', style: TextStyle(color: Colors.red, fontSize: Responsive.sp(12))),
                     ),
+                  )
+                : customers.isEmpty
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: Responsive.all(16),
+                            child: Text(
+                              'No customer found',
+                              style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(13)),
+                            ),
+                          ),
+                          Container(
+                            width: double.infinity,
+                            padding: Responsive.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                onClose();
+                                onAddCustomer();
+                              },
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(18)),
+                                  SizedBox(width: Responsive.w(8)),
+                                  Text(
+                                    'Add New Customer',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: Responsive.sp(13),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: customers.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final customer = customers[index];
+                          return Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              contentPadding: Responsive.symmetric(horizontal: 12, vertical: 4),
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                child: Text(
+                                  customer.name.isNotEmpty ? customer.name[0].toUpperCase() : 'C',
+                                  style: TextStyle(color: AppColors.primary, fontSize: Responsive.sp(14), fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              title: Text(
+                                customer.name,
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(13)),
+                              ),
+                              subtitle: Text(
+                                customer.phone,
+                                style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
+                              ),
+                              onTap: () {
+                                onSelectCustomer(customer);
+                                onClose();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+      ),
     );
   }
 }

@@ -40,12 +40,14 @@ class CustomerSearchState {
   final bool isLoading;
   final bool isSearchingRemote;
   final String? error;
+  final String query;
 
   CustomerSearchState({
     this.results = const [],
     this.isLoading = false,
     this.isSearchingRemote = false,
     this.error,
+    this.query = '',
   });
 
   CustomerSearchState copyWith({
@@ -53,12 +55,14 @@ class CustomerSearchState {
     bool? isLoading,
     bool? isSearchingRemote,
     String? error,
+    String? query,
   }) {
     return CustomerSearchState(
       results: results ?? this.results,
       isLoading: isLoading ?? this.isLoading,
       isSearchingRemote: isSearchingRemote ?? this.isSearchingRemote,
       error: error,
+      query: query ?? this.query,
     );
   }
 }
@@ -72,6 +76,14 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
     ref.onDispose(() {
       _debounceTimer?.cancel();
     });
+
+    // Dynamically update search list if the initial cache finishes loading
+    ref.listen(customersCacheProvider, (previous, next) {
+      if (next.hasValue && state.query.isNotEmpty) {
+        search(state.query);
+      }
+    });
+
     return CustomerSearchState();
   }
 
@@ -97,6 +109,7 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
     // Step 1: Instant local search (0ms)
     final localResults = _searchLocal(query);
     state = state.copyWith(
+      query: query,
       results: localResults,
       isLoading: false,
       error: null,
@@ -104,7 +117,10 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
     
     // Step 2: Debounced remote search (300ms)
     if (query.isNotEmpty) {
-      state = state.copyWith(isSearchingRemote: true);
+      state = state.copyWith(
+        isSearchingRemote: true,
+        isLoading: localResults.isEmpty,
+      );
       _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
         try {
           final repository = ref.read(customerRepositoryProvider);
@@ -127,16 +143,21 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
           state = state.copyWith(
             results: mergedResults,
             isSearchingRemote: false,
+            isLoading: false,
           );
         } catch (e) {
           state = state.copyWith(
             isSearchingRemote: false,
+            isLoading: false,
             error: e.toString(),
           );
         }
       });
     } else {
-      state = state.copyWith(isSearchingRemote: false);
+      state = state.copyWith(
+        isSearchingRemote: false,
+        isLoading: false,
+      );
     }
   }
 
