@@ -1011,47 +1011,74 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
           ),
         ] else ...[
           // Name/phone search input
-          TextField(
-            controller: _phoneSearchController,
-            keyboardType: TextInputType.text,
-            style: TextStyle(fontSize: Responsive.sp(14)),
-            decoration: InputDecoration(
-              labelText: 'Customer',
-              hintText: 'Search customer by name or phone...',
-              hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
-              prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(20)),
-              suffixIcon: _phoneSearchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: Icon(Icons.clear_rounded, size: Responsive.icon(18)),
-                      onPressed: () {
-                        _phoneSearchController.clear();
-                        setState(() {
-                          _searchQuery = '';
-                          _showCustomerDropdown = false;
-                        });
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
-              contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-            ),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-                _showCustomerDropdown = value.isNotEmpty;
-              });
-              // Trigger hybrid search
-              if (value.isNotEmpty) {
-                ref.read(customerSearchProvider.notifier).search(value);
-              } else {
-                ref.read(customerSearchProvider.notifier).clear();
-              }
-            },
-            onTap: () {
-              if (_phoneSearchController.text.isNotEmpty) {
-                setState(() => _showCustomerDropdown = true);
-              }
-            },
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _phoneSearchController,
+                  keyboardType: TextInputType.text,
+                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  decoration: InputDecoration(
+                    labelText: 'Customer',
+                    hintText: 'Search customer by name or phone...',
+                    hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
+                    prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(20)),
+                    suffixIcon: _phoneSearchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear_rounded, size: Responsive.icon(18)),
+                            onPressed: () {
+                              _phoneSearchController.clear();
+                              setState(() {
+                                _searchQuery = '';
+                                _showCustomerDropdown = false;
+                              });
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                      _showCustomerDropdown = value.isNotEmpty;
+                    });
+                    // Trigger hybrid search
+                    if (value.isNotEmpty) {
+                      ref.read(customerSearchProvider.notifier).search(value);
+                    } else {
+                      ref.read(customerSearchProvider.notifier).clear();
+                    }
+                  },
+                  onTap: () {
+                    if (_phoneSearchController.text.isNotEmpty) {
+                      setState(() => _showCustomerDropdown = true);
+                    }
+                  },
+                ),
+              ),
+              SizedBox(width: Responsive.w(8)),
+              Container(
+                height: Responsive.h(48),
+                width: Responsive.h(48),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(Responsive.r(8)),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Responsive.r(8)),
+                    onTap: _openAddCustomerDialog,
+                    child: Icon(
+                      Icons.person_add_alt_1_rounded,
+                      color: AppColors.primary,
+                      size: Responsive.icon(22),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
         // Customer dropdown
