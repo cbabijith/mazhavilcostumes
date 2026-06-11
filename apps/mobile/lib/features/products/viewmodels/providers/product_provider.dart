@@ -266,14 +266,50 @@ final filteredProductsProvider = Provider<AsyncValue<List<Product>>>((ref) {
 });
 
 /// Fetches category product counts from the server.
+/// Watches effectiveBranchIdProvider to update counts per branch.
 final categoryProductCountsProvider = FutureProvider<Map<String, int>>((ref) async {
   final repo = ref.watch(categoryRepositoryProvider);
-  return repo.getCategoryProductCounts();
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  return repo.getCategoryProductCounts(branchId: branchId);
+});
+
+/// Dynamic category counts based on current filtered products
+final filteredCategoryCountsProvider = Provider<Map<String, int>>((ref) {
+  final productsAsync = ref.watch(productsProvider);
+  
+  final products = productsAsync.value?.products ?? [];
+  
+  final Map<String, int> counts = {};
+  
+  // Count products by category
+  for (final product in products) {
+    if (product.categoryId != null) {
+      counts[product.categoryId!] = (counts[product.categoryId!] ?? 0) + 1;
+    }
+  }
+  
+  // Add "All" count (total filtered products)
+  counts['All'] = products.length;
+  
+  return counts;
 });
 
 /// Fetches the total count of products in the store from the server.
+/// Queries ProductRepository with minimal parameters to get the database-wide total.
+/// Watches effectiveBranchIdProvider to update count per branch.
 final totalProductCountProvider = FutureProvider<int>((ref) async {
-  final repo = ref.watch(categoryRepositoryProvider);
-  return repo.getTotalProductCount();
+  final repo = ref.watch(productRepositoryProvider);
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+  
+  final result = await repo.getProducts(
+    page: 1,
+    limit: 1,
+    branchId: branchId,
+    cancelToken: cancelToken,
+  );
+  
+  return result.total;
 });
 

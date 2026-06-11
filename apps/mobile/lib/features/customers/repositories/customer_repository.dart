@@ -34,6 +34,7 @@ class CustomerRepository {
     String? phone,
     String sortBy = 'created_at',
     String sortOrder = 'desc',
+    bool lightweight = false,
     CancelToken? cancelToken,
   }) async {
     try {
@@ -50,6 +51,11 @@ class CustomerRepository {
       if (phone != null && phone.isNotEmpty) {
         queryParams['phone'] = phone;
       }
+      
+      // Lightweight payload: only fetch essential fields for search
+      if (lightweight) {
+        queryParams['select'] = 'id,name,phone';
+      }
 
       final response = await _api.get(
         '/customers',
@@ -57,9 +63,9 @@ class CustomerRepository {
         cancelToken: cancelToken,
       );
 
-      final data = response.data;
-      final customersData = data['customers'] as List<dynamic>? ?? [];
-      final total = data['total'] as int? ?? 0;
+      final responseData = response.data['data'] as Map<String, dynamic>? ?? {};
+      final customersData = responseData['customers'] as List<dynamic>? ?? [];
+      final total = responseData['total'] as int? ?? 0;
       final totalPages = (total / limit).ceil();
 
       return PaginatedCustomers(
@@ -84,7 +90,7 @@ class CustomerRepository {
         cancelToken: cancelToken,
       );
 
-      return Customer.fromJson(response.data);
+      return Customer.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to load customer: $e');
     }
@@ -99,7 +105,7 @@ class CustomerRepository {
         cancelToken: cancelToken,
       );
 
-      return Customer.fromJson(response.data);
+      return Customer.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to create customer: $e');
     }
@@ -114,7 +120,7 @@ class CustomerRepository {
         cancelToken: cancelToken,
       );
 
-      return Customer.fromJson(response.data);
+      return Customer.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to update customer: $e');
     }

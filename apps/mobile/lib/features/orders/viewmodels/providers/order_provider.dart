@@ -23,7 +23,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     final repo = ref.watch(orderRepositoryProvider);
     return repo.getOrders(
       page: _currentPage,
-      limit: 25,
+      limit: 15, // Reduced from 25 for faster initial load
       query: _currentSearch,
       status: _currentStatus,
       branchId: _currentBranchId,
@@ -38,7 +38,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
@@ -54,7 +54,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
@@ -70,7 +70,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
@@ -89,7 +89,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       final nextPageData = await repo.getOrders(
         page: _currentPage + 1,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
@@ -115,11 +115,12 @@ final ordersProvider = AsyncNotifierProvider<OrdersNotifier, PaginatedOrders>(()
   return OrdersNotifier();
 });
 
-// Single order provider
-final orderProvider = FutureProvider.family.autoDispose<Order, String>((ref, id) async {
+// Single order provider - removed autoDispose for instant navigation back
+final orderProvider = FutureProvider.family<Order, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
   final cancelToken = ref.watch(cancelTokenProvider);
   
+  ref.keepAlive();
   return repository.getOrderById(id, cancelToken: cancelToken);
 });
 
@@ -167,7 +168,6 @@ class OrderOperations {
     required String orderId,
     required double amount,
     required String paymentMode,
-    required String paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
@@ -175,7 +175,6 @@ class OrderOperations {
       orderId: orderId,
       amount: amount,
       paymentMode: paymentMode,
-      paymentType: paymentType,
       notes: notes,
       cancelToken: cancelToken,
     );
@@ -201,13 +200,15 @@ class OrderOperations {
 
   Future<Map<String, dynamic>> createDamageAssessment({
     required String orderId,
-    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> damages,
+    double? totalDamageAmount,
     String? notes,
     CancelToken? cancelToken,
   }) async {
     return await _repository.createDamageAssessment(
       orderId: orderId,
-      items: items,
+      damages: damages,
+      totalDamageAmount: totalDamageAmount,
       notes: notes,
       cancelToken: cancelToken,
     );
@@ -247,8 +248,9 @@ final orderOperationsProvider = Provider<OrderOperations>((ref) {
   return OrderOperations(repository);
 });
 
-final orderPaymentsProvider = FutureProvider.family.autoDispose<List<PaymentTransaction>, String>((ref, id) async {
+final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
+  ref.keepAlive();
   return repository.getOrderPayments(id);
 });
 

@@ -14,6 +14,7 @@ import '../features/branches/viewmodels/providers/branch_provider.dart';
 import '../features/branches/views/branches_view.dart';
 import '../features/customers/views/customers_view.dart';
 import 'utils/responsive.dart';
+import 'constants/app_constants.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -25,8 +26,6 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _selectedIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  static const _primary = Color(0xFF434343);
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +50,7 @@ class _MainLayoutState extends State<MainLayout> {
   PreferredSizeWidget _buildAppBar(WidgetRef ref, AuthUser? user, AsyncValue<List<Branch>> branchesAsync) {
     if (_selectedIndex == 0) {
       return AppBar(
-        backgroundColor: _primary,
+        backgroundColor: AppColors.primary,
         titleSpacing: 0,
         toolbarHeight: Responsive.h(60),
         leading: GestureDetector(
@@ -85,7 +84,7 @@ class _MainLayoutState extends State<MainLayout> {
 
     final titles = ['', 'Orders', 'Calendar', 'Products'];
     return AppBar(
-      backgroundColor: _primary,
+      backgroundColor: AppColors.primary,
       iconTheme: const IconThemeData(color: Colors.white),
       toolbarHeight: Responsive.h(60),
       leading: GestureDetector(
@@ -127,7 +126,7 @@ class _MainLayoutState extends State<MainLayout> {
               padding: Responsive.only(left: 24, right: 24, top: 32, bottom: 24),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [_primary, _primary.withValues(alpha: 0.8)],
+                  colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.8)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -304,7 +303,7 @@ class _MainLayoutState extends State<MainLayout> {
     return Padding(
       padding: Responsive.symmetric(horizontal: 12, vertical: 2),
       child: Material(
-        color: isSelected ? _primary.withValues(alpha: 0.08) : Colors.transparent,
+        color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent,
         borderRadius: BorderRadius.circular(Responsive.r(12)),
         child: InkWell(
           borderRadius: BorderRadius.circular(Responsive.r(12)),
@@ -320,21 +319,21 @@ class _MainLayoutState extends State<MainLayout> {
             padding: Responsive.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
-                Icon(icon, size: Responsive.icon(22), color: isSelected ? _primary : Colors.grey[600]),
+                Icon(icon, size: Responsive.icon(22), color: isSelected ? AppColors.primary : Colors.grey[600]),
                 SizedBox(width: Responsive.w(16)),
                 Text(
                   label,
                   style: TextStyle(
                     fontSize: Responsive.sp(15),
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelected ? _primary : Colors.grey[800],
+                    color: isSelected ? AppColors.primary : Colors.grey[800],
                   ),
                 ),
                 if (isSelected) ...[
                   const Spacer(),
                   Container(
                     width: Responsive.w(6), height: Responsive.h(6),
-                    decoration: BoxDecoration(shape: BoxShape.circle, color: _primary),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: AppColors.primary),
                   ),
                 ],
               ],
@@ -497,7 +496,7 @@ class _MainLayoutState extends State<MainLayout> {
           Icon(
             isSelected ? Icons.check_circle : Icons.circle_outlined,
             size: Responsive.icon(18),
-            color: isSelected ? _primary : Colors.grey,
+            color: isSelected ? AppColors.primary : Colors.grey,
           ),
           SizedBox(width: Responsive.w(12)),
           Expanded(
@@ -506,7 +505,7 @@ class _MainLayoutState extends State<MainLayout> {
               style: TextStyle(
                 fontSize: Responsive.sp(14),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? _primary : Colors.black87,
+                color: isSelected ? AppColors.primary : Colors.black87,
               ),
             ),
           ),
@@ -553,7 +552,7 @@ class _MainLayoutState extends State<MainLayout> {
       child: Container(
         padding: Responsive.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? _primary.withValues(alpha: 0.1) : Colors.transparent,
+          color: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(Responsive.r(12)),
         ),
         child: Column(
@@ -561,7 +560,7 @@ class _MainLayoutState extends State<MainLayout> {
           children: [
             Icon(
               isSelected ? activeIcon : icon,
-              color: isSelected ? _primary : Colors.grey[500],
+              color: isSelected ? AppColors.primary : Colors.grey[500],
               size: Responsive.icon(22),
             ),
             SizedBox(height: Responsive.h(4)),
@@ -569,7 +568,7 @@ class _MainLayoutState extends State<MainLayout> {
               label,
               style: TextStyle(
                 fontSize: Responsive.sp(10),
-                color: isSelected ? _primary : Colors.grey[600],
+                color: isSelected ? AppColors.primary : Colors.grey[600],
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
               ),
             ),

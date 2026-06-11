@@ -1,6 +1,6 @@
 # Mazhavil Dance Costumes - API Documentation
 
-**Version**: 1.0.0  
+**Version**: 1.2.0  
 **Base URL**: `https://mazhavilcostumes-admin.vercel.app/api`  
 **Local URL**: `http://localhost:3001/api`  
 **Authentication**: Bearer Token (required for all endpoints)
@@ -12,8 +12,9 @@
 1. [Authentication](#authentication)
 2. [Products API](#products-api)
 3. [Categories API](#categories-api)
-4. [Error Codes](#error-codes)
-5. [Rate Limiting](#rate-limiting)
+4. [Orders API](#orders-api)
+5. [Error Codes](#error-codes)
+6. [Rate Limiting](#rate-limiting)
 
 ---
 
@@ -94,7 +95,7 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 
 | Parameter | Type | Description | Default |
 |-----------|------|-------------|---------|
-| `query` | string | Search by name, SKU, barcode, slug | - |
+| `query` | string | Search by name, SKU, barcode, slug (case-insensitive, partial match) | - |
 | `category_id` | string | Filter by category UUID | - |
 | `store_id` | string | Filter by store UUID | - |
 | `branch_id` | string | Filter by branch UUID | - |
@@ -103,8 +104,8 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 | `in_stock` | boolean | Filter in-stock products | - |
 | `min_price` | number | Minimum price filter | - |
 | `max_price` | number | Maximum price filter | - |
-| `sort_by` | string | Sort field: `name`, `price`, `created_at`, `stock` | `created_at` |
-| `sort_order` | string | `asc` or `desc` | `desc` |
+| `sort_by` | string | Sort field: `name`, `price`, `created_at`, `stock` | `name` |
+| `sort_order` | string | `asc` or `desc` | `asc` |
 | `page` | number | Page number | `1` |
 | `limit` | number | Items per page (max 100) | `20` |
 
@@ -112,6 +113,29 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 ```bash
 GET /api/products?limit=100&status=active
 ```
+
+**Search Examples**:
+```bash
+# Search by name
+GET /api/products?query=bharathanattyam
+
+# Search by SKU
+GET /api/products?query=BHN-36
+
+# Search by barcode
+GET /api/products?query=BHN-36/46
+
+# Search with pagination
+GET /api/products?query=red&limit=20&page=1
+```
+
+**Search Behavior**:
+- Server-side search using Supabase database queries
+- Case-insensitive matching
+- Partial string matching (wildcards)
+- Searches across: `name`, `slug`, `sku`, `barcode`
+- Normalizes spaces to hyphens (e.g., "Black Red" also matches "Black-Red")
+- OR logic: matches if ANY field contains the search term
 
 **Response** (200 OK):
 ```json
@@ -642,10 +666,399 @@ Bharathanattyam (main)
   │   └── Blue Variant (variant)
   └── Accessories (sub)
 ```
+---
+
+## Orders API
+
+### List Orders
+
+**Endpoint**: `GET /api/orders`
+
+**Authentication**: Required
+
+**Query Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | string | Search by customer name, phone, email, or order ID |
+| `status` | string | Filter by order status: `pending`, `confirmed`, `scheduled`, `ongoing`, `completed`, `cancelled`, `flagged`, `returned`, or virtual status: `action_needed`, `priority_cleaning`, `revenue_due`, `partial`, `damaged` |
+| `payment_status` | string | Filter by payment status: `pending`, `partial`, `paid`, `refunded` |
+| `branch_id` | string | Filter by branch UUID |
+| `customer_id` | string | Filter by customer UUID |
+| `date_filter` | string | `today`, `yesterday`, `this_week`, `this_month`, `custom` |
+| `date_field` | string | Field to filter by: `created_at`, `start_date`, `end_date` |
+| `date_from` | string | ISO Date start filter boundary (YYYY-MM-DD) |
+| `date_to` | string | ISO Date end filter boundary (YYYY-MM-DD) |
+| `limit` | number | Items per page |
+| `offset` | number | Offset starting index |
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "orders": [
+      {
+        "id": "order-uuid",
+        "customer_id": "customer-uuid",
+        "status": "scheduled",
+        "payment_status": "pending",
+        "start_date": "2026-06-10",
+        "end_date": "2026-06-12",
+        "total_amount": 1500,
+        "amount_paid": 0,
+        "security_deposit": 500,
+        "customer": {
+          "id": "customer-uuid",
+          "name": "John Doe",
+          "phone": "9876543210"
+        },
+        "items": [
+          {
+            "id": "item-uuid",
+            "quantity": 1,
+            "price_per_day": 500,
+            "product": {
+              "id": "product-uuid",
+              "name": "Premium Costume"
+            }
+          }
+        ]
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "total_pages": 1
+  }
+}
+```
+
+### Create Order
+
+**Endpoint**: `POST /api/orders`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "customer_id": "customer-uuid",
+  "branch_id": "branch-uuid",
+  "start_date": "2026-06-10",
+  "end_date": "2026-06-12",
+  "items": [
+    {
+      "product_id": "product-uuid",
+      "quantity": 1,
+      "price_per_day": 500
+    }
+  ],
+  "security_deposit": 500,
+  "discount": 0,
+  "notes": "Order notes"
+}
+```
+
+**Response** (201 Created):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "new-order-uuid",
+    "status": "pending",
+    "total_amount": 1500
+  }
+}
+```
+
+### Get Single Order
+
+**Endpoint**: `GET /api/orders/:id`
+
+**Authentication**: Required
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "order-uuid",
+    "customer_id": "customer-uuid",
+    "status": "scheduled",
+    "items": []
+  }
+}
+```
+
+### Update Order
+
+**Endpoint**: `PATCH /api/orders/:id`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "status": "ongoing",
+  "payment_status": "partial",
+  "amount_paid": 1000
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "order-uuid",
+    "status": "ongoing",
+    "payment_status": "partial"
+  }
+}
+```
+
+### Delete/Cancel Order
+
+**Endpoint**: `DELETE /api/orders/:id`
+
+**Authentication**: Required
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": null
+}
+```
+
+### Check Stock Availability
+
+**Endpoint**: `POST /api/orders/check-availability`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "productId": "product-uuid",
+  "startDate": "2026-06-10",
+  "endDate": "2026-06-12",
+  "excludeOrderId": "optional-exclude-order-uuid"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "available": 5,
+    "availableWithPriority": 8,
+    "total": 10,
+    "peakReserved": 5,
+    "priorityCleaningNeeded": false
+  }
+}
+```
+
+### Process Rental Return
+
+**Endpoint**: `POST /api/orders/:id/return`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "items": [
+    {
+      "order_item_id": "item-uuid",
+      "returned_quantity": 1,
+      "condition": "good"
+    }
+  ],
+  "return_date": "2026-06-12"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "order-uuid",
+    "status": "returned"
+  }
+}
+```
+
+### Get Booking Calendar
+
+**Endpoint**: `GET /api/calendar`
+
+**Authentication**: Required
+
+**Query Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `branch_id` | string | Branch UUID |
+| `start_date` | string | ISO start date range (YYYY-MM-DD) |
+| `end_date` | string | ISO end date range (YYYY-MM-DD) |
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "order-uuid",
+      "title": "John Doe - Premium Costume",
+      "start": "2026-06-10",
+      "end": "2026-06-12",
+      "status": "scheduled"
+    }
+  ]
+}
+```
+
+### Process Damage Assessments
+
+**Endpoint**: `POST /api/orders/:id/damage-assessments`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "assessments": [
+    {
+      "product_id": "product-uuid",
+      "unit_index": 1,
+      "charge_amount": 300,
+      "notes": "Damaged zipper",
+      "decision": "reuse"
+    }
+  ]
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "damage_charges_total": 300
+  }
+}
+```
+
+### Process Deposit Refund
+
+**Endpoint**: `POST /api/orders/:id/deposit`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "action": "refund",
+  "amount": 500,
+  "notes": "Full deposit refund"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "order-uuid",
+    "security_deposit_refunded": 500
+  }
+}
+```
+
+### Get Order Invoice
+
+**Endpoint**: `GET /api/orders/:id/invoice`
+
+**Authentication**: Required
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "invoice_number": "INV-2026-0001",
+    "subtotal": 1500,
+    "gst_amount": 75,
+    "grand_total": 1575,
+    "invoice_pdf_url": "https://example.com/invoice.pdf"
+  }
+}
+```
+
+### Get Cleaning Queue
+
+**Endpoint**: `GET /api/cleaning`
+
+**Authentication**: Required
+
+**Query Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `branch_id` | string | Branch UUID |
+| `status` | string | `pending`, `completed` |
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "cleaning-uuid",
+      "product": {
+        "id": "product-uuid",
+        "name": "Premium Costume"
+      },
+      "status": "pending",
+      "quantity": 1
+    }
+  ]
+}
+```
+
+### Update Cleaning Item
+
+**Endpoint**: `PATCH /api/cleaning/:id`
+
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "status": "completed"
+}
+```
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": {
+    "id": "cleaning-uuid",
+    "status": "completed"
+  }
+}
+```
 
 ---
 
 ## Error Codes
+
 
 | HTTP Status | Error Code | Description |
 |-------------|------------|-------------|

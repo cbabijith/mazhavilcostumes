@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../customers/viewmodels/providers/customer_provider.dart';
+import '../../customers/models/customer.dart';
 import '../../products/viewmodels/providers/product_provider.dart';
 import '../../products/models/product.dart' as p_model;
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
-
-// Color Constants accessible across classes in the file
-const _primary = Color(0xFF434343);
-const _bg = Color(0xFFF8F8F8);
 
 class OrderFormView extends ConsumerStatefulWidget {
   final Order? order;
@@ -39,6 +37,11 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _advanceAmountController = TextEditingController(text: '0');
   final _amountPaidController = TextEditingController(text: '0');
   final _discountController = TextEditingController(text: '0');
+  final _phoneSearchController = TextEditingController();
+
+  // Customer search state
+  bool _showCustomerDropdown = false;
+  String _searchQuery = '';
 
   OrderStatus? _selectedStatus = OrderStatus.pending;
   PaymentStatus? _selectedPaymentStatus = PaymentStatus.pending;
@@ -68,6 +71,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     if (widget.order != null) {
       _selectedCustomerId = widget.order!.customerId;
       _selectedCustomerName = widget.order!.customer?.name ?? 'Linked Customer';
+      _phoneSearchController.text = widget.order!.customer?.phone ?? '';
       _selectedBranchId = widget.order!.branchId;
       
       _startDateController.text = widget.order!.startDate;
@@ -108,6 +112,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     _advanceAmountController.dispose();
     _amountPaidController.dispose();
     _discountController.dispose();
+    _phoneSearchController.dispose();
     super.dispose();
   }
 
@@ -168,7 +173,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(primary: _primary, onPrimary: Colors.white, surface: Colors.white),
+            colorScheme: const ColorScheme.light(primary: AppColors.primary, onPrimary: Colors.white, surface: Colors.white),
           ),
           child: child!,
         );
@@ -183,26 +188,35 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     }
   }
 
-  void _openCustomerLookup() {
+  void _selectCustomer(Customer customer) {
+    setState(() {
+      _selectedCustomerId = customer.id;
+      _selectedCustomerName = customer.name;
+      _phoneSearchController.text = customer.phone;
+      _showCustomerDropdown = false;
+      _searchQuery = '';
+    });
+  }
+
+  void _clearCustomer() {
+    setState(() {
+      _selectedCustomerId = null;
+      _selectedCustomerName = null;
+      _phoneSearchController.text = '';
+      _showCustomerDropdown = false;
+      _searchQuery = '';
+    });
+  }
+
+  void _openAddCustomerDialog() {
     showDialog(
       context: context,
-      builder: (context) {
-        return _SearchSelectorDialog(
-          title: 'Select Customer',
-          hint: 'Search name or phone...',
-          fetchList: (query) async {
-            final repo = ref.read(customerRepositoryProvider);
-            final result = await repo.getCustomers(query: query);
-            return result.customers.map((c) => _LookupItem(id: c.id, label: c.name, subtitle: c.phone)).toList();
-          },
-          onSelect: (item) {
-            setState(() {
-              _selectedCustomerId = item.id;
-              _selectedCustomerName = item.label;
-            });
-          },
-        );
-      },
+      builder: (context) => _AddCustomerDialog(
+        initialPhone: _phoneSearchController.text,
+        onCustomerCreated: (customer) {
+          _selectCustomer(customer);
+        },
+      ),
     );
   }
 
@@ -243,30 +257,35 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   Future<void> _checkItemAvailability(int index) async {
     final item = _items[index];
-    if (item.productId.isEmpty || _startDateController.text.isEmpty || _endDateController.text.isEmpty) return;
+    if (item.productId.isEmpty || _startDateController.text.isEmpty || _endDateController.text.isEmpty || _selectedBranchId == null) return;
 
     setState(() => item.isChecking = true);
     try {
-      final repo = ref.read(productRepositoryProvider);
-      final result = await repo.getProductAvailability(
-        item.productId,
-        start: _startDateController.text,
-        end: _endDateController.text,
+      final operations = ref.read(orderOperationsProvider);
+      final result = await operations.checkAvailability(
+        startDate: _startDateController.text,
+        endDate: _endDateController.text,
+        branchId: _selectedBranchId!,
+        items: [
+          {
+            'product_id': item.productId,
+            'quantity': item.quantity,
+          }
+        ],
       );
 
-      final days = result['data']?['days'] as List?;
+      final itemsList = result['items'] as List<dynamic>? ?? [];
       bool isAvail = true;
       int minAvailable = 999;
 
-      if (days != null) {
-        for (final d in days) {
-          final avail = (d['available'] as num?)?.toInt() ?? 0;
-          if (avail < item.quantity) {
-            isAvail = false;
-          }
-          if (avail < minAvailable) {
-            minAvailable = avail;
-          }
+      for (final i in itemsList) {
+        final isItemAvailable = i['isAvailable'] as bool? ?? true;
+        final available = i['available'] as int? ?? 0;
+        if (!isItemAvailable) {
+          isAvail = false;
+        }
+        if (available < minAvailable) {
+          minAvailable = available;
         }
       }
 
@@ -368,6 +387,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       }
 
       if (mounted) {
+        // Selective invalidation - only invalidate list, not individual order cache
         ref.invalidate(ordersProvider);
         Navigator.pop(context);
       }
@@ -387,15 +407,16 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     final isEditing = widget.order != null;
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Order' : 'Create Order',
-            style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: _primary)),
+            style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: AppColors.primary)),
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
+        iconTheme: IconThemeData(color: AppColors.primary),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -405,13 +426,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                   children: [
                     _buildSectionHeader('Fulfillment Basics'),
                     _buildCard(children: [
-                      // Customer Lookup Selector
-                      _buildLookupField(
-                        label: 'Customer',
-                        value: _selectedCustomerName ?? 'Choose Customer...',
-                        icon: Icons.person_search_rounded,
-                        onTap: _openCustomerLookup,
-                      ),
+                      // Customer Search Field with Dropdown
+                      _buildCustomerSearchField(),
                       SizedBox(height: Responsive.h(12)),
                       // Dates Selectors
                       Row(
@@ -450,8 +466,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                     SizedBox(height: Responsive.h(8)),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: _primary),
-                        foregroundColor: _primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: Responsive.symmetric(vertical: 12),
                       ),
@@ -507,8 +523,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                     _buildSectionHeader('Logistics & Notes'),
                     _buildCard(children: [
                       DropdownButtonFormField<DeliveryMethod>(
-                        value: _selectedDeliveryMethod,
-                        style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                        initialValue: _selectedDeliveryMethod,
+                        style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
                         decoration: InputDecoration(
                           labelText: 'Fulfillment Method',
                           contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
@@ -566,8 +582,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                       if (isEditing) ...[
                         SizedBox(height: Responsive.h(12)),
                         DropdownButtonFormField<OrderStatus>(
-                          value: _selectedStatus,
-                          style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                          initialValue: _selectedStatus,
+                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
                           decoration: InputDecoration(
                             labelText: 'Order Status',
                             contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
@@ -583,8 +599,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                         ),
                         SizedBox(height: Responsive.h(12)),
                         DropdownButtonFormField<PaymentStatus>(
-                          value: _selectedPaymentStatus,
-                          style: TextStyle(fontSize: Responsive.sp(14), color: _primary),
+                          initialValue: _selectedPaymentStatus,
+                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
                           decoration: InputDecoration(
                             labelText: 'Payment Status',
                             contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
@@ -603,7 +619,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                     SizedBox(height: Responsive.h(24)),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: Responsive.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -649,6 +665,100 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
+  Widget _buildCustomerSearchField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Selected customer display or search input
+        if (_selectedCustomerId != null) ...[
+          Container(
+            padding: Responsive.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey.shade300),
+              borderRadius: BorderRadius.circular(Responsive.r(8)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.person_rounded, color: AppColors.primary, size: Responsive.icon(20)),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Customer', style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey)),
+                      SizedBox(height: Responsive.h(2)),
+                      Text(_selectedCustomerName ?? '', style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.clear_rounded, color: Colors.grey[600], size: Responsive.icon(20)),
+                  onPressed: _clearCustomer,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // Phone search input
+          TextField(
+            controller: _phoneSearchController,
+            keyboardType: TextInputType.phone,
+            style: TextStyle(fontSize: Responsive.sp(14)),
+            decoration: InputDecoration(
+              labelText: 'Phone Number',
+              hintText: 'Enter phone to search...',
+              hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
+              prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(20)),
+              suffixIcon: _phoneSearchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.clear_rounded, size: Responsive.icon(18)),
+                      onPressed: () {
+                        _phoneSearchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                          _showCustomerDropdown = false;
+                        });
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+              contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+            ),
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+                _showCustomerDropdown = value.length >= 3;
+              });
+              // Trigger hybrid search
+              if (value.length >= 3) {
+                ref.read(customerSearchProvider.notifier).search(value);
+              } else {
+                ref.read(customerSearchProvider.notifier).clear();
+              }
+            },
+            onTap: () {
+              if (_phoneSearchController.text.length >= 3) {
+                setState(() => _showCustomerDropdown = true);
+              }
+            },
+          ),
+        ],
+        // Customer dropdown
+        if (_showCustomerDropdown && _selectedCustomerId == null) ...[
+          SizedBox(height: Responsive.h(4)),
+          _CustomerSearchDropdown(
+            searchQuery: _searchQuery,
+            onSelectCustomer: _selectCustomer,
+            onAddCustomer: _openAddCustomerDialog,
+            onClose: () => setState(() => _showCustomerDropdown = false),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildLookupField({
     required String label,
     required String value,
@@ -666,7 +776,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         ),
         child: Row(
           children: [
-            Icon(icon, color: _primary, size: Responsive.icon(20)),
+            Icon(icon, color: AppColors.primary, size: Responsive.icon(20)),
             SizedBox(width: Responsive.w(8)),
             Expanded(
               child: Column(
@@ -723,7 +833,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
           Row(
             children: [
               Text('Costume #${index + 1}',
-                  style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: _primary)),
+                  style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary)),
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.delete_outline_rounded, color: Colors.red[400], size: Responsive.icon(20)),
@@ -789,7 +899,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                   SizedBox(
                       width: Responsive.w(12),
                       height: Responsive.w(12),
-                      child: const CircularProgressIndicator(strokeWidth: 1.5, color: _primary)),
+                      child: const CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary)),
                   SizedBox(width: Responsive.w(6)),
                   Text('Checking availability...', style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey)),
                 ],
@@ -822,7 +932,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             style: TextStyle(
               fontSize: Responsive.sp(13),
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? _primary : Colors.grey[700],
+              color: isBold ? AppColors.primary : Colors.grey[700],
             ),
           ),
           Text(
@@ -830,7 +940,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             style: TextStyle(
               fontSize: Responsive.sp(13),
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? _primary : Colors.grey[800],
+              color: isBold ? AppColors.primary : Colors.grey[800],
             ),
           ),
         ],
@@ -940,13 +1050,13 @@ class _SearchSelectorDialogState extends State<_SearchSelectorDialog> {
             Container(
               constraints: BoxConstraints(maxHeight: Responsive.h(250)),
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: _primary))
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                   : _results.isEmpty
                       ? const Center(child: Text('No results found.'))
                       : ListView.separated(
                           shrinkWrap: true,
                           itemCount: _results.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          separatorBuilder: (context, index) => const Divider(height: 1),
                           itemBuilder: (context, i) {
                              final item = _results[i];
                              return ListTile(
@@ -966,8 +1076,302 @@ class _SearchSelectorDialogState extends State<_SearchSelectorDialog> {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Close', style: TextStyle(color: _primary, fontSize: Responsive.sp(13))),
+                child: Text('Close', style: TextStyle(color: AppColors.primary, fontSize: Responsive.sp(13))),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomerSearchDropdown extends ConsumerWidget {
+  final String searchQuery;
+  final Function(Customer) onSelectCustomer;
+  final VoidCallback onAddCustomer;
+  final VoidCallback onClose;
+
+  const _CustomerSearchDropdown({
+    required this.searchQuery,
+    required this.onSelectCustomer,
+    required this.onAddCustomer,
+    required this.onClose,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    Responsive.init(context);
+    
+    // Use hybrid search provider for 0ms local search + debounced remote search
+    final searchState = ref.watch(customerSearchProvider);
+    final customers = searchState.results;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: Responsive.h(200)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(8)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: searchState.isLoading && customers.isEmpty
+          ? Center(
+              child: Padding(
+                padding: Responsive.all(16),
+                child: const CircularProgressIndicator(color: AppColors.primary),
+              ),
+            )
+          : searchState.error != null && customers.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: Responsive.all(16),
+                    child: Text('Error loading customers', style: TextStyle(color: Colors.red, fontSize: Responsive.sp(12))),
+                  ),
+                )
+              : customers.isEmpty
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Padding(
+                          padding: Responsive.all(16),
+                          child: Text(
+                            'No customer found',
+                            style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(13)),
+                          ),
+                        ),
+                        Container(
+                          width: double.infinity,
+                          padding: Responsive.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              onClose();
+                              onAddCustomer();
+                            },
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(18)),
+                                SizedBox(width: Responsive.w(8)),
+                                Text(
+                                  'Add New Customer',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: Responsive.sp(13),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: customers.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final customer = customers[index];
+                        return ListTile(
+                          contentPadding: Responsive.symmetric(horizontal: 12, vertical: 4),
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            child: Text(
+                              customer.name.isNotEmpty ? customer.name[0].toUpperCase() : 'C',
+                              style: TextStyle(color: AppColors.primary, fontSize: Responsive.sp(14), fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          title: Text(
+                            customer.name,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(13)),
+                          ),
+                          subtitle: Text(
+                            customer.phone,
+                            style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
+                          ),
+                          onTap: () {
+                            onSelectCustomer(customer);
+                            onClose();
+                          },
+                        );
+                      },
+                    ),
+    );
+  }
+}
+
+class _AddCustomerDialog extends ConsumerStatefulWidget {
+  final String initialPhone;
+  final Function(Customer) onCustomerCreated;
+
+  const _AddCustomerDialog({
+    required this.initialPhone,
+    required this.onCustomerCreated,
+  });
+
+  @override
+  ConsumerState<_AddCustomerDialog> createState() => _AddCustomerDialogState();
+}
+
+class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _phoneController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController.text = widget.initialPhone;
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _nameController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final operations = ref.read(customerOperationsProvider);
+      final customer = await operations.createCustomer({
+        'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+      });
+
+      if (mounted) {
+        widget.onCustomerCreated(customer);
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create customer: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Responsive.init(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(14))),
+      child: Padding(
+        padding: Responsive.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Add New Customer',
+              style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: AppColors.primary),
+            ),
+            SizedBox(height: Responsive.h(20)),
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number *',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                      contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
+                      }
+                      if (value.trim().length < 10) {
+                        return 'Enter a valid phone number';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  TextFormField(
+                    controller: _nameController,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                      contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  TextFormField(
+                    controller: _addressController,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Address',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                      contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: Responsive.h(20)),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primary),
+                      foregroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                      padding: Responsive.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text('Cancel', style: TextStyle(fontSize: Responsive.sp(13))),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(12)),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                      padding: Responsive.symmetric(vertical: 12),
+                    ),
+                    onPressed: _isLoading ? null : _submit,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text('Save', style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

@@ -425,7 +425,167 @@ Main Category (parent_id = null)
 
 ---
 
-## 14. Component Organization
+## 14. 🚨 NO HARDCODED VALUES RULE (Flutter)
+
+**NEVER use hardcoded values in Flutter code. This is a universal rule for ALL Flutter development.**
+
+All values must be dynamic and responsive to ensure the app works across all device sizes and screen densities.
+
+### Colors
+- **Use AppColors constants** (e.g., `AppColors.primary`, `AppColors.error`, `AppColors.success`)
+- **NEVER use** `Color(0xFF...)` hex values
+- **NEVER use** named colors like `Colors.blue[700]`, `Colors.red`, etc.
+- All colors should be defined in a centralized `AppColors` class
+
+### Spacing & Dimensions
+- **Use AppSizes constants** (e.g., `AppSizes.spacingSmall`, `AppSizes.fontMedium`, `AppSizes.radiusLarge`)
+- **NEVER use** hardcoded numbers like `16`, `8`, `12`, `24`, etc.
+- **ALWAYS wrap in Responsive helper**:
+  - `Responsive.sp()` for font sizes
+  - `Responsive.w()` for widths and horizontal spacing
+  - `Responsive.h()` for heights and vertical spacing
+  - `Responsive.r()` for border radii
+  - `Responsive.icon()` for icon sizes
+
+### Font Sizes
+- **Use AppSizes font constants**:
+  - `AppSizes.fontTiny` (10)
+  - `AppSizes.fontSmall` (12)
+  - `AppSizes.fontMedium` (14)
+  - `AppSizes.fontLarge` (16)
+  - `AppSizes.fontXLarge` (18)
+  - `AppSizes.fontXXLarge` (20)
+  - `AppSizes.fontXXXLarge` (24)
+  - `AppSizes.fontHuge` (28)
+  - `AppSizes.fontMassive` (32)
+- **NEVER use** hardcoded font sizes like `14`, `16`, `18`
+- Always wrap in `Responsive.sp(AppSizes.fontMedium)`
+
+### Border Widths
+- **Use AppSizes.spacingTiny / 4** for thin borders
+- **NEVER use** hardcoded widths like `1`, `1.5`, `2`
+- Example: `Border.all(color: AppColors.primary, width: AppSizes.spacingTiny / 4)`
+
+### Padding & Margins
+- **Use AppSizes spacing constants**:
+  - `AppSizes.spacingTiny` (4)
+  - `AppSizes.spacingSmall` (8)
+  - `AppSizes.spacingMedium` (12)
+  - `AppSizes.spacingLarge` (16)
+  - `AppSizes.spacingXLarge` (20)
+  - `AppSizes.spacingXXLarge` (24)
+  - `AppSizes.spacingXXXLarge` (32)
+  - `AppSizes.spacingHuge` (40)
+  - `AppSizes.spacingMassive` (48)
+- **NEVER use** hardcoded padding values
+- Use `Responsive.symmetric()`, `Responsive.only()`, `Responsive.all()`
+
+### Border Radius
+- **Use AppSizes radius constants**:
+  - `AppSizes.radiusSmall` (8)
+  - `AppSizes.radiusMedium` (12)
+  - `AppSizes.radiusLarge` (16)
+  - `AppSizes.radiusXLarge` (20)
+  - `AppSizes.radiusXXLarge` (24)
+- **NEVER use** hardcoded radius values like `8`, `12`, `16`
+- Always wrap in `Responsive.r(AppSizes.radiusSmall)`
+
+### Icon Sizes
+- **Use AppSizes icon constants**:
+  - `AppSizes.iconTiny` (16)
+  - `AppSizes.iconSmall` (20)
+  - `AppSizes.iconMedium` (24)
+  - `AppSizes.iconLarge` (32)
+  - `AppSizes.iconXLarge` (40)
+  - `AppSizes.iconXXLarge` (48)
+  - `AppSizes.iconHuge` (56)
+- **NEVER use** hardcoded icon sizes like `16`, `24`, `32`
+- Always wrap in `Responsive.icon(AppSizes.iconMedium)`
+
+### Elevation
+- **Use AppSizes.spacingTiny / 2** for small elevation
+- **NEVER use** hardcoded elevation values like `2`, `4`, `8`
+- Example: `elevation: AppSizes.spacingTiny / 2`
+
+### Alpha Values
+- **Use dynamic alpha calculations** with `withValues(alpha: 0.x)`
+- Prefer alpha values that are mathematically derived from constants
+- Example: `AppColors.primary.withValues(alpha: 0.15)`
+
+### Text Strings
+- **Use AppStrings constants** for repeated UI text
+- **NEVER hardcode** repeated strings in multiple places
+- Define all user-facing strings in a centralized `AppStrings` class
+
+### Widget Sizes
+- **NEVER use hardcoded width/height** on widgets
+- Use `Expanded`, `Flexible`, `LayoutBuilder`, `AspectRatio`, `MediaQuery`
+- Let widgets negotiate space with their parents
+
+### Duration Values
+- **Use Duration constants** for animations
+- Define common durations like `Duration(milliseconds: 200)` as constants
+- Example: `const Duration.short = Duration(milliseconds: 200)`
+
+### Responsive Helper Usage - MANDATORY
+All AppSizes values MUST be wrapped in appropriate Responsive methods:
+```dart
+// ✅ Correct
+fontSize: Responsive.sp(AppSizes.fontMedium)
+width: Responsive.w(AppSizes.spacingSmall)
+height: Responsive.h(AppSizes.spacingMedium)
+borderRadius: Responsive.r(AppSizes.radiusSmall)
+iconSize: Responsive.icon(AppSizes.iconMedium)
+
+// ❌ Wrong
+fontSize: 14
+width: 8
+height: 12
+borderRadius: 8
+iconSize: 24
+```
+
+### Example: Before and After
+```dart
+// ❌ WRONG - Hardcoded values
+Container(
+  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  decoration: BoxDecoration(
+    color: Color(0xFF059669),
+    borderRadius: BorderRadius.circular(8),
+    border: Border.all(color: Color(0xFF059669), width: 1),
+  ),
+  child: Text(
+    'Submit',
+    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+  ),
+)
+
+// ✅ CORRECT - Dynamic values
+Container(
+  padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+  decoration: BoxDecoration(
+    color: AppColors.primary,
+    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+    border: Border.all(color: AppColors.primary, width: AppSizes.spacingTiny / 4),
+  ),
+  child: Text(
+    AppStrings.submit,
+    style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.bold, color: Colors.white),
+  ),
+)
+```
+
+### This Rule Applies To
+- ALL Flutter files across the entire codebase
+- New features and existing code
+- Third-party widget integrations
+- Custom widgets and components
+- All screen sizes and orientations
+
+---
+
+## 15. Component Organization
 
 ### Component Directories
 ```

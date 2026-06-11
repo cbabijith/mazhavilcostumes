@@ -77,9 +77,9 @@ class OrderRepository {
         cancelToken: cancelToken,
       );
 
-      final responseData = response.data;
-      final ordersData = responseData['data'] as List<dynamic>? ?? [];
-      final meta = responseData['meta'] as Map<String, dynamic>? ?? {};
+      final data = response.data;
+      final ordersData = data['data'] as List<dynamic>? ?? [];
+      final meta = data['meta'] as Map<String, dynamic>? ?? {};
 
       final orders = ordersData
           .map((e) => Order.fromJson(e as Map<String, dynamic>))
@@ -108,7 +108,8 @@ class OrderRepository {
         '/orders/$id',
         cancelToken: cancelToken,
       );
-      return Order.fromJson(response.data);
+
+      return Order.fromJson(response.data['data']);
     } catch (e) {
       throw Exception('Failed to load order: $e');
     }
@@ -123,7 +124,7 @@ class OrderRepository {
         cancelToken: cancelToken,
       );
 
-      return Order.fromJson(response.data);
+      return Order.fromJson(response.data['data']);
     } catch (e) {
       throw Exception('Failed to create order: $e');
     }
@@ -138,7 +139,7 @@ class OrderRepository {
         cancelToken: cancelToken,
       );
 
-      return Order.fromJson(response.data);
+      return Order.fromJson(response.data['data']);
     } catch (e) {
       throw Exception('Failed to update order: $e');
     }
@@ -173,12 +174,12 @@ class OrderRepository {
           'start_date': startDate,
           'end_date': endDate,
           'branch_id': branchId,
-          if (excludeOrderId != null) 'exclude_order_id': excludeOrderId,
+          'exclude_order_id': excludeOrderId,
         },
         cancelToken: cancelToken,
       );
 
-      return response.data as Map<String, dynamic>;
+      return response.data['data'] as Map<String, dynamic>;
     } catch (e) {
       throw Exception('Failed to check availability: $e');
     }
@@ -198,79 +199,81 @@ class OrderRepository {
         '/orders/$orderId/return',
         data: {
           'items': items,
-          if (notes != null) 'notes': notes,
-          if (lateFee != null) 'late_fee': lateFee,
-          if (discount != null) 'discount': discount,
+          'notes': notes,
+          'late_fee': lateFee,
+          'discount': discount,
         },
         cancelToken: cancelToken,
       );
 
-      return Order.fromJson(response.data);
+      return Order.fromJson(response.data['data']);
     } catch (e) {
       throw Exception('Failed to process order return: $e');
     }
   }
 
-  /// Fetch payments/transactions logged against the order.
-  Future<List<PaymentTransaction>> getOrderPayments(String orderId) async {
-    try {
-      final response = await _api.get(
-        '/payments',
-        queryParameters: {'order_id': orderId},
-      );
-      final List<dynamic> data = response.data as List<dynamic>? ?? [];
-      return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      throw Exception('Failed to load payments: $e');
-    }
-  }
-
-  /// Record a payment (collect payment) for an order.
+  /// Collect payment for an order
   Future<Map<String, dynamic>> collectPayment({
     required String orderId,
     required double amount,
     required String paymentMode,
-    required String paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
     try {
       final response = await _api.post(
-        '/payments',
+        '/orders/$orderId/payments',
         data: {
-          'order_id': orderId,
           'amount': amount,
           'payment_mode': paymentMode,
-          'payment_type': paymentType,
-          if (notes != null) 'notes': notes,
+          'notes': notes,
         },
         cancelToken: cancelToken,
       );
-      return response.data as Map<String, dynamic>;
+
+      return response.data['data'] as Map<String, dynamic>;
     } catch (e) {
       throw Exception('Failed to collect payment: $e');
     }
   }
 
-  /// Create damage assessments for an order.
+  /// Create damage assessment for an order
   Future<Map<String, dynamic>> createDamageAssessment({
     required String orderId,
-    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> damages,
+    double? totalDamageAmount,
     String? notes,
     CancelToken? cancelToken,
   }) async {
     try {
       final response = await _api.post(
-        '/orders/$orderId/damage-assessments',
+        '/orders/$orderId/damage-assessment',
         data: {
-          'items': items,
-          if (notes != null) 'notes': notes,
+          'damages': damages,
+          'total_damage_amount': totalDamageAmount,
+          'notes': notes,
         },
         cancelToken: cancelToken,
       );
-      return response.data as Map<String, dynamic>;
+
+      return response.data['data'] as Map<String, dynamic>;
     } catch (e) {
       throw Exception('Failed to create damage assessment: $e');
+    }
+  }
+
+  /// Fetch payments/transactions logged against the order.
+  Future<List<PaymentTransaction>> getOrderPayments(String orderId, {CancelToken? cancelToken}) async {
+    try {
+      final response = await _api.get(
+        '/orders/$orderId/payments',
+        cancelToken: cancelToken,
+      );
+
+      final data = response.data['data'] as List<dynamic>? ?? [];
+      return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw Exception('Failed to load payments: $e');
     }
   }
 
@@ -279,14 +282,16 @@ class OrderRepository {
     required String paymentId,
     required String paymentMode,
     String? notes,
+    CancelToken? cancelToken,
   }) async {
     try {
       await _api.patch(
         '/payments/$paymentId',
         data: {
           'payment_mode': paymentMode,
-          if (notes != null) 'notes': notes,
+          'notes': notes,
         },
+        cancelToken: cancelToken,
       );
     } catch (e) {
       throw Exception('Failed to update payment: $e');

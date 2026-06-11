@@ -4,13 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../categories/viewmodels/providers/category_provider.dart';
 import '../viewmodels/providers/product_provider.dart';
 import '../repositories/product_repository.dart';
 import '../models/product.dart';
-import 'product_form_view.dart';
 import 'product_detail_view.dart';
 import 'qr_scanner_dialog.dart';
 
@@ -25,10 +25,6 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
-
-  static const _primary = Color(0xFF434343);
-  static const _accent = Color(0xFFF7C873);
-  static const _bg = Color(0xFFF8F8F8);
 
   @override
   void initState() {
@@ -65,7 +61,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     final selectedBranchId = ref.watch(effectiveBranchIdProvider);
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       body: Column(
         children: [
           _buildSearchBar(),
@@ -89,29 +85,6 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   loading: () => _buildShimmerList(),
                   error: (error, stack) => _buildErrorState(error.toString()),
                 ),
-                if (canManage)
-                  Positioned(
-                    right: Responsive.w(16),
-                    bottom: Responsive.h(16),
-                    child: FloatingActionButton.extended(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const ProductFormView()),
-                        );
-                      },
-                      backgroundColor: _accent,
-                      foregroundColor: _primary,
-                      icon: Icon(Icons.add_rounded, size: Responsive.icon(24)),
-                      label: Text(
-                        'Add Product',
-                        style: TextStyle(
-                            fontSize: Responsive.sp(14),
-                            fontWeight: FontWeight.bold),
-                      ),
-                      elevation: 3,
-                    ),
-                  ),
               ],
             ),
           ),
@@ -122,68 +95,30 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
 
   Widget _buildCategoryChipsRow(AsyncValue<PaginatedProducts> productsAsync, String currentCategory) {
     final categoriesAsync = ref.watch(categoriesProvider);
-    final countsAsync = ref.watch(categoryProductCountsProvider);
-    final totalCount = productsAsync.value?.total ?? 0;
+    final totalCountAsync = ref.watch(totalProductCountProvider);
+    final categoryCountsAsync = ref.watch(categoryProductCountsProvider);
 
     return categoriesAsync.when(
       data: (categories) {
-        return countsAsync.when(
-          data: (categoryCounts) {
-            // Build a map of category ID -> name
-            final categoryMap = {for (var cat in categories) cat.id: cat.name};
-            
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  _buildCategoryChip('All', totalCount, currentCategory),
-                  SizedBox(width: Responsive.w(8)),
-                  ...categories.map((cat) {
-                    final count = categoryCounts[cat.id] ?? 0;
-                    return Padding(
-                      padding: Responsive.only(right: 8),
-                      child: _buildCategoryChip(cat.name, count, currentCategory),
-                    );
-                  }),
-                ],
-              ),
-            );
-          },
-          loading: () => SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-            child: Row(
-              children: [
-                _buildCategoryChip('All', totalCount, currentCategory),
-                SizedBox(width: Responsive.w(8)),
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
-                ),
-              ],
-            ),
+        final totalCount = totalCountAsync.value ?? 0;
+        final categoryCounts = categoryCountsAsync.value ?? {};
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+          child: Row(
+            children: [
+              _buildCategoryChip('All', totalCount, currentCategory),
+              SizedBox(width: Responsive.w(8)),
+              ...categories.map((cat) {
+                final count = categoryCounts[cat.id] ?? 0;
+                return Padding(
+                  padding: Responsive.only(right: 8),
+                  child: _buildCategoryChip(cat.name, count, currentCategory),
+                );
+              }),
+            ],
           ),
-          error: (_, __) {
-            // Fallback: show categories without counts if counts endpoint fails
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  _buildCategoryChip('All', totalCount, currentCategory),
-                  SizedBox(width: Responsive.w(8)),
-                  ...categories.map((cat) {
-                    return Padding(
-                      padding: Responsive.only(right: 8),
-                      child: _buildCategoryChip(cat.name, 0, currentCategory),
-                    );
-                  }),
-                ],
-              ),
-            );
-          },
         );
       },
       loading: () => SingleChildScrollView(
@@ -191,7 +126,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         padding: Responsive.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
-            _buildCategoryChip('All', totalCount, currentCategory),
+            _buildCategoryChip('All', 0, currentCategory),
             SizedBox(width: Responsive.w(8)),
             const SizedBox(
               width: 16,
@@ -201,7 +136,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
           ],
         ),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
     );
   }
 
@@ -250,7 +185,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     }
 
     return RefreshIndicator(
-      color: _primary,
+      color: AppColors.primary,
       onRefresh: () async => ref.invalidate(productsProvider),
       child: ListView.separated(
         controller: _scrollController,
@@ -284,14 +219,14 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         duration: const Duration(milliseconds: 200),
         padding: Responsive.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? _primary : Colors.white,
+          color: isActive ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(Responsive.r(20)),
           border:
-              Border.all(color: isActive ? _primary : Colors.grey.shade300),
+              Border.all(color: isActive ? AppColors.primary : Colors.grey.shade300),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: _primary.withValues(alpha: 0.15),
+                    color: AppColors.primary.withValues(alpha: 0.15),
                     blurRadius: Responsive.r(8),
                     offset: Offset(0, Responsive.h(2)),
                   )
@@ -306,7 +241,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
               style: TextStyle(
                 fontSize: Responsive.sp(12),
                 fontWeight: FontWeight.w600,
-                color: isActive ? Colors.white : _primary,
+                color: isActive ? Colors.white : AppColors.primary,
               ),
             ),
             SizedBox(width: Responsive.w(6)),
@@ -315,7 +250,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
               decoration: BoxDecoration(
                 color: isActive
                     ? Colors.white.withValues(alpha: 0.25)
-                    : _primary.withValues(alpha: 0.08),
+                    : AppColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(Responsive.r(10)),
               ),
               child: Text(
@@ -323,7 +258,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                 style: TextStyle(
                   fontSize: Responsive.sp(10),
                   fontWeight: FontWeight.w700,
-                  color: isActive ? Colors.white : _primary,
+                  color: isActive ? Colors.white : AppColors.primary,
                 ),
               ),
             ),
@@ -376,7 +311,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
             hintStyle: TextStyle(
                 fontSize: Responsive.sp(15), color: Colors.grey[400]),
             prefixIcon: Icon(Icons.search_rounded,
-                size: Responsive.icon(24), color: _primary),
+                size: Responsive.icon(24), color: AppColors.primary),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -391,7 +326,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   ),
                 IconButton(
                   icon: Icon(Icons.qr_code_scanner_rounded,
-                      size: Responsive.icon(24), color: _primary),
+                      size: Responsive.icon(24), color: AppColors.primary),
                   onPressed: _openQRScanner,
                 ),
                 SizedBox(width: Responsive.w(8)),
@@ -470,7 +405,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   width: Responsive.w(68),
                   height: Responsive.w(68),
                   decoration: BoxDecoration(
-                    color: _primary.withValues(alpha: 0.06),
+                    color: AppColors.primary.withValues(alpha: 0.06),
                     borderRadius:
                         BorderRadius.circular(Responsive.r(10)),
                   ),
@@ -514,7 +449,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                               style: TextStyle(
                                 fontSize: Responsive.sp(14),
                                 fontWeight: FontWeight.w600,
-                                color: _primary,
+                                color: AppColors.primary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -567,7 +502,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                                 style: TextStyle(
                                   fontSize: Responsive.sp(14),
                                   fontWeight: FontWeight.w800,
-                                  color: _accent,
+                                  color: AppColors.warning,
                                 ),
                               ),
                             ),
@@ -639,11 +574,11 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
             Container(
               padding: Responsive.all(18),
               decoration: BoxDecoration(
-                color: _primary.withValues(alpha: 0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(Icons.inventory_2_outlined,
-                  size: Responsive.icon(36), color: _primary),
+                  size: Responsive.icon(36), color: AppColors.primary),
             ),
             SizedBox(height: Responsive.h(16)),
             Text(
@@ -709,7 +644,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   size: Responsive.icon(18)),
               label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primary,
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                     borderRadius:

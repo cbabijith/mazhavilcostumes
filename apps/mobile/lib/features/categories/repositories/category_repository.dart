@@ -79,10 +79,13 @@ class CategoryRepository {
   }
 
   /// Fetch counts of products per category from the server.
-  Future<Map<String, int>> getCategoryProductCounts({CancelToken? cancelToken}) async {
+  /// If branchId is provided, returns counts filtered by branch.
+  Future<Map<String, int>> getCategoryProductCounts({String? branchId, CancelToken? cancelToken}) async {
     try {
+      final queryParameters = branchId != null ? {'branch_id': branchId} : null;
       final response = await _api.get(
         '/categories/product-counts',
+        queryParameters: queryParameters,
         cancelToken: cancelToken,
       );
 

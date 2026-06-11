@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -19,11 +20,8 @@ class OrdersView extends ConsumerStatefulWidget {
 
 class _OrdersViewState extends ConsumerState<OrdersView> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   String? _selectedChip; // null = All
-
-  static const _primary = Color(0xFF434343);
-  static const _accent = Color(0xFFF7C873);
-  static const _bg = Color(0xFFF8F8F8);
 
   static const _statusFilters = <String, String?>{
     'All': null,
@@ -38,9 +36,23 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - Responsive.h(AppSizes.spacingXXXLarge)) {
+      ref.read(ordersProvider.notifier).loadMore();
+    }
   }
 
   @override
@@ -49,7 +61,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     final ordersAsync = ref.watch(ordersProvider);
 
     return Container(
-      color: _bg,
+      color: AppColors.background,
       child: Stack(
         children: [
           Column(
@@ -61,13 +73,14 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                   data: (paginated) {
                     if (paginated.orders.isEmpty) return _buildEmptyState();
                     return RefreshIndicator(
-                      color: _primary,
+                      color: AppColors.primary,
                       onRefresh: () async => ref.invalidate(ordersProvider),
                       child: ListView.separated(
-                        padding: Responsive.only(left: 16, right: 16, top: 8, bottom: 80),
+                        controller: _scrollController,
+                        padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
                         itemCount: paginated.orders.length,
-                        separatorBuilder: (_, __) => SizedBox(height: Responsive.h(10)),
-                        itemBuilder: (_, i) => _buildOrderCard(paginated.orders[i]),
+                        separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                        itemBuilder: (context, i) => _buildOrderCard(paginated.orders[i]),
                       ),
                     );
                   },
@@ -78,17 +91,17 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
             ],
           ),
             Positioned(
-              right: Responsive.w(16),
-              bottom: Responsive.h(16),
+              right: Responsive.w(AppSizes.screenPaddingSmall),
+              bottom: Responsive.h(AppSizes.screenPaddingSmall),
               child: FloatingActionButton(
                 heroTag: 'order_fab',
                 onPressed: () => Navigator.of(context)
                     .push(MaterialPageRoute(builder: (_) => const OrderFormView()))
                     .then((_) => ref.invalidate(ordersProvider)),
-                backgroundColor: _accent,
-                foregroundColor: _primary,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
                 elevation: 3,
-                child: Icon(Icons.add_rounded, size: Responsive.icon(24)),
+                child: Icon(Icons.add_rounded, size: Responsive.icon(AppSizes.iconMedium)),
               ),
             ),
         ],
@@ -98,16 +111,16 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
   Widget _buildSearchBar() {
     return Padding(
-      padding: Responsive.only(left: 16, right: 16, top: 12, bottom: 6),
+      padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingMedium, bottom: AppSizes.spacingTiny),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(Responsive.r(14)),
+          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusLarge)),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: Responsive.r(12),
-              offset: Offset(0, Responsive.h(2)),
+              blurRadius: Responsive.r(AppSizes.radiusMedium),
+              offset: Offset(0, Responsive.h(AppSizes.spacingTiny)),
             ),
           ],
         ),
@@ -120,14 +133,14 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
             ref.read(ordersProvider.notifier).search(val);
           },
           textInputAction: TextInputAction.search,
-          style: TextStyle(fontSize: Responsive.sp(15)),
+          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge)),
           decoration: InputDecoration(
             hintText: 'Search by customer name...',
-            hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey[400]),
-            prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(24), color: _primary),
+            hintStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.grey[400]),
+            prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
             suffixIcon: _searchController.text.isNotEmpty
                 ? IconButton(
-                    icon: Icon(Icons.close_rounded, size: Responsive.icon(22), color: Colors.grey),
+                    icon: Icon(Icons.close_rounded, size: Responsive.icon(AppSizes.iconSmall), color: Colors.grey),
                     onPressed: () {
                       _searchController.clear();
                       ref.read(ordersProvider.notifier).search('');
@@ -137,7 +150,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            contentPadding: Responsive.symmetric(horizontal: 18, vertical: 16),
+            contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingMedium),
           ),
         ),
       ),
@@ -150,7 +163,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+      padding: Responsive.symmetric(horizontal: AppSizes.screenPaddingSmall, vertical: AppSizes.spacingTiny),
       child: Row(
         children: _statusFilters.entries.map((entry) {
           final isActive = entry.value == _selectedChip;
@@ -160,7 +173,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                   ? allOrders.where((o) => o.isLate).length
                   : allOrders.where((o) => _statusToString(o.status) == entry.value).length;
           return Padding(
-            padding: Responsive.only(right: 8),
+            padding: Responsive.only(right: AppSizes.spacingSmall),
             child: GestureDetector(
               onTap: () {
                 setState(() => _selectedChip = entry.value);
@@ -168,17 +181,17 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: Responsive.symmetric(horizontal: 14, vertical: 8),
+                padding: Responsive.symmetric(horizontal: AppSizes.spacingXLarge, vertical: AppSizes.spacingSmall),
                 decoration: BoxDecoration(
-                  color: isActive ? _primary : Colors.white,
-                  borderRadius: BorderRadius.circular(Responsive.r(20)),
-                  border: Border.all(color: isActive ? _primary : Colors.grey.shade300),
+                  color: isActive ? AppColors.primary : Colors.white,
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusXLarge)),
+                  border: Border.all(color: isActive ? AppColors.primary : Colors.grey.shade300),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: _primary.withValues(alpha: 0.15),
-                            blurRadius: Responsive.r(8),
-                            offset: Offset(0, Responsive.h(2)),
+                            color: AppColors.primary.withValues(alpha: 0.15),
+                            blurRadius: Responsive.r(AppSizes.radiusSmall),
+                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny)),
                           )
                         ]
                       : [],
@@ -189,26 +202,26 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                     Text(
                       entry.key,
                       style: TextStyle(
-                        fontSize: Responsive.sp(12),
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
                         fontWeight: FontWeight.w600,
-                        color: isActive ? Colors.white : _primary,
+                        color: isActive ? Colors.white : AppColors.primary,
                       ),
                     ),
                     SizedBox(width: Responsive.w(4)),
                     Container(
-                      padding: Responsive.symmetric(horizontal: 6, vertical: 1),
+                      padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
                       decoration: BoxDecoration(
                         color: isActive
                             ? Colors.white.withValues(alpha: 0.25)
-                            : _primary.withValues(alpha: 0.08),
+                            : AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(Responsive.r(10)),
                       ),
                       child: Text(
                         '$count',
                         style: TextStyle(
-                          fontSize: Responsive.sp(10),
+                          fontSize: Responsive.sp(AppSizes.fontTiny),
                           fontWeight: FontWeight.w700,
-                          color: isActive ? Colors.white : _primary,
+                          color: isActive ? Colors.white : AppColors.primary,
                         ),
                       ),
                     ),
@@ -223,7 +236,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildOrderCard(Order order) {
-    final statusColor = order.isLate ? const Color(0xFFFF6B8A) : _getStatusColor(order.status);
+    final statusColor = order.isLate ? AppColors.error : _getStatusColor(order.status);
     final customerName = order.customer?.name ?? 'Unknown';
     final customerPhone = order.customer?.phone ?? '';
     final itemCount = order.items?.length ?? 0;
@@ -232,67 +245,72 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusLarge)),
+        border: Border.all(color: Colors.grey[200]!, width: AppSizes.spacingTiny / 4),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: Responsive.r(8),
-            offset: Offset(0, Responsive.h(2)),
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: Responsive.r(AppSizes.radiusMedium),
+            offset: Offset(0, Responsive.h(AppSizes.spacingTiny + AppSizes.spacingTiny / 2)),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusLarge)),
         child: InkWell(
-          borderRadius: BorderRadius.circular(Responsive.r(14)),
-          onTap: () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => OrderDetailView(order: order)))
-              .then((_) => ref.invalidate(ordersProvider)),
+          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusLarge)),
+          onTap: () {
+            // Pre-fetch order details before navigation for instant load
+            ref.read(orderProvider(order.id));
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => OrderDetailView(order: order)))
+                .then((_) => ref.invalidate(ordersProvider));
+          },
           child: Padding(
-            padding: Responsive.all(12),
+            padding: Responsive.all(AppSizes.spacingMedium),
             child: Column(
               children: [
                 Row(
                   children: [
                     Container(
-                      width: Responsive.w(40),
-                      height: Responsive.w(40),
+                      width: Responsive.w(AppSizes.spacingXLarge),
+                      height: Responsive.w(AppSizes.spacingXLarge),
                       decoration: BoxDecoration(
-                        color: _primary.withValues(alpha: 0.08),
+                        color: AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(Responsive.r(10)),
                       ),
                       child: Center(
                         child: Text(
                           customerName.isNotEmpty ? customerName[0].toUpperCase() : 'C',
-                          style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, color: _primary),
+                          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontXLarge), fontWeight: FontWeight.w800, color: AppColors.primary),
                         ),
                       ),
                     ),
-                    SizedBox(width: Responsive.w(10)),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall + AppSizes.spacingTiny / 2)),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(customerName,
-                              style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w700, color: _primary),
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w700, color: AppColors.primary),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                           Row(
                             children: [
                               Text(
                                 'ID: ${order.id.substring(0, 8).toUpperCase()}',
                                 style: TextStyle(
-                                  fontSize: Responsive.sp(10),
+                                  fontSize: Responsive.sp(AppSizes.fontTiny),
                                   fontFamily: 'monospace',
                                   fontWeight: FontWeight.bold,
                                   color: Colors.grey[500],
                                 ),
                               ),
-                              SizedBox(width: Responsive.w(8)),
+                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                               Text(
                                 '• Booked: ${_fmtDate(order.createdAt)}',
                                 style: TextStyle(
-                                  fontSize: Responsive.sp(10),
+                                  fontSize: Responsive.sp(AppSizes.fontTiny),
                                   color: Colors.grey[500],
                                 ),
                               ),
@@ -300,29 +318,29 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                           ),
                           if (customerPhone.isNotEmpty)
                             Text(customerPhone,
-                                style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[500]),
+                                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall - 1), color: Colors.grey[500]),
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
-                          SizedBox(height: Responsive.h(2)),
+                          SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
                           Row(
                             children: [
                               if (order.branch != null) ...[
-                                Icon(Icons.storefront_rounded, size: Responsive.icon(12), color: Colors.grey[500]),
-                                SizedBox(width: Responsive.w(3)),
+                                Icon(Icons.storefront_rounded, size: Responsive.icon(AppSizes.fontTiny + AppSizes.spacingTiny / 2), color: Colors.grey[500]),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny / 2 + 1)),
                                 Text(
                                   order.branch!.name,
                                   style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[600]),
                                 ),
-                                SizedBox(width: Responsive.w(8)),
+                                SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                               ],
                               if (order.deliveryMethod != null) ...[
                                 Icon(
                                   order.deliveryMethod == DeliveryMethod.pickup
                                       ? Icons.shopping_bag_outlined
                                       : Icons.local_shipping_outlined,
-                                  size: Responsive.icon(12),
+                                  size: Responsive.icon(AppSizes.fontTiny + AppSizes.spacingTiny / 2),
                                   color: Colors.grey[500],
                                 ),
-                                SizedBox(width: Responsive.w(3)),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny / 2 + 1)),
                                 Text(
                                   order.deliveryMethod == DeliveryMethod.pickup ? 'Pickup' : 'Delivery',
                                   style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[600]),
@@ -337,55 +355,56 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Container(
-                          padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                          padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall + AppSizes.spacingTiny / 2, vertical: AppSizes.spacingTiny + 1),
                           decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(Responsive.r(8)),
+                            color: statusColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            border: Border.all(color: statusColor.withValues(alpha: 0.4), width: AppSizes.spacingTiny / 4),
                           ),
                           child: Text(
                             order.isLate ? 'Overdue' : _formatStatus(order.status),
-                            style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w700, color: statusColor),
+                            style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w800, color: statusColor),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (order.hasStockConflict && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled)
                           Container(
-                            margin: Responsive.only(top: 4),
-                            padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                            margin: Responsive.only(top: AppSizes.spacingTiny),
+                            padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFECEF),
-                              borderRadius: BorderRadius.circular(Responsive.r(6)),
-                              border: Border.all(color: const Color(0xFFFFCCD3)),
+                              color: AppColors.error.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall - 2)),
+                              border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.warning_amber_rounded, size: Responsive.icon(10), color: const Color(0xFFFF3B30)),
-                                SizedBox(width: Responsive.w(3)),
+                                Icon(Icons.warning_amber_rounded, size: Responsive.icon(AppSizes.fontTiny), color: AppColors.error),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny / 2 + 1)),
                                 Text(
                                   'Conflict',
-                                  style: TextStyle(fontSize: Responsive.sp(9), color: const Color(0xFFFF3B30), fontWeight: FontWeight.bold),
+                                  style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny - 1), color: AppColors.error, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
                           ),
                         if (order.hasPriorityCleaning && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled)
                           Container(
-                            margin: Responsive.only(top: 4),
-                            padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                            margin: Responsive.only(top: AppSizes.spacingTiny),
+                            padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFFF9E6),
-                              borderRadius: BorderRadius.circular(Responsive.r(6)),
-                              border: Border.all(color: const Color(0xFFFFECB3)),
+                              color: AppColors.warning.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall - 2)),
+                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.auto_awesome_rounded, size: Responsive.icon(10), color: const Color(0xFFFFB300)),
-                                SizedBox(width: Responsive.w(3)),
+                                Icon(Icons.auto_awesome_rounded, size: Responsive.icon(AppSizes.fontTiny), color: AppColors.warning),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny / 2 + 1)),
                                 Text(
                                   'Priority Prep',
-                                  style: TextStyle(fontSize: Responsive.sp(9), color: const Color(0xFFFFB300), fontWeight: FontWeight.bold),
+                                  style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny - 1), color: AppColors.warning, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
@@ -394,20 +413,20 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                     ),
                   ],
                 ),
-                SizedBox(height: Responsive.h(10)),
-                Divider(height: 1, color: Colors.grey[200]),
-                SizedBox(height: Responsive.h(10)),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Divider(height: AppSizes.spacingTiny / 4, color: Colors.grey[200]),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                 Row(
                   children: [
                     Expanded(
                       child: Row(
                         children: [
-                          Icon(Icons.calendar_today_rounded, size: Responsive.icon(14), color: Colors.grey[400]),
-                          SizedBox(width: Responsive.w(4)),
+                          Icon(Icons.calendar_today_rounded, size: Responsive.icon(AppSizes.fontSmall + AppSizes.spacingTiny / 2), color: Colors.grey[400]),
+                          SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
                           Expanded(
                             child: Text(
                               '${_fmtDate(order.startDate)} — ${_fmtDate(order.endDate)}',
-                              style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[600]),
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), color: Colors.grey[600]),
                               maxLines: 1, overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -415,129 +434,120 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                       ),
                     ),
                     Container(
-                      padding: Responsive.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(Responsive.r(6))),
+                      padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
+                      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall - 2))),
                       child: Text('$itemCount item${itemCount != 1 ? 's' : ''}',
-                          style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w600, color: Colors.grey[600]),
+                          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny), fontWeight: FontWeight.w600, color: Colors.grey[600]),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
-                    SizedBox(width: Responsive.w(8)),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     if (order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) ...[
                       Container(
-                        padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                        padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall, vertical: AppSizes.spacingTiny + 1),
                         decoration: BoxDecoration(
-                          color: order.paymentStatus == PaymentStatus.paid 
-                              ? const Color(0xFFE8F5E9) 
-                              : order.paymentStatus == PaymentStatus.partial 
-                                  ? const Color(0xFFFFF3E0) 
-                                  : const Color(0xFFFFEBEE),
-                          borderRadius: BorderRadius.circular(Responsive.r(6)),
+                          color: order.paymentStatus == PaymentStatus.paid
+                              ? AppColors.success.withValues(alpha: 0.1)
+                              : order.paymentStatus == PaymentStatus.partial
+                                  ? AppColors.warning.withValues(alpha: 0.1)
+                                  : AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          border: Border.all(
+                            color: order.paymentStatus == PaymentStatus.paid
+                                ? AppColors.success.withValues(alpha: 0.3)
+                                : order.paymentStatus == PaymentStatus.partial
+                                    ? AppColors.warning.withValues(alpha: 0.3)
+                                    : AppColors.error.withValues(alpha: 0.3),
+                            width: AppSizes.spacingTiny / 4,
+                          ),
                         ),
                         child: Text(
-                          order.paymentStatus == PaymentStatus.paid 
-                              ? 'Paid' 
-                              : order.paymentStatus == PaymentStatus.partial 
-                                  ? 'Partial' 
+                          order.paymentStatus == PaymentStatus.paid
+                              ? 'Paid'
+                              : order.paymentStatus == PaymentStatus.partial
+                                  ? 'Partial'
                                   : 'Unpaid',
                           style: TextStyle(
-                            fontSize: Responsive.sp(9), 
-                            fontWeight: FontWeight.bold,
-                            color: order.paymentStatus == PaymentStatus.paid 
-                                ? const Color(0xFF2E7D32) 
-                                : order.paymentStatus == PaymentStatus.partial 
-                                    ? const Color(0xFFEF6C00) 
-                                    : const Color(0xFFC62828),
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            fontWeight: FontWeight.w800,
+                            color: order.paymentStatus == PaymentStatus.paid
+                                ? AppColors.success
+                                : order.paymentStatus == PaymentStatus.partial
+                                    ? AppColors.warning
+                                    : AppColors.error,
                           ),
                         ),
                       ),
-                      SizedBox(width: Responsive.w(8)),
+                      SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     ],
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('₹${order.totalAmount.toStringAsFixed(0)}',
-                            style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w800, color: _primary),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        if (balanceDue > 0)
-                          Text('Due: ₹${balanceDue.toStringAsFixed(0)}',
-                              style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.w600, color: const Color(0xFFFF6B8A)),
+                        if (balanceDue > 0) ...[
+                          Container(
+                            padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall, vertical: AppSizes.spacingTiny + 1),
+                            child: Text('Due: ₹${balanceDue.toStringAsFixed(0)}',
+                                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge - 1), fontWeight: FontWeight.w800, color: AppColors.error),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          Text('Total: ₹${order.totalAmount.toStringAsFixed(0)}',
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny), fontWeight: FontWeight.w600, color: AppColors.secondaryText),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ] else ...[
+                          Text('₹${order.totalAmount.toStringAsFixed(0)}',
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w800, color: AppColors.primary),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
                       ],
                     ),
                   ],
                 ),
                 SizedBox(height: Responsive.h(10)),
                 Divider(height: 1, color: Colors.grey[200]),
-                SizedBox(height: Responsive.h(6)),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny + AppSizes.spacingTiny / 2)),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     if (customerPhone.isNotEmpty) ...[
-                      TextButton.icon(
+                      OutlinedButton.icon(
                         onPressed: () async {
                           final uri = Uri.parse('tel:$customerPhone');
                           if (await canLaunchUrl(uri)) {
                             await launchUrl(uri);
                           }
                         },
-                        icon: Icon(Icons.phone_rounded, color: Colors.blue[700], size: Responsive.icon(16)),
-                        label: Text('Call', style: TextStyle(color: Colors.blue[700], fontSize: Responsive.sp(11), fontWeight: FontWeight.bold)),
-                        style: TextButton.styleFrom(
-                          padding: Responsive.symmetric(horizontal: 10, vertical: 4),
+                        icon: Icon(Icons.phone_rounded, color: AppColors.info, size: Responsive.icon(AppSizes.fontSmall + AppSizes.spacingTiny / 2)),
+                        label: Text('Call', style: TextStyle(color: AppColors.info, fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600)),
+                        style: OutlinedButton.styleFrom(
+                          padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingTiny + 1),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          side: BorderSide(color: AppColors.info.withValues(alpha: 0.4)),
+                          backgroundColor: AppColors.info.withValues(alpha: 0.1),
                         ),
                       ),
-                      SizedBox(width: Responsive.w(12)),
-                      TextButton.icon(
-                        onPressed: () async {
-                          final cleanPhone = customerPhone.replaceAll(RegExp(r'\D'), '');
-                          final startFmt = _fmtDate(order.startDate);
-                          final endFmt = _fmtDate(order.endDate);
-                          final orderIdShort = order.id.substring(0, 8).toUpperCase();
-                          
-                          String message = '';
-                          switch (order.status) {
-                            case OrderStatus.pending:
-                            case OrderStatus.scheduled:
-                              message = 'Hi $customerName, this is regarding your upcoming order #$orderIdShort scheduled for $startFmt. Please confirm your availability.';
-                              break;
-                            case OrderStatus.ongoing:
-                            case OrderStatus.inUse:
-                              message = 'Hi $customerName, your order #$orderIdShort is currently active. Please remember to return by $endFmt.';
-                              break;
-                            case OrderStatus.partial:
-                              message = 'Hi $customerName, your order #$orderIdShort has partial returns pending. Please complete the return process.';
-                              break;
-                            case OrderStatus.returned:
-                              message = 'Hi $customerName, thank you for returning your order #$orderIdShort. We hope you had a great experience!';
-                              break;
-                            case OrderStatus.completed:
-                              message = 'Hi $customerName, your order #$orderIdShort has been completed. Thank you for choosing Mazhavil Dance Costumes!';
-                              break;
-                            case OrderStatus.cancelled:
-                              message = 'Hi $customerName, your order #$orderIdShort has been cancelled. Contact us if you need assistance.';
-                              break;
-                            case OrderStatus.flagged:
-                              message = 'Hi $customerName, there is an issue with your order #$orderIdShort. Please contact us immediately.';
-                              break;
-                            default:
-                              message = 'Hi $customerName, this is regarding your order #$orderIdShort at Mazhavil Dance Costumes.';
-                          }
-                          final uri = Uri.parse('https://wa.me/$cleanPhone?text=${Uri.encodeComponent(message)}');
-                          if (await canLaunchUrl(uri)) {
-                            await launchUrl(uri, mode: LaunchMode.externalApplication);
-                          }
-                        },
-                        icon: Icon(Icons.chat_bubble_outline_rounded, color: Colors.green[700], size: Responsive.icon(16)),
-                        label: Text('WhatsApp', style: TextStyle(color: Colors.green[700], fontSize: Responsive.sp(11), fontWeight: FontWeight.bold)),
-                        style: TextButton.styleFrom(
-                          padding: Responsive.symmetric(horizontal: 10, vertical: 4),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     ],
+                    if (balanceDue > 0 && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) ...[
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          ref.read(orderProvider(order.id));
+                          Navigator.of(context)
+                              .push(MaterialPageRoute(builder: (_) => OrderDetailView(order: order, autoOpenPayment: true)))
+                              .then((_) => ref.invalidate(ordersProvider));
+                        },
+                        icon: Icon(Icons.account_balance_wallet_rounded, size: Responsive.icon(AppSizes.fontSmall + AppSizes.spacingTiny / 2), color: AppColors.warning),
+                        label: Text('Collect', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600, color: AppColors.warning)),
+                        style: OutlinedButton.styleFrom(
+                          padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingTiny + 1),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          side: BorderSide(color: AppColors.warning.withValues(alpha: 0.5)),
+                          backgroundColor: AppColors.warning.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    ],
+                    _buildContextualActionButton(order),
                   ],
                 ),
               ],
@@ -548,14 +558,99 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     );
   }
 
+  Widget _buildContextualActionButton(Order order) {
+    // Hand Over for Scheduled/Pending orders
+    if (order.status == OrderStatus.scheduled || order.status == OrderStatus.pending) {
+      return ElevatedButton.icon(
+        onPressed: () => _confirmHandOver(order),
+        icon: Icon(Icons.send_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
+        label: Text('Hand Over', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
+        style: ElevatedButton.styleFrom(
+          padding: Responsive.symmetric(horizontal: AppSizes.spacingLarge, vertical: AppSizes.spacingSmall),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: AppColors.info,
+          foregroundColor: Colors.white,
+          elevation: AppSizes.spacingTiny / 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+      );
+    }
+    
+    // Return for Ongoing/In-Use orders
+    if (order.status == OrderStatus.ongoing || order.status == OrderStatus.inUse) {
+      return ElevatedButton.icon(
+        onPressed: () {
+          ref.read(orderProvider(order.id));
+          Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => OrderDetailView(order: order, autoOpenReturn: true)))
+              .then((_) => ref.invalidate(ordersProvider));
+        },
+        icon: Icon(Icons.keyboard_return_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
+        label: Text('Return', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
+        style: ElevatedButton.styleFrom(
+          padding: Responsive.symmetric(horizontal: AppSizes.spacingLarge, vertical: AppSizes.spacingSmall),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          backgroundColor: AppColors.success,
+          foregroundColor: Colors.white,
+          elevation: AppSizes.spacingTiny / 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+      );
+    }
+    
+    // Hide for orders with no action needed
+    return const SizedBox.shrink();
+  }
+
+  Future<void> _confirmHandOver(Order order) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Hand Over'),
+        content: Text('Have you handed over all items to ${order.customer?.name ?? 'the customer'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await ref.read(orderOperationsProvider).updateOrder(order.id, {'status': 'ongoing'});
+        ref.invalidate(ordersProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order marked as ongoing')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update order: $e')),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.receipt_long_outlined, size: Responsive.icon(48), color: Colors.grey[300]),
-          SizedBox(height: Responsive.h(12)),
-          Text('No Orders Found', style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.bold)),
+          Icon(Icons.receipt_long_outlined, size: Responsive.icon(AppSizes.iconXXLarge), color: Colors.grey[300]),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Text('No Orders Found', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge + 1), fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -566,22 +661,22 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline_rounded, color: const Color(0xFFFF6B8A), size: Responsive.icon(36)),
-          SizedBox(height: Responsive.h(12)),
-          Text('Failed to Load', style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.bold)),
-          SizedBox(height: Responsive.h(6)),
+          Icon(Icons.error_outline_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconLarge + AppSizes.iconTiny)),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Text('Failed to Load', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge + 1), fontWeight: FontWeight.bold)),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny + AppSizes.spacingTiny / 2)),
           Padding(
-            padding: Responsive.symmetric(horizontal: 32),
+            padding: Responsive.symmetric(horizontal: AppSizes.spacingXXLarge),
             child: Text(error, textAlign: TextAlign.center,
-                style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey[600]),
                 maxLines: 3, overflow: TextOverflow.ellipsis),
           ),
-          SizedBox(height: Responsive.h(16)),
+          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           ElevatedButton.icon(
             onPressed: () => ref.invalidate(ordersProvider),
-            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(18)),
+            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(AppSizes.iconSmall - AppSizes.spacingTiny / 2)),
             label: const Text('Retry'),
-            style: ElevatedButton.styleFrom(backgroundColor: _primary, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
           ),
         ],
       ),
@@ -590,18 +685,18 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
   Widget _buildShimmerList() {
     return ListView.builder(
-      padding: Responsive.only(left: 16, right: 16, top: 12),
+      padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingMedium),
       itemCount: 5,
-      itemBuilder: (_, __) => Padding(
-        padding: Responsive.only(bottom: 10),
+      itemBuilder: (context, index) => Padding(
+        padding: Responsive.only(bottom: AppSizes.spacingSmall),
         child: Shimmer.fromColors(
           baseColor: Colors.grey[300]!,
           highlightColor: Colors.grey[100]!,
           child: Container(
-            height: Responsive.h(100),
+            height: Responsive.h(AppSizes.spacingMassive + AppSizes.spacingXXLarge),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(Responsive.r(14)),
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusLarge)),
             ),
           ),
         ),
@@ -611,17 +706,17 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
   Color _getStatusColor(OrderStatus s) {
     switch (s) {
-      case OrderStatus.pending: return const Color(0xFFF5A623);
+      case OrderStatus.pending: return AppColors.warning;
       case OrderStatus.confirmed:
-      case OrderStatus.scheduled: return const Color(0xFF4A90D9);
+      case OrderStatus.scheduled: return AppColors.info;
       case OrderStatus.delivered:
       case OrderStatus.inUse:
-      case OrderStatus.ongoing: return const Color(0xFF7B68EE);
+      case OrderStatus.ongoing: return AppColors.info.withValues(alpha: 0.8);
       case OrderStatus.returned:
-      case OrderStatus.completed: return const Color(0xFF2ECC71);
-      case OrderStatus.cancelled: return const Color(0xFF95A5A6);
-      case OrderStatus.flagged: return const Color(0xFFFF6B8A);
-      case OrderStatus.partial: return const Color(0xFFF5A623);
+      case OrderStatus.completed: return AppColors.success;
+      case OrderStatus.cancelled: return Colors.grey;
+      case OrderStatus.flagged: return AppColors.error;
+      case OrderStatus.partial: return AppColors.warning;
     }
   }
 
