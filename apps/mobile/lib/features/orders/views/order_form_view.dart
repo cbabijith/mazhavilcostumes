@@ -256,10 +256,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   }
 
   void _openAddCustomerDialog() {
+    final trimmed = _phoneSearchController.text.trim();
+    final isPhone = RegExp(r'^\d+$').hasMatch(trimmed);
+    
     showDialog(
       context: context,
       builder: (context) => _AddCustomerDialog(
-        initialPhone: _phoneSearchController.text,
+        initialName: isPhone ? '' : trimmed,
+        initialPhone: isPhone ? trimmed : '',
         onCustomerCreated: (customer) {
           _selectCustomer(customer);
         },
@@ -1778,7 +1782,7 @@ class _CustomerSearchDropdown extends ConsumerWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(Responsive.r(8)),
         clipBehavior: Clip.antiAlias,
-        child: (searchState.isLoading || searchState.isSearchingRemote) && customers.isEmpty
+        child: (searchState.isLoading || searchState.isSearchingRemote) && customers.isEmpty && searchQuery.isEmpty
             ? Center(
                 child: Padding(
                   padding: Responsive.all(16),
@@ -1820,12 +1824,17 @@ class _CustomerSearchDropdown extends ConsumerWidget {
                                 children: [
                                   Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(18)),
                                   SizedBox(width: Responsive.w(8)),
-                                  Text(
-                                    'Add New Customer',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: Responsive.sp(13),
-                                      fontWeight: FontWeight.bold,
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        'Create "$searchQuery"',
+                                        style: TextStyle(
+                                          color: AppColors.primary,
+                                          fontSize: Responsive.sp(13),
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1873,10 +1882,12 @@ class _CustomerSearchDropdown extends ConsumerWidget {
 }
 
 class _AddCustomerDialog extends ConsumerStatefulWidget {
+  final String initialName;
   final String initialPhone;
   final Function(Customer) onCustomerCreated;
 
   const _AddCustomerDialog({
+    required this.initialName,
     required this.initialPhone,
     required this.onCustomerCreated,
   });
@@ -1895,6 +1906,7 @@ class _AddCustomerDialogState extends ConsumerState<_AddCustomerDialog> {
   @override
   void initState() {
     super.initState();
+    _nameController.text = widget.initialName;
     _phoneController.text = widget.initialPhone;
   }
 
