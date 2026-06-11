@@ -1,5 +1,5 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
+import '../../../core/supabase/api_client.dart';
 import '../models/order.dart';
 
 class PaginatedOrders {
@@ -49,61 +49,8 @@ class OrderRepository {
         'limit': limit,
       };
 
-      // Base query fetching order, customer info, branch info, and order items.
-      var dbQuery = _supabase.from('orders').select('''
-        *,
-        customer:customers(id, name, phone, alt_phone, email),
-        branch:branches!branch_id(id, name),
-        items:order_items(
-          *,
-          product:products(id, name, images)
-        )
-      ''');
-
-      // Filter by customer
       if (customerId != null && customerId.isNotEmpty) {
-        dbQuery = dbQuery.eq('customer_id', customerId);
-      }
-
-      // Filter by branch
-      if (branchId != null && branchId.isNotEmpty) {
-        dbQuery = dbQuery.eq('branch_id', branchId);
-      }
-
-      // Filter by status
-      if (status != null && status.isNotEmpty) {
-        if (status == 'late_return') {
-          dbQuery = dbQuery.eq('is_late', true);
-        } else {
-          dbQuery = dbQuery.eq('status', status);
-        }
-      }
-
-      // Filter by search query (notes)
-      if (query != null && query.isNotEmpty) {
-        dbQuery = dbQuery.or('notes.ilike.%$query%');
-      }
-
-      // Filter by dates
-      if (dateFrom != null && dateFrom.isNotEmpty) {
-        dbQuery = dbQuery.gte('start_date', dateFrom);
-      }
-      if (dateTo != null && dateTo.isNotEmpty) {
-        dbQuery = dbQuery.lte('end_date', dateTo);
-      }
-
-      final response = await dbQuery
-          .order('created_at', ascending: false)
-          .range(fromIndex, toIndex);
-
-      print('DEBUG: ORDERS_RESPONSE: $response');
-
-      final List<dynamic> data = response as List<dynamic>? ?? [];
-
-      // Fetch Total Count using a lightweight ID select
-      var countQuery = _supabase.from('orders').select('id');
-      if (customerId != null && customerId.isNotEmpty) {
-        countQuery = countQuery.eq('customer_id', customerId);
+        queryParams['customer_id'] = customerId;
       }
       if (branchId != null && branchId.isNotEmpty) {
         queryParams['branch_id'] = branchId;
@@ -157,19 +104,11 @@ class OrderRepository {
   /// Fetch a single order by ID.
   Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _supabase.from('orders').select('''
-        *,
-        customer:customers(id, name, phone, alt_phone, email),
-        branch:branches!branch_id(id, name),
-        items:order_items(
-          *,
-          product:products(id, name, images)
-        )
-      ''').eq('id', id).single();
-
-      print('DEBUG: GET_ORDER_BY_ID_RESPONSE: $response');
-
-      return Order.fromJson(response);
+      final response = await _api.get(
+        '/orders/$id',
+        cancelToken: cancelToken,
+      );
+      return Order.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to load order: $e');
     }
@@ -239,7 +178,7 @@ class OrderRepository {
         cancelToken: cancelToken,
       );
 
-      return response.data;
+      return response.data as Map<String, dynamic>;
     } catch (e) {
       throw Exception('Failed to check availability: $e');
     }
@@ -275,15 +214,63 @@ class OrderRepository {
   /// Fetch payments/transactions logged against the order.
   Future<List<PaymentTransaction>> getOrderPayments(String orderId) async {
     try {
-      final response = await _supabase
-          .from('payments')
-          .select('*, staff:created_by(name)')
-          .eq('order_id', orderId)
-          .order('payment_date', ascending: false);
-      final List<dynamic> data = response as List<dynamic>? ?? [];
+      final response = await _api.get(
+        '/payments',
+        queryParameters: {'order_id': orderId},
+      );
+      final List<dynamic> data = response.data as List<dynamic>? ?? [];
       return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       throw Exception('Failed to load payments: $e');
+    }
+  }
+
+  /// Record a payment (collect payment) for an order.
+  Future<Map<String, dynamic>> collectPayment({
+    required String orderId,
+    required double amount,
+    required String paymentMode,
+    required String paymentType,
+    String? notes,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _api.post(
+        '/payments',
+        data: {
+          'order_id': orderId,
+          'amount': amount,
+          'payment_mode': paymentMode,
+          'payment_type': paymentType,
+          if (notes != null) 'notes': notes,
+        },
+        cancelToken: cancelToken,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Failed to collect payment: $e');
+    }
+  }
+
+  /// Create damage assessments for an order.
+  Future<Map<String, dynamic>> createDamageAssessment({
+    required String orderId,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final response = await _api.post(
+        '/orders/$orderId/damage-assessments',
+        data: {
+          'items': items,
+          if (notes != null) 'notes': notes,
+        },
+        cancelToken: cancelToken,
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Failed to create damage assessment: $e');
     }
   }
 
@@ -294,52 +281,15 @@ class OrderRepository {
     String? notes,
   }) async {
     try {
-      await _supabase.from('payments').update({
-        'payment_mode': paymentMode,
-        'notes': notes,
-      }).eq('id', paymentId);
+      await _api.patch(
+        '/payments/$paymentId',
+        data: {
+          'payment_mode': paymentMode,
+          if (notes != null) 'notes': notes,
+        },
+      );
     } catch (e) {
       throw Exception('Failed to update payment: $e');
-    }
-  }
-
-  /// Check availability of order items before starting rental.
-  Future<Map<String, dynamic>> checkAvailability({
-    required String startDate,
-    required String endDate,
-    required String branchId,
-    required List<Map<String, dynamic>> items,
-    String? excludeOrderId,
-  }) async {
-    final dio = Dio(BaseOptions(
-      baseUrl: 'https://mazhavilcostumes-admin.vercel.app/api',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    ));
-
-    // Get current auth token to pass to Next.js API
-    final session = _supabase.auth.currentSession;
-    if (session != null) {
-      dio.options.headers['Authorization'] = 'Bearer ${session.accessToken}';
-    }
-
-    try {
-      final response = await dio.post('/orders/check-availability', data: {
-        'items': items,
-        'start_date': startDate,
-        'end_date': endDate,
-        'branch_id': branchId,
-        if (excludeOrderId != null) 'exclude_order_id': excludeOrderId,
-      });
-
-      return response.data as Map<String, dynamic>;
-    } catch (e) {
-      if (e is DioException && e.response != null) {
-        final errorMsg = e.response?.data?['error'] ?? 'API availability check failed';
-        throw Exception(errorMsg);
-      }
-      throw Exception('Failed to check availability: $e');
     }
   }
 }

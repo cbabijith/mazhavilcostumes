@@ -240,34 +240,6 @@ class OrderOperations {
       excludeOrderId: excludeOrderId,
     );
   }
-
-  Future<void> updatePayment({
-    required String paymentId,
-    required String paymentMode,
-    String? notes,
-  }) async {
-    await _repository.updatePayment(
-      paymentId: paymentId,
-      paymentMode: paymentMode,
-      notes: notes,
-    );
-  }
-
-  Future<Map<String, dynamic>> checkAvailability({
-    required String startDate,
-    required String endDate,
-    required String branchId,
-    required List<Map<String, dynamic>> items,
-    String? excludeOrderId,
-  }) async {
-    return await _repository.checkAvailability(
-      startDate: startDate,
-      endDate: endDate,
-      branchId: branchId,
-      items: items,
-      excludeOrderId: excludeOrderId,
-    );
-  }
 }
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {
