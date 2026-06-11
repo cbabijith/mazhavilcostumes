@@ -165,8 +165,9 @@ class DashboardRepository {
         cancelToken: cancelToken,
       );
 
-      final data = response.data;
-      final cardsData = data['cards'] as List<dynamic>? ?? [];
+      final responseData = response.data;
+      final innerData = responseData['data'] as Map<String, dynamic>? ?? responseData;
+      final cardsData = innerData['cards'] as List<dynamic>? ?? [];
 
       final cards = cardsData.map((cardData) {
         final card = cardData as Map<String, dynamic>;

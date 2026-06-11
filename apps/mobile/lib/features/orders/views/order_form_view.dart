@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../customers/viewmodels/providers/customer_provider.dart';
@@ -10,6 +13,7 @@ import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
 import '../../../core/supabase/api_client.dart';
+import '../../products/views/qr_scanner_dialog.dart';
 
 
 class OrderFormView extends ConsumerStatefulWidget {
@@ -24,6 +28,11 @@ class OrderFormView extends ConsumerStatefulWidget {
 class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  // Debounce and Cancel tokens for APIs
+  Timer? _searchDebounce;
+  CancelToken? _productSearchCancelToken;
+  CancelToken? _searchAvailCancelToken;
   
   // Selected entities details
   String? _selectedCustomerId;
@@ -45,6 +54,16 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   bool _showCustomerDropdown = false;
   String _searchQuery = '';
 
+  // Product search state
+  final _productSearchController = TextEditingController();
+  bool _showProductDropdown = false;
+  String _productSearchQuery = '';
+  List<p_model.Product> _productSearchResults = [];
+  bool _isSearchingProducts = false;
+
+  // Product search availability state
+  Map<String, Map<String, dynamic>> _searchAvailabilityMap = {};
+  bool _isCheckingSearchAvailability = false;
   OrderStatus? _selectedStatus = OrderStatus.pending;
   PaymentStatus? _selectedPaymentStatus = PaymentStatus.pending;
   DeliveryMethod? _selectedDeliveryMethod = DeliveryMethod.pickup;
@@ -82,9 +101,9 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _phoneSearchController.text = widget.order!.customer?.phone ?? '';
       _selectedBranchId = widget.order!.branchId;
       
-      _startDateController.text = widget.order!.startDate;
-      _endDateController.text = widget.order!.endDate;
-      _eventDateController.text = widget.order!.eventDate;
+      _startDateController.text = _formatDisplayDate(widget.order!.startDate);
+      _endDateController.text = _formatDisplayDate(widget.order!.endDate);
+      _eventDateController.text = _formatDisplayDate(widget.order!.eventDate);
       _notesController.text = widget.order!.notes ?? '';
       _deliveryAddressController.text = widget.order!.deliveryAddress ?? '';
       _pickupAddressController.text = widget.order!.pickupAddress ?? '';
@@ -110,6 +129,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             )));
       }
       _calculateTotals();
+    } else {
+      // Default dates for new order matching web
+      final today = DateTime.now();
+      final twoDaysLater = today.add(const Duration(days: 2));
+      _startDateController.text = DateFormat('dd/MM/yyyy').format(today);
+      _endDateController.text = DateFormat('dd/MM/yyyy').format(twoDaysLater);
+      _eventDateController.text = DateFormat('dd/MM/yyyy').format(today);
+      _calculateTotals();
     }
     _fetchGstSettings();
   }
@@ -131,6 +158,13 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _productSearchCancelToken?.cancel('Form disposed');
+    _searchAvailCancelToken?.cancel('Form disposed');
+    for (final item in _items) {
+      item.cancelToken?.cancel('Form disposed');
+    }
+    _productSearchController.dispose();
     _startDateController.dispose();
     _endDateController.dispose();
     _eventDateController.dispose();
@@ -146,11 +180,11 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   void _calculateTotals() {
     // 1. Calculate rental days (inclusive counting: pickup day + return day)
-    if (_startDateController.text.isNotEmpty && _endDateController.text.isNotEmpty) {
+    final startVal = _parseDisplayDate(_startDateController.text);
+    final endVal = _parseDisplayDate(_endDateController.text);
+    if (startVal != null && endVal != null) {
       try {
-        final start = DateTime.parse(_startDateController.text);
-        final end = DateTime.parse(_endDateController.text);
-        final diff = end.difference(start).inDays;
+        final diff = endVal.difference(startVal).inDays;
         _rentalDays = diff >= 0 ? diff + 1 : 1;
       } catch (_) {
         _rentalDays = 1;
@@ -228,7 +262,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
     if (picked != null) {
       setState(() {
-        controller.text = picked.toIso8601String().split('T')[0];
+        controller.text = DateFormat('dd/MM/yyyy').format(picked);
       });
       _calculateTotals();
       _checkAllItemsAvailability();
@@ -243,7 +277,12 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _showCustomerDropdown = false;
       _searchQuery = '';
     });
+    // Auto-fill delivery address from customer (matching web behavior — new orders only)
+    if (widget.order == null && customer.address != null && customer.address!.isNotEmpty) {
+      _deliveryAddressController.text = customer.address!;
+    }
   }
+
 
   void _clearCustomer() {
     setState(() {
@@ -271,67 +310,187 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
-  void _openProductLookup(int itemIndex) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return _SearchSelectorDialog(
-          title: 'Select Product',
-          hint: 'Search products...',
-          fetchList: (query) async {
-            final repo = ref.read(productRepositoryProvider);
-            final result = await repo.getProducts(search: query);
-            return result.products
-                .map((p) => _LookupItem(
-                      id: p.id,
-                      label: p.name,
-                      subtitle: 'Rate: ₹${p.pricePerDay.toStringAsFixed(0)}/day  |  Stock: ${p.availableQuantity}',
-                      extraData: p,
-                    ))
-                .toList();
-          },
-          onSelect: (item) {
-            final product = item.extraData as p_model.Product;
-            setState(() {
-              _items[itemIndex].productId = product.id;
-              _items[itemIndex].productName = product.name;
-              _items[itemIndex].pricePerDay = product.pricePerDay;
-              _items[itemIndex].gstPercentage = product.gstPercentage;
-            });
-            _calculateTotals();
-            _checkItemAvailability(itemIndex);
-          },
+  void _searchProducts(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _productSearchResults = [];
+        _isSearchingProducts = false;
+        _searchAvailabilityMap = {};
+      });
+      return;
+    }
+
+    _productSearchCancelToken?.cancel('New search started');
+    _productSearchCancelToken = CancelToken();
+
+    setState(() => _isSearchingProducts = true);
+    try {
+      final repo = ref.read(productRepositoryProvider);
+      final result = await repo.getProducts(
+        search: query.trim(),
+        branchId: _selectedBranchId,
+        cancelToken: _productSearchCancelToken,
+      );
+      // Filter out products already in _items
+      final filtered = result.products.where((p) => !_items.any((item) => item.productId == p.id)).toList();
+      if (!mounted) return;
+      setState(() {
+        _productSearchResults = filtered;
+        _isSearchingProducts = false;
+      });
+      _checkSearchProductsAvailability(filtered);
+    } catch (e) {
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _isSearchingProducts = false);
+    }
+  }
+
+  void _checkSearchProductsAvailability(List<p_model.Product> products) async {
+    if (products.isEmpty || _startDateController.text.isEmpty || _endDateController.text.isEmpty || _selectedBranchId == null) {
+      setState(() {
+        _searchAvailabilityMap = {};
+        _isCheckingSearchAvailability = false;
+      });
+      print('DEBUG checkAvailability early return: '
+          'products: ${products.length}, '
+          'startDate: ${_startDateController.text}, '
+          'endDate: ${_endDateController.text}, '
+          'branchId: $_selectedBranchId');
+      return;
+    }
+
+    _searchAvailCancelToken?.cancel('New availability check started');
+    _searchAvailCancelToken = CancelToken();
+
+    setState(() {
+      _isCheckingSearchAvailability = true;
+    });
+
+    try {
+      final operations = ref.read(orderOperationsProvider);
+      print('DEBUG checkAvailability calling API with: '
+          'startDate: ${_toIsoDate(_startDateController.text)}, '
+          'endDate: ${_toIsoDate(_endDateController.text)}, '
+          'branchId: $_selectedBranchId');
+      
+      final result = await operations.checkAvailability(
+        startDate: _toIsoDate(_startDateController.text),
+        endDate: _toIsoDate(_endDateController.text),
+        branchId: _selectedBranchId!,
+        items: products.map((p) => <String, dynamic>{
+          'product_id': p.id,
+          'quantity': 1,
+        }).toList(),
+        excludeOrderId: widget.order?.id,
+        cancelToken: _searchAvailCancelToken,
+      );
+
+      final itemsList = result['items'] as List<dynamic>? ?? [];
+      print('DEBUG checkAvailability API result items count: ${itemsList.length}');
+      final Map<String, Map<String, dynamic>> tempMap = {};
+      for (final item in itemsList) {
+        if (item is Map) {
+          final castedItem = Map<String, dynamic>.from(item);
+          final pId = castedItem['product_id'] as String?;
+          if (pId != null) {
+            tempMap[pId] = castedItem;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        if (_productSearchResults == products) {
+          _searchAvailabilityMap = tempMap;
+          _isCheckingSearchAvailability = false;
+        }
+      });
+    } catch (e) {
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        return;
+      }
+      print('Error checking search products availability: $e');
+      if (mounted) {
+        setState(() {
+          _isCheckingSearchAvailability = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Availability Check Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
-      },
-    );
+      }
+    }
+  }
+  void _addProductToOrder(p_model.Product product) {
+    final sAvail = _searchAvailabilityMap[product.id];
+    if (sAvail != null) {
+      final int availableWithPriority = (sAvail['availableWithPriority'] as num?)?.toInt() ?? 0;
+      if (availableWithPriority < 1) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unavailable: 0 available for the selected dates (even with priority cleaning).'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() {
+      _items.add(OrderItemInput(
+        productId: product.id,
+        productName: product.name,
+        quantity: 1,
+        pricePerDay: product.pricePerDay,
+        gstPercentage: product.gstPercentage,
+      ));
+      _productSearchController.clear();
+      _productSearchQuery = '';
+      _showProductDropdown = false;
+      _productSearchResults = [];
+      _searchAvailabilityMap = {};
+    });
+    
+    final newIndex = _items.length - 1;
+    _calculateTotals();
+    _checkItemAvailability(newIndex);
   }
 
   Future<void> _checkItemAvailability(int index) async {
     final item = _items[index];
     if (item.productId.isEmpty || _startDateController.text.isEmpty || _endDateController.text.isEmpty || _selectedBranchId == null) return;
 
+    item.cancelToken?.cancel('New check started');
+    item.cancelToken = CancelToken();
+
     setState(() => item.isChecking = true);
     try {
       final operations = ref.read(orderOperationsProvider);
       final result = await operations.checkAvailability(
-        startDate: _startDateController.text,
-        endDate: _endDateController.text,
+        startDate: _toIsoDate(_startDateController.text),
+        endDate: _toIsoDate(_endDateController.text),
         branchId: _selectedBranchId!,
         items: [
-          {
+          <String, dynamic>{
             'product_id': item.productId,
             'quantity': item.quantity,
           }
         ],
         excludeOrderId: widget.order?.id,
+        cancelToken: item.cancelToken,
       );
 
       final itemsList = result['items'] as List<dynamic>? ?? [];
-      if (itemsList.isNotEmpty) {
-        final i = itemsList.first;
+      if (itemsList.isNotEmpty && itemsList.first is Map) {
+        final i = Map<String, dynamic>.from(itemsList.first as Map);
         final isItemAvailable = i['isAvailable'] as bool? ?? true;
-        final available = i['available'] as int? ?? 0;
-        final availableWithPriority = i['availableWithPriority'] as int? ?? 0;
+        final available = (i['available'] as num?)?.toInt() ?? 0;
+        final availableWithPriority = (i['availableWithPriority'] as num?)?.toInt() ?? 0;
         final priorityCleaningNeeded = i['priorityCleaningNeeded'] as bool? ?? false;
         final priorityCleaningInfo = i['priorityCleaningInfo'] as List<dynamic>? ?? [];
         final overlappingOrders = i['overlappingOrders'] as List<dynamic>? ?? [];
@@ -358,7 +517,10 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
           item.isChecking = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        return;
+      }
       setState(() => item.isChecking = false);
     }
   }
@@ -367,13 +529,9 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     for (int i = 0; i < _items.length; i++) {
       _checkItemAvailability(i);
     }
+    _checkSearchProductsAvailability(_productSearchResults);
   }
 
-  void _addItem() {
-    setState(() {
-      _items.add(OrderItemInput());
-    });
-  }
 
   void _removeItem(int index) {
     setState(() {
@@ -394,10 +552,10 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     if (!_formKey.currentState!.validate()) return;
 
     // Date validation: return date cannot be before pickup date
-    if (_startDateController.text.isNotEmpty && _endDateController.text.isNotEmpty) {
-      final start = DateTime.parse(_startDateController.text);
-      final end = DateTime.parse(_endDateController.text);
-      if (end.isBefore(start)) {
+    final startVal = _parseDisplayDate(_startDateController.text);
+    final endVal = _parseDisplayDate(_endDateController.text);
+    if (startVal != null && endVal != null) {
+      if (endVal.isBefore(startVal)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Return date cannot be earlier than pickup date')),
         );
@@ -579,9 +737,9 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     final body = {
       'customer_id': _selectedCustomerId,
       'branch_id': _selectedBranchId,
-      'rental_start_date': _startDateController.text,
-      'rental_end_date': _endDateController.text,
-      'event_date': _eventDateController.text.isEmpty ? null : _eventDateController.text,
+      'rental_start_date': _toIsoDate(_startDateController.text),
+      'rental_end_date': _toIsoDate(_endDateController.text),
+      'event_date': _toIsoDate(_startDateController.text),
       'delivery_method': _selectedDeliveryMethod?.name,
       'delivery_address': _deliveryAddressController.text.trim().isEmpty ? null : _deliveryAddressController.text.trim(),
       'pickup_address': _pickupAddressController.text.trim().isEmpty ? null : _pickupAddressController.text.trim(),
@@ -641,16 +799,59 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     }
   }
 
+  String _formatDisplayDate(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '';
+    try {
+      final date = DateTime.parse(isoDate);
+      return DateFormat('dd/MM/yyyy').format(date);
+    } catch (_) {
+      return isoDate;
+    }
+  }
+
+  String _toIsoDate(String displayText) {
+    if (displayText.isEmpty) return '';
+    try {
+      final date = DateFormat('dd/MM/yyyy').parse(displayText);
+      return DateFormat('yyyy-MM-dd').format(date);
+    } catch (_) {
+      return displayText;
+    }
+  }
+
+  DateTime? _parseDisplayDate(String displayText) {
+    if (displayText.isEmpty) return null;
+    try {
+      return DateFormat('dd/MM/yyyy').parse(displayText);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
     final isEditing = widget.order != null;
 
+    // Synchronize selected branch ID from effectiveBranchIdProvider for new orders
+    final currentBranchId = ref.watch(effectiveBranchIdProvider);
+    if (!isEditing && _selectedBranchId != currentBranchId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _selectedBranchId = currentBranchId;
+          });
+          // Re-trigger checking availability when the branch becomes available
+          _checkAllItemsAvailability();
+        }
+      });
+    }
+
     // Listen to customerSearchProvider to keep it alive during typing
     ref.listen(customerSearchProvider, (_, __) {});
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Order' : 'Create Order',
             style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.bold, color: AppColors.primary)),
@@ -667,11 +868,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildSectionHeader('Fulfillment Basics'),
+                    _buildSectionHeader('Customer', icon: Icons.person_outline_rounded),
                     _buildCard(children: [
                       // Customer Search Field with Dropdown
                       _buildCustomerSearchField(),
-                      SizedBox(height: Responsive.h(12)),
+                    ]),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    _buildSectionHeader('Rental Period', icon: Icons.calendar_today_outlined),
+                    _buildCard(children: [
                       // Dates Selectors
                       Row(
                         children: [
@@ -682,7 +886,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                               validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                             ),
                           ),
-                          SizedBox(width: Responsive.w(12)),
+                          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
                           Expanded(
                             child: _buildDateField(
                               label: 'End Date',
@@ -692,211 +896,660 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                           ),
                         ],
                       ),
-                      SizedBox(height: Responsive.h(12)),
-                      _buildDateField(
-                        label: 'Event Date',
-                        controller: _eventDateController,
-                        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                      SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                      _buildQuickDateButtons(),
+                      SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                      // Total rental days indicator matching web
+                      Container(
+                        padding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingSmall,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          border: Border.all(color: Colors.grey.shade200),
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: Responsive.w(AppSizes.spacingXXLarge),
+                              height: Responsive.w(AppSizes.spacingXXLarge),
+                              decoration: const BoxDecoration(
+                                color: AppColors.text,
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '$_rentalDays',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                            Text(
+                              'Total rental days',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildDateWarnings(),
+                      SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                      // Buffer days info banner matching web
+                      Container(
+                        padding: Responsive.all(AppSizes.spacingSmall),
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withValues(alpha: 0.05),
+                          border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: AppColors.info,
+                              size: Responsive.icon(AppSizes.iconTiny),
+                            ),
+                            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                            Expanded(
+                              child: Text(
+                                'Most products are blocked 1 day before pickup and 1 day after return for preparation. (Note: Some categories like Ornaments are exempt from this gap).',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                                  color: AppColors.info,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ]),
-                    SizedBox(height: Responsive.h(16)),
-                    _buildSectionHeader('Rent Items'),
-                    ..._items.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final item = entry.value;
-                      return _buildItemCard(item, index);
-                    }),
-                    SizedBox(height: Responsive.h(8)),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primary),
-                        foregroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: Responsive.symmetric(vertical: 12),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    _buildSectionHeader('Rent Items', icon: Icons.shopping_bag_outlined),
+                    _buildProductSearchField(),
+                    SizedBox(height: Responsive.h(12)),
+                    if (_items.isEmpty)
+                      Container(
+                        height: Responsive.h(120),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(Responsive.r(12)),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.shopping_bag_outlined, color: Colors.grey[400], size: Responsive.icon(28)),
+                            SizedBox(height: Responsive.h(8)),
+                            Text(
+                              'Search and add products',
+                              style: TextStyle(color: Colors.grey[500], fontSize: Responsive.sp(13)),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ..._items.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        return _buildItemCard(item, index);
+                      }),
+                    // === TOTALS (matching web bg-slate-50 section) ===
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingLarge),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+                        border: Border.all(color: Colors.grey.shade200),
                       ),
-                      onPressed: _addItem,
-                      icon: Icon(Icons.add_rounded, size: Responsive.icon(20)),
-                      label: Text('Add costume item', style: TextStyle(fontSize: Responsive.sp(13))),
-                    ),
-                    SizedBox(height: Responsive.h(16)),
-                    _buildSectionHeader('Pricing Summary'),
-                    _buildCard(children: [
-                      _buildTotalSummaryRow('Subtotal', '₹${_subtotal.toStringAsFixed(2)}'),
-                      _buildTotalSummaryRow('GST (incl.)', '₹${_gstAmount.toStringAsFixed(2)}'),
-                      SizedBox(height: Responsive.h(8)),
-                      Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _discountController,
-                              keyboardType: TextInputType.number,
-                              style: TextStyle(fontSize: Responsive.sp(14)),
-                              decoration: InputDecoration(
-                                labelText: 'Order Discount',
-                                contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onChanged: (_) => _calculateTotals(),
-                            ),
+                          // Subtotal
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Subtotal', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.grey[600])),
+                              Text('₹${_subtotal.toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w500, color: Colors.grey[700])),
+                            ],
                           ),
-                          SizedBox(width: Responsive.w(8)),
-                          Container(
-                            height: Responsive.h(48),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                          // Info line: items · days · rate (matching web)
+                          Padding(
+                            padding: Responsive.only(top: AppSizes.spacingTiny / 2),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                _buildDiscountTypeToggleButton(
-                                  label: '₹',
-                                  isSelected: _orderDiscountType == 'flat',
-                                  onTap: () {
-                                    setState(() {
-                                      _orderDiscountType = 'flat';
-                                    });
-                                    _calculateTotals();
-                                  },
-                                ),
-                                Container(width: 1, color: Colors.grey.shade300, height: Responsive.h(24)),
-                                _buildDiscountTypeToggleButton(
-                                  label: '%',
-                                  isSelected: _orderDiscountType == 'percent',
-                                  onTap: () {
-                                    setState(() {
-                                      _orderDiscountType = 'percent';
-                                    });
-                                    _calculateTotals();
-                                  },
+                                Icon(Icons.calendar_today_outlined, size: Responsive.icon(AppSizes.iconTiny - 4), color: Colors.grey[400]),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                Expanded(
+                                  child: Text(
+                                    '${_items.where((i) => i.productId.isNotEmpty).length} ${_items.where((i) => i.productId.isNotEmpty).length == 1 ? 'item' : 'items'} · $_rentalDays days · Rate: ×${(_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1}',
+                                    style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny), color: Colors.grey[400]),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
+                          // Item Discounts (shown only if any)
+                          Builder(builder: (_) {
+                            double itemDiscountTotal = 0.0;
+                            final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+                            for (final item in _items) {
+                              final lineTotal = item.quantity * item.pricePerDay * pricingMultiplier;
+                              final itemDisc = item.discountType == 'percent'
+                                  ? lineTotal * (item.discount / 100)
+                                  : item.discount * item.quantity;
+                              itemDiscountTotal += itemDisc < lineTotal ? itemDisc : lineTotal;
+                            }
+                            if (itemDiscountTotal <= 0) return const SizedBox.shrink();
+                            return Padding(
+                              padding: Responsive.only(top: AppSizes.spacingSmall),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.local_offer_outlined, size: Responsive.icon(AppSizes.iconTiny - 4), color: Colors.orange[600]),
+                                      SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                      Text('Item Discounts', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.orange[600])),
+                                    ],
+                                  ),
+                                  Text('−₹${itemDiscountTotal.toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w500, color: Colors.orange[600])),
+                                ],
+                              ),
+                            );
+                          }),
+                          // Order Discount (shown only if any)
+                          Builder(builder: (_) {
+                            final orderDiscountInput = double.tryParse(_discountController.text) ?? 0.0;
+                            if (orderDiscountInput <= 0) return const SizedBox.shrink();
+                            // Calculate effective order discount
+                            double itemDiscountTotal = 0.0;
+                            final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+                            for (final item in _items) {
+                              final lineTotal = item.quantity * item.pricePerDay * pricingMultiplier;
+                              final itemDisc = item.discountType == 'percent'
+                                  ? lineTotal * (item.discount / 100)
+                                  : item.discount * item.quantity;
+                              itemDiscountTotal += itemDisc < lineTotal ? itemDisc : lineTotal;
+                            }
+                            final afterItemDiscount = _subtotal - itemDiscountTotal;
+                            final orderDiscAmt = _orderDiscountType == 'percent'
+                                ? afterItemDiscount * (orderDiscountInput / 100)
+                                : orderDiscountInput;
+                            final effectiveOrderDiscount = orderDiscAmt < afterItemDiscount ? orderDiscAmt : afterItemDiscount;
+                            if (effectiveOrderDiscount <= 0) return const SizedBox.shrink();
+                            return Padding(
+                              padding: Responsive.only(top: AppSizes.spacingSmall),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.percent_rounded, size: Responsive.icon(AppSizes.iconTiny - 4), color: Colors.purple[600]),
+                                      SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                      Text('Order Discount', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.purple[600])),
+                                    ],
+                                  ),
+                                  Text('−₹${effectiveOrderDiscount.toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w500, color: Colors.purple[600])),
+                                ],
+                              ),
+                            );
+                          }),
+                          // GST breakdown (if enabled)
+                          if (_isGstEnabled && _gstAmount > 0) ...[
+                            Padding(
+                              padding: Responsive.only(top: AppSizes.spacingSmall),
+                              child: Container(
+                                padding: Responsive.only(top: AppSizes.spacingSmall),
+                                decoration: BoxDecoration(
+                                  border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('Base Amount (excl. GST)', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey[500])),
+                                        Text('₹${(_totalAmount - _gstAmount).toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w500, color: Colors.grey[500])),
+                                      ],
+                                    ),
+                                    SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.info_outline_rounded, size: Responsive.icon(AppSizes.iconTiny - 4), color: Colors.blue[600]),
+                                            SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                            Text('GST (included)', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.blue[600])),
+                                          ],
+                                        ),
+                                        Text('₹${_gstAmount.toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w600, color: Colors.blue[600])),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          // Grand Total
+                          Padding(
+                            padding: Responsive.only(top: AppSizes.spacingMedium),
+                            child: Container(
+                              padding: Responsive.only(top: AppSizes.spacingMedium),
+                              decoration: BoxDecoration(
+                                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Grand Total', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge), fontWeight: FontWeight.w600, color: Colors.grey[900])),
+                                      SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.calendar_today_outlined, size: Responsive.icon(AppSizes.iconTiny - 4), color: Colors.grey[400]),
+                                          SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                          Text(
+                                            '$_rentalDays days${_isGstEnabled && _gstAmount > 0 ? ' · Incl. GST' : ''}',
+                                            style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny), color: Colors.grey[400]),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Text(
+                                    '₹${_totalAmount.toStringAsFixed(2)}',
+                                    style: TextStyle(fontSize: Responsive.sp(AppSizes.fontXXXLarge), fontWeight: FontWeight.bold, color: Colors.grey[900], letterSpacing: -0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ],
                       ),
-                      const Divider(height: 24),
-                      _buildTotalSummaryRow('Grand Total', '₹${_totalAmount.toStringAsFixed(2)}', isBold: true),
-                      SizedBox(height: Responsive.h(12)),
-                      TextFormField(
-                        controller: _advanceAmountController,
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: Responsive.sp(14)),
-                        decoration: InputDecoration(
-                          labelText: 'Advance Collected (₹)',
-                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    // === ORDER DISCOUNT + ADVANCE (matching web below-totals section) ===
+                    if (_items.isNotEmpty) ...[
+                      Container(
+                        padding: Responsive.all(AppSizes.spacingLarge),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          border: Border(
+                            left: BorderSide(color: Colors.grey.shade200),
+                            right: BorderSide(color: Colors.grey.shade200),
+                            bottom: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          borderRadius: BorderRadius.only(
+                            bottomLeft: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
+                            bottomRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
+                          ),
                         ),
-                        onChanged: (val) {
-                          setState(() {});
-                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Order Discount
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.percent_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.purple[400]),
+                                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                    Text('Order Discount', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[900])),
+                                  ],
+                                ),
+                                Container(
+                                  height: Responsive.h(28),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: Colors.grey.shade200),
+                                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _buildDiscountTypeToggleButton(
+                                        label: '₹ Flat',
+                                        isSelected: _orderDiscountType == 'flat',
+                                        onTap: () {
+                                          setState(() => _orderDiscountType = 'flat');
+                                          _calculateTotals();
+                                        },
+                                      ),
+                                      _buildDiscountTypeToggleButton(
+                                        label: '% Pct',
+                                        isSelected: _orderDiscountType == 'percent',
+                                        onTap: () {
+                                          setState(() => _orderDiscountType = 'percent');
+                                          _calculateTotals();
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                            TextFormField(
+                              controller: _discountController,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge), fontWeight: FontWeight.bold),
+                              decoration: InputDecoration(
+                                prefixText: _orderDiscountType == 'percent' ? '% ' : '₹ ',
+                                prefixStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[500]),
+                                hintText: '0',
+                                contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                              ),
+                              onChanged: (_) => _calculateTotals(),
+                            ),
+                            // "Saving X" feedback
+                            Builder(builder: (_) {
+                              final orderDiscountInput = double.tryParse(_discountController.text) ?? 0.0;
+                              if (orderDiscountInput <= 0) return const SizedBox.shrink();
+                              double itemDiscountTotal = 0.0;
+                              final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+                              for (final item in _items) {
+                                final lineTotal = item.quantity * item.pricePerDay * pricingMultiplier;
+                                final itemDisc = item.discountType == 'percent'
+                                    ? lineTotal * (item.discount / 100)
+                                    : item.discount * item.quantity;
+                                itemDiscountTotal += itemDisc < lineTotal ? itemDisc : lineTotal;
+                              }
+                              final afterItemDiscount = _subtotal - itemDiscountTotal;
+                              final orderDiscAmt = _orderDiscountType == 'percent'
+                                  ? afterItemDiscount * (orderDiscountInput / 100)
+                                  : orderDiscountInput;
+                              final effectiveOrderDiscount = orderDiscAmt < afterItemDiscount ? orderDiscAmt : afterItemDiscount;
+                              if (effectiveOrderDiscount <= 0) return const SizedBox.shrink();
+                              return Padding(
+                                padding: Responsive.only(top: AppSizes.spacingTiny),
+                                child: Text(
+                                  'Saving ₹${effectiveOrderDiscount.toStringAsFixed(2)} on this order',
+                                  style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.purple[600], fontWeight: FontWeight.w500),
+                                ),
+                              );
+                            }),
+                            // Divider
+                            Padding(
+                              padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+                              child: Divider(height: 1, color: Colors.grey.shade100),
+                            ),
+                            // Advance Payment
+                            Row(
+                              children: [
+                                Icon(Icons.account_balance_wallet_outlined, size: Responsive.icon(AppSizes.iconTiny), color: Colors.grey[400]),
+                                SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                Text('Advance Payment', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[900])),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                Text('(Optional)', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey[400])),
+                              ],
+                            ),
+                            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _advanceAmountController,
+                                    keyboardType: TextInputType.number,
+                                    style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge), fontWeight: FontWeight.bold),
+                                    decoration: InputDecoration(
+                                      prefixText: '₹ ',
+                                      prefixStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[500]),
+                                      hintText: '0',
+                                      contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                                    ),
+                                    onChanged: (val) => setState(() {}),
+                                  ),
+                                ),
+                                if ((double.tryParse(_advanceAmountController.text) ?? 0.0) > 0.0) ...[
+                                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                  SizedBox(
+                                    width: Responsive.w(110),
+                                    child: DropdownButtonFormField<PaymentMethod>(
+                                      value: _advancePaymentMethod,
+                                      isDense: true,
+                                      style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey[800]),
+                                      decoration: InputDecoration(
+                                        contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingSmall, vertical: AppSizes.spacingSmall),
+                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                                      ),
+                                      items: PaymentMethod.values.map((method) {
+                                        return DropdownMenuItem(
+                                          value: method,
+                                          child: Text(method.name[0].toUpperCase() + method.name.substring(1), style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall))),
+                                        );
+                                      }).toList(),
+                                      onChanged: (val) => setState(() => _advancePaymentMethod = val),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            // Advance payment feedback banners (matching web)
+                            Builder(builder: (_) {
+                              final advanceAmount = double.tryParse(_advanceAmountController.text) ?? 0.0;
+                              if (advanceAmount <= 0) return const SizedBox.shrink();
+                              final exceeds = advanceAmount > _totalAmount;
+                              final isFullPayment = advanceAmount >= _totalAmount && !exceeds;
+                              return Column(
+                                children: [
+                                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                                  if (exceeds)
+                                    Container(
+                                      padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.error.withValues(alpha: 0.05),
+                                        border: Border.all(color: AppColors.error.withValues(alpha: 0.15)),
+                                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.warning_amber_rounded, size: Responsive.icon(AppSizes.iconTiny), color: AppColors.error),
+                                          SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                          Expanded(
+                                            child: Text(
+                                              'Advance cannot exceed grand total (₹${_totalAmount.toStringAsFixed(2)})',
+                                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: AppColors.error, fontWeight: FontWeight.w500),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else if (isFullPayment)
+                                    Container(
+                                      padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(alpha: 0.05),
+                                        border: Border.all(color: AppColors.success.withValues(alpha: 0.15)),
+                                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.check_circle_outline_rounded, size: Responsive.icon(AppSizes.iconTiny), color: AppColors.success),
+                                          SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                          Expanded(
+                                            child: Text(
+                                              'Full payment collected — no balance due at return',
+                                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: AppColors.success, fontWeight: FontWeight.w500),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.info.withValues(alpha: 0.05),
+                                        border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.info_outline_rounded, size: Responsive.icon(AppSizes.iconTiny), color: AppColors.info),
+                                          SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                          Expanded(
+                                            child: Text(
+                                              'Balance due at return: ₹${(_totalAmount - advanceAmount).toStringAsFixed(2)}',
+                                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: AppColors.info, fontWeight: FontWeight.w500),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              );
+                            }),
+                            // Amount paid (edit mode only)
+                            if (isEditing) ...[
+                              SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                              TextFormField(
+                                controller: _amountPaidController,
+                                keyboardType: TextInputType.number,
+                                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                                decoration: InputDecoration(
+                                  labelText: 'Total Amount Paid (₹)',
+                                  contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      if ((double.tryParse(_advanceAmountController.text) ?? 0.0) > 0.0) ...[
-                        SizedBox(height: Responsive.h(12)),
-                        DropdownButtonFormField<PaymentMethod>(
-                          value: _advancePaymentMethod,
-                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
-                          decoration: InputDecoration(
-                            labelText: 'Advance Payment Method',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          items: PaymentMethod.values.map((method) {
-                            return DropdownMenuItem(
-                              value: method,
-                              child: Text(method.name.toUpperCase()),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              _advancePaymentMethod = val;
-                            });
-                          },
+                    ],
+                    // === FINAL SUMMARY (Advance deduction + Balance + warnings) ===
+                    Builder(builder: (_) {
+                      final advanceAmount = double.tryParse(_advanceAmountController.text) ?? 0.0;
+                      final exceeds = advanceAmount > _totalAmount;
+                      final hasConflicts = _items.any((i) => !i.isAvailable);
+                      if (advanceAmount <= 0 && !hasConflicts) return const SizedBox.shrink();
+                      return Container(
+                        margin: Responsive.only(top: AppSizes.spacingSmall),
+                        padding: Responsive.all(AppSizes.spacingLarge),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+                          border: Border.all(color: Colors.grey.shade200),
                         ),
-                      ],
-                      if (isEditing) ...[
-                        SizedBox(height: Responsive.h(12)),
-                        TextFormField(
-                          controller: _amountPaidController,
-                          keyboardType: TextInputType.number,
-                          style: TextStyle(fontSize: Responsive.sp(14)),
-                          decoration: InputDecoration(
-                            labelText: 'Total Amount Paid (₹)',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (advanceAmount > 0 && !exceeds) ...[
+                              Container(
+                                padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                decoration: BoxDecoration(
+                                  color: AppColors.info.withValues(alpha: 0.05),
+                                  border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Less: Advance Paid', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w500, color: Colors.blue[700])),
+                                    Text('−₹${advanceAmount.toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.bold, color: Colors.blue[700])),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Balance Due', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.bold, color: Colors.grey[900])),
+                                  Text('₹${((_totalAmount - advanceAmount) > 0 ? (_totalAmount - advanceAmount) : 0.0).toStringAsFixed(2)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.bold, color: Colors.grey[900])),
+                                ],
+                              ),
+                            ],
+                            if (hasConflicts) ...[
+                              if (advanceAmount > 0 && !exceeds) SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                              Container(
+                                padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.05),
+                                  border: Border.all(color: AppColors.error.withValues(alpha: 0.15)),
+                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.warning_amber_rounded, size: Responsive.icon(AppSizes.iconSmall), color: AppColors.error),
+                                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                    Expanded(
+                                      child: Text(
+                                        'Some items are not available for the selected dates. Adjust quantities or change dates.',
+                                        style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: AppColors.error),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ]),
-                    SizedBox(height: Responsive.h(16)),
-                    _buildSectionHeader('Logistics & Notes'),
+                      );
+                    }),
+                    // === ADDRESS & NOTES (matching web's simple layout) ===
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    _buildSectionHeader('Address & Notes', icon: Icons.location_on_outlined),
                     _buildCard(children: [
-                      DropdownButtonFormField<DeliveryMethod>(
-                        initialValue: _selectedDeliveryMethod,
-                        style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
-                        decoration: InputDecoration(
-                          labelText: 'Fulfillment Method',
-                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        items: DeliveryMethod.values.map((method) {
-                          return DropdownMenuItem(
-                            value: method,
-                            child: Text(method.name.toUpperCase()),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedDeliveryMethod = value;
-                          });
-                        },
-                      ),
-                      SizedBox(height: Responsive.h(12)),
-                      if (_selectedDeliveryMethod == DeliveryMethod.delivery) ...[
-                        TextFormField(
-                          controller: _deliveryAddressController,
-                          style: TextStyle(fontSize: Responsive.sp(14)),
-                          decoration: InputDecoration(
-                            labelText: 'Delivery Address',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          maxLines: 2,
-                        ),
-                        SizedBox(height: Responsive.h(12)),
-                      ],
-                      if (_selectedDeliveryMethod == DeliveryMethod.pickup) ...[
-                        TextFormField(
-                          controller: _pickupAddressController,
-                          style: TextStyle(fontSize: Responsive.sp(14)),
-                          decoration: InputDecoration(
-                            labelText: 'Pickup Branch Location',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          maxLines: 2,
-                        ),
-                        SizedBox(height: Responsive.h(12)),
-                      ],
+                      Text('Customer / Delivery Address', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[900])),
+                      SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                       TextFormField(
-                        controller: _notesController,
-                        style: TextStyle(fontSize: Responsive.sp(14)),
+                        controller: _deliveryAddressController,
+                        style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
                         decoration: InputDecoration(
-                          labelText: 'Order Notes',
-                          contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          hintText: 'Enter address for delivery or record...',
+                          hintStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.grey[400]),
+                          contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
                         ),
                         maxLines: 2,
                       ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      Text('Notes', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w600, color: Colors.grey[900])),
+                      SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                      TextFormField(
+                        controller: _notesController,
+                        style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                        decoration: InputDecoration(
+                          hintText: 'Optional notes about this order...',
+                          hintStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: Colors.grey[400]),
+                          contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                        ),
+                        maxLines: 2,
+                      ),
+                      // Edit-mode only: Order Status + Payment Status
                       if (isEditing) ...[
-                        SizedBox(height: Responsive.h(12)),
+                        SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
                         DropdownButtonFormField<OrderStatus>(
-                          initialValue: _selectedStatus,
-                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
+                          value: _selectedStatus,
+                          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: AppColors.primary),
                           decoration: InputDecoration(
                             labelText: 'Order Status',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
                           ),
                           items: OrderStatus.values.map((status) {
                             return DropdownMenuItem(
@@ -906,14 +1559,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                           }).toList(),
                           onChanged: (val) => setState(() => _selectedStatus = val),
                         ),
-                        SizedBox(height: Responsive.h(12)),
+                        SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                         DropdownButtonFormField<PaymentStatus>(
-                          initialValue: _selectedPaymentStatus,
-                          style: TextStyle(fontSize: Responsive.sp(14), color: AppColors.primary),
+                          value: _selectedPaymentStatus,
+                          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), color: AppColors.primary),
                           decoration: InputDecoration(
                             labelText: 'Payment Status',
-                            contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            contentPadding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
                           ),
                           items: PaymentStatus.values.map((status) {
                             return DropdownMenuItem(
@@ -925,21 +1578,23 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                         ),
                       ],
                     ]),
-                    SizedBox(height: Responsive.h(24)),
+                    SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
+                    // === SUBMIT BUTTON ===
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        padding: Responsive.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: Responsive.symmetric(vertical: AppSizes.spacingLarge),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium))),
+                        elevation: AppSizes.spacingTiny / 2,
                       ),
                       onPressed: _submit,
                       child: Text(
-                        isEditing ? 'Update Order Details' : 'Place Rental Booking',
-                        style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold),
+                        isEditing ? 'Save Changes' : 'Confirm Order',
+                        style: TextStyle(fontSize: Responsive.sp(AppSizes.fontLarge), fontWeight: FontWeight.bold),
                       ),
                     ),
-                    SizedBox(height: Responsive.h(40)),
+                    SizedBox(height: Responsive.h(AppSizes.spacingHuge)),
                   ],
                 ),
               ),
@@ -947,12 +1602,30 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
-  Widget _buildSectionHeader(String title) {
+  Widget _buildSectionHeader(String title, {IconData? icon}) {
     return Padding(
-      padding: Responsive.only(bottom: 8, left: 4),
-      child: Text(
-        title,
-        style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: Colors.grey[700]),
+      padding: Responsive.only(bottom: AppSizes.spacingSmall, left: AppSizes.spacingTiny),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: Responsive.icon(AppSizes.iconTiny),
+              color: Colors.grey[600],
+            ),
+            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+          ],
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontMedium),
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1095,38 +1768,241 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
-  Widget _buildLookupField({
-    required String label,
-    required String value,
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(Responsive.r(8)),
-      child: Container(
-        padding: Responsive.symmetric(horizontal: 12, vertical: 14),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(Responsive.r(8)),
-        ),
-        child: Row(
+  Widget _buildProductSearchField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Icon(icon, color: AppColors.primary, size: Responsive.icon(20)),
-            SizedBox(width: Responsive.w(8)),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label, style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey)),
-                  SizedBox(height: Responsive.h(2)),
-                  Text(value, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w600)),
-                ],
+              child: TextField(
+                controller: _productSearchController,
+                keyboardType: TextInputType.text,
+                style: TextStyle(fontSize: Responsive.sp(14)),
+                decoration: InputDecoration(
+                  labelText: 'Search Costume',
+                  hintText: 'Search products or scan barcode...',
+                  hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
+                  prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(20)),
+                  suffixIcon: _productSearchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear_rounded, size: Responsive.icon(18)),
+                          onPressed: () {
+                            _productSearchController.clear();
+                            _searchDebounce?.cancel();
+                            _productSearchCancelToken?.cancel('Search cleared');
+                            _searchAvailCancelToken?.cancel('Search cleared');
+                            setState(() {
+                              _productSearchQuery = '';
+                              _showProductDropdown = false;
+                              _productSearchResults = [];
+                              _searchAvailabilityMap = {};
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                  contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _productSearchQuery = value;
+                    _showProductDropdown = value.isNotEmpty;
+                  });
+                  _searchDebounce?.cancel();
+                  _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+                    _searchProducts(value);
+                  });
+                },
+                onTap: () {
+                  if (_productSearchController.text.isNotEmpty) {
+                    setState(() => _showProductDropdown = true);
+                  }
+                },
               ),
             ),
-            Icon(Icons.arrow_drop_down, color: Colors.grey[600]),
+            SizedBox(width: Responsive.w(8)),
+            Container(
+              height: Responsive.h(48),
+              width: Responsive.h(48),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.primary),
+                borderRadius: BorderRadius.circular(Responsive.r(8)),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Responsive.r(8)),
+                  onTap: _openBarcodeScanner,
+                  child: Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: AppColors.primary,
+                    size: Responsive.icon(22),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
+        if (_showProductDropdown && _productSearchQuery.isNotEmpty) ...[
+          SizedBox(height: Responsive.h(4)),
+          _buildProductDropdownList(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProductDropdownList() {
+    final products = _productSearchResults;
+
+    return Container(
+      constraints: BoxConstraints(maxHeight: Responsive.h(200)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(8)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(8)),
+        clipBehavior: Clip.antiAlias,
+        child: _isSearchingProducts && products.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: Responsive.all(16),
+                  child: const CircularProgressIndicator(color: AppColors.primary),
+                ),
+              )
+            : products.isEmpty
+                ? Padding(
+                    padding: Responsive.all(16),
+                    child: Center(
+                      child: Text(
+                        'No product found',
+                        style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(13)),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: products.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final product = products[index];
+                      final sAvail = _searchAvailabilityMap[product.id];
+                      bool isAvail = product.availableQuantity > 0;
+                      if (sAvail != null) {
+                        final int availableWithPriority = (sAvail['availableWithPriority'] as num?)?.toInt() ?? 0;
+                        isAvail = availableWithPriority > 0;
+                      }
+
+                      return Material(
+                        type: MaterialType.transparency,
+                        child: Opacity(
+                          opacity: isAvail ? 1.0 : 0.5,
+                          child: ListTile(
+                            contentPadding: Responsive.symmetric(horizontal: 12, vertical: 4),
+                            leading: Container(
+                              width: Responsive.w(40),
+                              height: Responsive.w(40),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                border: Border.all(color: Colors.grey.shade200),
+                                borderRadius: BorderRadius.circular(Responsive.r(6)),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: product.primaryImageUrl != null && product.primaryImageUrl!.isNotEmpty
+                                  ? Image.network(
+                                      product.primaryImageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                        Icons.shopping_bag_outlined,
+                                        color: Colors.grey[400],
+                                        size: Responsive.icon(18),
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.shopping_bag_outlined,
+                                      color: Colors.grey[400],
+                                      size: Responsive.icon(18),
+                                    ),
+                            ),
+                            title: Text(
+                              product.name,
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(13)),
+                            ),
+                            subtitle: Builder(
+                              builder: (context) {
+                                final rateText = '₹${product.pricePerDay.toStringAsFixed(2)}   ';
+                                if (_isCheckingSearchAvailability) {
+                                  return Text.rich(
+                                    TextSpan(
+                                      style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
+                                      children: [
+                                        TextSpan(text: rateText),
+                                        TextSpan(
+                                          text: 'Checking dates...',
+                                          style: TextStyle(
+                                            color: Colors.teal.shade600,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                
+                                if (sAvail != null) {
+                                  final int available = (sAvail['available'] as num?)?.toInt() ?? 0;
+                                  final int availableWithPriority = (sAvail['availableWithPriority'] as num?)?.toInt() ?? 0;
+                                  
+                                  String availText = '';
+                                  Color textColor = Colors.grey[600]!;
+                                  FontWeight fontWeight = FontWeight.normal;
+                                  
+                                  if (available > 0) {
+                                    availText = '$available free for dates';
+                                    textColor = AppColors.success;
+                                  } else if (availableWithPriority > 0) {
+                                    availText = '0 free ($availableWithPriority with priority cleaning)';
+                                    textColor = AppColors.warning;
+                                  } else {
+                                    availText = '0 free (Unavailable)';
+                                    textColor = AppColors.error;
+                                    fontWeight = FontWeight.bold;
+                                  }
+                                  
+                                  return Text.rich(
+                                    TextSpan(
+                                      style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
+                                      children: [
+                                        TextSpan(text: rateText),
+                                        TextSpan(
+                                          text: availText,
+                                          style: TextStyle(color: textColor, fontWeight: fontWeight),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+                                
+                                return Text(
+                                  '₹${product.pricePerDay.toStringAsFixed(2)}   Stock: ${product.availableQuantity}',
+                                  style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(11)),
+                                );
+                              },
+                            ),
+                            trailing: isAvail
+                                ? Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(20))
+                                : Icon(Icons.block_rounded, color: Colors.grey, size: Responsive.icon(20)),
+                            onTap: isAvail ? () => _addProductToOrder(product) : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
   }
@@ -1272,11 +2148,29 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
               ),
             ],
           ),
-          _buildLookupField(
-            label: 'Costume Product',
-            value: item.productName.isEmpty ? 'Select costume...' : item.productName,
-            icon: Icons.search_rounded,
-            onTap: () => _openProductLookup(index),
+          Container(
+            padding: Responsive.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border.all(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(Responsive.r(8)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.shopping_bag_outlined, color: AppColors.primary, size: Responsive.icon(20)),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Costume Product', style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey)),
+                      SizedBox(height: Responsive.h(2)),
+                      Text(item.productName, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           SizedBox(height: Responsive.h(12)),
           Row(
@@ -1591,29 +2485,230 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     );
   }
 
-  Widget _buildTotalSummaryRow(String label, String value, {bool isBold = false}) {
-    return Padding(
-      padding: Responsive.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: Responsive.sp(13),
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? AppColors.primary : Colors.grey[700],
-            ),
+
+  Widget _buildQuickDateButtons() {
+    return Row(
+      children: [
+        Text(
+          'Quick End Date: ',
+          style: TextStyle(
+            fontSize: Responsive.sp(12),
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[600],
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: Responsive.sp(13),
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: isBold ? AppColors.primary : Colors.grey[800],
+        ),
+        SizedBox(width: Responsive.w(8)),
+        _buildQuickDateButton(label: '+1 Day', days: 1),
+        SizedBox(width: Responsive.w(8)),
+        _buildQuickDateButton(label: '+2 Days', days: 2),
+      ],
+    );
+  }
+
+  Widget _buildQuickDateButton({required String label, required int days}) {
+    final startText = _startDateController.text;
+    final bool isEnabled = startText.isNotEmpty;
+
+    bool isSelected = false;
+    if (isEnabled && _endDateController.text.isNotEmpty) {
+      try {
+        final start = _parseDisplayDate(startText);
+        final end = _parseDisplayDate(_endDateController.text);
+        if (start != null && end != null) {
+          final expectedEnd = start.add(Duration(days: days));
+          isSelected = end.year == expectedEnd.year &&
+              end.month == expectedEnd.month &&
+              end.day == expectedEnd.day;
+        }
+      } catch (_) {}
+    }
+
+    return OutlinedButton(
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : Colors.grey.shade300,
+        ),
+        backgroundColor: isSelected ? AppColors.primary.withValues(alpha: 0.1) : Colors.transparent,
+        foregroundColor: isSelected ? AppColors.primary : Colors.grey[700],
+        padding: Responsive.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+      onPressed: isEnabled
+          ? () {
+              try {
+                final start = _parseDisplayDate(startText);
+                if (start != null) {
+                  final end = start.add(Duration(days: days));
+                  setState(() {
+                    _endDateController.text = DateFormat('dd/MM/yyyy').format(end);
+                  });
+                  _calculateTotals();
+                  _checkAllItemsAvailability();
+                }
+              } catch (_) {}
+            }
+          : null,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: Responsive.sp(12),
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateWarnings() {
+    final startText = _startDateController.text;
+    final endText = _endDateController.text;
+
+    if (startText.isEmpty) return const SizedBox.shrink();
+
+    final List<Widget> warnings = [];
+
+    // 1. Backdated warning
+    try {
+      final start = _parseDisplayDate(startText);
+      if (start != null) {
+        final today = DateTime.now();
+        final todayMidnight = DateTime(today.year, today.month, today.day);
+        if (start.isBefore(todayMidnight)) {
+          warnings.add(
+            Container(
+              margin: Responsive.only(top: AppSizes.spacingSmall),
+              padding: Responsive.all(AppSizes.spacingSmall),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.05),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: Responsive.icon(AppSizes.iconTiny)),
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                  Expanded(
+                    child: Text(
+                      '⚠️ Backdated Bill: You are creating/editing an order with a pickup date in the past.',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.warning,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          );
+        }
+      }
+    } catch (_) {}
+
+    // 2. Invalid end date warning
+    if (endText.isNotEmpty) {
+      try {
+        final start = _parseDisplayDate(startText);
+        final end = _parseDisplayDate(endText);
+        if (start != null && end != null) {
+          if (end.isBefore(start)) {
+            warnings.add(
+              Container(
+                margin: Responsive.only(top: AppSizes.spacingSmall),
+                padding: Responsive.all(AppSizes.spacingSmall),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.05),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.error_outline_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconTiny)),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    Expanded(
+                      child: Text(
+                        'Return date cannot be before the pickup date. Please choose a valid return date.',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (warnings.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: warnings,
+    );
+  }
+
+  void _openBarcodeScanner() {
+    showDialog(
+      context: context,
+      builder: (context) => QRScannerDialog(
+        onScanMatched: (productId) async {
+          try {
+            setState(() => _isLoading = true);
+            final repo = ref.read(productRepositoryProvider);
+            final product = await repo.getProductById(productId);
+            
+            final existingIndex = _items.indexWhere((item) => item.productId == product.id);
+            if (existingIndex != -1) {
+              setState(() {
+                _items[existingIndex].quantity += 1;
+                _isLoading = false;
+              });
+              _calculateTotals();
+              _checkItemAvailability(existingIndex);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${product.name} quantity increased')),
+                );
+              }
+            } else {
+              setState(() {
+                _items.add(OrderItemInput(
+                  productId: product.id,
+                  productName: product.name,
+                  quantity: 1,
+                  pricePerDay: product.pricePerDay,
+                  gstPercentage: product.gstPercentage,
+                ));
+                _isLoading = false;
+              });
+              final newIndex = _items.length - 1;
+              _calculateTotals();
+              _checkItemAvailability(newIndex);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('${product.name} added to order')),
+                );
+              }
+            }
+          } catch (e) {
+            setState(() => _isLoading = false);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to add product: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
@@ -1628,6 +2723,7 @@ class OrderItemInput {
   bool isAvailable = true;
   bool isChecking = false;
   String? availableStockInfo;
+  CancelToken? cancelToken;
 
   // Parity with website
   double discount = 0.0;
@@ -1652,127 +2748,8 @@ class OrderItemInput {
     this.priorityCleaningNeeded = false,
     this.priorityCleaningInfo = const [],
     this.overlappingOrders = const [],
+    this.cancelToken,
   });
-}
-
-class _LookupItem {
-  final String id;
-  final String label;
-  final String subtitle;
-  final dynamic extraData;
-
-  _LookupItem({required this.id, required this.label, required this.subtitle, this.extraData});
-}
-
-class _SearchSelectorDialog extends StatefulWidget {
-  final String title;
-  final String hint;
-  final Future<List<_LookupItem>> Function(String) fetchList;
-  final ValueChanged<_LookupItem> onSelect;
-
-  const _SearchSelectorDialog({
-    required this.title,
-    required this.hint,
-    required this.fetchList,
-    required this.onSelect,
-  });
-
-  @override
-  State<_SearchSelectorDialog> createState() => _SearchSelectorDialogState();
-}
-
-class _SearchSelectorDialogState extends State<_SearchSelectorDialog> {
-  final _searchController = TextEditingController();
-  List<_LookupItem> _results = [];
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _triggerSearch('');
-  }
-
-  Future<void> _triggerSearch(String query) async {
-    setState(() => _loading = true);
-    try {
-      final list = await widget.fetchList(query);
-      setState(() {
-        _results = list;
-        _loading = false;
-      });
-    } catch (_) {
-      setState(() => _loading = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    Responsive.init(context);
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(14))),
-      child: Padding(
-        padding: Responsive.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(widget.title, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold)),
-            SizedBox(height: Responsive.h(12)),
-            TextField(
-              controller: _searchController,
-              style: TextStyle(fontSize: Responsive.sp(14)),
-              decoration: InputDecoration(
-                hintText: widget.hint,
-                hintStyle: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey),
-                prefixIcon: Icon(Icons.search, size: Responsive.icon(20)),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(10))),
-                contentPadding: Responsive.symmetric(horizontal: 12, vertical: 10),
-              ),
-              onChanged: (val) {
-                _triggerSearch(val);
-              },
-            ),
-            SizedBox(height: Responsive.h(12)),
-            Container(
-              constraints: BoxConstraints(maxHeight: Responsive.h(250)),
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                  : _results.isEmpty
-                      ? const Center(child: Text('No results found.'))
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: _results.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1),
-                          itemBuilder: (context, i) {
-                             final item = _results[i];
-                             return Material(
-                               type: MaterialType.transparency,
-                               child: ListTile(
-                                 contentPadding: Responsive.symmetric(horizontal: 8, vertical: 4),
-                                 title: Text(item.label, style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(14))),
-                                 subtitle: Text(item.subtitle, style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(12))),
-                                 onTap: () {
-                                   widget.onSelect(item);
-                                   Navigator.pop(context);
-                                 },
-                               ),
-                             );
-                          },
-                        ),
-            ),
-            SizedBox(height: Responsive.h(12)),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Close', style: TextStyle(color: AppColors.primary, fontSize: Responsive.sp(13))),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _CustomerSearchDropdown extends ConsumerWidget {

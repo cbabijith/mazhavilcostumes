@@ -253,3 +253,5 @@ class AuthService {
     }
   }
 }
+
+final authService = AuthService();

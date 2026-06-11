@@ -30,7 +30,7 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
 
-      return Category.fromJson(response.data);
+      return Category.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to load category: $e');
     }
@@ -45,7 +45,7 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
 
-      return Category.fromJson(response.data);
+      return Category.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to create category: $e');
     }
@@ -60,7 +60,7 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
 
-      return Category.fromJson(response.data);
+      return Category.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to update category: $e');
     }

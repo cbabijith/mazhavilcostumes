@@ -232,6 +232,7 @@ class OrderOperations {
     required String branchId,
     required List<Map<String, dynamic>> items,
     String? excludeOrderId,
+    CancelToken? cancelToken,
   }) async {
     return await _repository.checkAvailability(
       startDate: startDate,
@@ -239,6 +240,7 @@ class OrderOperations {
       branchId: branchId,
       items: items,
       excludeOrderId: excludeOrderId,
+      cancelToken: cancelToken,
     );
   }
 }

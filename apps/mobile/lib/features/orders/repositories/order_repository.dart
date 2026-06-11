@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../../../core/supabase/api_client.dart';
 import '../models/order.dart';
 
@@ -44,10 +45,7 @@ class OrderRepository {
     CancelToken? cancelToken,
   }) async {
     try {
-      final queryParams = <String, dynamic>{
-        'page': page,
-        'limit': limit,
-      };
+      final queryParams = <String, dynamic>{'page': page, 'limit': limit};
 
       if (customerId != null && customerId.isNotEmpty) {
         queryParams['customer_id'] = customerId;
@@ -104,10 +102,7 @@ class OrderRepository {
   /// Fetch a single order by ID.
   Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _api.get(
-        '/orders/$id',
-        cancelToken: cancelToken,
-      );
+      final response = await _api.get('/orders/$id', cancelToken: cancelToken);
 
       return Order.fromJson(response.data['data']);
     } catch (e) {
@@ -116,7 +111,10 @@ class OrderRepository {
   }
 
   /// Create a new order.
-  Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Order> createOrder(
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.post(
         '/orders',
@@ -131,7 +129,11 @@ class OrderRepository {
   }
 
   /// Update an existing order.
-  Future<Order> updateOrder(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Order> updateOrder(
+    String id,
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.patch(
         '/orders/$id',
@@ -148,10 +150,7 @@ class OrderRepository {
   /// Delete an order.
   Future<void> deleteOrder(String id, {CancelToken? cancelToken}) async {
     try {
-      await _api.delete(
-        '/orders/$id',
-        cancelToken: cancelToken,
-      );
+      await _api.delete('/orders/$id', cancelToken: cancelToken);
     } catch (e) {
       throw Exception('Failed to delete order: $e');
     }
@@ -176,6 +175,11 @@ class OrderRepository {
           'branch_id': branchId,
           'exclude_order_id': excludeOrderId,
         },
+        options: Options(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+        ),
         cancelToken: cancelToken,
       );
 
@@ -223,11 +227,7 @@ class OrderRepository {
     try {
       final response = await _api.post(
         '/orders/$orderId/payments',
-        data: {
-          'amount': amount,
-          'payment_mode': paymentMode,
-          'notes': notes,
-        },
+        data: {'amount': amount, 'payment_mode': paymentMode, 'notes': notes},
         cancelToken: cancelToken,
       );
 
@@ -263,7 +263,10 @@ class OrderRepository {
   }
 
   /// Fetch payments/transactions logged against the order.
-  Future<List<PaymentTransaction>> getOrderPayments(String orderId, {CancelToken? cancelToken}) async {
+  Future<List<PaymentTransaction>> getOrderPayments(
+    String orderId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
         '/orders/$orderId/payments',
@@ -271,7 +274,9 @@ class OrderRepository {
       );
 
       final data = response.data['data'] as List<dynamic>? ?? [];
-      return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+      return data
+          .map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       throw Exception('Failed to load payments: $e');
     }
@@ -287,10 +292,7 @@ class OrderRepository {
     try {
       await _api.patch(
         '/payments/$paymentId',
-        data: {
-          'payment_mode': paymentMode,
-          'notes': notes,
-        },
+        data: {'payment_mode': paymentMode, 'notes': notes},
         cancelToken: cancelToken,
       );
     } catch (e) {
@@ -298,4 +300,3 @@ class OrderRepository {
     }
   }
 }
-

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   static const Color primary = Color(0xFF059669); // Green
   static const Color background = Color(0xFFFFFFFF); // White
+  static const Color scaffoldBackground = Color(0xFFF9FAFB); // Slate/Grey 50 for page background contrast
   static const Color text = Color(0xFF111827); // Dark text
   static const Color secondaryText = Color(0xFF6B7280); // Gray text
   static const Color border = Color(0xFFE5E7EB); // Light border

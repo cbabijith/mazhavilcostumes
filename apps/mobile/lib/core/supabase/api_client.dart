@@ -8,7 +8,7 @@ import 'auth_service.dart';
 class ApiClient {
   late final Dio _dio;
   static ApiClient? _instance;
-  static final _auth = AuthService();
+  static final _auth = authService;
   
   // Track if a token refresh is in progress to avoid multiple concurrent refreshes
   bool _isRefreshing = false;
