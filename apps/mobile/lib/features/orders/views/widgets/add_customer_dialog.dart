@@ -1,0 +1,223 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/utils/responsive.dart';
+import '../../../../core/constants/app_constants.dart';
+import '../../../customers/models/customer.dart';
+import '../../../customers/viewmodels/providers/customer_provider.dart';
+
+class AddCustomerDialog extends ConsumerStatefulWidget {
+  final String initialName;
+  final String initialPhone;
+  final Function(Customer) onCustomerCreated;
+
+  const AddCustomerDialog({
+    super.key,
+    required this.initialName,
+    required this.initialPhone,
+    required this.onCustomerCreated,
+  });
+
+  @override
+  ConsumerState<AddCustomerDialog> createState() => _AddCustomerDialogState();
+}
+
+class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _phoneController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _addressController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.initialName;
+    _phoneController.text = widget.initialPhone;
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _nameController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final operations = ref.read(customerOperationsProvider);
+      final customer = await operations.createCustomer({
+        'name': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'address': _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+      });
+
+      if (mounted) {
+        widget.onCustomerCreated(customer);
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create customer: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Responsive.init(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Responsive.r(14)),
+      ),
+      child: Padding(
+        padding: Responsive.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Add New Customer',
+              style: TextStyle(
+                fontSize: Responsive.sp(18),
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(height: Responsive.h(20)),
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextFormField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Phone Number *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      contentPadding: Responsive.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Phone number is required';
+                      }
+                      if (value.trim().length < 10) {
+                        return 'Enter a valid phone number';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  TextFormField(
+                    controller: _nameController,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Name *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      contentPadding: Responsive.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Name is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  TextFormField(
+                    controller: _addressController,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Address',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      contentPadding: Responsive.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: Responsive.h(20)),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primary),
+                      foregroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      padding: Responsive.symmetric(vertical: 12),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(fontSize: Responsive.sp(13)),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(12)),
+                Expanded(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      padding: Responsive.symmetric(vertical: 12),
+                    ),
+                    onPressed: _isLoading ? null : _submit,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            'Save',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(13),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
