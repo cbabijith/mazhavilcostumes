@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 import '../../../core/supabase/api_client.dart';
 import '../models/product.dart';
+import '../models/product_analytics.dart';
+import '../models/damage_record.dart';
+import '../models/product_availability.dart';
 
 class PaginatedProducts {
   final List<Product> products;
@@ -84,7 +87,8 @@ class ProductRepository {
         cancelToken: cancelToken,
       );
 
-      return Product.fromJson(response.data);
+      final data = response.data['data'] ?? response.data;
+      return Product.fromJson(data);
     } catch (e) {
       throw Exception('Failed to load product: $e');
     }
@@ -99,7 +103,8 @@ class ProductRepository {
         cancelToken: cancelToken,
       );
 
-      return Product.fromJson(response.data);
+      final data = response.data['data'] ?? response.data;
+      return Product.fromJson(data);
     } catch (e) {
       throw Exception('Failed to create product: $e');
     }
@@ -114,7 +119,8 @@ class ProductRepository {
         cancelToken: cancelToken,
       );
 
-      return Product.fromJson(response.data);
+      final data = response.data['data'] ?? response.data;
+      return Product.fromJson(data);
     } catch (e) {
       throw Exception('Failed to update product: $e');
     }
@@ -136,12 +142,44 @@ class ProductRepository {
   Future<List<BranchInventory>> getProductBranchInventory(String productId, {CancelToken? cancelToken}) async {
     try {
       final response = await _api.get(
-        '/products/$productId/inventory',
+        '/branch-inventory',
+        queryParameters: {'product_id': productId},
         cancelToken: cancelToken,
       );
 
-      final data = response.data as List<dynamic>? ?? [];
-      return data.map((e) => BranchInventory.fromJson(e as Map<String, dynamic>)).toList();
+      final data = response.data;
+      final list = data['data'] as List<dynamic>? ?? data as List<dynamic>? ?? [];
+      return list.map((e) => BranchInventory.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Fetch product analytics and rental history.
+  Future<ProductAnalytics?> getProductAnalytics(String productId, {CancelToken? cancelToken}) async {
+    try {
+      final response = await _api.get(
+        '/products/$productId/orders',
+        cancelToken: cancelToken,
+      );
+
+      return ProductAnalytics.fromJson(response.data as Map<String, dynamic>);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Fetch damage history for a product (admin-only endpoint).
+  Future<List<DamageRecord>> getDamageHistory(String productId, {CancelToken? cancelToken}) async {
+    try {
+      final response = await _api.get(
+        '/products/$productId/damage-history',
+        cancelToken: cancelToken,
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final assessments = data['assessments'] as List<dynamic>? ?? [];
+      return assessments.map((e) => DamageRecord.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       return [];
     }
@@ -161,26 +199,31 @@ class ProductRepository {
     }
   }
 
-  /// Get availability calendar for a product
-  Future<Map<String, dynamic>> getProductAvailability(
+  /// Get availability calendar for a product.
+  /// Defaults to a 90-day window starting from today if no range is provided.
+  Future<ProductAvailability?> getProductAvailability(
     String productId, {
-    required String start,
-    required String end,
+    String? start,
+    String? end,
     CancelToken? cancelToken,
   }) async {
     try {
+      final now = DateTime.now();
+      final effectiveStart = start ?? now.toIso8601String().split('T').first;
+      final effectiveEnd = end ?? now.add(const Duration(days: 90)).toIso8601String().split('T').first;
+
       final response = await _api.get(
         '/products/$productId/availability',
         queryParameters: {
-          'start': start,
-          'end': end,
+          'start': effectiveStart,
+          'end': effectiveEnd,
         },
         cancelToken: cancelToken,
       );
 
-      return response.data;
+      return ProductAvailability.fromJson(response.data as Map<String, dynamic>);
     } catch (e) {
-      throw Exception('Failed to load availability: $e');
+      return null;
     }
   }
 }

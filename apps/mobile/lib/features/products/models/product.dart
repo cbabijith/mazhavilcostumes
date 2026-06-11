@@ -305,14 +305,14 @@ class Product extends Equatable {
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      id: json['id'] as String,
+      id: json['id'] as String? ?? '',
       storeId: json['store_id'] as String? ?? '',
       categoryId: json['category_id'] as String?,
       subcategoryId: json['subcategory_id'] as String?,
       subvariantId: json['subvariant_id'] as String?,
       branchId: json['branch_id'] as String?,
       categoryName: json['category']?['name'] as String?,
-      name: json['name'] as String,
+      name: json['name'] as String? ?? '',
       slug: json['slug'] as String? ?? '',
       description: json['description'] as String?,
       sku: json['sku'] as String?,

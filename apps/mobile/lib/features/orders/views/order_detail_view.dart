@@ -1,33 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../products/views/qr_scanner_dialog.dart';
+import '../../products/viewmodels/providers/product_provider.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
 import 'order_form_view.dart';
 
 class OrderDetailView extends ConsumerStatefulWidget {
   final Order order;
+  final bool autoOpenReturn;
+  final bool autoOpenPayment;
 
-  const OrderDetailView({super.key, required this.order});
+  const OrderDetailView({
+    super.key,
+    required this.order,
+    this.autoOpenReturn = false,
+    this.autoOpenPayment = false,
+  });
 
   @override
   ConsumerState<OrderDetailView> createState() => _OrderDetailViewState();
 }
 
-class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
+class _OrderDetailViewState extends ConsumerState<OrderDetailView> with AutomaticKeepAliveClientMixin {
   late Order _currentOrder;
   bool _isLoading = false;
 
-  static const _primary = Color(0xFF434343);
-  static const _accent = Color(0xFFF7C873);
-  static const _bg = Color(0xFFF8F8F8);
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
     _currentOrder = widget.order;
+    
+    // Auto-open dialogs based on flags
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.autoOpenReturn) {
+        _openReturnDialog();
+      } else if (widget.autoOpenPayment) {
+        _openPaymentDialog();
+      }
+    });
   }
 
   Future<void> _refreshOrder() async {
@@ -50,18 +66,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     Responsive.init(context);
     final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(
           '#${_currentOrder.id.substring(0, 8)} - ${_currentOrder.customer?.name ?? 'Unknown'}',
           style: TextStyle(
             fontSize: Responsive.sp(15),
             fontWeight: FontWeight.bold,
-            color: _primary,
+            color: AppColors.primary,
           ),
         ),
         scrolledUnderElevation: 0,
@@ -69,13 +86,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
-            icon: Icon(Icons.edit_outlined, size: Responsive.icon(22), color: _primary),
+            icon: Icon(Icons.edit_outlined, size: Responsive.icon(22), color: AppColors.primary),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
-                .then((_) => _refreshOrder()),
+                .then((_) {
+                  // Selective invalidation - only invalidate list, keep detail cache
+                  ref.invalidate(ordersProvider);
+                  _refreshOrder();
+                }),
           ),
           IconButton(
-            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(22), color: _primary),
+            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(22), color: AppColors.primary),
             onPressed: _refreshOrder,
           ),
           IconButton(
@@ -85,7 +106,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: _primary))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
               padding: Responsive.all(16),
               child: Column(
@@ -337,7 +358,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
           style: TextStyle(
             fontSize: Responsive.sp(12),
             fontWeight: FontWeight.bold,
-            color: _primary,
+            color: AppColors.primary,
           ),
         ),
       ],
@@ -364,11 +385,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             padding: Responsive.all(12),
             child: Row(
               children: [
-                Icon(icon, size: Responsive.icon(20), color: _primary),
+                Icon(icon, size: Responsive.icon(20), color: AppColors.primary),
                 SizedBox(width: Responsive.w(8)),
                 Text(
                   title,
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: _primary),
+                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
               ],
             ),
@@ -409,7 +430,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
               style: TextStyle(
                 fontSize: Responsive.sp(13),
                 fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                color: valueColor ?? _primary,
+                color: valueColor ?? AppColors.primary,
               ),
             ),
           ),
@@ -436,11 +457,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             padding: Responsive.all(12),
             child: Row(
               children: [
-                Icon(Icons.shopping_bag_outlined, size: Responsive.icon(20), color: _primary),
+                Icon(Icons.shopping_bag_outlined, size: Responsive.icon(20), color: AppColors.primary),
                 SizedBox(width: Responsive.w(8)),
                 Text(
                   'Order Items (${items.length})',
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: _primary),
+                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
               ],
             ),
@@ -450,8 +471,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (_, index) {
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
               final item = items[index];
               return Padding(
                 padding: Responsive.all(12),
@@ -479,7 +500,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                         children: [
                           Text(
                             item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
-                            style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: _primary),
+                            style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: AppColors.primary),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -501,7 +522,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     ),
                     Text(
                       '₹${item.totalPrice.toStringAsFixed(0)}',
-                      style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: _primary),
+                      style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: AppColors.primary),
                     ),
                   ],
                 ),
@@ -531,11 +552,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
             padding: Responsive.all(12),
             child: Row(
               children: [
-                Icon(Icons.payment_rounded, size: Responsive.icon(20), color: _primary),
+                Icon(Icons.payment_rounded, size: Responsive.icon(20), color: AppColors.primary),
                 SizedBox(width: Responsive.w(8)),
                 Text(
                   'Transaction History',
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: _primary),
+                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
                 ),
               ],
             ),
@@ -565,8 +586,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: transactions.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
-                itemBuilder: (_, index) {
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
                   final tx = transactions[index];
                   return Padding(
                     padding: Responsive.all(12),
@@ -593,7 +614,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                                     style: TextStyle(
                                       fontSize: Responsive.sp(13),
                                       fontWeight: FontWeight.bold,
-                                      color: _primary,
+                                      color: AppColors.primary,
                                     ),
                                   ),
                                 ],
@@ -647,7 +668,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         Expanded(
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _primary,
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: Responsive.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -666,8 +687,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         Expanded(
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: _primary,
+              backgroundColor: AppColors.warning,
+              foregroundColor: AppColors.primary,
               padding: Responsive.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -686,8 +707,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
         Expanded(
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: _primary),
-              foregroundColor: _primary,
+              side: const BorderSide(color: AppColors.primary),
+              foregroundColor: AppColors.primary,
               padding: Responsive.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -927,7 +948,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 children: [
                   Text(
                     'Collect Payment',
-                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -946,7 +967,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   ),
                   SizedBox(height: Responsive.h(16)),
                   DropdownButtonFormField<String>(
-                    value: paymentMode,
+                    initialValue: paymentMode,
                     decoration: InputDecoration(
                       labelText: 'Payment Mode',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -964,7 +985,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   ),
                   SizedBox(height: Responsive.h(16)),
                   DropdownButtonFormField<String>(
-                    value: paymentType,
+                    initialValue: paymentType,
                     decoration: InputDecoration(
                       labelText: 'Transaction Type',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -984,7 +1005,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1012,7 +1033,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                                 orderId: _currentOrder.id,
                                 amount: amt,
                                 paymentMode: paymentMode,
-                                paymentType: paymentType,
                               );
                           await _refreshOrder();
                           ref.invalidate(orderPaymentsProvider(_currentOrder.id));
@@ -1067,7 +1087,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 children: [
                   Text(
                     'Edit Transaction Details',
-                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -1076,7 +1096,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                   ),
                   SizedBox(height: Responsive.h(16)),
                   DropdownButtonFormField<String>(
-                    value: paymentMode,
+                    initialValue: paymentMode,
                     decoration: InputDecoration(
                       labelText: 'Payment Mode',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -1105,7 +1125,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _primary,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1195,14 +1215,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                 builder: (context) => QRScannerDialog(
                   onRawCodeScanned: (rawCode) async {
                     try {
-                      final response = await Supabase.instance.client
-                          .from('products')
-                          .select('id')
-                          .or('sku.eq.$rawCode,barcode.eq.$rawCode')
-                          .maybeSingle();
+                      final response = await ref.read(productRepositoryProvider)
+                          .getProducts(search: rawCode, limit: 1);
 
-                      if (response != null && response['id'] != null) {
-                        final matchedId = response['id'] as String;
+                      if (response.products.isNotEmpty) {
+                        final matchedProduct = response.products.first;
+                        final matchedId = matchedProduct.id;
                         final matchedItem = items.firstWhere(
                           (item) => item.productId == matchedId,
                           orElse: () => throw Exception('Product not found in this order'),
@@ -1258,10 +1276,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       children: [
                         Text(
                           'Process Returns Check-In',
-                          style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary),
+                          style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
                         ),
                         IconButton(
-                          icon: Icon(Icons.qr_code_scanner_rounded, color: _primary, size: Responsive.icon(22)),
+                          icon: Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary, size: Responsive.icon(22)),
                           onPressed: handleBarcodeScan,
                         ),
                       ],
@@ -1453,7 +1471,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _primary,
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
