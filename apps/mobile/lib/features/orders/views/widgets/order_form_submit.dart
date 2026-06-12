@@ -264,22 +264,13 @@ extension _OrderFormSubmit on _OrderFormViewState {
     final double advanceAmount =
         double.tryParse(_advanceAmountController.text) ?? 0.0;
 
-    final body = {
+    final Map<String, dynamic> body = {
       'customer_id': _selectedCustomerId,
       'branch_id': _selectedBranchId,
       'rental_start_date': _toIsoDate(_startDateController.text),
       'rental_end_date': _toIsoDate(_endDateController.text),
       'event_date': _toIsoDate(_startDateController.text),
       'delivery_method': _selectedDeliveryMethod?.name,
-      'delivery_address': _deliveryAddressController.text.trim().isEmpty
-          ? null
-          : _deliveryAddressController.text.trim(),
-      'pickup_address': _pickupAddressController.text.trim().isEmpty
-          ? null
-          : _pickupAddressController.text.trim(),
-      'notes': _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
       'discount': double.tryParse(_discountController.text) ?? 0.0,
       'discount_type': _orderDiscountType,
       'advance_amount': advanceAmount,
@@ -311,6 +302,16 @@ extension _OrderFormSubmit on _OrderFormViewState {
           )
           .toList(),
     };
+
+    if (_deliveryAddressController.text.trim().isNotEmpty) {
+      body['delivery_address'] = _deliveryAddressController.text.trim();
+    }
+    if (_pickupAddressController.text.trim().isNotEmpty) {
+      body['pickup_address'] = _pickupAddressController.text.trim();
+    }
+    if (_notesController.text.trim().isNotEmpty) {
+      body['notes'] = _notesController.text.trim();
+    }
 
     if (widget.order != null) {
       body.addAll({'status': _selectedStatus?.name});
