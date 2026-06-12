@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
@@ -20,10 +21,6 @@ class CategoryDetailView extends ConsumerStatefulWidget {
 class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
   late Category _category;
 
-  static const _primary = Color(0xFF434343); // Charcoal
-  static const _accent  = Color(0xFFF7C873); // Golden
-  static const _bg      = Color(0xFFF8F8F8); // Off-white
-
   @override
   void initState() {
     super.initState();
@@ -36,7 +33,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
     final canManage = ref.watch(canManageProvider);
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('Category Details', style: TextStyle(fontSize: Responsive.sp(18))),
         actions: [
@@ -124,8 +121,8 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                 children: [
                   Container(
                     padding: Responsive.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: _accent, borderRadius: BorderRadius.circular(Responsive.r(20))),
-                    child: Text(levelLabel, style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.w800, color: _primary)),
+                    decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(Responsive.r(20))),
+                    child: Text(levelLabel, style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.w800, color: AppColors.primary)),
                   ),
                   const Spacer(),
                   Container(
@@ -141,7 +138,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                 ],
               ),
               SizedBox(height: Responsive.h(16)),
-              Text(_category.name, style: TextStyle(fontSize: Responsive.sp(24), fontWeight: FontWeight.bold, color: _primary)),
+              Text(_category.name, style: TextStyle(fontSize: Responsive.sp(24), fontWeight: FontWeight.bold, color: AppColors.primary)),
               SizedBox(height: Responsive.h(6)),
               Text(_category.slug, style: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey[500], fontStyle: FontStyle.italic)),
             ],
@@ -159,7 +156,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
               children: [
                 Text('Description', style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.w700, color: Colors.grey)),
                 SizedBox(height: Responsive.h(8)),
-                Text(_category.description!, style: TextStyle(fontSize: Responsive.sp(15), height: 1.5, color: _primary)),
+                Text(_category.description!, style: TextStyle(fontSize: Responsive.sp(15), height: 1.5, color: AppColors.primary)),
               ],
             ),
           ),
@@ -196,8 +193,8 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   icon: Icon(Icons.edit, size: Responsive.icon(20)),
                   label: Text('Edit Category', style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.bold)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _primary,
-                    side: const BorderSide(color: _primary, width: 2),
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary, width: 2),
                     padding: Responsive.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(12))),
                   ),
@@ -228,7 +225,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(levelLabel == 'Main Category' ? 'Sub Categories' : 'Variants', 
-                   style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: _primary)),
+                   style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary)),
               if (canManage)
                 TextButton.icon(
                   onPressed: () {
@@ -241,7 +238,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   icon: Icon(Icons.add, size: Responsive.icon(18)),
                   label: Text(levelLabel == 'Main Category' ? 'Add Sub' : 'Add Variant', 
                               style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold)),
-                  style: TextButton.styleFrom(foregroundColor: _primary),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.primary),
                 ),
             ],
           ),
@@ -288,7 +285,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(child.name, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: _primary)),
+                              Text(child.name, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary)),
                               SizedBox(height: Responsive.h(4)),
                               Text(child.isActive ? 'Active' : 'Inactive', 
                                    style: TextStyle(fontSize: Responsive.sp(11), color: child.isActive ? const Color(0xFF4CAF50) : Colors.grey)),
@@ -319,7 +316,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
         SizedBox(width: Responsive.w(12)),
         Text(label, style: TextStyle(fontSize: Responsive.sp(14), color: Colors.grey[600], fontWeight: FontWeight.w500)),
         const Spacer(),
-        Text(value, style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.w700, color: _primary)),
+        Text(value, style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.w700, color: AppColors.primary)),
       ],
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
@@ -19,10 +20,6 @@ class CategoriesView extends ConsumerStatefulWidget {
 class _CategoriesViewState extends ConsumerState<CategoriesView> {
   String _searchQuery = '';
 
-  static const _primary = Color(0xFF434343); // Charcoal
-  static const _accent  = Color(0xFFF7C873); // Golden
-  static const _bg      = Color(0xFFF8F8F8); // Off-white
-
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
@@ -30,7 +27,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
     final canManage = ref.watch(canManageProvider);
 
     return Container(
-      color: _bg,
+      color: AppColors.background,
       child: Stack(
         children: [
           categoriesAsync.when(
@@ -49,8 +46,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                     MaterialPageRoute(builder: (_) => const CategoryFormView()),
                   ).then((_) => ref.invalidate(categoriesProvider));
                 },
-                backgroundColor: _accent,
-                foregroundColor: _primary,
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.primary,
                 icon: Icon(Icons.add, size: Responsive.icon(24)),
                 label: Text('Add Category', style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold)),
               ),
@@ -116,7 +113,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
               decoration: InputDecoration(
                 hintText: 'Search categories...',
                 hintStyle: TextStyle(fontSize: Responsive.sp(15), color: Colors.grey[400]),
-                prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(24), color: _primary),
+                prefixIcon: Icon(Icons.search_rounded, size: Responsive.icon(24), color: AppColors.primary),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: Icon(Icons.close_rounded, size: Responsive.icon(22), color: Colors.grey),
@@ -135,11 +132,11 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
           padding: Responsive.symmetric(horizontal: 16, vertical: 4),
           child: Row(
             children: [
-              _buildMiniStat('Total', '${categories.length}', _primary),
+              _buildMiniStat('Total', '${categories.length}', AppColors.primary),
               SizedBox(width: Responsive.w(8)),
-              _buildMiniStat('Main', '${allMainCats.length}', _primary),
+              _buildMiniStat('Main', '${allMainCats.length}', AppColors.primary),
               SizedBox(width: Responsive.w(8)),
-              _buildMiniStat('Active', '${categories.where((c) => c.isActive).length}', _primary),
+              _buildMiniStat('Active', '${categories.where((c) => c.isActive).length}', AppColors.primary),
             ],
           ),
         ),
@@ -163,7 +160,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
           // Category Tree
           Expanded(
             child: RefreshIndicator(
-              color: _primary,
+              color: AppColors.primary,
               onRefresh: () async => ref.invalidate(categoriesProvider),
               child: ListView.builder(
                 padding: Responsive.only(left: 16, right: 16, bottom: 80),
@@ -186,14 +183,14 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
       child: Container(
         padding: Responsive.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: _primary.withValues(alpha: 0.06),
+          color: AppColors.primary.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(Responsive.r(12)),
         ),
         child: Column(
           children: [
-            Text(value, style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.w800, color: _primary)),
+            Text(value, style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.w800, color: AppColors.primary)),
             SizedBox(height: Responsive.h(2)),
-            Text(label, style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.w600, color: _primary.withValues(alpha: 0.7))),
+            Text(label, style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.w600, color: AppColors.primary.withValues(alpha: 0.7))),
           ],
         ),
       ),
@@ -219,7 +216,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(main.name, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, color: _primary)),
+                  Text(main.name, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, color: AppColors.primary)),
                   SizedBox(height: Responsive.h(6)),
                   Row(
                     children: [
@@ -230,8 +227,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                         SizedBox(width: Responsive.w(10)),
                         Container(
                           padding: Responsive.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: _primary.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(Responsive.r(8))),
-                          child: Text(' sub-categories', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: _primary)),
+                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(Responsive.r(8))),
+                          child: Text(' sub-categories', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
                         ),
                       ],
                     ],
@@ -263,10 +260,10 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
     return Container(
       width: size, height: size,
       decoration: BoxDecoration(
-        color: _primary.withValues(alpha: 0.06),
+        color: AppColors.primary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(Responsive.r(size * 0.25)),
       ),
-      child: Icon(Icons.folder_rounded, size: size * 0.45, color: _primary),
+      child: Icon(Icons.folder_rounded, size: size * 0.45, color: AppColors.primary),
     );
   }
 
@@ -296,8 +293,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
         children: [
           Container(
             padding: Responsive.all(20),
-            decoration: BoxDecoration(color: _primary.withValues(alpha: 0.06), shape: BoxShape.circle),
-            child: Icon(Icons.category_outlined, size: Responsive.icon(48), color: _primary.withValues(alpha: 0.4)),
+            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.06), shape: BoxShape.circle),
+            child: Icon(Icons.category_outlined, size: Responsive.icon(48), color: AppColors.primary.withValues(alpha: 0.4)),
           ),
           SizedBox(height: Responsive.h(20)),
           Text('No categories yet', style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: Colors.grey[600])),
@@ -323,7 +320,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
           SizedBox(height: Responsive.h(16)),
           ElevatedButton(
             onPressed: () => ref.invalidate(categoriesProvider),
-            style: ElevatedButton.styleFrom(backgroundColor: _primary),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             child: Text('Retry', style: TextStyle(fontSize: Responsive.sp(13))),
           ),
         ],

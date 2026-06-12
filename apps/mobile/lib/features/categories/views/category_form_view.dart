@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/upload_repository.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
@@ -36,9 +37,6 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
   bool _imageRemoved = false;  // User explicitly removed the image
 
   bool get isEditing => widget.category != null;
-
-  static const _primary = Color(0xFF434343); // Charcoal
-  static const _bg      = Color(0xFFF8F8F8); // Off-white
 
   final _imagePicker = ImagePicker();
   final _uploadRepo = UploadRepository();
@@ -125,7 +123,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
               SizedBox(height: Responsive.h(20)),
               Row(
                 children: [
-                  _buildPickerOption(Icons.camera_alt_rounded, 'Camera', _primary, () async {
+                  _buildPickerOption(Icons.camera_alt_rounded, 'Camera', AppColors.primary, () async {
                     Navigator.pop(ctx);
                     try {
                       final picked = await _imagePicker.pickImage(source: ImageSource.camera, imageQuality: 60, maxWidth: 1024, maxHeight: 1024);
@@ -263,7 +261,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Category' : 'New Category', style: TextStyle(fontSize: Responsive.sp(18))),
       ),
@@ -322,7 +320,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _primary,
+                  backgroundColor: AppColors.primary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(12))),
                 ),
                 child: _isLoading
@@ -384,8 +382,8 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
                     icon: Icon(Icons.camera_alt_outlined, size: Responsive.icon(16)),
                     label: Text(hasImage ? 'Change' : 'Add Image', style: TextStyle(fontSize: Responsive.sp(12))),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: _primary,
-                      side: BorderSide(color: _primary.withValues(alpha: 0.3)),
+                      foregroundColor: AppColors.primary,
+                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
                       padding: Responsive.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
                     ),
@@ -449,7 +447,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
             child: Container(
               padding: Responsive.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: _pickedFile != null ? _primary.withValues(alpha: 0.9) : const Color(0xFF4CAF50).withValues(alpha: 0.9),
+                color: _pickedFile != null ? AppColors.primary.withValues(alpha: 0.9) : const Color(0xFF4CAF50).withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(Responsive.r(6)),
               ),
               child: Text(
@@ -496,7 +494,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
         contentPadding: Responsive.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(12)), borderSide: const BorderSide(color: Color(0xFFE0E0E0))),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(12)), borderSide: const BorderSide(color: Color(0xFFE0E0E0))),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(12)), borderSide: BorderSide(color: _primary, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Responsive.r(12)), borderSide: BorderSide(color: AppColors.primary, width: 2)),
       ),
     );
   }
@@ -509,7 +507,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeTrackColor: _primary,
+          activeTrackColor: AppColors.primary,
         ),
       ],
     );

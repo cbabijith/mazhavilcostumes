@@ -4,8 +4,10 @@ import 'package:shimmer/shimmer.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
 import '../domain/operational_card.dart';
+import 'widgets/analytics_section.dart';
 
 class DashboardView extends ConsumerStatefulWidget {
   const DashboardView({super.key});
@@ -39,7 +41,10 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
           painter: MeshGradientPainter(AppColors.primary),
           child: SafeArea(
             child: RefreshIndicator(
-              onRefresh: () async => ref.invalidate(operationalMetricsProvider),
+              onRefresh: () async {
+                ref.invalidate(operationalMetricsProvider);
+                ref.invalidate(analyticsMetricsProvider);
+              },
               color: AppColors.primary,
               backgroundColor: Colors.white,
               child: LayoutBuilder(
@@ -67,6 +72,16 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                 data: (metrics) => _buildDashboardContent(metrics, screenWidth),
                                 loading: () => _buildLoadingState(screenWidth),
                                 error: (error, stack) => _buildErrorState(error, stack, screenWidth),
+                              ),
+                              // Analytics section — admin only
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final user = ref.watch(authUserProvider);
+                                  if (user == null || !user.isAdmin) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return const AnalyticsSection();
+                                },
                               ),
                             ],
                           ),
@@ -332,8 +347,8 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   }
 
   Widget _buildErrorState(Object error, StackTrace? stack, double screenWidth) {
-    print('[DashboardView] Error: $error');
-    print('[DashboardView] Stack: $stack');
+    debugPrint('[DashboardView] Error: $error');
+    debugPrint('[DashboardView] Stack: $stack');
     
     return Container(
       padding: EdgeInsets.all(screenWidth * 0.06),

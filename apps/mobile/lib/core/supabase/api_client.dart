@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'auth_service.dart';
 
 /// Centralized API Client for communicating with Next.js Admin API
 ///
@@ -8,7 +8,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class ApiClient {
   late final Dio _dio;
   static ApiClient? _instance;
-  final _storage = const FlutterSecureStorage();
+  static final _auth = authService;
+  
+  // Track if a token refresh is in progress to avoid multiple concurrent refreshes
+  bool _isRefreshing = false;
+  final List<void Function()> _refreshQueue = [];
 
   /// Singleton instance (lazy-loaded)
   static ApiClient get instance {
@@ -17,7 +21,10 @@ class ApiClient {
   }
 
   ApiClient._internal() {
-    const baseUrl = 'https://mazhavilcostumes-admin.vercel.app/api';
+    const baseUrl = String.fromEnvironment(
+      'API_BASE_URL',
+      defaultValue: 'https://mazhavilcostumes-admin.vercel.app/api',
+    );
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -31,37 +38,67 @@ class ApiClient {
 
     // Add auth interceptor
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
+      onRequest: (options, handler) {
         // Skip token injection for the login endpoint (no token needed)
         if (!options.path.contains('/auth/login')) {
-          try {
-            // Add Next.js auth token if available.
-            // Guard against secure storage hanging on some Android devices.
-            final token = await _storage
-                .read(key: 'access_token')
-                .timeout(const Duration(seconds: 5), onTimeout: () => null);
-            if (token != null) {
-              options.headers['Authorization'] = 'Bearer $token';
-              print('[ApiClient] Sending auth token for ${options.path}');
-              print('[ApiClient] Token preview: ${token.substring(0, 20)}...');
-            } else {
-              print('[ApiClient] No auth token available for ${options.path}');
-            }
-          } catch (e) {
-            print('[ApiClient] Error reading auth token: $e');
+          // Use in-memory token from AuthService to avoid secure storage hangs
+          final token = _auth.getAccessToken();
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+            print('[ApiClient] Sending auth token for ${options.path}');
+            print('[ApiClient] Token preview: ${token.substring(0, 20)}...');
+          } else {
+            print('[ApiClient] No auth token available for ${options.path}');
           }
         }
         return handler.next(options);
       },
-      onError: (error, handler) {
-        // Handle 401 unauthorized - could trigger refresh
+      onError: (error, handler) async {
+        // Handle 401 unauthorized - trigger token refresh
         print('[ApiClient] Error for ${error.requestOptions.path}: ${error.type}');
         print('[ApiClient] Status: ${error.response?.statusCode}');
         print('[ApiClient] Response: ${error.response?.data}');
-        if (error.response?.statusCode == 401) {
-          print('[ApiClient] 401 Unauthorized - token may be invalid');
-          // TODO: Implement token refresh logic
+        
+        if (error.response?.statusCode == 401 && !error.requestOptions.path.contains('/auth/refresh')) {
+          print('[ApiClient] 401 Unauthorized - attempting token refresh');
+          
+          // If refresh is already in progress, queue this request
+          if (_isRefreshing) {
+            print('[ApiClient] Refresh already in progress, queuing request');
+            _refreshQueue.add(() {
+              // Retry the original request with new token
+              _retryRequest(error.requestOptions, handler);
+            });
+            return;
+          }
+          
+          // Start refresh process
+          _isRefreshing = true;
+          print('[ApiClient] Starting token refresh');
+          
+          final success = await _auth.refreshAccessToken();
+          
+          _isRefreshing = false;
+          
+          if (success) {
+            print('[ApiClient] Token refresh successful, retrying queued requests');
+            // Retry all queued requests
+            for (final callback in _refreshQueue) {
+              callback();
+            }
+            _refreshQueue.clear();
+            
+            // Retry the original request
+            _retryRequest(error.requestOptions, handler);
+            return;
+          } else {
+            print('[ApiClient] Token refresh failed, clearing queue');
+            _refreshQueue.clear();
+            // Refresh failed, let the error propagate
+            return handler.next(error);
+          }
         }
+        
         return handler.next(error);
       },
     ));
@@ -155,6 +192,22 @@ class ApiClient {
     } on DioException catch (e) {
       throw _handleError(e);
     }
+  }
+
+  /// Retry a failed request with the new access token
+  void _retryRequest(RequestOptions requestOptions, ErrorInterceptorHandler handler) {
+    // Update the Authorization header with the new token
+    final newToken = _auth.getAccessToken();
+    if (newToken != null) {
+      requestOptions.headers['Authorization'] = 'Bearer $newToken';
+      print('[ApiClient] Retrying request with new token: ${requestOptions.path}');
+    }
+    
+    // Clone the request options and retry
+    _dio.fetch(requestOptions).then(
+      (response) => handler.resolve(response),
+      onError: (e) => handler.next(e),
+    );
   }
 
   /// Handle Dio errors and convert to user-friendly exceptions

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../viewmodels/providers/product_provider.dart';
 
 class QRScannerDialog extends ConsumerStatefulWidget {
@@ -70,38 +70,37 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
           }
         }
 
-        // 2. Query Supabase directly
-        final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(code);
-        final orFilter = isUuid 
-            ? 'sku.eq.$code,barcode.eq.$code,id.eq.$code' 
-            : 'sku.eq.$code,barcode.eq.$code';
+        // 2. Query API via repository
+        final repo = ref.read(productRepositoryProvider);
+        final paginatedResult = await repo.getProducts(search: code, limit: 1);
 
-        final response = await Supabase.instance.client
-            .from('products')
-            .select('id')
-            .or(orFilter)
-            .maybeSingle();
-
-        if (response != null && response['id'] != null) {
-          Navigator.pop(context); // Close dialog
-          widget.onScanMatched!(response['id'] as String);
+        if (paginatedResult.products.isNotEmpty) {
+          final match = paginatedResult.products.first;
+          if (mounted) {
+            Navigator.pop(context); // Close dialog
+            widget.onScanMatched!(match.id);
+          }
         } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('No product found for code: "$code"'),
+                backgroundColor: AppColors.error,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('No product found for code: "$code"'),
-              backgroundColor: const Color(0xFFFF6B8A),
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
               behavior: SnackBarBehavior.floating,
             ),
           );
         }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: const Color(0xFFFF6B8A),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
       } finally {
         if (mounted) setState(() => _isSearching = false);
       }
@@ -131,7 +130,7 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
                     style: TextStyle(
                       fontSize: Responsive.sp(16),
                       fontWeight: FontWeight.bold,
-                      color: const Color(0xFF434343),
+                      color: AppColors.primary,
                     ),
                   ),
                   IconButton(
@@ -199,10 +198,10 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
                             child: Container(
                               height: Responsive.h(3),
                               decoration: const BoxDecoration(
-                                color: Color(0xFFF7C873),
+                                color: AppColors.warning,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Color(0xFFF7C873),
+                                    color: AppColors.warning,
                                     blurRadius: 8,
                                     spreadRadius: 2,
                                   )
@@ -250,7 +249,7 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
                       child: Container(
                         padding: Responsive.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF434343).withValues(alpha: 0.08),
+                          color: AppColors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(Responsive.r(8)),
                         ),
                         child: Text(
@@ -258,7 +257,7 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
                           style: TextStyle(
                             fontSize: Responsive.sp(11),
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF434343),
+                            color: AppColors.primary,
                           ),
                         ),
                       ),
@@ -289,7 +288,7 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
                           ),
                         )
                       : IconButton(
-                          icon: Icon(Icons.arrow_forward_rounded, size: Responsive.icon(18), color: const Color(0xFF434343)),
+                          icon: Icon(Icons.arrow_forward_rounded, size: Responsive.icon(18), color: AppColors.primary),
                           onPressed: () => _handleScannedCode(_codeController.text),
                         ),
                 ),

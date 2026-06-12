@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
-import 'api_client.dart';
 
 class AuthUser {
   final String id;
@@ -23,7 +22,22 @@ class AuthUser {
 
 class AuthService {
   final _storage = const FlutterSecureStorage();
-  final _api = apiClient;
+  late final Dio _dio;
+
+  AuthService() {
+    _dio = Dio(BaseOptions(
+      baseUrl: const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'https://mazhavilcostumes-admin.vercel.app/api',
+      ),
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 10),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    ));
+  }
 
   // In-memory cache of the access token so isAuthenticated() can be synchronous.
   String? _cachedToken;
@@ -42,7 +56,7 @@ class AuthService {
     try {
       debugPrint('[AuthService] Attempting login with: $email');
       
-      final response = await _api.post('/auth/login', data: {
+      final response = await _dio.post('/auth/login', data: {
         'email': email,
         'password': password,
       });
@@ -182,8 +196,65 @@ class AuthService {
     }
   }
 
-  /// Get access token
-  Future<String?> getAccessToken() async {
+  /// Get access token (synchronous, from in-memory cache)
+  String? getAccessToken() {
+    return _cachedToken;
+  }
+
+  /// Get access token (async, from secure storage - for app startup only)
+  Future<String?> getAccessTokenFromStorage() async {
     return await _storage.read(key: _accessTokenKey);
   }
+
+  /// Refresh the access token using the refresh token
+  Future<bool> refreshAccessToken() async {
+    try {
+      final refreshToken = await _storage
+          .read(key: _refreshTokenKey)
+          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      
+      if (refreshToken == null) {
+        debugPrint('[AuthService] No refresh token available');
+        return false;
+      }
+
+      debugPrint('[AuthService] Attempting token refresh...');
+
+      final response = await _dio.post('/auth/refresh', data: {
+        'refresh_token': refreshToken,
+      });
+
+      if (response.data['success'] == true) {
+        final data = response.data['data'];
+        
+        // Update in-memory cache
+        _cachedToken = data['access_token'] as String?;
+        debugPrint('[AuthService] Token refreshed successfully');
+
+        // Persist new tokens (with timeout to avoid hangs)
+        try {
+          await _storage.write(key: _accessTokenKey, value: data['access_token'])
+              .timeout(const Duration(seconds: 5), onTimeout: () {
+            debugPrint('[AuthService] Storage write timed out');
+          });
+          await _storage.write(key: _refreshTokenKey, value: data['refresh_token'])
+              .timeout(const Duration(seconds: 5), onTimeout: () {
+            debugPrint('[AuthService] Storage write timed out');
+          });
+        } catch (e) {
+          debugPrint('[AuthService] Failed to save refreshed tokens: $e');
+        }
+
+        return true;
+      } else {
+        debugPrint('[AuthService] Token refresh failed: ${response.data['error']}');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('[AuthService] Token refresh error: $e');
+      return false;
+    }
+  }
 }
+
+final authService = AuthService();

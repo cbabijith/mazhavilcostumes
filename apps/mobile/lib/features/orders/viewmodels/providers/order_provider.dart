@@ -15,6 +15,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   String _currentSearch = '';
   String? _currentStatus;
   String? _currentBranchId;
+  String _currentDateFilter = 'ALL';
+  String? _currentDateFrom;
+  String? _currentDateTo;
+
+  String get currentDateFilter => _currentDateFilter;
+  String? get currentDateFrom => _currentDateFrom;
+  String? get currentDateTo => _currentDateTo;
 
   @override
   Future<PaginatedOrders> build() async {
@@ -23,10 +30,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     final repo = ref.watch(orderRepositoryProvider);
     return repo.getOrders(
       page: _currentPage,
-      limit: 25,
+      limit: 15, // Reduced from 25 for faster initial load
       query: _currentSearch,
       status: _currentStatus,
       branchId: _currentBranchId,
+      dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+      dateFrom: _currentDateFrom,
+      dateTo: _currentDateTo,
     );
   }
 
@@ -38,10 +48,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -54,10 +67,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -70,10 +86,34 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       return repo.getOrders(
         page: _currentPage,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
+      );
+    });
+  }
+
+  Future<void> filterByDate(String dateFilter, {String? dateFrom, String? dateTo}) async {
+    _currentDateFilter = dateFilter;
+    _currentDateFrom = dateFrom;
+    _currentDateTo = dateTo;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 15,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -89,10 +129,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       final repo = ref.read(orderRepositoryProvider);
       final nextPageData = await repo.getOrders(
         page: _currentPage + 1,
-        limit: 25,
+        limit: 15, // Reduced from 25 for faster initial load
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
 
       _currentPage++;
@@ -115,11 +158,12 @@ final ordersProvider = AsyncNotifierProvider<OrdersNotifier, PaginatedOrders>(()
   return OrdersNotifier();
 });
 
-// Single order provider
-final orderProvider = FutureProvider.family.autoDispose<Order, String>((ref, id) async {
+// Single order provider - removed autoDispose for instant navigation back
+final orderProvider = FutureProvider.family<Order, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
   final cancelToken = ref.watch(cancelTokenProvider);
   
+  ref.keepAlive();
   return repository.getOrderById(id, cancelToken: cancelToken);
 });
 
@@ -167,7 +211,7 @@ class OrderOperations {
     required String orderId,
     required double amount,
     required String paymentMode,
-    required String paymentType,
+    String? paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
@@ -201,13 +245,15 @@ class OrderOperations {
 
   Future<Map<String, dynamic>> createDamageAssessment({
     required String orderId,
-    required List<Map<String, dynamic>> items,
+    required List<Map<String, dynamic>> damages,
+    double? totalDamageAmount,
     String? notes,
     CancelToken? cancelToken,
   }) async {
     return await _repository.createDamageAssessment(
       orderId: orderId,
-      items: items,
+      damages: damages,
+      totalDamageAmount: totalDamageAmount,
       notes: notes,
       cancelToken: cancelToken,
     );
@@ -225,31 +271,21 @@ class OrderOperations {
     );
   }
 
-  Future<Map<String, dynamic>> checkAvailability({
-    required String startDate,
-    required String endDate,
-    required String branchId,
-    required List<Map<String, dynamic>> items,
-    String? excludeOrderId,
+  Future<void> updateOrderItemDamage({
+    required String itemId,
+    required String conditionRating,
+    String? damageDescription,
+    required double damageCharges,
+    required int damagedQuantity,
+    CancelToken? cancelToken,
   }) async {
-    return await _repository.checkAvailability(
-      startDate: startDate,
-      endDate: endDate,
-      branchId: branchId,
-      items: items,
-      excludeOrderId: excludeOrderId,
-    );
-  }
-
-  Future<void> updatePayment({
-    required String paymentId,
-    required String paymentMode,
-    String? notes,
-  }) async {
-    await _repository.updatePayment(
-      paymentId: paymentId,
-      paymentMode: paymentMode,
-      notes: notes,
+    await _repository.updateOrderItemDamage(
+      itemId: itemId,
+      conditionRating: conditionRating,
+      damageDescription: damageDescription,
+      damageCharges: damageCharges,
+      damagedQuantity: damagedQuantity,
+      cancelToken: cancelToken,
     );
   }
 
@@ -259,6 +295,7 @@ class OrderOperations {
     required String branchId,
     required List<Map<String, dynamic>> items,
     String? excludeOrderId,
+    CancelToken? cancelToken,
   }) async {
     return await _repository.checkAvailability(
       startDate: startDate,
@@ -266,6 +303,7 @@ class OrderOperations {
       branchId: branchId,
       items: items,
       excludeOrderId: excludeOrderId,
+      cancelToken: cancelToken,
     );
   }
 }
@@ -275,8 +313,9 @@ final orderOperationsProvider = Provider<OrderOperations>((ref) {
   return OrderOperations(repository);
 });
 
-final orderPaymentsProvider = FutureProvider.family.autoDispose<List<PaymentTransaction>, String>((ref, id) async {
+final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
+  ref.keepAlive();
   return repository.getOrderPayments(id);
 });
 
