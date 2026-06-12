@@ -112,6 +112,10 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
     }
 
     return ListView.separated(
+      shrinkWrap: widget.order != null,
+      physics: widget.order != null
+          ? const NeverScrollableScrollPhysics()
+          : null,
       padding: Responsive.symmetric(vertical: 8),
       itemCount: products.length,
       separatorBuilder: (context, index) => SizedBox(height: Responsive.h(8)),
@@ -321,6 +325,10 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
     }
 
     return ListView.builder(
+      shrinkWrap: widget.order != null,
+      physics: widget.order != null
+          ? const NeverScrollableScrollPhysics()
+          : null,
       padding: Responsive.symmetric(vertical: 8),
       itemCount: _items.length,
       itemBuilder: (context, index) {

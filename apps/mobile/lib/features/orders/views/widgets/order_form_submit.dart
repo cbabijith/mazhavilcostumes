@@ -284,12 +284,9 @@ extension _OrderFormSubmit on _OrderFormViewState {
       'amount_paid': widget.order != null
           ? (double.tryParse(_amountPaidController.text) ?? advanceAmount)
           : advanceAmount,
-      if (widget.order != null && _selectedPaymentStatus != null)
-        'payment_status': _selectedPaymentStatus!.toJsonValue(),
-      if (widget.order == null)
-        'payment_status': advanceAmount > 0
-            ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
-            : 'pending',
+      'payment_status': advanceAmount > 0
+          ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
+          : 'pending',
       'items': _items
           .where((item) => item.productId.isNotEmpty)
           .map(
@@ -314,9 +311,7 @@ extension _OrderFormSubmit on _OrderFormViewState {
       body['notes'] = _notesController.text.trim();
     }
 
-    if (widget.order != null) {
-      body.addAll({'status': _selectedStatus?.name});
-    } else {
+    if (widget.order == null) {
       body.addAll({'priority_cleaning_confirmed': confirmPriority});
     }
 
