@@ -44,6 +44,7 @@ extension _OrderFormHelpers on _OrderFormViewState {
   }
 
   void _addProductToOrder(p_model.Product product) {
+    FocusScope.of(context).unfocus();
     final sAvail = _searchAvailabilityMap[product.id];
     if (sAvail != null) {
       final int availableWithPriority =
