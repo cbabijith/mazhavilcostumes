@@ -457,6 +457,12 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
                 ),
               ),
             ),
+            onTap: () {
+              if (_discountController.text == '0') {
+                _discountController.clear();
+                _calculateTotals();
+              }
+            },
             onChanged: (_) => _calculateTotals(),
           ),
           // "Saving X" feedback
@@ -565,6 +571,12 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
                       ),
                     ),
                   ),
+                  onTap: () {
+                    if (_advanceAmountController.text == '0') {
+                      _advanceAmountController.clear();
+                      _update(() {});
+                    }
+                  },
                   onChanged: (val) => _update(() {}),
                 ),
               ),
