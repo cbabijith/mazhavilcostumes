@@ -21,7 +21,10 @@ class ApiClient {
   }
 
   ApiClient._internal() {
-    const baseUrl = 'https://mazhavilcostumes-admin.vercel.app/api';
+    const baseUrl = String.fromEnvironment(
+      'API_BASE_URL',
+      defaultValue: 'https://mazhavilcostumes-admin.vercel.app/api',
+    );
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,

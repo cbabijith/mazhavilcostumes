@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import '../../../core/supabase/api_client.dart';
 import '../domain/operational_card.dart';
+import '../domain/analytics_metrics.dart';
 
 class DashboardProduct {
   final String id;
@@ -186,6 +187,31 @@ class DashboardRepository {
       return OperationalMetrics(cards: cards);
     } catch (e) {
       throw Exception('Failed to load operational metrics: $e');
+    }
+  }
+
+  Future<AnalyticsMetrics> getAnalyticsMetrics({
+    String? branchId,
+    String range = 'this_week',
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'range': range,
+      };
+      if (branchId != null && branchId.isNotEmpty) {
+        queryParams['branch_id'] = branchId;
+      }
+
+      final response = await _api.get(
+        '/dashboard/mobile-analytics',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
+
+      return AnalyticsMetrics.fromJson(response.data);
+    } catch (e) {
+      throw Exception('Failed to load analytics metrics: $e');
     }
   }
 }

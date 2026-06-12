@@ -39,6 +39,42 @@ class AppStrings {
   static const String newProduct = 'New Product';
   static const String unableToLoadDashboard = 'Unable to load dashboard';
   static const String retry = 'Retry';
+
+  // Analytics strings
+  static const String revenueAnalytics = 'Revenue & Analytics';
+  static const String bookingSales = 'Booking Sales';
+  static const String bookingSalesDesc = 'Total value of orders booked';
+  static const String amountCollection = 'Amount Collection';
+  static const String amountCollectionDesc = 'Actual cash flow received';
+  static const String collectionTrends = 'Collection Trends';
+  static const String collectionTrendsDesc = 'Daily cash flow breakdown';
+  static const String realizedIncome = 'Realized Income';
+  static const String realizedIncomeDesc = 'Revenue from fully returned orders';
+  static const String activeBalance = 'Active Balance';
+  static const String activeBalanceDesc = 'Uncollected from active rentals';
+  static const String futureAdvances = 'Future Advances';
+  static const String futureAdvancesDesc = 'Advances for upcoming bookings';
+  static const String dueFromReturned = 'Due from Returned';
+  static const String dueFromReturnedDesc = 'Unpaid balance for returned items';
+  static const String cancellations = 'Cancellations';
+  static const String overdueReturns = 'Overdue Returns';
+  static const String overdueOrdersDesc = 'orders past return date';
+  static const String categoryRevenue = 'Category Revenue';
+  static const String categoryRevenueDesc = 'Revenue distribution by category';
+  static const String bookingVelocity = 'Booking Velocity';
+  static const String bookingVelocityDesc = 'Upcoming 15 days pickups';
+  static const String topPerformers = 'Top Performers';
+  static const String topPerformersDesc = 'Highest revenue products';
+  static const String deadStock = 'Dead Stock (90+ Days)';
+  static const String noDataForPeriod = 'No data for this period';
+  static const String noDeadStock = 'No dead stock detected';
+  static const String noCategoryData = 'No category data';
+  static const String cash = 'Cash';
+  static const String upi = 'UPI';
+  static const String gpay = 'GPay';
+  static const String bank = 'Bank';
+  static const String vs = 'vs';
+  static const String pickups = 'pickups';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility
