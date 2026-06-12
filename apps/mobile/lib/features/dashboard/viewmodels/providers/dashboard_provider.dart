@@ -70,16 +70,44 @@ final analyticsPrevLabelProvider = Provider<String>((ref) {
   };
 });
 
-/// Analytics metrics provider — watches branchId and range
+/// Category period options for the category revenue section
+enum CategoryPeriod {
+  month('month', 'This Period'),
+  year('year', 'Last 12m'),
+  all('all', 'All Time');
+
+  final String apiValue;
+  final String label;
+  const CategoryPeriod(this.apiValue, this.label);
+}
+
+/// Notifier for the selected category period
+class CategoryPeriodNotifier extends Notifier<CategoryPeriod> {
+  @override
+  CategoryPeriod build() => CategoryPeriod.month;
+
+  void select(CategoryPeriod period) {
+    state = period;
+  }
+}
+
+/// State provider for the selected category period
+final categoryPeriodProvider = NotifierProvider<CategoryPeriodNotifier, CategoryPeriod>(
+  CategoryPeriodNotifier.new,
+);
+
+/// Analytics metrics provider — watches branchId, range, and categoryPeriod
 final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) async {
   final repo = ref.read(dashboardRepositoryProvider);
   final branchId = ref.watch(effectiveBranchIdProvider);
   final range = ref.watch(analyticsRangeProvider);
-  debugPrint('[DashboardProvider] Fetching analytics metrics: range=${range.apiValue}, branch=$branchId');
+  final catPeriod = ref.watch(categoryPeriodProvider);
+  debugPrint('[DashboardProvider] Fetching analytics metrics: range=${range.apiValue}, branch=$branchId, catPeriod=${catPeriod.apiValue}');
   try {
     return await repo.getAnalyticsMetrics(
       branchId: branchId,
       range: range.apiValue,
+      categoryPeriod: catPeriod.apiValue,
     );
   } catch (e) {
     debugPrint('[DashboardProvider] Analytics error: $e');

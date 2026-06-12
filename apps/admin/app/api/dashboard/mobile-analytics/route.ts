@@ -96,6 +96,9 @@ export async function GET(request: NextRequest) {
         prevEndDate = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
     }
 
+    const catPeriod = (searchParams.get('cat_period') as 'month' | 'year' | 'all') || 'month';
+    const roiLimit = searchParams.get('roi_limit') ? parseInt(searchParams.get('roi_limit')!) : 5;
+
     const metrics = await dashboardService.getMetrics(
       startDate,
       endDate,
@@ -103,7 +106,7 @@ export async function GET(request: NextRequest) {
       prevEndDate,
       branchId,
       undefined, // storeId
-      { categoryPeriod: 'month', roiLimit: 5 }
+      { categoryPeriod: catPeriod, roiLimit: roiLimit }
     );
 
     if (!metrics) {

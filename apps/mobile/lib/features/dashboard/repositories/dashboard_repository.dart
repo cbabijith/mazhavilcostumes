@@ -193,11 +193,15 @@ class DashboardRepository {
   Future<AnalyticsMetrics> getAnalyticsMetrics({
     String? branchId,
     String range = 'this_week',
+    String categoryPeriod = 'month',
+    int roiLimit = 5,
     CancelToken? cancelToken,
   }) async {
     try {
       final queryParams = <String, dynamic>{
         'range': range,
+        'cat_period': categoryPeriod,
+        'roi_limit': roiLimit,
       };
       if (branchId != null && branchId.isNotEmpty) {
         queryParams['branch_id'] = branchId;

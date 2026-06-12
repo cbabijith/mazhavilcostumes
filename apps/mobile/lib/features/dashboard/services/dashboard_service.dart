@@ -12,10 +12,14 @@ class DashboardService {
   Future<AnalyticsMetrics> getAnalyticsMetrics({
     String? branchId,
     String range = 'this_week',
+    String categoryPeriod = 'month',
+    int roiLimit = 5,
   }) async {
     return await _repository.getAnalyticsMetrics(
       branchId: branchId,
       range: range,
+      categoryPeriod: categoryPeriod,
+      roiLimit: roiLimit,
     );
   }
 }

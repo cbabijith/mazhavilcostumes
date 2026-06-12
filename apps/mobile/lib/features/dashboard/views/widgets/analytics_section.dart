@@ -29,7 +29,7 @@ class AnalyticsSection extends ConsumerWidget {
         _buildSectionHeader(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
         analyticsAsync.when(
-          data: (metrics) => _buildAnalyticsContent(metrics, prevLabel),
+          data: (metrics) => _buildAnalyticsContent(context, ref, metrics, prevLabel),
           loading: () => _buildLoadingState(),
           error: (error, stack) => _buildErrorState(error, ref),
         ),
@@ -115,7 +115,7 @@ class AnalyticsSection extends ConsumerWidget {
     );
   }
 
-  Widget _buildAnalyticsContent(AnalyticsMetrics metrics, String prevLabel) {
+  Widget _buildAnalyticsContent(BuildContext context, WidgetRef ref, AnalyticsMetrics metrics, String prevLabel) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -192,7 +192,7 @@ class AnalyticsSection extends ConsumerWidget {
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Category Revenue
-        _buildCategoryRevenueCard(metrics.categoryRevenue),
+        _buildCategoryRevenueCard(context, ref, metrics.categoryRevenue),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Top Performers + Dead Stock
@@ -718,7 +718,9 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Category Revenue Card ────────────────────────────────────────────
 
-  Widget _buildCategoryRevenueCard(List<CategoryRevenue> categories) {
+  Widget _buildCategoryRevenueCard(BuildContext context, WidgetRef ref, List<CategoryRevenue> categories) {
+    final selectedPeriod = ref.watch(categoryPeriodProvider);
+
     return Container(
       padding: Responsive.all(AppSizes.spacingLarge),
       decoration: BoxDecoration(
@@ -735,23 +737,76 @@ class AnalyticsSection extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AutoSizeText(
-            AppStrings.categoryRevenue,
-            style: TextStyle(
-              fontSize: Responsive.sp(AppSizes.fontMedium),
-              fontWeight: FontWeight.bold,
-              color: AppColors.text,
-            ),
-            maxLines: 1,
-          ),
-          SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
-          AutoSizeText(
-            AppStrings.categoryRevenueDesc,
-            style: TextStyle(
-              fontSize: Responsive.sp(AppSizes.fontTiny),
-              color: AppColors.secondaryText,
-            ),
-            maxLines: 1,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AutoSizeText(
+                      AppStrings.categoryRevenue,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontMedium),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                      maxLines: 1,
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                    AutoSizeText(
+                      AppStrings.categoryRevenueDesc,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        color: AppColors.secondaryText,
+                      ),
+                      maxLines: 1,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: Responsive.symmetric(
+                  horizontal: AppSizes.spacingSmall,
+                  vertical: AppSizes.spacingTiny,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.scaffoldBackground,
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<CategoryPeriod>(
+                    value: selectedPeriod,
+                    isDense: true,
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      size: Responsive.icon(AppSizes.iconTiny),
+                      color: AppColors.secondaryText,
+                    ),
+                    elevation: 4,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                    dropdownColor: Colors.white,
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    onChanged: (CategoryPeriod? newPeriod) {
+                      if (newPeriod != null) {
+                        ref.read(categoryPeriodProvider.notifier).select(newPeriod);
+                      }
+                    },
+                    items: CategoryPeriod.values.map((CategoryPeriod period) {
+                      return DropdownMenuItem<CategoryPeriod>(
+                        value: period,
+                        child: Text(period.label),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
           ),
           SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           if (categories.isEmpty)
