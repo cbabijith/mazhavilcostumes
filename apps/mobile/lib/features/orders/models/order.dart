@@ -23,7 +23,20 @@ enum PaymentStatus {
   pending,
   partial,
   paid,
-  refundWaived,
+  refundWaived;
+
+  String toJsonValue() {
+    switch (this) {
+      case PaymentStatus.pending:
+        return 'pending';
+      case PaymentStatus.partial:
+        return 'partial';
+      case PaymentStatus.paid:
+        return 'paid';
+      case PaymentStatus.refundWaived:
+        return 'refund_waived';
+    }
+  }
 }
 
 enum PaymentMethod {
@@ -31,7 +44,22 @@ enum PaymentMethod {
   upi,
   bankTransfer,
   gpay,
-  other,
+  other;
+
+  String toJsonValue() {
+    switch (this) {
+      case PaymentMethod.cash:
+        return 'cash';
+      case PaymentMethod.upi:
+        return 'upi';
+      case PaymentMethod.bankTransfer:
+        return 'bank_transfer';
+      case PaymentMethod.gpay:
+        return 'gpay';
+      case PaymentMethod.other:
+        return 'other';
+    }
+  }
 }
 
 enum ConditionRating {
@@ -515,10 +543,10 @@ class Order extends Equatable {
       'gst_amount': gstAmount,
       'advance_amount': advanceAmount,
       'advance_collected': advanceCollected,
-      'advance_payment_method': advancePaymentMethod?.name,
+      'advance_payment_method': advancePaymentMethod?.toJsonValue(),
       'advance_collected_at': advanceCollectedAt,
       'amount_paid': amountPaid,
-      'payment_status': paymentStatus.name,
+      'payment_status': paymentStatus.toJsonValue(),
       'has_priority_cleaning': hasPriorityCleaning,
       'has_stock_conflict': hasStockConflict,
       'conflict_details': conflictDetails,

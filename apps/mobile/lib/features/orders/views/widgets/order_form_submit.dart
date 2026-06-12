@@ -270,25 +270,26 @@ extension _OrderFormSubmit on _OrderFormViewState {
       'rental_start_date': _toIsoDate(_startDateController.text),
       'rental_end_date': _toIsoDate(_endDateController.text),
       'event_date': _toIsoDate(_startDateController.text),
-      'delivery_method': _selectedDeliveryMethod?.name,
+      if (_selectedDeliveryMethod != null)
+        'delivery_method': _selectedDeliveryMethod!.name,
       'discount': double.tryParse(_discountController.text) ?? 0.0,
       'discount_type': _orderDiscountType,
       'advance_amount': advanceAmount,
       'advance_collected': advanceAmount > 0,
-      'advance_payment_method': advanceAmount > 0
-          ? _advancePaymentMethod?.name
-          : null,
+      if (advanceAmount > 0 && _advancePaymentMethod != null)
+        'advance_payment_method': _advancePaymentMethod!.toJsonValue(),
       'subtotal': _subtotal,
       'gst_amount': _gstAmount,
       'total_amount': _totalAmount,
       'amount_paid': widget.order != null
           ? (double.tryParse(_amountPaidController.text) ?? advanceAmount)
           : advanceAmount,
-      'payment_status': widget.order != null
-          ? _selectedPaymentStatus?.name
-          : (advanceAmount > 0
-                ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
-                : 'pending'),
+      if (widget.order != null && _selectedPaymentStatus != null)
+        'payment_status': _selectedPaymentStatus!.toJsonValue(),
+      if (widget.order == null)
+        'payment_status': advanceAmount > 0
+            ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
+            : 'pending',
       'items': _items
           .where((item) => item.productId.isNotEmpty)
           .map(

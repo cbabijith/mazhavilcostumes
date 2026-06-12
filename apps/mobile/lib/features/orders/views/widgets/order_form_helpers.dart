@@ -80,7 +80,6 @@ extension _OrderFormHelpers on _OrderFormViewState {
       );
       _productSearchController.clear();
       _productSearchQuery = '';
-      _showProductDropdown = false;
       _productSearchResults = [];
       _searchAvailabilityMap = {};
     });
@@ -100,7 +99,7 @@ extension _OrderFormHelpers on _OrderFormViewState {
   void _openBarcodeScanner() {
     showDialog(
       context: context,
-      builder: (context) => QRScannerDialog(
+      builder: (_) => QRScannerDialog(
         onScanMatched: (productId) async {
           try {
             _update(() => _isLoading = true);

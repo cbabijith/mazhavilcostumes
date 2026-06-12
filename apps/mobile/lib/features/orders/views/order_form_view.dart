@@ -72,7 +72,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   // Product search state
   final _productSearchController = TextEditingController();
-  bool _showProductDropdown = false;
   String _productSearchQuery = '';
   List<p_model.Product> _productSearchResults = [];
   bool _isSearchingProducts = false;
@@ -85,6 +84,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   DeliveryMethod? _selectedDeliveryMethod = DeliveryMethod.pickup;
   final List<OrderItemInput> _items = [];
   final Set<String> _expandedBookings = {};
+  int _currentPage = 0;
+  late final PageController _pageController;
 
   // Totals calculations
   int _rentalDays = 1;
@@ -106,6 +107,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
 
     // Default branch ID from provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -171,6 +173,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     _searchDebounce?.cancel();
     _productSearchCancelToken?.cancel('Form disposed');
     _searchAvailCancelToken?.cancel('Form disposed');
@@ -214,374 +217,520 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     // Listen to customerSearchProvider to keep it alive during typing
     ref.listen(customerSearchProvider, (previous, next) {});
 
+    String appBarTitle = '1. Customer & Dates';
+    if (_currentPage == 1) {
+      appBarTitle = '2. Select Costumes';
+    } else if (_currentPage == 2) {
+      appBarTitle = '3. Review & Checkout';
+    }
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(
-          isEditing ? 'Edit Order' : 'Create Order',
+          appBarTitle,
           style: TextStyle(
             fontSize: Responsive.sp(18),
             fontWeight: FontWeight.bold,
             color: AppColors.primary,
           ),
         ),
+        leading: _currentPage > 0
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: () {
+                  _pageController.previousPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                },
+              )
+            : null,
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
         iconTheme: IconThemeData(color: AppColors.primary),
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: Responsive.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSectionHeader(
-                      'Customer',
-                      icon: Icons.person_outline_rounded,
-                    ),
-                    _buildCard(
-                      children: [
-                        // Customer Search Field with Dropdown
-                        _buildCustomerSearchField(),
-                      ],
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    _buildSectionHeader(
-                      'Rental Period',
-                      icon: Icons.calendar_today_outlined,
-                    ),
-                    _buildCard(
-                      children: [
-                        // Dates Selectors
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildDateField(
-                                label: 'Start Date',
-                                controller: _startDateController,
-                                validator: (v) =>
-                                    v == null || v.isEmpty ? 'Required' : null,
-                              ),
-                            ),
-                            SizedBox(
-                              width: Responsive.w(AppSizes.spacingMedium),
-                            ),
-                            Expanded(
-                              child: _buildDateField(
-                                label: 'End Date',
-                                controller: _endDateController,
-                                validator: (v) =>
-                                    v == null || v.isEmpty ? 'Required' : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-                        _buildQuickDateButtons(),
-                        SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-                        // Total rental days indicator matching web
-                        Container(
-                          padding: Responsive.symmetric(
-                            horizontal: AppSizes.spacingMedium,
-                            vertical: AppSizes.spacingSmall,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            border: Border.all(color: Colors.grey.shade200),
-                            borderRadius: BorderRadius.circular(
-                              Responsive.r(AppSizes.radiusSmall),
-                            ),
-                          ),
-                          child: Row(
+      body: Stack(
+        children: [
+          Form(
+            key: _formKey,
+            child: PageView(
+              controller: _pageController,
+              physics: const NeverScrollableScrollPhysics(),
+              onPageChanged: (page) {
+                setState(() {
+                  _currentPage = page;
+                });
+              },
+              children: [
+                // Page 0: Customer & Rental Period
+                SingleChildScrollView(
+                  padding: Responsive.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSectionHeader(
+                        'Customer',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      _buildCard(
+                        children: [
+                          _buildCustomerSearchField(),
+                        ],
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      _buildSectionHeader(
+                        'Rental Period',
+                        icon: Icons.calendar_today_outlined,
+                      ),
+                      _buildCard(
+                        children: [
+                          Row(
                             children: [
-                              Container(
-                                width: Responsive.w(AppSizes.spacingXXLarge),
-                                height: Responsive.w(AppSizes.spacingXXLarge),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.text,
-                                  shape: BoxShape.circle,
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '$_rentalDays',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              Expanded(
+                                child: _buildDateField(
+                                  label: 'Start Date',
+                                  controller: _startDateController,
+                                  validator: (v) =>
+                                      v == null || v.isEmpty ? 'Required' : null,
                                 ),
                               ),
                               SizedBox(
-                                width: Responsive.w(AppSizes.spacingSmall),
-                              ),
-                              Text(
-                                'Total rental days',
-                                style: TextStyle(
-                                  fontSize: Responsive.sp(AppSizes.fontSmall),
-                                  color: Colors.grey[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _buildDateWarnings(),
-                        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        // Buffer days info banner matching web
-                        Container(
-                          padding: Responsive.all(AppSizes.spacingSmall),
-                          decoration: BoxDecoration(
-                            color: AppColors.info.withValues(alpha: 0.05),
-                            border: Border.all(
-                              color: AppColors.info.withValues(alpha: 0.15),
-                            ),
-                            borderRadius: BorderRadius.circular(
-                              Responsive.r(AppSizes.radiusSmall),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.info_outline_rounded,
-                                color: AppColors.info,
-                                size: Responsive.icon(AppSizes.iconTiny),
-                              ),
-                              SizedBox(
-                                width: Responsive.w(AppSizes.spacingSmall),
+                                width: Responsive.w(AppSizes.spacingMedium),
                               ),
                               Expanded(
-                                child: Text(
-                                  'Most products are blocked 1 day before pickup and 1 day after return for preparation. (Note: Some categories like Ornaments are exempt from this gap).',
-                                  style: TextStyle(
-                                    fontSize: Responsive.sp(AppSizes.fontTiny),
-                                    color: AppColors.info,
-                                    height: 1.3,
-                                  ),
+                                child: _buildDateField(
+                                  label: 'End Date',
+                                  controller: _endDateController,
+                                  validator: (v) =>
+                                      v == null || v.isEmpty ? 'Required' : null,
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    _buildSectionHeader(
-                      'Rent Items',
-                      icon: Icons.shopping_bag_outlined,
-                    ),
-                    _buildProductSearchField(),
-                    SizedBox(height: Responsive.h(12)),
-                    if (_items.isEmpty)
-                      Container(
-                        height: Responsive.h(120),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(Responsive.r(12)),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.shopping_bag_outlined,
-                              color: Colors.grey[400],
-                              size: Responsive.icon(28),
-                            ),
-                            SizedBox(height: Responsive.h(8)),
-                            Text(
-                              'Search and add products',
-                              style: TextStyle(
-                                color: Colors.grey[500],
-                                fontSize: Responsive.sp(13),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else
-                      ..._items.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final item = entry.value;
-                        return _buildItemCard(item, index);
-                      }),
-                    // === TOTALS (matching web bg-slate-50 section) ===
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    _buildTotalsCard(),
-                    // === ORDER DISCOUNT + ADVANCE (matching web below-totals section) ===
-                    if (_items.isNotEmpty) ...[
-                      _buildDiscountAndAdvanceSection(isEditing),
-                    ],
-                    // === FINAL SUMMARY (Advance deduction + Balance + warnings) ===
-                    _buildFinalSummaryCard(),
-                    // === ADDRESS & NOTES (matching web's simple layout) ===
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    _buildSectionHeader(
-                      'Address & Notes',
-                      icon: Icons.location_on_outlined,
-                    ),
-                    _buildCard(
-                      children: [
-                        Text(
-                          'Customer / Delivery Address',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontMedium),
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[900],
-                          ),
-                        ),
-                        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        TextFormField(
-                          controller: _deliveryAddressController,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontMedium),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Enter address for delivery or record...',
-                            hintStyle: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontMedium),
-                              color: Colors.grey[400],
-                            ),
-                            contentPadding: Responsive.symmetric(
+                          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                          _buildQuickDateButtons(),
+                          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                          Container(
+                            padding: Responsive.symmetric(
                               horizontal: AppSizes.spacingMedium,
                               vertical: AppSizes.spacingSmall,
                             ),
-                            border: OutlineInputBorder(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              border: Border.all(color: Colors.grey.shade200),
                               borderRadius: BorderRadius.circular(
                                 Responsive.r(AppSizes.radiusSmall),
                               ),
                             ),
-                          ),
-                          maxLines: 2,
-                        ),
-                        SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                        Text(
-                          'Notes',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontMedium),
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[900],
-                          ),
-                        ),
-                        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        TextFormField(
-                          controller: _notesController,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontMedium),
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Optional notes about this order...',
-                            hintStyle: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontMedium),
-                              color: Colors.grey[400],
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: Responsive.w(AppSizes.spacingXXLarge),
+                                  height: Responsive.w(AppSizes.spacingXXLarge),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.text,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '$_rentalDays',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: Responsive.w(AppSizes.spacingSmall),
+                                ),
+                                Text(
+                                  'Total rental days',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
-                            contentPadding: Responsive.symmetric(
-                              horizontal: AppSizes.spacingMedium,
-                              vertical: AppSizes.spacingSmall,
-                            ),
-                            border: OutlineInputBorder(
+                          ),
+                          _buildDateWarnings(),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          Container(
+                            padding: Responsive.all(AppSizes.spacingSmall),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: 0.05),
+                              border: Border.all(
+                                color: AppColors.info.withValues(alpha: 0.15),
+                              ),
                               borderRadius: BorderRadius.circular(
                                 Responsive.r(AppSizes.radiusSmall),
                               ),
                             ),
-                          ),
-                          maxLines: 2,
-                        ),
-                        // Edit-mode only: Order Status + Payment Status
-                        if (isEditing) ...[
-                          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                          DropdownButtonFormField<OrderStatus>(
-                            initialValue: _selectedStatus,
-                            style: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontMedium),
-                              color: AppColors.primary,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Order Status',
-                              contentPadding: Responsive.symmetric(
-                                horizontal: AppSizes.spacingMedium,
-                                vertical: AppSizes.spacingSmall,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  Responsive.r(AppSizes.radiusSmall),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  color: AppColors.info,
+                                  size: Responsive.icon(AppSizes.iconTiny),
                                 ),
-                              ),
-                            ),
-                            items: OrderStatus.values.map((status) {
-                              return DropdownMenuItem(
-                                value: status,
-                                child: Text(status.name.toUpperCase()),
-                              );
-                            }).toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedStatus = val),
-                          ),
-                          SizedBox(
-                            height: Responsive.h(AppSizes.spacingMedium),
-                          ),
-                          DropdownButtonFormField<PaymentStatus>(
-                            initialValue: _selectedPaymentStatus,
-                            style: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontMedium),
-                              color: AppColors.primary,
-                            ),
-                            decoration: InputDecoration(
-                              labelText: 'Payment Status',
-                              contentPadding: Responsive.symmetric(
-                                horizontal: AppSizes.spacingMedium,
-                                vertical: AppSizes.spacingSmall,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(
-                                  Responsive.r(AppSizes.radiusSmall),
+                                SizedBox(
+                                  width: Responsive.w(AppSizes.spacingSmall),
                                 ),
-                              ),
+                                Expanded(
+                                  child: Text(
+                                    'Most products are blocked 1 day before pickup and 1 day after return for preparation. (Note: Some categories like Ornaments are exempt from this gap).',
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                                      color: AppColors.info,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            items: PaymentStatus.values.map((status) {
-                              return DropdownMenuItem(
-                                value: status,
-                                child: Text(status.name.toUpperCase()),
-                              );
-                            }).toList(),
-                            onChanged: (val) =>
-                                setState(() => _selectedPaymentStatus = val),
                           ),
                         ],
-                      ],
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingHuge)),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        minimumSize: Size(double.infinity, Responsive.h(48)),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            Responsive.r(AppSizes.radiusMedium),
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: Size(double.infinity, Responsive.h(48)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusMedium),
+                            ),
                           ),
                         ),
-                        elevation: AppSizes.spacingTiny / 2,
-                      ),
-                      onPressed: _submit,
-                      child: Text(
-                        isEditing ? 'Save Changes' : 'Confirm Order',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontLarge),
-                          fontWeight: FontWeight.bold,
+                        onPressed: () {
+                          if (_selectedCustomerId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Please select a customer')),
+                            );
+                            return;
+                          }
+                          if (!_formKey.currentState!.validate()) return;
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Select Costumes',
+                              style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontLarge),
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(width: Responsive.w(8)),
+                            const Icon(Icons.arrow_forward_rounded,
+                                color: Colors.white),
+                          ],
                         ),
                       ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingHuge)),
-                  ],
+                    ],
+                  ),
+                ),
+
+                // Page 1: Product Selection Catalog
+                Padding(
+                  padding: Responsive.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildProductSearchField(),
+                      SizedBox(height: Responsive.h(12)),
+                      Expanded(
+                        child: _productSearchQuery.isNotEmpty
+                            ? _buildCatalogResultsList()
+                            : _buildCartItemsList(),
+                      ),
+                      _buildFloatingCartSummaryBar(),
+                    ],
+                  ),
+                ),
+
+                // Page 2: Checkout & Billing
+                SingleChildScrollView(
+                  padding: Responsive.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildTotalsCard(),
+                      if (_items.isNotEmpty) ...[
+                        _buildDiscountAndAdvanceSection(isEditing),
+                      ],
+                      _buildFinalSummaryCard(),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      _buildSectionHeader(
+                        'Address & Notes',
+                        icon: Icons.location_on_outlined,
+                      ),
+                      _buildCard(
+                        children: [
+                          Text(
+                            'Customer / Delivery Address',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[900],
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          TextFormField(
+                            controller: _deliveryAddressController,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Enter address for delivery or record...',
+                              hintStyle: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                color: Colors.grey[400],
+                              ),
+                              contentPadding: Responsive.symmetric(
+                                horizontal: AppSizes.spacingMedium,
+                                vertical: AppSizes.spacingSmall,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                            ),
+                            maxLines: 2,
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                          Text(
+                            'Notes',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[900],
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          TextFormField(
+                            controller: _notesController,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Optional notes about this order...',
+                              hintStyle: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                color: Colors.grey[400],
+                              ),
+                              contentPadding: Responsive.symmetric(
+                                horizontal: AppSizes.spacingMedium,
+                                vertical: AppSizes.spacingSmall,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                            ),
+                            maxLines: 2,
+                          ),
+                          if (isEditing) ...[
+                            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                            DropdownButtonFormField<OrderStatus>(
+                              initialValue: _selectedStatus,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                color: AppColors.primary,
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Order Status',
+                                contentPadding: Responsive.symmetric(
+                                  horizontal: AppSizes.spacingMedium,
+                                  vertical: AppSizes.spacingSmall,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    Responsive.r(AppSizes.radiusSmall),
+                                  ),
+                                ),
+                              ),
+                              items: OrderStatus.values.map((status) {
+                                return DropdownMenuItem(
+                                  value: status,
+                                  child: Text(status.name.toUpperCase()),
+                                );
+                              }).toList(),
+                              onChanged: (val) =>
+                                  setState(() => _selectedStatus = val),
+                            ),
+                            SizedBox(
+                              height: Responsive.h(AppSizes.spacingMedium),
+                            ),
+                            DropdownButtonFormField<PaymentStatus>(
+                              initialValue: _selectedPaymentStatus,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                color: AppColors.primary,
+                              ),
+                              decoration: InputDecoration(
+                                labelText: 'Payment Status',
+                                contentPadding: Responsive.symmetric(
+                                  horizontal: AppSizes.spacingMedium,
+                                  vertical: AppSizes.spacingSmall,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    Responsive.r(AppSizes.radiusSmall),
+                                  ),
+                                ),
+                              ),
+                              items: PaymentStatus.values.map((status) {
+                                return DropdownMenuItem(
+                                  value: status,
+                                  child: Text(status.name.toUpperCase()),
+                                );
+                              }).toList(),
+                              onChanged: (val) =>
+                                  setState(() => _selectedPaymentStatus = val),
+                            ),
+                          ],
+                        ],
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          minimumSize: Size(double.infinity, Responsive.h(48)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusMedium),
+                            ),
+                          ),
+                          elevation: AppSizes.spacingTiny / 2,
+                        ),
+                        onPressed: () {
+                          if (_selectedCustomerId == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Please select a customer')),
+                            );
+                            return;
+                          }
+                          if (_items.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Please add at least one item')),
+                            );
+                            return;
+                          }
+                          if (!_formKey.currentState!.validate()) return;
+                          _submit();
+                        },
+                        child: Text(
+                          widget.order != null ? 'Save Changes' : 'Confirm Order',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontLarge),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isLoading)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingCartSummaryBar() {
+    if (_items.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: Responsive.all(AppSizes.spacingMedium),
+      margin: Responsive.only(top: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${_items.length} ${_items.length == 1 ? 'item' : 'items'} added',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                  color: Colors.grey[600],
+                ),
+              ),
+              SizedBox(height: Responsive.h(2)),
+              Text(
+                'Subtotal: ₹${_subtotal.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              minimumSize: Size(Responsive.w(150), Responsive.h(40)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+            ),
+            onPressed: () {
+              _pageController.nextPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Review & Pay'),
+                SizedBox(width: Responsive.w(4)),
+                const Icon(Icons.arrow_forward_rounded, size: 16),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
