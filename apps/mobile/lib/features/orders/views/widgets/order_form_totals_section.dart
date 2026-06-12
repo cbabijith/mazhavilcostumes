@@ -568,47 +568,55 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
                   onChanged: (val) => _update(() {}),
                 ),
               ),
-              if ((double.tryParse(_advanceAmountController.text) ?? 0.0) >
-                  0.0) ...[
-                SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                SizedBox(
-                  width: Responsive.w(110),
-                  child: DropdownButtonFormField<PaymentMethod>(
-                    initialValue: _advancePaymentMethod,
-                    isDense: true,
-                    style: TextStyle(
-                      fontSize: Responsive.sp(AppSizes.fontSmall),
-                      color: Colors.grey[800],
-                    ),
-                    decoration: InputDecoration(
-                      contentPadding: Responsive.symmetric(
-                        horizontal: AppSizes.spacingSmall,
-                        vertical: AppSizes.spacingSmall,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          Responsive.r(AppSizes.radiusSmall),
-                        ),
-                      ),
-                    ),
-                    items: PaymentMethod.values.map((method) {
-                      return DropdownMenuItem(
-                        value: method,
-                        child: Text(
-                          method.name[0].toUpperCase() +
-                              method.name.substring(1),
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) => _update(() {
-                      _advancePaymentMethod = val;
-                    }),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+              SizedBox(
+                width: Responsive.w(110),
+                child: DropdownButtonFormField<PaymentMethod>(
+                  initialValue: _advancePaymentMethod,
+                  isDense: true,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    color: Colors.grey[800],
                   ),
+                  decoration: InputDecoration(
+                    contentPadding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingSmall,
+                      vertical: AppSizes.spacingSmall,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
+                    ),
+                  ),
+                  items: PaymentMethod.values
+                      .where((m) => m != PaymentMethod.other)
+                      .map((method) {
+                    String label = '';
+                    if (method == PaymentMethod.cash) {
+                      label = 'Cash';
+                    } else if (method == PaymentMethod.upi) {
+                      label = 'UPI';
+                    } else if (method == PaymentMethod.gpay) {
+                      label = 'GPay';
+                    } else if (method == PaymentMethod.bankTransfer) {
+                      label = 'Bank';
+                    }
+                    return DropdownMenuItem(
+                      value: method,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) => _update(() {
+                    _advancePaymentMethod = val;
+                  }),
                 ),
-              ],
+              ),
             ],
           ),
           // Advance payment feedback banners (matching web)
