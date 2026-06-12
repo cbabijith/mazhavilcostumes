@@ -96,18 +96,46 @@ final categoryPeriodProvider = NotifierProvider<CategoryPeriodNotifier, Category
   CategoryPeriodNotifier.new,
 );
 
-/// Analytics metrics provider — watches branchId, range, and categoryPeriod
+/// ROI limit options for the inventory ROI section
+enum RoiLimit {
+  three(3, 'Top 3'),
+  five(5, 'Top 5'),
+  ten(10, 'Top 10');
+
+  final int value;
+  final String label;
+  const RoiLimit(this.value, this.label);
+}
+
+/// Notifier for the selected ROI limit
+class RoiLimitNotifier extends Notifier<RoiLimit> {
+  @override
+  RoiLimit build() => RoiLimit.three;
+
+  void select(RoiLimit limit) {
+    state = limit;
+  }
+}
+
+/// State provider for the selected ROI limit
+final roiLimitProvider = NotifierProvider<RoiLimitNotifier, RoiLimit>(
+  RoiLimitNotifier.new,
+);
+
+/// Analytics metrics provider — watches branchId, range, categoryPeriod, and roiLimit
 final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) async {
   final repo = ref.read(dashboardRepositoryProvider);
   final branchId = ref.watch(effectiveBranchIdProvider);
   final range = ref.watch(analyticsRangeProvider);
   final catPeriod = ref.watch(categoryPeriodProvider);
-  debugPrint('[DashboardProvider] Fetching analytics metrics: range=${range.apiValue}, branch=$branchId, catPeriod=${catPeriod.apiValue}');
+  final roiLimit = ref.watch(roiLimitProvider);
+  debugPrint('[DashboardProvider] Fetching analytics metrics: range=${range.apiValue}, branch=$branchId, catPeriod=${catPeriod.apiValue}, roiLimit=${roiLimit.value}');
   try {
     return await repo.getAnalyticsMetrics(
       branchId: branchId,
       range: range.apiValue,
       categoryPeriod: catPeriod.apiValue,
+      roiLimit: roiLimit.value,
     );
   } catch (e) {
     debugPrint('[DashboardProvider] Analytics error: $e');

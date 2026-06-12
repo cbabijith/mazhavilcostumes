@@ -195,8 +195,8 @@ class AnalyticsSection extends ConsumerWidget {
         _buildCategoryRevenueCard(context, ref, metrics.categoryRevenue),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
-        // Top Performers + Dead Stock
-        _buildTopPerformersCard(metrics.topPerformers),
+        // Inventory ROI + Dead Stock
+        _buildTopPerformersCard(context, ref, metrics.topPerformers),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
         _buildDeadStockCard(metrics.deadStock),
       ],
@@ -892,7 +892,9 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Top Performers Card ──────────────────────────────────────────────
 
-  Widget _buildTopPerformersCard(List<TopPerformer> performers) {
+  Widget _buildTopPerformersCard(BuildContext context, WidgetRef ref, List<TopPerformer> performers) {
+    final selectedLimit = ref.watch(roiLimitProvider);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -910,26 +912,74 @@ class AnalyticsSection extends ConsumerWidget {
         children: [
           Padding(
             padding: Responsive.all(AppSizes.spacingLarge),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                AutoSizeText(
-                  AppStrings.topPerformers,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontMedium),
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.text,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AutoSizeText(
+                        'Inventory ROI',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontMedium),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                        maxLines: 1,
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                      AutoSizeText(
+                        'Top ${selectedLimit.value} revenue contributors',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                          color: AppColors.secondaryText,
+                        ),
+                        maxLines: 1,
+                      ),
+                    ],
                   ),
-                  maxLines: 1,
                 ),
-                SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
-                AutoSizeText(
-                  AppStrings.topPerformersDesc,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontTiny),
-                    color: AppColors.secondaryText,
+                Container(
+                  padding: Responsive.symmetric(
+                    horizontal: AppSizes.spacingSmall,
+                    vertical: AppSizes.spacingTiny,
                   ),
-                  maxLines: 1,
+                  decoration: BoxDecoration(
+                    color: AppColors.scaffoldBackground,
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<RoiLimit>(
+                      value: selectedLimit,
+                      isDense: true,
+                      icon: Icon(
+                        Icons.arrow_drop_down,
+                        size: Responsive.icon(AppSizes.iconTiny),
+                        color: AppColors.secondaryText,
+                      ),
+                      elevation: 4,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      onChanged: (RoiLimit? newLimit) {
+                        if (newLimit != null) {
+                          ref.read(roiLimitProvider.notifier).select(newLimit);
+                        }
+                      },
+                      items: RoiLimit.values.map((RoiLimit limit) {
+                        return DropdownMenuItem<RoiLimit>(
+                          value: limit,
+                          child: Text(limit.label),
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
               ],
             ),
