@@ -122,23 +122,79 @@ final roiLimitProvider = NotifierProvider<RoiLimitNotifier, RoiLimit>(
   RoiLimitNotifier.new,
 );
 
-/// Analytics metrics provider — watches branchId, range, categoryPeriod, and roiLimit
+/// Analytics metrics provider — watches branchId and range (default parameters)
 final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) async {
   final repo = ref.read(dashboardRepositoryProvider);
   final branchId = ref.watch(effectiveBranchIdProvider);
   final range = ref.watch(analyticsRangeProvider);
-  final catPeriod = ref.watch(categoryPeriodProvider);
-  final roiLimit = ref.watch(roiLimitProvider);
-  debugPrint('[DashboardProvider] Fetching analytics metrics: range=${range.apiValue}, branch=$branchId, catPeriod=${catPeriod.apiValue}, roiLimit=${roiLimit.value}');
+  debugPrint('[DashboardProvider] Fetching base analytics metrics: range=${range.apiValue}, branch=$branchId');
   try {
     return await repo.getAnalyticsMetrics(
       branchId: branchId,
       range: range.apiValue,
-      categoryPeriod: catPeriod.apiValue,
-      roiLimit: roiLimit.value,
+      categoryPeriod: CategoryPeriod.month.apiValue,
+      roiLimit: RoiLimit.three.value,
     );
   } catch (e) {
     debugPrint('[DashboardProvider] Analytics error: $e');
+    rethrow;
+  }
+});
+
+/// Category Revenue provider — watches branchId, range, and categoryPeriod
+final categoryRevenueProvider = FutureProvider<List<CategoryRevenue>>((ref) async {
+  final catPeriod = ref.watch(categoryPeriodProvider);
+
+  // If using default 'month', reuse the already loaded base metrics to avoid duplicate requests
+  if (catPeriod == CategoryPeriod.month) {
+    final baseMetrics = await ref.watch(analyticsMetricsProvider.future);
+    return baseMetrics.categoryRevenue;
+  }
+
+  final repo = ref.read(dashboardRepositoryProvider);
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  final range = ref.watch(analyticsRangeProvider);
+
+  debugPrint('[DashboardProvider] Fetching category revenue: range=${range.apiValue}, branch=$branchId, period=${catPeriod.apiValue}');
+  try {
+    final metrics = await repo.getAnalyticsMetrics(
+      branchId: branchId,
+      range: range.apiValue,
+      categoryPeriod: catPeriod.apiValue,
+      roiLimit: RoiLimit.three.value,
+    );
+    return metrics.categoryRevenue;
+  } catch (e) {
+    debugPrint('[DashboardProvider] Category revenue error: $e');
+    rethrow;
+  }
+});
+
+/// Inventory ROI provider — watches branchId, range, and roiLimit
+final inventoryRoiProvider = FutureProvider<List<TopPerformer>>((ref) async {
+  final roiLimit = ref.watch(roiLimitProvider);
+
+  // If using default 'three', reuse the already loaded base metrics to avoid duplicate requests
+  if (roiLimit == RoiLimit.three) {
+    final baseMetrics = await ref.watch(analyticsMetricsProvider.future);
+    return baseMetrics.topPerformers;
+  }
+
+  final repo = ref.read(dashboardRepositoryProvider);
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  final range = ref.watch(analyticsRangeProvider);
+
+  debugPrint('[DashboardProvider] Fetching inventory ROI: range=${range.apiValue}, branch=$branchId, limit=${roiLimit.value}');
+  try {
+    final metrics = await repo.getAnalyticsMetrics(
+      branchId: branchId,
+      range: range.apiValue,
+      categoryPeriod: CategoryPeriod.month.apiValue,
+      roiLimit: roiLimit.value,
+    );
+    return metrics.topPerformers;
+  } catch (e) {
+    debugPrint('[DashboardProvider] Inventory ROI error: $e');
     rethrow;
   }
 });

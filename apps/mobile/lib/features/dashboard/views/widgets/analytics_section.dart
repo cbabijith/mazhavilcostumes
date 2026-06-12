@@ -29,6 +29,7 @@ class AnalyticsSection extends ConsumerWidget {
         _buildSectionHeader(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
         analyticsAsync.when(
+          skipLoadingOnReload: true,
           data: (metrics) => _buildAnalyticsContent(context, ref, metrics, prevLabel),
           loading: () => _buildLoadingState(),
           error: (error, stack) => _buildErrorState(error, ref),
@@ -192,11 +193,11 @@ class AnalyticsSection extends ConsumerWidget {
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Category Revenue
-        _buildCategoryRevenueCard(context, ref, metrics.categoryRevenue),
+        _buildCategoryRevenueCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Inventory ROI + Dead Stock
-        _buildTopPerformersCard(context, ref, metrics.topPerformers),
+        _buildTopPerformersCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
         _buildDeadStockCard(metrics.deadStock),
       ],
@@ -718,8 +719,9 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Category Revenue Card ────────────────────────────────────────────
 
-  Widget _buildCategoryRevenueCard(BuildContext context, WidgetRef ref, List<CategoryRevenue> categories) {
+  Widget _buildCategoryRevenueCard(BuildContext context, WidgetRef ref) {
     final selectedPeriod = ref.watch(categoryPeriodProvider);
+    final categoryRevenueAsync = ref.watch(categoryRevenueProvider);
 
     return Container(
       padding: Responsive.all(AppSizes.spacingLarge),
@@ -809,82 +811,111 @@ class AnalyticsSection extends ConsumerWidget {
             ],
           ),
           SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-          if (categories.isEmpty)
-            Padding(
-              padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
-              child: Center(
-                child: AutoSizeText(
-                  AppStrings.noCategoryData,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                    color: AppColors.secondaryText,
+          categoryRevenueAsync.when(
+            skipLoadingOnReload: true,
+            data: (categories) {
+              if (categories.isEmpty) {
+                return Padding(
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
+                  child: Center(
+                    child: AutoSizeText(
+                      AppStrings.noCategoryData,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.secondaryText,
+                      ),
+                      maxLines: 1,
+                    ),
                   ),
-                  maxLines: 1,
-                ),
-              ),
-            )
-          else
-            ...categories.asMap().entries.map((entry) {
-              final i = entry.key;
-              final cat = entry.value;
-              final barColors = [
-                AppColors.text,
-                AppColors.warning,
-                AppColors.border,
-                AppColors.success,
-                Colors.purple,
-              ];
-              return Padding(
-                padding: EdgeInsets.only(
-                  bottom: Responsive.h(AppSizes.spacingMedium),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: categories.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final cat = entry.value;
+                  final barColors = [
+                    AppColors.text,
+                    AppColors.warning,
+                    AppColors.border,
+                    AppColors.success,
+                    Colors.purple,
+                  ];
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      bottom: Responsive.h(AppSizes.spacingMedium),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: AutoSizeText(
-                            cat.name,
-                            style: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontSmall),
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.text,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: AutoSizeText(
+                                cat.name,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.text,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            AutoSizeText(
+                              '${cat.percentage}%',
+                              style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.secondaryText,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ],
                         ),
-                        AutoSizeText(
-                          '${cat.percentage}%',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.secondaryText,
+                        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.spacingTiny),
                           ),
-                          maxLines: 1,
+                          child: LinearProgressIndicator(
+                            value: cat.percentage / 100,
+                            minHeight: Responsive.h(AppSizes.spacingSmall),
+                            backgroundColor: AppColors.scaffoldBackground,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              barColors[i % barColors.length],
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        Responsive.r(AppSizes.spacingTiny),
-                      ),
-                      child: LinearProgressIndicator(
-                        value: cat.percentage / 100,
-                        minHeight: Responsive.h(AppSizes.spacingSmall),
-                        backgroundColor: AppColors.scaffoldBackground,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          barColors[i % barColors.length],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  );
+                }).toList(),
               );
-            }),
+            },
+            loading: () => Padding(
+              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+            error: (err, stack) => Padding(
+              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
+              child: Center(
+                child: Text(
+                  'Error loading data',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -892,8 +923,9 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Top Performers Card ──────────────────────────────────────────────
 
-  Widget _buildTopPerformersCard(BuildContext context, WidgetRef ref, List<TopPerformer> performers) {
+  Widget _buildTopPerformersCard(BuildContext context, WidgetRef ref) {
     final selectedLimit = ref.watch(roiLimitProvider);
+    final topPerformersAsync = ref.watch(inventoryRoiProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -984,130 +1016,160 @@ class AnalyticsSection extends ConsumerWidget {
               ],
             ),
           ),
-          if (performers.isEmpty)
-            Padding(
-              padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
-              child: Center(
-                child: AutoSizeText(
-                  AppStrings.noDataForPeriod,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                    color: AppColors.secondaryText,
+          topPerformersAsync.when(
+            skipLoadingOnReload: true,
+            data: (performers) {
+              if (performers.isEmpty) {
+                return Padding(
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
+                  child: Center(
+                    child: AutoSizeText(
+                      AppStrings.noDataForPeriod,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.secondaryText,
+                      ),
+                      maxLines: 1,
+                    ),
                   ),
-                  maxLines: 1,
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Table header
+                  Container(
+                    padding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingLarge,
+                      vertical: AppSizes.spacingSmall,
+                    ),
+                    color: AppColors.scaffoldBackground,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: AutoSizeText(
+                            'Product',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryText,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                        Expanded(
+                          child: AutoSizeText(
+                            'Rentals',
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryText,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 2,
+                          child: AutoSizeText(
+                            'Revenue',
+                            textAlign: TextAlign.end,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryText,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Table rows
+                  ...performers.map((p) => Container(
+                        padding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingLarge,
+                          vertical: AppSizes.spacingMedium,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            bottom: BorderSide(
+                              color: AppColors.scaffoldBackground,
+                              width: AppSizes.spacingTiny / 4,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: AutoSizeText(
+                                p.name,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.text,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Expanded(
+                              child: AutoSizeText(
+                                p.rentals.toString(),
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  color: AppColors.secondaryText,
+                                ),
+                                maxLines: 1,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 2,
+                              child: AutoSizeText(
+                                _formatCurrency(p.revenue),
+                                textAlign: TextAlign.end,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.success,
+                                ),
+                                maxLines: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )),
+                ],
+              );
+            },
+            loading: () => Padding(
+              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2,
                 ),
               ),
-            )
-          else ...[
-            // Table header
-            Container(
-              padding: Responsive.symmetric(
-                horizontal: AppSizes.spacingLarge,
-                vertical: AppSizes.spacingSmall,
-              ),
-              color: AppColors.scaffoldBackground,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: AutoSizeText(
-                      'Product',
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.secondaryText,
-                        letterSpacing: 0.5,
-                      ),
-                      maxLines: 1,
-                    ),
+            ),
+            error: (err, stack) => Padding(
+              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
+              child: Center(
+                child: Text(
+                  'Error loading data',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    color: AppColors.error,
                   ),
-                  Expanded(
-                    child: AutoSizeText(
-                      'Rentals',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.secondaryText,
-                        letterSpacing: 0.5,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                  Expanded(
-                    flex: 2,
-                    child: AutoSizeText(
-                      'Revenue',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.secondaryText,
-                        letterSpacing: 0.5,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-            // Table rows
-            ...performers.map((p) => Container(
-                  padding: Responsive.symmetric(
-                    horizontal: AppSizes.spacingLarge,
-                    vertical: AppSizes.spacingMedium,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppColors.scaffoldBackground,
-                        width: AppSizes.spacingTiny / 4,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: AutoSizeText(
-                          p.name,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.text,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Expanded(
-                        child: AutoSizeText(
-                          p.rentals.toString(),
-                          textAlign: TextAlign.end,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            color: AppColors.secondaryText,
-                          ),
-                          maxLines: 1,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: AutoSizeText(
-                          _formatCurrency(p.revenue),
-                          textAlign: TextAlign.end,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.success,
-                          ),
-                          maxLines: 1,
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
+          ),
         ],
       ),
     );

@@ -45,6 +45,8 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
               onRefresh: () async {
                 ref.invalidate(operationalMetricsProvider);
                 ref.invalidate(analyticsMetricsProvider);
+                ref.invalidate(categoryRevenueProvider);
+                ref.invalidate(inventoryRoiProvider);
               },
               color: AppColors.primary,
               backgroundColor: Colors.white,
