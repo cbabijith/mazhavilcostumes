@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 
 class OrderItemInput {
   String productId = '';
@@ -10,6 +11,7 @@ class OrderItemInput {
   bool isChecking = false;
   String? availableStockInfo;
   CancelToken? cancelToken;
+  late final TextEditingController quantityController;
 
   // Parity with website
   double discount = 0.0;
@@ -35,5 +37,11 @@ class OrderItemInput {
     this.priorityCleaningInfo = const [],
     this.overlappingOrders = const [],
     this.cancelToken,
-  });
+  }) {
+    quantityController = TextEditingController(text: quantity.toString());
+  }
+
+  void dispose() {
+    quantityController.dispose();
+  }
 }

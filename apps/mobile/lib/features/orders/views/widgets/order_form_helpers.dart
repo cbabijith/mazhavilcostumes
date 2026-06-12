@@ -46,10 +46,12 @@ extension _OrderFormHelpers on _OrderFormViewState {
   void _addProductToOrder(p_model.Product product) {
     FocusScope.of(context).unfocus();
     final sAvail = _searchAvailabilityMap[product.id];
+    int available = 0;
+    int availableWithPriority = 0;
     if (sAvail != null) {
-      final int availableWithPriority =
+      final int availableWithPriorityVal =
           (sAvail['availableWithPriority'] as num?)?.toInt() ?? 0;
-      if (availableWithPriority < 1) {
+      if (availableWithPriorityVal < 1) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -60,6 +62,8 @@ extension _OrderFormHelpers on _OrderFormViewState {
         );
         return;
       }
+      available = (sAvail['available'] as num?)?.toInt() ?? 0;
+      availableWithPriority = availableWithPriorityVal;
     }
 
     _update(() {
@@ -70,6 +74,8 @@ extension _OrderFormHelpers on _OrderFormViewState {
           quantity: 1,
           pricePerDay: product.pricePerDay,
           gstPercentage: product.gstPercentage,
+          available: available,
+          availableWithPriority: availableWithPriority,
         ),
       );
       _productSearchController.clear();
@@ -105,8 +111,30 @@ extension _OrderFormHelpers on _OrderFormViewState {
               (item) => item.productId == product.id,
             );
             if (existingIndex != -1) {
+              final existingItem = _items[existingIndex];
+              final maxQty = existingItem.availableWithPriority > 0
+                  ? existingItem.availableWithPriority
+                  : existingItem.available;
+              if (maxQty > 0 && existingItem.quantity >= maxQty) {
+                _update(() => _isLoading = false);
+                if (mounted) {
+                  final msg = existingItem.availableWithPriority >
+                          existingItem.available
+                      ? 'Maximum $maxQty available for these dates (${existingItem.available} free + ${maxQty - existingItem.available} with priority cleaning).'
+                      : 'Maximum $maxQty available for these dates.';
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(msg),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+                return;
+              }
               _update(() {
                 _items[existingIndex].quantity += 1;
+                _items[existingIndex].quantityController.text =
+                    _items[existingIndex].quantity.toString();
                 _isLoading = false;
               });
               _calculateTotals();

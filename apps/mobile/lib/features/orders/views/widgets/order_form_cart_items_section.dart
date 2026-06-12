@@ -99,6 +99,27 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
   }
 
   Widget _buildItemCard(OrderItemInput item, int index) {
+    final int pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+    final double lineTotal =
+        item.quantity * item.pricePerDay * pricingMultiplier;
+    final double itemDisc = item.discountType == 'percent'
+        ? lineTotal * (item.discount / 100)
+        : item.discount * item.quantity;
+    final double effectiveDisc = itemDisc < lineTotal ? itemDisc : lineTotal;
+    final double finalLineTotal = lineTotal - effectiveDisc;
+
+    final String multiplierText = pricingMultiplier == 1
+        ? 'base ($_rentalDays ${_rentalDays == 1 ? 'day' : 'days'})'
+        : '$pricingMultiplier ($_rentalDays days − 2 free)';
+
+    final startVal = _parseDisplayDate(_startDateController.text);
+    final endVal = _parseDisplayDate(_endDateController.text);
+    String dateRangeText = '';
+    if (startVal != null && endVal != null) {
+      dateRangeText =
+          '${DateFormat('MMM d').format(startVal)} – ${DateFormat('MMM d, yyyy').format(endVal)}';
+    }
+
     return Container(
       margin: Responsive.only(bottom: 12),
       padding: Responsive.all(12),
@@ -186,57 +207,209 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
           ),
           SizedBox(height: Responsive.h(12)),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              SizedBox(
+                width: Responsive.w(140),
                 child: TextFormField(
-                  initialValue: item.quantity.toString(),
+                  controller: item.quantityController,
                   keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
                   style: TextStyle(fontSize: Responsive.sp(14)),
                   decoration: InputDecoration(
                     labelText: 'Quantity',
                     contentPadding: Responsive.symmetric(
-                      horizontal: 14,
+                      horizontal: 4,
                       vertical: 12,
+                    ),
+                    prefixIcon: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        Icons.remove_rounded,
+                        color: AppColors.primary,
+                        size: Responsive.icon(18),
+                      ),
+                      onPressed: () {
+                        if (item.quantity > 1) {
+                          _update(() {
+                            item.quantity--;
+                            item.quantityController.text =
+                                item.quantity.toString();
+                          });
+                          _calculateTotals();
+                          _checkItemAvailability(index);
+                        }
+                      },
+                    ),
+                    suffixIcon: IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: Icon(
+                        Icons.add_rounded,
+                        color: AppColors.primary,
+                        size: Responsive.icon(18),
+                      ),
+                      onPressed: () {
+                        final maxQty = item.availableWithPriority > 0
+                            ? item.availableWithPriority
+                            : item.available;
+                        if (maxQty > 0 && item.quantity >= maxQty) {
+                          final msg = item.availableWithPriority >
+                                  item.available
+                              ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
+                              : 'Maximum $maxQty available for these dates.';
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(msg),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                          return;
+                        }
+                        _update(() {
+                          item.quantity++;
+                          item.quantityController.text =
+                              item.quantity.toString();
+                        });
+                        _calculateTotals();
+                        _checkItemAvailability(index);
+                      },
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onChanged: (val) {
+                    if (val.isEmpty) return;
+                    final parsed = int.tryParse(val);
+                    if (parsed == null) return;
+                    final maxQty = item.availableWithPriority > 0
+                        ? item.availableWithPriority
+                        : item.available;
+                    if (maxQty > 0 && parsed > maxQty) {
+                      final msg = item.availableWithPriority >
+                              item.available
+                          ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
+                          : 'Maximum $maxQty available for these dates.';
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(msg),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      item.quantityController.text = item.quantity.toString();
+                      item.quantityController.selection =
+                          TextSelection.fromPosition(
+                        TextPosition(
+                          offset: item.quantityController.text.length,
+                        ),
+                      );
+                      return;
+                    }
                     _update(() {
-                      item.quantity = int.tryParse(val) ?? 1;
+                      item.quantity = parsed;
                     });
                     _calculateTotals();
                     _checkItemAvailability(index);
                   },
                 ),
               ),
-              SizedBox(width: Responsive.w(12)),
-              Expanded(
-                child: TextFormField(
-                  key: ValueKey('rate_$index'),
-                  initialValue: item.pricePerDay.toStringAsFixed(0),
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(fontSize: Responsive.sp(14)),
-                  decoration: InputDecoration(
-                    labelText: 'Rate/day (₹)',
-                    contentPadding: Responsive.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Line Total',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(10),
+                      color: Colors.grey[500],
                     ),
                   ),
-                  onChanged: (val) {
-                    _update(() {
-                      item.pricePerDay = double.tryParse(val) ?? 0.0;
-                    });
-                    _calculateTotals();
-                  },
-                ),
+                  SizedBox(height: Responsive.h(2)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (effectiveDisc > 0) ...[
+                        Text(
+                          '₹${lineTotal.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(12),
+                            color: Colors.red,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(4)),
+                      ],
+                      Text(
+                        '₹${finalLineTotal.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(14),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
+          ),
+          SizedBox(height: Responsive.h(12)),
+          // Price calculation breakdown
+          Container(
+            padding: Responsive.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              border: Border.all(color: Colors.grey.shade200),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '₹${item.pricePerDay.toStringAsFixed(2)} × ${item.quantity} ${item.quantity == 1 ? 'unit' : 'units'} × $multiplierText',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(10),
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '= ₹${lineTotal.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(10),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                ),
+                if (dateRangeText.isNotEmpty) ...[
+                  SizedBox(height: Responsive.h(4)),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_today_outlined,
+                        size: Responsive.icon(10),
+                        color: Colors.grey[400],
+                      ),
+                      SizedBox(width: Responsive.w(4)),
+                      Text(
+                        dateRangeText,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(9),
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
           SizedBox(height: Responsive.h(12)),
           Row(

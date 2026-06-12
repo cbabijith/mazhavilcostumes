@@ -176,6 +176,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     _searchAvailCancelToken?.cancel('Form disposed');
     for (final item in _items) {
       item.cancelToken?.cancel('Form disposed');
+      item.dispose();
     }
     _productSearchController.dispose();
     _startDateController.dispose();
