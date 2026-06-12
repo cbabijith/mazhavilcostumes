@@ -10,6 +10,9 @@ final branchRepositoryProvider = Provider<BranchRepository>((ref) {
 
 // Branches list provider
 final branchesProvider = FutureProvider.autoDispose<List<Branch>>((ref) async {
+  final user = ref.watch(authUserProvider);
+  if (user == null) return [];
+  
   final repository = ref.watch(branchRepositoryProvider);
   return repository.getBranches();
 });
@@ -22,24 +25,31 @@ final branchProvider = FutureProvider.family.autoDispose<Branch, String>((ref, i
 
 /// Selected branch ID. Defaults to first active branch for admins.
 class SelectedBranchNotifier extends Notifier<String?> {
+  String? _selectedId;
+
   @override
   String? build() {
     // Auto-select first branch for admins on initial load
     final user = ref.watch(authUserProvider);
     if (user?.canSwitchBranches == true) {
-      ref.listen(branchesProvider, (previous, next) {
-        next.whenData((branches) {
-          if (state == null && branches.isNotEmpty) {
+      final branchesAsync = ref.watch(branchesProvider);
+      return branchesAsync.maybeWhen(
+        data: (branches) {
+          if (_selectedId != null) return _selectedId;
+          if (branches.isNotEmpty) {
             final firstActive = branches.firstWhere((b) => b.isActive, orElse: () => branches.first);
-            state = firstActive.id;
+            return firstActive.id;
           }
-        });
-      });
+          return null;
+        },
+        orElse: () => _selectedId,
+      );
     }
     return null;
   }
 
   void select(String? branchId) {
+    _selectedId = branchId;
     state = branchId;
   }
 }

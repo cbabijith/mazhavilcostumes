@@ -26,7 +26,10 @@ class AuthService {
 
   AuthService() {
     _dio = Dio(BaseOptions(
-      baseUrl: 'https://mazhavilcostumes-admin.vercel.app/api',
+      baseUrl: const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'https://mazhavilcostumes-admin.vercel.app/api',
+      ),
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
       sendTimeout: const Duration(seconds: 10),
@@ -253,3 +256,5 @@ class AuthService {
     }
   }
 }
+
+final authService = AuthService();

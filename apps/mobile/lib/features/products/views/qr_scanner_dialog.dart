@@ -76,8 +76,10 @@ class _QRScannerDialogState extends ConsumerState<QRScannerDialog> with SingleTi
 
         if (paginatedResult.products.isNotEmpty) {
           final match = paginatedResult.products.first;
-          Navigator.pop(context); // Close dialog
-          widget.onScanMatched!(match.id);
+          if (mounted) {
+            Navigator.pop(context); // Close dialog
+            widget.onScanMatched!(match.id);
+          }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(

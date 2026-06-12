@@ -32,7 +32,7 @@ class AuthState {
 
 // Auth service provider
 final authServiceProvider = Provider<AuthService>((ref) {
-  return AuthService();
+  return authService;
 });
 
 // Auth notifier using Riverpod 3.x pattern

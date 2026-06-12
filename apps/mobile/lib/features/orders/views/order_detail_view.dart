@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../products/views/qr_scanner_dialog.dart';
@@ -27,6 +29,10 @@ class OrderDetailView extends ConsumerStatefulWidget {
 class _OrderDetailViewState extends ConsumerState<OrderDetailView> with AutomaticKeepAliveClientMixin {
   late Order _currentOrder;
   bool _isLoading = false;
+  
+  final Map<String, Map<String, dynamic>> _localReturnItems = {};
+  final Map<String, TextEditingController> _notesControllers = {};
+  final Map<String, TextEditingController> _feeControllers = {};
 
   @override
   bool get wantKeepAlive => true;
@@ -35,6 +41,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   void initState() {
     super.initState();
     _currentOrder = widget.order;
+    _initializeReturnItems();
     
     // Auto-open dialogs based on flags
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -46,12 +53,574 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     });
   }
 
+  @override
+  void dispose() {
+    for (final ctrl in _notesControllers.values) {
+      ctrl.dispose();
+    }
+    for (final ctrl in _feeControllers.values) {
+      ctrl.dispose();
+    }
+    super.dispose();
+  }
+
+  void _initializeReturnItems() {
+    _localReturnItems.clear();
+    final items = _currentOrder.items ?? [];
+    for (final item in items) {
+      String? status;
+      if (item.isReturned == true) {
+        status = item.conditionRating == ConditionRating.damaged ? 'damaged' : 'good';
+      }
+      _localReturnItems[item.id] = {
+        'status': status,
+        'damage_fee': item.damageCharges ?? 0.0,
+        'damaged_quantity': item.damagedQuantity ?? item.quantity,
+        'notes': item.damageDescription ?? '',
+      };
+    }
+  }
+
+  TextEditingController _getNotesController(String itemId, String initialValue) {
+    return _notesControllers.putIfAbsent(itemId, () => TextEditingController(text: initialValue));
+  }
+
+  TextEditingController _getFeeController(String itemId, double initialValue) {
+    return _feeControllers.putIfAbsent(
+      itemId,
+      () => TextEditingController(text: initialValue > 0 ? initialValue.toStringAsFixed(0) : '0'),
+    );
+  }
+
+  void _openAdjustmentDialog() {
+    String adjustmentType = 'discount';
+    final amountController = TextEditingController();
+    final notesController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Apply Financial Adjustment',
+                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  DropdownButtonFormField<String>(
+                    initialValue: adjustmentType,
+                    decoration: InputDecoration(
+                      labelText: 'Adjustment Type',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'discount', child: Text('Discount (reduces total)')),
+                      DropdownMenuItem(value: 'late_fee', child: Text('Late Fee (increases total)')),
+                      DropdownMenuItem(value: 'damage_fee', child: Text('Damage Fee (increases total)')),
+                      DropdownMenuItem(value: 'extra_charge', child: Text('Extra Charge (increases total)')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => adjustmentType = val);
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Amount (₹)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: notesController,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Reason / Notes',
+                      hintText: 'E.g. Loyal customer discount',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        final val = double.tryParse(amountController.text) ?? 0.0;
+                        if (val <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter an amount greater than 0')),
+                          );
+                          return;
+                        }
+
+                        final isDeduction = adjustmentType == 'discount';
+                        final double updatedTotal = isDeduction 
+                            ? (_currentOrder.totalAmount - val).clamp(0.0, double.infinity) 
+                            : _currentOrder.totalAmount + val;
+                            
+                        final double newLateFee = adjustmentType == 'late_fee' 
+                            ? _currentOrder.lateFee + val 
+                            : _currentOrder.lateFee;
+                            
+                        final double newDiscount = adjustmentType == 'discount' 
+                            ? _currentOrder.discount + val 
+                            : _currentOrder.discount;
+                            
+                        final double newDamage = adjustmentType == 'damage_fee' 
+                            ? _currentOrder.damageChargesTotal + val 
+                            : _currentOrder.damageChargesTotal;
+                            
+                        final double newAmountPaid = _currentOrder.amountPaid;
+                        final String newPaymentStatus = newAmountPaid >= updatedTotal 
+                            ? 'paid' 
+                            : newAmountPaid > 0 
+                                ? 'partial' 
+                                : 'pending';
+
+                        final String label = adjustmentType == 'discount' 
+                            ? 'Discount' 
+                            : adjustmentType == 'late_fee' 
+                                ? 'Late Fee' 
+                                : adjustmentType == 'damage_fee' 
+                                    ? 'Damage Fee' 
+                                    : 'Extra Charge';
+
+                        Navigator.pop(context);
+                        setState(() => _isLoading = true);
+                        try {
+                          // 1. Record as adjustment payment
+                          await ref.read(orderOperationsProvider).collectPayment(
+                            orderId: _currentOrder.id,
+                            amount: val,
+                            paymentMode: 'cash',
+                            paymentType: 'adjustment',
+                            notes: '$label: ${notesController.text.trim().isNotEmpty ? notesController.text.trim() : 'N/A'}',
+                          );
+
+                          // 2. Update order totals
+                          await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
+                            'total_amount': updatedTotal,
+                            'late_fee': newLateFee,
+                            'discount': newDiscount,
+                            'damage_charges_total': newDamage,
+                            'payment_status': newPaymentStatus,
+                          });
+
+                          await _refreshOrder();
+                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('$label of ₹${val.toStringAsFixed(2)} has been applied.')),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed to apply adjustment: $e')),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Apply Adjustment'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildInteractiveItemControls(OrderItem item) {
+    final state = _localReturnItems[item.id] ?? {
+      'status': null,
+      'damage_fee': 0.0,
+      'damaged_quantity': item.quantity,
+      'notes': '',
+    };
+
+    final currentStatus = state['status'];
+    final isGood = currentStatus == 'good';
+    final isDamaged = currentStatus == 'damaged';
+
+    final notesCtrl = _getNotesController(item.id, state['notes'] as String);
+    final feeCtrl = _getFeeController(item.id, state['damage_fee'] as double);
+
+    final dbStatus = item.isReturned == true
+        ? (item.conditionRating == ConditionRating.damaged ? 'damaged' : 'good')
+        : null;
+    final double dbFee = item.damageCharges ?? 0.0;
+    final int dbDamagedQty = item.conditionRating == ConditionRating.damaged ? (item.damagedQuantity ?? 0) : 0;
+    final String dbNotes = item.damageDescription ?? '';
+
+    final currentDamagedQty = isDamaged ? (state['damaged_quantity'] as int) : 0;
+    final isDirty = currentStatus != dbStatus ||
+        (state['damage_fee'] as double) != dbFee ||
+        currentDamagedQty != dbDamagedQty ||
+        (state['notes'] as String) != dbNotes;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _localReturnItems[item.id]!['status'] = 'good';
+                    _localReturnItems[item.id]!['damaged_quantity'] = 0;
+                    _localReturnItems[item.id]!['damage_fee'] = 0.0;
+                    _localReturnItems[item.id]!['notes'] = '';
+                    feeCtrl.text = '0';
+                    notesCtrl.text = '';
+                  });
+                },
+                icon: Icon(
+                  isGood ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                  size: Responsive.icon(16),
+                  color: isGood ? Colors.white : AppColors.success,
+                ),
+                label: Text(
+                  'Good',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: isGood ? AppColors.success : Colors.white,
+                  foregroundColor: isGood ? Colors.white : AppColors.success,
+                  side: BorderSide(
+                    color: isGood ? AppColors.success : AppColors.success.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  ),
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                ),
+              ),
+            ),
+            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _localReturnItems[item.id]!['status'] = 'damaged';
+                    if ((_localReturnItems[item.id]!['damaged_quantity'] as int) == 0) {
+                      _localReturnItems[item.id]!['damaged_quantity'] = item.quantity;
+                    }
+                  });
+                },
+                icon: Icon(
+                  isDamaged ? Icons.warning_rounded : Icons.warning_amber_rounded,
+                  size: Responsive.icon(16),
+                  color: isDamaged ? Colors.white : AppColors.warning,
+                ),
+                label: Text(
+                  'Damaged',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: isDamaged ? AppColors.warning : Colors.white,
+                  foregroundColor: isDamaged ? Colors.white : AppColors.warning,
+                  side: BorderSide(
+                    color: isDamaged ? AppColors.warning : AppColors.warning.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  ),
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (isDamaged) ...[
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Container(
+            padding: Responsive.all(AppSizes.spacingMedium),
+            decoration: BoxDecoration(
+              color: AppColors.warning.withValues(alpha: 0.05),
+              border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: 1),
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Damage Notes',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(4)),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Describe damage (e.g. Broken clasp)',
+                    hintStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey),
+                    isDense: true,
+                    contentPadding: Responsive.symmetric(vertical: AppSizes.spacingSmall, horizontal: AppSizes.spacingSmall),
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (val) {
+                    _localReturnItems[item.id]!['notes'] = val;
+                    setState(() {});
+                  },
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Damaged Qty',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(4)),
+                          Container(
+                            padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<int>(
+                                value: state['damaged_quantity'] as int,
+                                isExpanded: true,
+                                items: List.generate(item.quantity, (i) => i + 1)
+                                    .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
+                                    .toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() {
+                                      _localReturnItems[item.id]!['damaged_quantity'] = val;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fee (₹)',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(4)),
+                          TextField(
+                            controller: feeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              isDense: true,
+                              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                              border: OutlineInputBorder(),
+                            ),
+                            onChanged: (val) {
+                              _localReturnItems[item.id]!['damage_fee'] = double.tryParse(val) ?? 0.0;
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                SizedBox(
+                  width: double.infinity,
+                  child: isDirty
+                      ? ElevatedButton.icon(
+                          onPressed: () async {
+                            setState(() => _isLoading = true);
+                            try {
+                              await ref.read(orderOperationsProvider).updateOrderItemDamage(
+                                    itemId: item.id,
+                                    conditionRating: 'damaged',
+                                    damageDescription: state['notes'] as String,
+                                    damageCharges: state['damage_fee'] as double,
+                                    damagedQuantity: state['damaged_quantity'] as int,
+                                  );
+                              await _refreshOrder();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Item damage details saved successfully.')),
+                                );
+                              }
+                            } catch (e) {
+                              setState(() => _isLoading = false);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to save item damage: $e')),
+                                );
+                              }
+                            }
+                          },
+                          icon: Icon(Icons.save_rounded, size: Responsive.icon(16)),
+                          label: const Text('Save Details'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.1),
+                            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle_rounded, color: AppColors.success, size: Responsive.icon(16)),
+                              SizedBox(width: Responsive.w(8)),
+                              Text(
+                                'Saved',
+                                style: TextStyle(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (isGood) ...[
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          SizedBox(
+            width: double.infinity,
+            child: isDirty
+                ? ElevatedButton.icon(
+                    onPressed: () async {
+                      setState(() => _isLoading = true);
+                      try {
+                        await ref.read(orderOperationsProvider).updateOrderItemDamage(
+                              itemId: item.id,
+                              conditionRating: 'excellent',
+                              damageDescription: null,
+                              damageCharges: 0.0,
+                              damagedQuantity: 0,
+                            );
+                        await _refreshOrder();
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Item condition set to GOOD.')),
+                          );
+                        }
+                      } catch (e) {
+                        setState(() => _isLoading = false);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to update condition: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: Icon(Icons.save_rounded, size: Responsive.icon(16)),
+                    label: const Text('Save Condition'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                    ),
+                  )
+                : Container(
+                    padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.1),
+                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.check_circle_rounded, color: AppColors.success, size: Responsive.icon(16)),
+                        SizedBox(width: Responsive.w(8)),
+                        Text(
+                          'Good Condition Saved',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.bold,
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _refreshOrder() async {
     setState(() => _isLoading = true);
     try {
       final updated = await ref.read(orderRepositoryProvider).getOrderById(_currentOrder.id);
       setState(() {
         _currentOrder = updated;
+        _initializeReturnItems();
         _isLoading = false;
       });
     } catch (e) {
@@ -68,17 +637,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     Responsive.init(context);
-    final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
         title: Text(
-          '#${_currentOrder.id.substring(0, 8)} - ${_currentOrder.customer?.name ?? 'Unknown'}',
+          'Order Details',
           style: TextStyle(
-            fontSize: Responsive.sp(15),
+            fontSize: Responsive.sp(AppSizes.fontLarge),
             fontWeight: FontWeight.bold,
-            color: AppColors.primary,
+            color: AppColors.text,
           ),
         ),
         scrolledUnderElevation: 0,
@@ -86,7 +654,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
-            icon: Icon(Icons.edit_outlined, size: Responsive.icon(22), color: AppColors.primary),
+            icon: Icon(Icons.edit_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
             onPressed: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
                 .then((_) {
@@ -96,11 +664,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 }),
           ),
           IconButton(
-            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(22), color: AppColors.primary),
+            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
             onPressed: _refreshOrder,
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline_rounded, size: Responsive.icon(22), color: Colors.red[400]),
+            icon: Icon(Icons.delete_outline_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.error),
             onPressed: _deleteOrder,
           ),
         ],
@@ -108,144 +676,277 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
-              padding: Responsive.all(16),
+              padding: Responsive.all(AppSizes.screenPaddingSmall),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildStatusHeader(),
-                  SizedBox(height: Responsive.h(12)),
+                  _buildHeroCard(),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildUrgentAlertBanner(),
-                  SizedBox(height: Responsive.h(12)),
+                  if (_currentOrder.hasStockConflict)
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildLogisticsQuickStats(),
-                  SizedBox(height: Responsive.h(16)),
-                  _buildInfoCard(
-                    title: 'Customer Information',
-                    icon: Icons.person_outline_rounded,
-                    children: [
-                      _buildDetailRow('Name', _currentOrder.customer?.name ?? 'N/A'),
-                      _buildDetailRow('Phone', _currentOrder.customer?.phone ?? 'N/A'),
-                      if (_currentOrder.customer?.altPhone != null)
-                        _buildDetailRow('Alt Phone', _currentOrder.customer!.altPhone!),
-                      if (_currentOrder.customer?.email != null)
-                        _buildDetailRow('Email', _currentOrder.customer!.email!),
-                      if (_currentOrder.branch != null)
-                        _buildDetailRow('Branch', _currentOrder.branch!.name),
-                    ],
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  _buildInfoCard(
-                    title: 'Fulfillment Dates',
-                    icon: Icons.calendar_month_outlined,
-                    children: [
-                      _buildDetailRow('Start Date', _formatDate(_currentOrder.startDate)),
-                      _buildDetailRow('End Date', _formatDate(_currentOrder.endDate)),
-                      _buildDetailRow('Event Date', _formatDate(_currentOrder.eventDate)),
-                      if (_currentOrder.isLate)
-                        _buildDetailRow('Late Flag', 'Overdue', valueColor: Colors.red),
-                    ],
-                  ),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  _buildCustomerCard(),
+
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildItemsCard(),
-                  SizedBox(height: Responsive.h(16)),
-                  _buildInfoCard(
-                    title: 'Financial Information',
-                    icon: Icons.account_balance_wallet_outlined,
-                    children: [
-                      _buildDetailRow('Subtotal', '₹${_currentOrder.subtotal.toStringAsFixed(2)}'),
-                      _buildDetailRow('GST Amount', '₹${_currentOrder.gstAmount.toStringAsFixed(2)}'),
-                      _buildDetailRow('Discount', '₹${_currentOrder.discount.toStringAsFixed(2)}'),
-                      _buildDetailRow('Damage Charges', '₹${_currentOrder.damageChargesTotal.toStringAsFixed(2)}'),
-                      _buildDetailRow('Late Fee', '₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
-                      const Divider(height: 16),
-                      _buildDetailRow('Total Amount', '₹${_currentOrder.totalAmount.toStringAsFixed(2)}', isBold: true),
-                      _buildDetailRow('Advance/Deposit', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
-                      _buildDetailRow('Amount Paid', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
-                          valueColor: Colors.green),
-                      _buildDetailRow(
-                        'Balance Due',
-                        '₹${balanceDue.toStringAsFixed(2)}',
-                        isBold: true,
-                        valueColor: balanceDue > 0 ? const Color(0xFFFF6B8A) : Colors.green,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  _buildFinancialReceiptCard(),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildPaymentsCard(),
-                  SizedBox(height: Responsive.h(16)),
-                  _buildInfoCard(
-                    title: 'Logistics Details',
-                    icon: Icons.local_shipping_outlined,
-                    children: [
-                      if (_currentOrder.deliveryMethod != null)
-                        _buildDetailRow('Method', _currentOrder.deliveryMethod!.name.toUpperCase()),
-                      if (_currentOrder.deliveryAddress != null && _currentOrder.deliveryAddress!.isNotEmpty)
-                        _buildDetailRow('Delivery Address', _currentOrder.deliveryAddress!),
-                      if (_currentOrder.pickupAddress != null && _currentOrder.pickupAddress!.isNotEmpty)
-                        _buildDetailRow('Pickup Address', _currentOrder.pickupAddress!),
-                      if (_currentOrder.notes != null && _currentOrder.notes!.isNotEmpty)
-                        _buildDetailRow('Notes', _currentOrder.notes!),
-                    ],
-                  ),
-                  SizedBox(height: Responsive.h(24)),
-                  _buildActionsRow(),
-                  SizedBox(height: Responsive.h(40)),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMassive)),
                 ],
               ),
             ),
     );
   }
 
-  Widget _buildStatusHeader() {
-    final statusColor = _currentOrder.isLate ? const Color(0xFFFF6B8A) : _getStatusColor(_currentOrder.status);
+  Widget _buildHeroCard() {
+    final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
     final statusText = _currentOrder.isLate ? 'OVERDUE' : _formatStatusName(_currentOrder.status);
+    final isPaid = balanceDue <= 0;
 
     return Container(
-      padding: Responsive.symmetric(horizontal: 16, vertical: 12),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(12)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary,
+            AppColors.primary.withValues(alpha: 0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.2),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: Responsive.all(AppSizes.screenPaddingSmall),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Order Status', style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey)),
-              SizedBox(height: Responsive.h(4)),
+              Text(
+                '#${_currentOrder.id.substring(0, 8).toUpperCase()}',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontLarge),
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontFamily: 'monospace',
+                ),
+              ),
               Container(
-                padding: Responsive.symmetric(horizontal: 10, vertical: 4),
+                padding: Responsive.symmetric(
+                  horizontal: AppSizes.spacingSmall + 2,
+                  vertical: AppSizes.spacingTiny,
+                ),
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(Responsive.r(8)),
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   statusText.toUpperCase(),
-                  style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.w800, color: statusColor),
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          Text(
+            _currentOrder.customer?.name ?? 'Unknown Customer',
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontMedium + 1),
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withValues(alpha: 0.95),
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          const Divider(color: Colors.white24, height: 1),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Payment Status', style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey)),
-              SizedBox(height: Responsive.h(4)),
-              Text(
-                _currentOrder.paymentStatus.name.toUpperCase(),
-                style: TextStyle(
-                  fontSize: Responsive.sp(13),
-                  fontWeight: FontWeight.bold,
-                  color: _currentOrder.paymentStatus == PaymentStatus.paid ? Colors.green : Colors.orange,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'TOTAL AMOUNT',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(2)),
+                  Text(
+                    '₹${_currentOrder.totalAmount.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontLarge + 2),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: Responsive.symmetric(
+                  horizontal: AppSizes.spacingMedium,
+                  vertical: AppSizes.spacingSmall,
+                ),
+                decoration: BoxDecoration(
+                  color: isPaid ? AppColors.success.withValues(alpha: 0.25) : AppColors.error.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  border: Border.all(
+                    color: isPaid ? AppColors.success.withValues(alpha: 0.4) : AppColors.error.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      isPaid ? 'PAID' : 'DUE BALANCE',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      isPaid ? '₹0.00' : '₹${balanceDue.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontMedium),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+          _buildHeroActions(),
         ],
       ),
+    );
+  }
+
+  Widget _buildHeroActions() {
+    final actions = <Widget>[];
+
+    // Status transition action buttons
+    if (_currentOrder.status == OrderStatus.confirmed || _currentOrder.status == OrderStatus.scheduled) {
+      actions.add(
+        Expanded(
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: AppColors.primary,
+              elevation: 0,
+              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+            ),
+            onPressed: _startRentalWithCheck,
+            icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+            label: Text(
+              'Start Rental',
+              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_currentOrder.status == OrderStatus.ongoing || _currentOrder.status == OrderStatus.delivered || _currentOrder.status == OrderStatus.inUse) {
+      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+      actions.add(
+        Expanded(
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+            ),
+            onPressed: _openReturnDialog,
+            icon: Icon(Icons.assignment_turned_in_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+            label: Text(
+              'Process Return',
+              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Payment collection button
+    if (_currentOrder.paymentStatus != PaymentStatus.paid) {
+      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+      actions.add(
+        Expanded(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.white, width: 1.5),
+              foregroundColor: Colors.white,
+              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+            ),
+            onPressed: _openPaymentDialog,
+            icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+            label: Text(
+              'Collect Pay',
+              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Cancel order button
+    if (_currentOrder.status != OrderStatus.cancelled && _currentOrder.status != OrderStatus.completed) {
+      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+      actions.add(
+        Expanded(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.45), width: 1),
+              foregroundColor: Colors.red[100],
+              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+            ),
+            onPressed: _openCancelDialog,
+            icon: Icon(Icons.cancel_outlined, size: Responsive.icon(AppSizes.iconSmall), color: Colors.red[100]),
+            label: Text(
+              'Cancel',
+              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (actions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: Responsive.only(top: AppSizes.spacingMedium),
+      child: Row(children: actions),
     );
   }
 
@@ -256,33 +957,33 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
     return Container(
       width: double.infinity,
-      padding: Responsive.all(12),
+      padding: Responsive.all(AppSizes.spacingMedium),
       decoration: BoxDecoration(
-        color: Colors.red[50],
-        border: Border.all(color: Colors.red[300]!, width: 1.5),
-        borderRadius: BorderRadius.circular(Responsive.r(10)),
+        color: AppColors.error.withValues(alpha: 0.08),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3), width: 1.5),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: Responsive.icon(20)),
-              SizedBox(width: Responsive.w(8)),
+              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
               Expanded(
                 child: Text(
                   'URGENT: Stock Conflict Detected',
                   style: TextStyle(
-                    color: Colors.red[900],
+                    color: AppColors.error,
                     fontWeight: FontWeight.bold,
-                    fontSize: Responsive.sp(13),
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
                   ),
                 ),
               ),
             ],
           ),
           if (conflicts.isNotEmpty) ...[
-            SizedBox(height: Responsive.h(8)),
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
             ...conflicts.map((c) {
               final name = c['productName'] ?? 'Unknown Product';
               final short = c['shortfall'] ?? 0;
@@ -291,8 +992,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 child: Text(
                   '• $name: Shortfall of $short pc(s)',
                   style: TextStyle(
-                    color: Colors.red[850],
-                    fontSize: Responsive.sp(11),
+                    color: AppColors.error.withValues(alpha: 0.9),
+                    fontSize: Responsive.sp(AppSizes.fontTiny + 1),
                   ),
                 ),
               );
@@ -302,7 +1003,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Shortfall of product units for this booking detected.',
-                style: TextStyle(color: Colors.red[850], fontSize: Responsive.sp(11)),
+                style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontTiny + 1)),
               ),
             ),
         ],
@@ -311,133 +1012,485 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   }
 
   Widget _buildLogisticsQuickStats() {
+    final isLate = _currentOrder.isLate;
+
     return Container(
-      padding: Responsive.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(12)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
+      padding: Responsive.all(AppSizes.spacingMedium),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildQuickStatItem('OUT (PICKUP)', _formatDate(_currentOrder.startDate), Icons.login_rounded),
-          Container(height: 24, width: 1, color: Colors.grey[200]),
-          _buildQuickStatItem('IN (RETURN)', _formatDate(_currentOrder.endDate), Icons.logout_rounded),
-          Container(height: 24, width: 1, color: Colors.grey[200]),
-          _buildQuickStatItem('TOTAL ITEMS', '${_currentOrder.items?.fold(0, (sum, i) => sum + i.quantity) ?? 0} pcs',
-              Icons.shopping_bag_outlined),
+          Expanded(
+            child: _buildLogisticsGridItem(
+              title: 'PICKUP DATE',
+              value: _formatDate(_currentOrder.startDate),
+              icon: Icons.login_rounded,
+              iconColor: AppColors.primary,
+            ),
+          ),
+          Container(
+            height: Responsive.h(AppSizes.spacingLarge + AppSizes.spacingSmall),
+            width: 1,
+            color: AppColors.border,
+          ),
+          Expanded(
+            child: _buildLogisticsGridItem(
+              title: 'RETURN DATE',
+              value: _formatDate(_currentOrder.endDate),
+              icon: Icons.logout_rounded,
+              iconColor: isLate ? AppColors.error : AppColors.secondaryText,
+              valueColor: isLate ? AppColors.error : AppColors.text,
+              isLate: isLate,
+            ),
+          ),
+          Container(
+            height: Responsive.h(AppSizes.spacingLarge + AppSizes.spacingSmall),
+            width: 1,
+            color: AppColors.border,
+          ),
+          Expanded(
+            child: _buildLogisticsGridItem(
+              title: 'TOTAL ITEMS',
+              value: '${_currentOrder.items?.fold(0, (sum, i) => sum + i.quantity) ?? 0} pcs',
+              icon: Icons.shopping_bag_outlined,
+              iconColor: AppColors.info,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickStatItem(String label, String value, IconData icon) {
+  Widget _buildLogisticsGridItem({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color iconColor,
+    Color? valueColor,
+    bool isLate = false,
+  }) {
     return Column(
       children: [
         Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: Responsive.icon(14), color: Colors.grey[500]),
+            Icon(icon, size: Responsive.icon(AppSizes.iconTiny), color: iconColor),
             SizedBox(width: Responsive.w(4)),
             Text(
-              label,
+              title,
               style: TextStyle(
-                fontSize: Responsive.sp(10),
+                fontSize: Responsive.sp(AppSizes.fontTiny),
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[500],
+                color: AppColors.secondaryText,
               ),
             ),
           ],
         ),
-        SizedBox(height: Responsive.h(4)),
+        SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
         Text(
           value,
           style: TextStyle(
-            fontSize: Responsive.sp(12),
+            fontSize: Responsive.sp(AppSizes.fontSmall),
             fontWeight: FontWeight.bold,
-            color: AppColors.primary,
+            color: valueColor ?? AppColors.text,
           ),
         ),
+        if (isLate) ...[
+          SizedBox(height: Responsive.h(2)),
+          Container(
+            padding: Responsive.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: AppColors.error.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              'LATE',
+              style: TextStyle(
+                fontSize: Responsive.sp(8),
+                fontWeight: FontWeight.w800,
+                color: AppColors.error,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildInfoCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
+
+  Widget _buildCustomerCard() {
+    final customer = _currentOrder.customer;
+    if (customer == null) return const SizedBox.shrink();
+
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
+      padding: Responsive.all(AppSizes.spacingLarge),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: Responsive.all(12),
-            child: Row(
+          Text(
+            'CUSTOMER',
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontTiny),
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondaryText,
+              letterSpacing: 1.2,
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+          Text(
+            customer.name,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontXLarge + 1),
+              fontWeight: FontWeight.w900,
+              color: AppColors.text,
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          
+          // Primary Call Button (Green pill styled button like web)
+          InkWell(
+            onTap: () async {
+              final uri = Uri.parse('tel:${customer.phone}');
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              }
+            },
+            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+            child: Container(
+              width: double.infinity,
+              padding: Responsive.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.08),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.2), width: 1.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.phone_rounded,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                    color: AppColors.success,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Text(
+                    customer.phone,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          
+          // Alt Phone call button if present
+          if (customer.altPhone != null && customer.altPhone!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(8)),
+            InkWell(
+              onTap: () async {
+                final uri = Uri.parse('tel:${customer.altPhone}');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              child: Container(
+                width: double.infinity,
+                padding: Responsive.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.scaffoldBackground,
+                  border: Border.all(color: AppColors.border, width: 1),
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.phone_rounded,
+                      size: Responsive.icon(16),
+                      color: AppColors.secondaryText,
+                    ),
+                    SizedBox(width: Responsive.w(8)),
+                    Text(
+                      '${customer.altPhone} (Alt)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          
+          // Email & Branch if present
+          if (customer.email != null && customer.email!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Row(
               children: [
-                Icon(icon, size: Responsive.icon(20), color: AppColors.primary),
+                Icon(
+                  Icons.email_outlined,
+                  size: Responsive.icon(16),
+                  color: AppColors.secondaryText,
+                ),
                 SizedBox(width: Responsive.w(8)),
-                Text(
-                  title,
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
+                Expanded(
+                  child: Text(
+                    customer.email!,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.text,
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          const Divider(height: 1),
-          Padding(
-            padding: Responsive.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
+          ],
+
+          if (_currentOrder.branch != null) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+            Row(
+              children: [
+                Icon(
+                  Icons.storefront_outlined,
+                  size: Responsive.icon(16),
+                  color: AppColors.secondaryText,
+                ),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: Text(
+                    'Branch: ${_currentOrder.branch!.name}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+          ],
+
+          // Delivery Address (Styled Pin Section)
+          if (_currentOrder.deliveryAddress != null && _currentOrder.deliveryAddress!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'DELIVERY ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.local_shipping_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      _currentOrder.deliveryAddress!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Pickup Address (if present)
+          if (_currentOrder.pickupAddress != null && _currentOrder.pickupAddress!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'PICKUP ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.store_mall_directory_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      _currentOrder.pickupAddress!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Customer Address (Styled Pin Section)
+          if (customer.address != null && customer.address!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'CUSTOMER ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      customer.address!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Order Notes (if present, amber box matching web)
+          if (_currentOrder.notes != null && _currentOrder.notes!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'ORDER NOTES',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.05),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.15), width: 1),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.warning,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      '"${_currentOrder.notes!}"',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool isBold = false, Color? valueColor}) {
-    return Padding(
-      padding: Responsive.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: Responsive.w(130),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: Responsive.sp(13),
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: Responsive.sp(13),
-                fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-                color: valueColor ?? AppColors.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildItemsCard() {
     final items = _currentOrder.items ?? [];
@@ -445,85 +1498,239 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: Responsive.all(12),
+            padding: Responsive.all(AppSizes.spacingMedium),
             child: Row(
               children: [
-                Icon(Icons.shopping_bag_outlined, size: Responsive.icon(20), color: AppColors.primary),
-                SizedBox(width: Responsive.w(8)),
+                Container(
+                  padding: Responsive.all(AppSizes.spacingSmall),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.shopping_bag_outlined,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                    color: AppColors.primary,
+                  ),
+                ),
+                SizedBox(width: Responsive.w(AppSizes.spacingSmall + 2)),
                 Text(
                   'Order Items (${items.length})',
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: AppColors.border),
           ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
+            separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
             itemBuilder: (context, index) {
               final item = items[index];
+              final isReturnable = _currentOrder.status == OrderStatus.ongoing ||
+                  _currentOrder.status == OrderStatus.inUse ||
+                  _currentOrder.status == OrderStatus.delivered ||
+                  _currentOrder.status == OrderStatus.partial;
+
               return Padding(
-                padding: Responsive.all(12),
-                child: Row(
+                padding: Responsive.all(AppSizes.spacingMedium),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: Responsive.w(50),
-                      height: Responsive.w(50),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
-                      ),
-                      child: item.product?.primaryImageUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(Responsive.r(8)),
-                              child: Image.network(item.product!.primaryImageUrl!, fit: BoxFit.cover),
-                            )
-                          : Icon(Icons.image_not_supported_outlined, color: Colors.grey[400]),
-                    ),
-                    SizedBox(width: Responsive.w(12)),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
-                            style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: AppColors.primary),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: Responsive.w(56),
+                          height: Responsive.w(56),
+                          decoration: BoxDecoration(
+                            color: AppColors.scaffoldBackground,
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            border: Border.all(color: AppColors.border, width: 0.5),
                           ),
-                          SizedBox(height: Responsive.h(4)),
-                          Text(
-                            'Qty: ${item.quantity}  |  Rate: ₹${item.pricePerDay.toStringAsFixed(0)}/day',
-                            style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[600]),
-                          ),
-                          if (item.isReturned == true)
-                            Padding(
-                              padding: Responsive.only(top: 4),
-                              child: Text(
-                                'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name ?? 'Good'})',
-                                style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
+                          child: item.product?.primaryImageUrl != null
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                                  child: Image.network(
+                                    item.product!.primaryImageUrl!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) =>
+                                        Icon(Icons.image_not_supported_outlined, color: Colors.grey[400]),
+                                  ),
+                                )
+                              : Icon(Icons.image_not_supported_outlined, color: Colors.grey[400]),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.text,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                        ],
-                      ),
+                              SizedBox(height: Responsive.h(4)),
+                              Wrap(
+                                spacing: Responsive.w(AppSizes.spacingSmall),
+                                runSpacing: Responsive.h(4),
+                                alignment: WrapAlignment.start,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'x${item.quantity}',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${item.pricePerDay.toStringAsFixed(0)}/day',
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                      color: AppColors.secondaryText,
+                                    ),
+                                  ),
+                                  if (item.discount > 0)
+                                    Container(
+                                      padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        item.discountType == 'percent'
+                                            ? '-${item.discount.toStringAsFixed(0)}% Off'
+                                            : '-₹${item.discount.toStringAsFixed(0)} Flat Off',
+                                        style: TextStyle(
+                                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.success,
+                                        ),
+                                      ),
+                                    ),
+                                  if (item.gstPercentage > 0)
+                                    Container(
+                                      padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.info.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        '${item.gstPercentage.toStringAsFixed(0)}% GST Incl.',
+                                        style: TextStyle(
+                                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.info,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (item.gstAmount > 0 || item.discount > 0)
+                                Padding(
+                                  padding: Responsive.only(top: 4),
+                                  child: Text(
+                                    'Base: ₹${item.baseAmount.toStringAsFixed(2)} + GST: ₹${item.gstAmount.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                      color: AppColors.secondaryText,
+                                    ),
+                                  ),
+                                ),
+                              if (item.isReturned == true)
+                                Padding(
+                                  padding: Responsive.only(top: AppSizes.spacingTiny),
+                                  child: Container(
+                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(9),
+                                        color: AppColors.success,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              if (item.isReturned == true && item.conditionRating == ConditionRating.damaged) ...[
+                                if (item.damageDescription != null && item.damageDescription!.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Text(
+                                      'Damage Notes: ${item.damageDescription}',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                        color: AppColors.warning,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  ),
+                                if ((item.damageCharges ?? 0.0) > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2.0),
+                                    child: Text(
+                                      'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                        color: AppColors.warning,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                        Text(
+                          '₹${item.totalPrice.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      '₹${item.totalPrice.toStringAsFixed(0)}',
-                      style: TextStyle(fontSize: Responsive.sp(13), fontWeight: FontWeight.bold, color: AppColors.primary),
-                    ),
+                    if (isReturnable) _buildInteractiveItemControls(item),
                   ],
                 ),
               );
@@ -540,44 +1747,64 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8, offset: const Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: Responsive.all(12),
+            padding: Responsive.all(AppSizes.spacingMedium),
             child: Row(
               children: [
-                Icon(Icons.payment_rounded, size: Responsive.icon(20), color: AppColors.primary),
-                SizedBox(width: Responsive.w(8)),
+                Container(
+                  padding: Responsive.all(AppSizes.spacingSmall),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.payment_rounded,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                    color: AppColors.primary,
+                  ),
+                ),
+                SizedBox(width: Responsive.w(AppSizes.spacingSmall + 2)),
                 Text(
                   'Transaction History',
-                  style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary),
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          const Divider(height: 1, color: AppColors.border),
           paymentsAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(16.0),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
             ),
             error: (err, _) => Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text('Error loading payments: $err', style: const TextStyle(color: Colors.red)),
+              child: Text('Error loading payments: $err', style: const TextStyle(color: AppColors.error)),
             ),
             data: (transactions) {
               if (transactions.isEmpty) {
                 return Padding(
-                  padding: Responsive.all(16),
+                  padding: Responsive.all(AppSizes.spacingMedium),
                   child: Text(
                     'No transactions recorded.',
-                    style: TextStyle(color: Colors.grey[500], fontSize: Responsive.sp(12)),
+                    style: TextStyle(color: AppColors.secondaryText, fontSize: Responsive.sp(AppSizes.fontSmall)),
                   ),
                 );
               }
@@ -586,13 +1813,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: transactions.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
+                separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
                 itemBuilder: (context, index) {
                   final tx = transactions[index];
+                  final txTypeColor = _getTransactionTypeColor(tx.paymentType);
                   return Padding(
-                    padding: Responsive.all(12),
+                    padding: Responsive.all(AppSizes.spacingMedium),
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: Column(
@@ -600,36 +1828,58 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    tx.paymentType.toUpperCase(),
-                                    style: TextStyle(
-                                      fontSize: Responsive.sp(11),
-                                      fontWeight: FontWeight.w800,
-                                      color: _getTransactionTypeColor(tx.paymentType),
+                                  Container(
+                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: txTypeColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      tx.paymentType.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                                        fontWeight: FontWeight.w800,
+                                        color: txTypeColor,
+                                      ),
                                     ),
                                   ),
-                                  const Spacer(),
-                                  Text(
-                                    '₹${tx.amount.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: Responsive.sp(13),
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primary,
+                                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                  Container(
+                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: Colors.grey[300]!, width: 0.5),
+                                    ),
+                                    child: Text(
+                                      tx.paymentMode.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.secondaryText,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              SizedBox(height: Responsive.h(4)),
+                              SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
                               Text(
-                                'Mode: ${tx.paymentMode.toUpperCase()}  |  ${_formatDate(tx.paymentDate)}',
-                                style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[600]),
+                                _formatDate(tx.paymentDate),
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                  color: AppColors.secondaryText,
+                                ),
                               ),
                               if (tx.notes != null && tx.notes!.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4.0),
                                   child: Text(
                                     'Notes: ${tx.notes}',
-                                    style: TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[500], fontStyle: FontStyle.italic),
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                      color: AppColors.secondaryText,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
                                 ),
                               if (tx.createdByName != null)
@@ -637,15 +1887,36 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                   padding: const EdgeInsets.only(top: 2.0),
                                   child: Text(
                                     'Processed by: ${tx.createdByName}',
-                                    style: TextStyle(fontSize: Responsive.sp(10), color: Colors.grey[400]),
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                                      color: AppColors.secondaryText.withValues(alpha: 0.8),
+                                    ),
                                   ),
                                 ),
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: Icon(Icons.edit_outlined, size: Responsive.icon(16), color: Colors.blue),
-                          onPressed: () => _openEditTransactionDialog(tx),
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '₹${tx.amount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                Icons.edit_outlined,
+                                size: Responsive.icon(AppSizes.iconTiny),
+                                color: AppColors.info,
+                              ),
+                              onPressed: () => _openEditTransactionDialog(tx),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -659,92 +1930,229 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-  Widget _buildActionsRow() {
-    final actions = <Widget>[];
+  Widget _buildFinancialReceiptCard() {
+    final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
+    final isPaid = balanceDue <= 0;
+    final items = _currentOrder.items ?? [];
 
-    // Status transition action buttons
-    if (_currentOrder.status == OrderStatus.confirmed || _currentOrder.status == OrderStatus.scheduled) {
-      actions.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: Responsive.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            onPressed: _startRentalWithCheck,
-            icon: const Icon(Icons.play_arrow_rounded),
-            label: const Text('Start Rental'),
+    final rawSubtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+    final afterItemDiscountTotal = items.fold<double>(0.0, (sum, item) => sum + item.baseAmount + item.gstAmount);
+    final itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
+
+    final totalBaseExclGst = items.fold<double>(0.0, (sum, item) => sum + item.baseAmount);
+    final totalGst = items.fold<double>(0.0, (sum, item) => sum + item.gstAmount);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
           ),
-        ),
-      );
-    }
-
-    if (_currentOrder.status == OrderStatus.ongoing || _currentOrder.status == OrderStatus.delivered || _currentOrder.status == OrderStatus.inUse) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(12)));
-      actions.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: AppColors.primary,
-              padding: Responsive.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: Responsive.all(AppSizes.spacingMedium),
+            child: Row(
+              children: [
+                Container(
+                  padding: Responsive.all(AppSizes.spacingSmall),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                    color: AppColors.primary,
+                  ),
+                ),
+                SizedBox(width: Responsive.w(AppSizes.spacingSmall + 2)),
+                Text(
+                  'Financial Information',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                const Spacer(),
+                if (_currentOrder.status != OrderStatus.completed && _currentOrder.status != OrderStatus.cancelled)
+                  TextButton.icon(
+                    onPressed: _openAdjustmentDialog,
+                    icon: Icon(Icons.edit_outlined, size: Responsive.icon(14), color: AppColors.primary),
+                    label: Text(
+                      'Adjust',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall, vertical: AppSizes.spacingTiny),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+              ],
             ),
-            onPressed: _openReturnDialog,
-            icon: const Icon(Icons.assignment_turned_in_rounded),
-            label: const Text('Process Return'),
           ),
-        ),
-      );
-    }
+          const Divider(height: 1, color: AppColors.border),
+          Padding(
+            padding: Responsive.all(AppSizes.spacingMedium),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildReceiptRow('Subtotal', '₹${rawSubtotal.toStringAsFixed(2)}'),
+                if (itemDiscountsTotal > 0) ...[
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'ITEM DISCOUNTS',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                        Text(
+                          '-₹${itemDiscountsTotal.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.warning,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ...items.map((item) {
+                    final itemRaw = item.subtotal;
+                    final itemAfter = item.baseAmount + item.gstAmount;
+                    final itemDisc = itemRaw - itemAfter;
+                    if (itemDisc <= 0) return const SizedBox.shrink();
 
-    // Payment collection button
-    if (_currentOrder.paymentStatus != PaymentStatus.paid) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(12)));
-      actions.add(
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.primary),
-              foregroundColor: AppColors.primary,
-              padding: Responsive.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    return Padding(
+                      padding: Responsive.only(left: AppSizes.spacingMedium, top: 2, bottom: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.product?.name ?? 'Product',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontTiny),
+                                fontStyle: FontStyle.italic,
+                                color: AppColors.secondaryText,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '-₹${itemDisc.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                const Divider(height: 1, color: AppColors.border),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                _buildReceiptRow('Base Amount (excl. GST)', '₹${totalBaseExclGst.toStringAsFixed(2)}'),
+                _buildReceiptRow('GST (included)', '₹${totalGst.toStringAsFixed(2)}', valueColor: AppColors.info),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                const Divider(height: 1, color: AppColors.border),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                if (_currentOrder.discount > 0)
+                  _buildReceiptRow('Order Discount', '-₹${_currentOrder.discount.toStringAsFixed(2)}', isDiscount: true),
+                if (_currentOrder.damageChargesTotal > 0)
+                  _buildReceiptRow('Damage Charges', '₹${_currentOrder.damageChargesTotal.toStringAsFixed(2)}'),
+                if (_currentOrder.lateFee > 0)
+                  _buildReceiptRow('Late Fee', '₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                _buildReceiptRow('Total Amount', '₹${_currentOrder.totalAmount.toStringAsFixed(2)}', isBold: true),
+                _buildReceiptRow('Advance/Deposit', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
+                _buildReceiptRow('Amount Paid', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.success),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Container(
+                  padding: Responsive.all(AppSizes.spacingMedium),
+                  decoration: BoxDecoration(
+                    color: isPaid ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Balance Due',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontMedium),
+                          fontWeight: FontWeight.bold,
+                          color: isPaid ? AppColors.success : AppColors.error,
+                        ),
+                      ),
+                      Text(
+                        '₹${balanceDue.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontLarge),
+                          fontWeight: FontWeight.bold,
+                          color: isPaid ? AppColors.success : AppColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-            onPressed: _openPaymentDialog,
-            icon: const Icon(Icons.payment_rounded),
-            label: const Text('Collect Pay'),
           ),
-        ),
-      );
-    }
+        ],
+      ),
+    );
+  }
 
-    // Cancel order button
-    if (_currentOrder.status != OrderStatus.cancelled && _currentOrder.status != OrderStatus.completed) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(12)));
-      actions.add(
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.red),
-              foregroundColor: Colors.red,
-              padding: Responsive.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+  Widget _buildReceiptRow(String label, String value, {bool isBold = false, Color? valueColor, bool isDiscount = false}) {
+    return Padding(
+      padding: Responsive.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontSmall),
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
+              color: isBold ? AppColors.text : AppColors.secondaryText,
             ),
-            onPressed: _openCancelDialog,
-            icon: const Icon(Icons.cancel_outlined),
-            label: const Text('Cancel Order'),
           ),
-        ),
-      );
-    }
-
-    if (actions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Row(children: actions);
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontSmall),
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: valueColor ?? (isDiscount ? AppColors.success : AppColors.text),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _startRentalWithCheck() async {
@@ -925,7 +2333,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     final maxCollect = _currentOrder.totalAmount - _currentOrder.amountPaid;
     final amountController = TextEditingController(text: maxCollect.toStringAsFixed(0));
     String paymentMode = 'upi';
-    String paymentType = 'final';
 
     showModalBottomSheet(
       context: context,
@@ -983,23 +2390,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       if (val != null) setModalState(() => paymentMode = val);
                     },
                   ),
-                  SizedBox(height: Responsive.h(16)),
-                  DropdownButtonFormField<String>(
-                    initialValue: paymentType,
-                    decoration: InputDecoration(
-                      labelText: 'Transaction Type',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'advance', child: Text('Advance Deposit')),
-                      DropdownMenuItem(value: 'final', child: Text('Final Settlement')),
-                      DropdownMenuItem(value: 'refund', child: Text('Refund')),
-                      DropdownMenuItem(value: 'adjustment', child: Text('Adjustment')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setModalState(() => paymentType = val);
-                    },
-                  ),
                   SizedBox(height: Responsive.h(24)),
                   SizedBox(
                     width: double.infinity,
@@ -1019,7 +2409,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           return;
                         }
 
-                        if (amt > maxCollect && paymentType != 'refund') {
+                        if (amt > maxCollect) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Warning: Amount exceeds balance due of ₹${maxCollect.toStringAsFixed(0)}')),
                           );
@@ -1577,21 +2967,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     }
   }
 
-  Color _getStatusColor(OrderStatus s) {
-    switch (s) {
-      case OrderStatus.pending: return const Color(0xFFF5A623);
-      case OrderStatus.confirmed:
-      case OrderStatus.scheduled: return const Color(0xFF4A90D9);
-      case OrderStatus.delivered:
-      case OrderStatus.inUse:
-      case OrderStatus.ongoing: return const Color(0xFF7B68EE);
-      case OrderStatus.returned: return const Color(0xFF2ECC71);
-      case OrderStatus.completed: return const Color(0xFF2ECC71);
-      case OrderStatus.cancelled: return const Color(0xFF95A5A6);
-      case OrderStatus.flagged: return const Color(0xFFFF6B8A);
-      case OrderStatus.partial: return const Color(0xFFF5A623);
-    }
-  }
 
   Color _getTransactionTypeColor(String type) {
     switch (type.toLowerCase()) {
@@ -1623,7 +2998,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   String _formatDate(String dateStr) {
     try {
       final date = DateTime.parse(dateStr);
-      return '${date.day}/${date.month}/${date.year}';
+      return DateFormat('d MMM yyyy').format(date);
     } catch (e) {
       return dateStr;
     }

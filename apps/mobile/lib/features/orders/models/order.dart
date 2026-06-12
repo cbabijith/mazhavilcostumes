@@ -23,7 +23,20 @@ enum PaymentStatus {
   pending,
   partial,
   paid,
-  refundWaived,
+  refundWaived;
+
+  String toJsonValue() {
+    switch (this) {
+      case PaymentStatus.pending:
+        return 'pending';
+      case PaymentStatus.partial:
+        return 'partial';
+      case PaymentStatus.paid:
+        return 'paid';
+      case PaymentStatus.refundWaived:
+        return 'refund_waived';
+    }
+  }
 }
 
 enum PaymentMethod {
@@ -31,7 +44,22 @@ enum PaymentMethod {
   upi,
   bankTransfer,
   gpay,
-  other,
+  other;
+
+  String toJsonValue() {
+    switch (this) {
+      case PaymentMethod.cash:
+        return 'cash';
+      case PaymentMethod.upi:
+        return 'upi';
+      case PaymentMethod.bankTransfer:
+        return 'bank_transfer';
+      case PaymentMethod.gpay:
+        return 'gpay';
+      case PaymentMethod.other:
+        return 'other';
+    }
+  }
 }
 
 enum ConditionRating {
@@ -515,10 +543,10 @@ class Order extends Equatable {
       'gst_amount': gstAmount,
       'advance_amount': advanceAmount,
       'advance_collected': advanceCollected,
-      'advance_payment_method': advancePaymentMethod?.name,
+      'advance_payment_method': advancePaymentMethod?.toJsonValue(),
       'advance_collected_at': advanceCollectedAt,
       'amount_paid': amountPaid,
-      'payment_status': paymentStatus.name,
+      'payment_status': paymentStatus.toJsonValue(),
       'has_priority_cleaning': hasPriorityCleaning,
       'has_stock_conflict': hasStockConflict,
       'conflict_details': conflictDetails,
@@ -549,6 +577,7 @@ class CustomerInfo extends Equatable {
   final String phone;
   final String? altPhone;
   final String? email;
+  final String? address;
 
   const CustomerInfo({
     required this.id,
@@ -556,10 +585,11 @@ class CustomerInfo extends Equatable {
     required this.phone,
     this.altPhone,
     this.email,
+    this.address,
   });
 
   @override
-  List<Object?> get props => [id, name, phone, altPhone, email];
+  List<Object?> get props => [id, name, phone, altPhone, email, address];
 
   factory CustomerInfo.fromJson(Map<String, dynamic> json) {
     return CustomerInfo(
@@ -568,6 +598,7 @@ class CustomerInfo extends Equatable {
       phone: json['phone'] as String? ?? '',
       altPhone: json['alt_phone'] as String?,
       email: json['email'] as String?,
+      address: json['address'] as String?,
     );
   }
 
@@ -578,6 +609,7 @@ class CustomerInfo extends Equatable {
       'phone': phone,
       'alt_phone': altPhone,
       'email': email,
+      'address': address,
     };
   }
 }
@@ -649,17 +681,29 @@ class PaymentTransaction extends Equatable {
       ];
 
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
+    String? staffName;
+    if (json['staff'] != null) {
+      if (json['staff'] is Map) {
+        staffName = json['staff']['name']?.toString();
+      } else if (json['staff'] is List && (json['staff'] as List).isNotEmpty) {
+        staffName = (json['staff'] as List).first['name']?.toString();
+      }
+    }
+
     return PaymentTransaction(
-      id: json['id'] as String? ?? '',
-      orderId: json['order_id'] as String? ?? '',
-      paymentType: json['payment_type'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      paymentMode: json['payment_mode'] as String? ?? '',
-      transactionId: json['transaction_id'] as String?,
-      paymentDate: json['payment_date'] as String? ?? json['created_at'] as String? ?? '',
-      notes: json['notes'] as String?,
-      createdBy: json['created_by'] as String?,
-      createdByName: json['staff']?['name'] as String?,
+      id: json['id']?.toString() ?? '',
+      orderId: json['order_id']?.toString() ?? '',
+      paymentType: json['payment_type']?.toString() ?? '',
+      amount: json['amount'] is num
+          ? (json['amount'] as num).toDouble()
+          : double.tryParse(json['amount']?.toString() ?? '') ?? 0.0,
+      paymentMode: json['payment_mode']?.toString() ?? '',
+      transactionId: json['transaction_id']?.toString(),
+      paymentDate: json['payment_date']?.toString() ?? 
+                   json['created_at']?.toString() ?? '',
+      notes: json['notes']?.toString(),
+      createdBy: json['created_by']?.toString(),
+      createdByName: staffName,
     );
   }
 

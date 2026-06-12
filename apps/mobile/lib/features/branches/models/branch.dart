@@ -34,7 +34,7 @@ class Branch {
   factory Branch.fromJson(Map<String, dynamic> json) {
     return Branch(
       id: json['id'] as String,
-      storeId: json['store_id'] as String,
+      storeId: json['store_id'] as String? ?? '',
       name: json['name'] as String,
       address: json['address'] as String,
       phone: json['phone'] as String?,

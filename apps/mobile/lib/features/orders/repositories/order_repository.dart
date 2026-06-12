@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../../../core/supabase/api_client.dart';
 import '../models/order.dart';
 
@@ -44,10 +45,7 @@ class OrderRepository {
     CancelToken? cancelToken,
   }) async {
     try {
-      final queryParams = <String, dynamic>{
-        'page': page,
-        'limit': limit,
-      };
+      final queryParams = <String, dynamic>{'page': page, 'limit': limit};
 
       if (customerId != null && customerId.isNotEmpty) {
         queryParams['customer_id'] = customerId;
@@ -56,7 +54,11 @@ class OrderRepository {
         queryParams['branch_id'] = branchId;
       }
       if (status != null && status.isNotEmpty) {
-        queryParams['status'] = status;
+        if (status == 'stock_conflict') {
+          queryParams['has_stock_conflict'] = 'true';
+        } else {
+          queryParams['status'] = status;
+        }
       }
       if (query != null && query.isNotEmpty) {
         queryParams['query'] = query;
@@ -104,10 +106,7 @@ class OrderRepository {
   /// Fetch a single order by ID.
   Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async {
     try {
-      final response = await _api.get(
-        '/orders/$id',
-        cancelToken: cancelToken,
-      );
+      final response = await _api.get('/orders/$id', cancelToken: cancelToken);
 
       return Order.fromJson(response.data['data']);
     } catch (e) {
@@ -116,7 +115,10 @@ class OrderRepository {
   }
 
   /// Create a new order.
-  Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Order> createOrder(
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.post(
         '/orders',
@@ -131,7 +133,11 @@ class OrderRepository {
   }
 
   /// Update an existing order.
-  Future<Order> updateOrder(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Order> updateOrder(
+    String id,
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.patch(
         '/orders/$id',
@@ -148,10 +154,7 @@ class OrderRepository {
   /// Delete an order.
   Future<void> deleteOrder(String id, {CancelToken? cancelToken}) async {
     try {
-      await _api.delete(
-        '/orders/$id',
-        cancelToken: cancelToken,
-      );
+      await _api.delete('/orders/$id', cancelToken: cancelToken);
     } catch (e) {
       throw Exception('Failed to delete order: $e');
     }
@@ -176,6 +179,11 @@ class OrderRepository {
           'branch_id': branchId,
           'exclude_order_id': excludeOrderId,
         },
+        options: Options(
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+        ),
         cancelToken: cancelToken,
       );
 
@@ -217,6 +225,7 @@ class OrderRepository {
     required String orderId,
     required double amount,
     required String paymentMode,
+    String? paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
@@ -227,6 +236,7 @@ class OrderRepository {
           'amount': amount,
           'payment_mode': paymentMode,
           'notes': notes,
+          if (paymentType != null) 'payment_type': paymentType,
         },
         cancelToken: cancelToken,
       );
@@ -263,15 +273,21 @@ class OrderRepository {
   }
 
   /// Fetch payments/transactions logged against the order.
-  Future<List<PaymentTransaction>> getOrderPayments(String orderId, {CancelToken? cancelToken}) async {
+  Future<List<PaymentTransaction>> getOrderPayments(
+    String orderId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
-        '/orders/$orderId/payments',
+        '/payments',
+        queryParameters: {'order_id': orderId},
         cancelToken: cancelToken,
       );
 
       final data = response.data['data'] as List<dynamic>? ?? [];
-      return data.map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>)).toList();
+      return data
+          .map((e) => PaymentTransaction.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       throw Exception('Failed to load payments: $e');
     }
@@ -287,15 +303,36 @@ class OrderRepository {
     try {
       await _api.patch(
         '/payments/$paymentId',
-        data: {
-          'payment_mode': paymentMode,
-          'notes': notes,
-        },
+        data: {'payment_mode': paymentMode, 'notes': notes},
         cancelToken: cancelToken,
       );
     } catch (e) {
       throw Exception('Failed to update payment: $e');
     }
   }
-}
 
+  /// Update condition rating and damage assessment for a specific order item.
+  Future<void> updateOrderItemDamage({
+    required String itemId,
+    required String conditionRating,
+    String? damageDescription,
+    required double damageCharges,
+    required int damagedQuantity,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      await _api.patch(
+        '/orders/items/$itemId/damage',
+        data: {
+          'condition_rating': conditionRating,
+          'damage_description': damageDescription,
+          'damage_charges': damageCharges,
+          'damaged_quantity': damagedQuantity,
+        },
+        cancelToken: cancelToken,
+      );
+    } catch (e) {
+      throw Exception('Failed to update order item damage: $e');
+    }
+  }
+}

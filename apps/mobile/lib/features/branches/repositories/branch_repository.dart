@@ -15,7 +15,7 @@ class BranchRepository {
         cancelToken: cancelToken,
       );
 
-      final data = response.data as List<dynamic>? ?? [];
+      final data = response.data['data'] as List<dynamic>? ?? [];
       return data.map((e) => Branch.fromJson(e as Map<String, dynamic>)).toList();
     } catch (e) {
       throw Exception('Failed to load branches: $e');
@@ -30,7 +30,7 @@ class BranchRepository {
         cancelToken: cancelToken,
       );
 
-      return Branch.fromJson(response.data);
+      return Branch.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to load branch: $e');
     }
@@ -45,7 +45,7 @@ class BranchRepository {
         cancelToken: cancelToken,
       );
 
-      return Branch.fromJson(response.data);
+      return Branch.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to create branch: $e');
     }
@@ -60,7 +60,7 @@ class BranchRepository {
         cancelToken: cancelToken,
       );
 
-      return Branch.fromJson(response.data);
+      return Branch.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
       throw Exception('Failed to update branch: $e');
     }

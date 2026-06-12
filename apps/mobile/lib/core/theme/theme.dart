@@ -18,6 +18,9 @@ class AppTheme {
         error: AppColors.error,
         onError: Colors.white,
       ),
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
