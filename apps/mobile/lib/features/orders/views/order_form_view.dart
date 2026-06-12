@@ -453,7 +453,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                             ? _buildCatalogResultsList()
                             : _buildCartItemsList(),
                       ),
-                      _buildFloatingCartSummaryBar(),
                     ],
                   ),
                 ),
@@ -659,77 +658,84 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             ),
         ],
       ),
+      bottomNavigationBar:
+          _currentPage == 1 ? _buildFloatingCartSummaryBar() : null,
     );
   }
 
   Widget _buildFloatingCartSummaryBar() {
     if (_items.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      padding: Responsive.all(AppSizes.spacingMedium),
-      margin: Responsive.only(top: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-        border: Border.all(color: Colors.grey.shade100),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${_items.length} ${_items.length == 1 ? 'item' : 'items'} added',
-                style: TextStyle(
-                  fontSize: Responsive.sp(AppSizes.fontSmall),
-                  color: Colors.grey[600],
-                ),
-              ),
-              SizedBox(height: Responsive.h(2)),
-              Text(
-                'Subtotal: ₹${_subtotal.toStringAsFixed(2)}',
-                style: TextStyle(
-                  fontSize: Responsive.sp(AppSizes.fontMedium),
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              minimumSize: Size(Responsive.w(150), Responsive.h(40)),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-              ),
+    return SafeArea(
+      child: Container(
+        padding: Responsive.all(AppSizes.spacingMedium),
+        margin: Responsive.symmetric(
+          horizontal: AppSizes.spacingMedium,
+          vertical: AppSizes.spacingSmall,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
             ),
-            onPressed: () {
-              _pageController.nextPage(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-              );
-            },
-            child: Row(
+          ],
+          border: Border.all(color: Colors.grey.shade100),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Review & Pay'),
-                SizedBox(width: Responsive.w(4)),
-                const Icon(Icons.arrow_forward_rounded, size: 16),
+                Text(
+                  '${_items.length} ${_items.length == 1 ? 'item' : 'items'} added',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    color: Colors.grey[600],
+                  ),
+                ),
+                SizedBox(height: Responsive.h(2)),
+                Text(
+                  'Subtotal: ₹${_subtotal.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
               ],
             ),
-          ),
-        ],
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                minimumSize: Size(Responsive.w(150), Responsive.h(40)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                ),
+              ),
+              onPressed: () {
+                _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Review & Pay'),
+                  SizedBox(width: Responsive.w(4)),
+                  const Icon(Icons.arrow_forward_rounded, size: 16),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
