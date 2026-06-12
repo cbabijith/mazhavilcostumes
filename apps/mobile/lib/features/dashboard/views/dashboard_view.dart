@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/currency_formatter.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
@@ -176,7 +177,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
         final iconSize = screenWidth * DashboardConstants.iconSizePercent;
         final spacing = screenWidth * DashboardConstants.cardSpacingPercent;
         final color = _getColorForCard(card.color);
-        final hasValue = card.orderCount > 0 || (card.isProgressCard && card.totalCount! > 0);
+        final hasValue = card.orderCount > 0 ||
+                         (card.isProgressCard && card.totalCount! > 0) ||
+                         (card.amount != null && card.amount! > 0);
         
         return Container(
           margin: EdgeInsets.only(bottom: screenWidth * DashboardConstants.cardBottomMarginPercent),
@@ -249,7 +252,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                     child: AutoSizeText(
                       card.isProgressCard
                           ? '${card.completedCount}/${card.totalCount}'
-                          : card.orderCount.toString(),
+                          : card.amount != null
+                              ? CurrencyFormatter.formatINR(card.amount!)
+                              : card.orderCount.toString(),
                       style: TextStyle(
                         fontSize: iconSize * 0.38,
                         fontWeight: FontWeight.bold,

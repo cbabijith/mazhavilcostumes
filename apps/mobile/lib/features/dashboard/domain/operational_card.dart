@@ -56,6 +56,10 @@ class OperationalCard {
       }
       return 'All ${label.contains('Delivery') ? 'delivered' : 'received'} ✓';
     }
+    if (amount != null) {
+      if (amount == 0) return 'No outstanding dues ✓';
+      return '$orderCount order${orderCount != 1 ? "s" : ""} pending balance';
+    }
     if (orderCount == 0) return 'All clear';
     if (label.contains('Booking')) {
       return '$orderCount Booking${orderCount != 1 ? 's' : ''}';

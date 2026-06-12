@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/utils/responsive.dart';
+import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/analytics_metrics.dart';
 import '../../viewmodels/providers/dashboard_provider.dart';
 import 'revenue_chart.dart';
@@ -1211,13 +1212,6 @@ class AnalyticsSection extends ConsumerWidget {
   // ── Helpers ──────────────────────────────────────────────────────────
 
   String _formatCurrency(double amount) {
-    if (amount >= 10000000) {
-      return '₹${(amount / 10000000).toStringAsFixed(1)}Cr';
-    } else if (amount >= 100000) {
-      return '₹${(amount / 100000).toStringAsFixed(1)}L';
-    } else if (amount >= 1000) {
-      return '₹${(amount / 1000).toStringAsFixed(1)}K';
-    }
-    return '₹${amount.toStringAsFixed(0)}';
+    return CurrencyFormatter.formatINR(amount);
   }
 }
