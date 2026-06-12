@@ -28,6 +28,20 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
   }
 
   Widget _buildTotalsCard() {
+    final int pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+    final startVal = _parseDisplayDate(_startDateController.text);
+    final endVal = _parseDisplayDate(_endDateController.text);
+    String dateRangeText = '';
+    if (startVal != null && endVal != null) {
+      dateRangeText =
+          ' (${DateFormat('MMM d').format(startVal)} – ${DateFormat('MMM d, yyyy').format(endVal)})';
+    }
+
+    final int itemLength = _items.where((i) => i.productId.isNotEmpty).length;
+    final String itemText = itemLength == 1 ? 'item' : 'items';
+    final String subtotalDetailsText =
+        '$itemLength $itemText · $_rentalDays ${_rentalDays == 1 ? 'day' : 'days'}$dateRangeText · Rate: ×$pricingMultiplier';
+
     return Container(
       padding: Responsive.all(AppSizes.spacingLarge),
       decoration: BoxDecoration(
@@ -74,7 +88,7 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
                 SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
                 Expanded(
                   child: Text(
-                    '${_items.where((i) => i.productId.isNotEmpty).length} ${_items.where((i) => i.productId.isNotEmpty).length == 1 ? 'item' : 'items'} · $_rentalDays days · Rate: ×${(_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1}',
+                    subtotalDetailsText,
                     style: TextStyle(
                       fontSize: Responsive.sp(AppSizes.fontTiny),
                       color: Colors.grey[400],
@@ -312,7 +326,7 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
                           ),
                           SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
                           Text(
-                            '$_rentalDays days${_isGstEnabled && _gstAmount > 0 ? ' · Incl. GST' : ''}',
+                            '$_rentalDays ${_rentalDays == 1 ? 'day' : 'days'}$dateRangeText · Rate: ×$pricingMultiplier${_isGstEnabled && _gstAmount > 0 ? ' · Incl. GST' : ''}',
                             style: TextStyle(
                               fontSize: Responsive.sp(AppSizes.fontTiny),
                               color: Colors.grey[400],
