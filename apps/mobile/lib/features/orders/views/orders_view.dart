@@ -23,17 +23,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   final _scrollController = ScrollController();
   String? _selectedChip; // null = All
 
-  static const _statusFilters = <String, String?>{
-    'All': null,
-    'Scheduled': 'scheduled',
-    'Ongoing': 'ongoing',
-    'Late': 'late_return',
-    'Partial': 'partial',
-    'Returned': 'returned',
-    'Completed': 'completed',
-    'Flagged': 'flagged',
-    'Cancelled': 'cancelled',
-  };
 
   @override
   void initState() {
@@ -67,6 +56,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
           Column(
             children: [
               _buildSearchBar(),
+              _buildDateFilterRow(),
               _buildFilterChips(),
               Expanded(
                 child: ordersAsync.when(
@@ -157,41 +147,373 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     );
   }
 
+  Widget _buildDateFilterRow() {
+    final notifier = ref.read(ordersProvider.notifier);
+    final dateFilter = notifier.currentDateFilter;
+    final dateFrom = notifier.currentDateFrom;
+    final dateTo = notifier.currentDateTo;
+
+    return Padding(
+      padding: Responsive.only(
+        left: AppSizes.screenPaddingSmall,
+        right: AppSizes.screenPaddingSmall,
+        top: AppSizes.spacingTiny,
+        bottom: AppSizes.spacingTiny,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.calendar_month_rounded,
+                size: Responsive.icon(AppSizes.iconSmall),
+                color: AppColors.primary,
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+              Text(
+                'Date:',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+              Expanded(
+                child: Container(
+                  padding: Responsive.symmetric(
+                    horizontal: AppSizes.spacingMedium,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: dateFilter,
+                      isExpanded: true,
+                      icon: Icon(
+                        Icons.arrow_drop_down_rounded,
+                        color: AppColors.primary,
+                        size: Responsive.icon(AppSizes.iconMedium),
+                      ),
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall + 1),
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'ALL', child: Text('All Time')),
+                        DropdownMenuItem(value: 'today', child: Text('Today')),
+                        DropdownMenuItem(value: 'yesterday', child: Text('Yesterday')),
+                        DropdownMenuItem(value: 'this_week', child: Text('This Week')),
+                        DropdownMenuItem(value: 'this_month', child: Text('This Month')),
+                        DropdownMenuItem(value: 'custom', child: Text('Custom Range')),
+                      ],
+                      onChanged: (val) {
+                        if (val == null) return;
+                        if (val == 'custom') {
+                          _selectCustomDateRange(dateFrom, dateTo);
+                        } else {
+                          ref.read(ordersProvider.notifier).filterByDate(val);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (dateFilter == 'custom') ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+            Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _selectDate(true, dateFrom, dateTo),
+                    child: Container(
+                      padding: Responsive.symmetric(
+                        horizontal: AppSizes.spacingSmall,
+                        vertical: AppSizes.spacingSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            dateFrom ?? 'Start Date',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              color: dateFrom != null ? AppColors.primary : AppColors.secondaryText.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          Icon(
+                            Icons.date_range_rounded,
+                            size: Responsive.icon(AppSizes.iconTiny + 2),
+                            color: AppColors.secondaryText.withValues(alpha: 0.6),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall),
+                  child: Text(
+                    'to',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => _selectDate(false, dateFrom, dateTo),
+                    child: Container(
+                      padding: Responsive.symmetric(
+                        horizontal: AppSizes.spacingSmall,
+                        vertical: AppSizes.spacingSmall,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            dateTo ?? 'End Date',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              color: dateTo != null ? AppColors.primary : AppColors.secondaryText.withValues(alpha: 0.6),
+                            ),
+                          ),
+                          Icon(
+                            Icons.date_range_rounded,
+                            size: Responsive.icon(AppSizes.iconTiny + 2),
+                            color: AppColors.secondaryText.withValues(alpha: 0.6),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _selectCustomDateRange(String? currentFrom, String? currentTo) async {
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      initialDateRange: currentFrom != null && currentTo != null
+          ? DateTimeRange(
+              start: DateTime.parse(currentFrom),
+              end: DateTime.parse(currentTo),
+            )
+          : null,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: AppColors.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final fromStr = picked.start.toIso8601String().split('T')[0];
+      final toStr = picked.end.toIso8601String().split('T')[0];
+      ref.read(ordersProvider.notifier).filterByDate('custom', dateFrom: fromStr, dateTo: toStr);
+    }
+  }
+
+  Future<void> _selectDate(bool isStart, String? currentFrom, String? currentTo) async {
+    final initialDate = isStart
+        ? (currentFrom != null ? DateTime.parse(currentFrom) : DateTime.now())
+        : (currentTo != null ? DateTime.parse(currentTo) : DateTime.now());
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: AppColors.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final formatted = picked.toIso8601String().split('T')[0];
+      if (isStart) {
+        ref.read(ordersProvider.notifier).filterByDate(
+              'custom',
+              dateFrom: formatted,
+              dateTo: currentTo,
+            );
+      } else {
+        ref.read(ordersProvider.notifier).filterByDate(
+              'custom',
+              dateFrom: currentFrom,
+              dateTo: formatted,
+            );
+      }
+    }
+  }
+
   Widget _buildFilterChips() {
     final ordersAsync = ref.watch(ordersProvider);
-    final allOrders = ordersAsync.value?.orders ?? [];
+    final paginated = ordersAsync.value;
+    final actionNeededCount = paginated?.actionNeededCount ?? 0;
+    final conflictCount = paginated?.conflictCount ?? 0;
+
+    final chips = <Map<String, dynamic>>[
+      {'label': 'All', 'value': null},
+      {'label': 'Pending', 'value': 'pending'},
+      {'label': 'Ongoing', 'value': 'ongoing'},
+      {'label': 'Scheduled', 'value': 'scheduled'},
+      {'label': 'Partial', 'value': 'partial'},
+      {'label': 'Returned', 'value': 'returned'},
+      {'label': 'Completed', 'value': 'completed'},
+      {'label': 'Cancelled', 'value': 'cancelled'},
+      {'label': 'Flagged', 'value': 'flagged'},
+      {'label': 'Revenue Due', 'value': 'revenue_due'},
+    ];
+
+    if (conflictCount > 0) {
+      chips.add({'label': 'Stock Conflict', 'value': 'stock_conflict'});
+    }
+
+    chips.add({'label': 'Priority Cleaning', 'value': 'priority_cleaning'});
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: Responsive.symmetric(horizontal: AppSizes.screenPaddingSmall, vertical: AppSizes.spacingTiny),
+      padding: Responsive.symmetric(horizontal: AppSizes.screenPaddingSmall, vertical: AppSizes.spacingSmall),
       child: Row(
-        children: _statusFilters.entries.map((entry) {
-          final isActive = entry.value == _selectedChip;
-          final count = entry.value == null
-              ? allOrders.length
-              : entry.value == 'late_return'
-                  ? allOrders.where((o) => o.isLate).length
-                  : allOrders.where((o) => _statusToString(o.status) == entry.value).length;
+        children: chips.map((chip) {
+          final val = chip['value'] as String?;
+          final label = chip['label'] as String;
+          final isActive = val == _selectedChip;
+
+          Color activeColor = AppColors.primary;
+          if (val == 'stock_conflict') {
+            activeColor = AppColors.error;
+          } else if (val == 'priority_cleaning') {
+            activeColor = AppColors.warning;
+          }
+
+          Color textActiveColor = Colors.white;
+          Color textInactiveColor = AppColors.secondaryText;
+          if (val == 'stock_conflict' && !isActive) {
+            textInactiveColor = AppColors.error;
+          } else if (val == 'priority_cleaning' && !isActive) {
+            textInactiveColor = AppColors.warning;
+          }
+
+          Widget? prefixIcon;
+          if (val == 'stock_conflict') {
+            prefixIcon = Icon(
+              Icons.warning_amber_rounded,
+              size: Responsive.icon(14),
+              color: isActive ? Colors.white : AppColors.error,
+            );
+          } else if (val == 'priority_cleaning') {
+            prefixIcon = Icon(
+              Icons.auto_awesome_rounded,
+              size: Responsive.icon(14),
+              color: isActive ? Colors.white : AppColors.warning,
+            );
+          }
+
+          Widget? badge;
+          if (val == 'pending' && actionNeededCount > 0) {
+            badge = Container(
+              margin: Responsive.only(left: 6),
+              padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny + 2, vertical: 2),
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white.withValues(alpha: 0.25) : AppColors.warning.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(Responsive.r(10)),
+              ),
+              child: Text(
+                '$actionNeededCount',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  fontWeight: FontWeight.bold,
+                  color: isActive ? Colors.white : AppColors.warning,
+                ),
+              ),
+            );
+          } else if (val == 'stock_conflict') {
+            badge = Container(
+              margin: Responsive.only(left: 6),
+              padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny + 2, vertical: 2),
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white.withValues(alpha: 0.25) : AppColors.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(Responsive.r(10)),
+              ),
+              child: Text(
+                '$conflictCount',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  fontWeight: FontWeight.bold,
+                  color: isActive ? Colors.white : AppColors.error,
+                ),
+              ),
+            );
+          }
+
           return Padding(
             padding: Responsive.only(right: AppSizes.spacingSmall),
             child: GestureDetector(
               onTap: () {
-                setState(() => _selectedChip = entry.value);
-                ref.read(ordersProvider.notifier).filterByStatus(entry.value);
+                setState(() => _selectedChip = val);
+                ref.read(ordersProvider.notifier).filterByStatus(val);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: Responsive.symmetric(horizontal: AppSizes.spacingXLarge, vertical: AppSizes.spacingSmall),
+                padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingSmall),
                 decoration: BoxDecoration(
-                  color: isActive ? AppColors.primary : Colors.white,
+                  color: isActive ? activeColor : (val == 'stock_conflict' ? AppColors.error.withValues(alpha: 0.05) : Colors.white),
                   borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusXLarge)),
-                  border: Border.all(color: isActive ? AppColors.primary : Colors.grey.shade300),
+                  border: Border.all(
+                    color: isActive
+                        ? activeColor
+                        : (val == 'stock_conflict' ? AppColors.error.withValues(alpha: 0.2) : Colors.grey.shade300),
+                  ),
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.15),
+                            color: activeColor.withValues(alpha: 0.15),
                             blurRadius: Responsive.r(AppSizes.radiusSmall),
-                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny)),
+                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
                           )
                         ]
                       : [],
@@ -199,32 +521,19 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (prefixIcon != null) ...[
+                      prefixIcon,
+                      SizedBox(width: Responsive.w(6)),
+                    ],
                     Text(
-                      entry.key,
+                      label,
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
-                        fontWeight: FontWeight.w600,
-                        color: isActive ? Colors.white : AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        color: isActive ? textActiveColor : textInactiveColor,
                       ),
                     ),
-                    SizedBox(width: Responsive.w(4)),
-                    Container(
-                      padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? Colors.white.withValues(alpha: 0.25)
-                            : AppColors.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(Responsive.r(10)),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontTiny),
-                          fontWeight: FontWeight.w700,
-                          color: isActive ? Colors.white : AppColors.primary,
-                        ),
-                      ),
-                    ),
+                    if (badge != null) badge,
                   ],
                 ),
               ),
@@ -720,21 +1029,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     }
   }
 
-  String _statusToString(OrderStatus s) {
-    switch (s) {
-      case OrderStatus.pending: return 'pending';
-      case OrderStatus.confirmed: return 'confirmed';
-      case OrderStatus.scheduled: return 'scheduled';
-      case OrderStatus.delivered: return 'delivered';
-      case OrderStatus.inUse: return 'in_use';
-      case OrderStatus.ongoing: return 'ongoing';
-      case OrderStatus.partial: return 'partial';
-      case OrderStatus.returned: return 'returned';
-      case OrderStatus.completed: return 'completed';
-      case OrderStatus.cancelled: return 'cancelled';
-      case OrderStatus.flagged: return 'flagged';
-    }
-  }
 
   String _formatStatus(OrderStatus s) {
     switch (s) {

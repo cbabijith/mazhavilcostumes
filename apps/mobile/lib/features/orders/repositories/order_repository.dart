@@ -54,7 +54,11 @@ class OrderRepository {
         queryParams['branch_id'] = branchId;
       }
       if (status != null && status.isNotEmpty) {
-        queryParams['status'] = status;
+        if (status == 'stock_conflict') {
+          queryParams['has_stock_conflict'] = 'true';
+        } else {
+          queryParams['status'] = status;
+        }
       }
       if (query != null && query.isNotEmpty) {
         queryParams['query'] = query;

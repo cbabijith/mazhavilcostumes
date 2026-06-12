@@ -15,6 +15,13 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   String _currentSearch = '';
   String? _currentStatus;
   String? _currentBranchId;
+  String _currentDateFilter = 'ALL';
+  String? _currentDateFrom;
+  String? _currentDateTo;
+
+  String get currentDateFilter => _currentDateFilter;
+  String? get currentDateFrom => _currentDateFrom;
+  String? get currentDateTo => _currentDateTo;
 
   @override
   Future<PaginatedOrders> build() async {
@@ -27,6 +34,9 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       query: _currentSearch,
       status: _currentStatus,
       branchId: _currentBranchId,
+      dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+      dateFrom: _currentDateFrom,
+      dateTo: _currentDateTo,
     );
   }
 
@@ -42,6 +52,9 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -58,6 +71,9 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -74,6 +90,30 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
+      );
+    });
+  }
+
+  Future<void> filterByDate(String dateFilter, {String? dateFrom, String? dateTo}) async {
+    _currentDateFilter = dateFilter;
+    _currentDateFrom = dateFrom;
+    _currentDateTo = dateTo;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 15,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
     });
   }
@@ -93,6 +133,9 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         query: _currentSearch,
         status: _currentStatus,
         branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
       );
 
       _currentPage++;
