@@ -677,17 +677,29 @@ class PaymentTransaction extends Equatable {
       ];
 
   factory PaymentTransaction.fromJson(Map<String, dynamic> json) {
+    String? staffName;
+    if (json['staff'] != null) {
+      if (json['staff'] is Map) {
+        staffName = json['staff']['name']?.toString();
+      } else if (json['staff'] is List && (json['staff'] as List).isNotEmpty) {
+        staffName = (json['staff'] as List).first['name']?.toString();
+      }
+    }
+
     return PaymentTransaction(
-      id: json['id'] as String? ?? '',
-      orderId: json['order_id'] as String? ?? '',
-      paymentType: json['payment_type'] as String? ?? '',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
-      paymentMode: json['payment_mode'] as String? ?? '',
-      transactionId: json['transaction_id'] as String?,
-      paymentDate: json['payment_date'] as String? ?? json['created_at'] as String? ?? '',
-      notes: json['notes'] as String?,
-      createdBy: json['created_by'] as String?,
-      createdByName: json['staff']?['name'] as String?,
+      id: json['id']?.toString() ?? '',
+      orderId: json['order_id']?.toString() ?? '',
+      paymentType: json['payment_type']?.toString() ?? '',
+      amount: json['amount'] is num
+          ? (json['amount'] as num).toDouble()
+          : double.tryParse(json['amount']?.toString() ?? '') ?? 0.0,
+      paymentMode: json['payment_mode']?.toString() ?? '',
+      transactionId: json['transaction_id']?.toString(),
+      paymentDate: json['payment_date']?.toString() ?? 
+                   json['created_at']?.toString() ?? '',
+      notes: json['notes']?.toString(),
+      createdBy: json['created_by']?.toString(),
+      createdByName: staffName,
     );
   }
 

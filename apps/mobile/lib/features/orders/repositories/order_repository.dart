@@ -221,13 +221,19 @@ class OrderRepository {
     required String orderId,
     required double amount,
     required String paymentMode,
+    String? paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
     try {
       final response = await _api.post(
         '/orders/$orderId/payments',
-        data: {'amount': amount, 'payment_mode': paymentMode, 'notes': notes},
+        data: {
+          'amount': amount,
+          'payment_mode': paymentMode,
+          'notes': notes,
+          if (paymentType != null) 'payment_type': paymentType,
+        },
         cancelToken: cancelToken,
       );
 
@@ -269,7 +275,8 @@ class OrderRepository {
   }) async {
     try {
       final response = await _api.get(
-        '/orders/$orderId/payments',
+        '/payments',
+        queryParameters: {'order_id': orderId},
         cancelToken: cancelToken,
       );
 
@@ -297,6 +304,31 @@ class OrderRepository {
       );
     } catch (e) {
       throw Exception('Failed to update payment: $e');
+    }
+  }
+
+  /// Update condition rating and damage assessment for a specific order item.
+  Future<void> updateOrderItemDamage({
+    required String itemId,
+    required String conditionRating,
+    String? damageDescription,
+    required double damageCharges,
+    required int damagedQuantity,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      await _api.patch(
+        '/orders/items/$itemId/damage',
+        data: {
+          'condition_rating': conditionRating,
+          'damage_description': damageDescription,
+          'damage_charges': damageCharges,
+          'damaged_quantity': damagedQuantity,
+        },
+        cancelToken: cancelToken,
+      );
+    } catch (e) {
+      throw Exception('Failed to update order item damage: $e');
     }
   }
 }

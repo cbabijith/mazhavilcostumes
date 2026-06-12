@@ -117,7 +117,8 @@ extension _OrderFormHelpers on _OrderFormViewState {
               if (maxQty > 0 && existingItem.quantity >= maxQty) {
                 _update(() => _isLoading = false);
                 if (mounted) {
-                  final msg = existingItem.availableWithPriority >
+                  final msg =
+                      existingItem.availableWithPriority >
                           existingItem.available
                       ? 'Maximum $maxQty available for these dates (${existingItem.available} free + ${maxQty - existingItem.available} with priority cleaning).'
                       : 'Maximum $maxQty available for these dates.';

@@ -168,6 +168,7 @@ class OrderOperations {
     required String orderId,
     required double amount,
     required String paymentMode,
+    String? paymentType,
     String? notes,
     CancelToken? cancelToken,
   }) async {
@@ -175,6 +176,7 @@ class OrderOperations {
       orderId: orderId,
       amount: amount,
       paymentMode: paymentMode,
+      paymentType: paymentType,
       notes: notes,
       cancelToken: cancelToken,
     );
@@ -223,6 +225,24 @@ class OrderOperations {
       paymentId: paymentId,
       paymentMode: paymentMode,
       notes: notes,
+    );
+  }
+
+  Future<void> updateOrderItemDamage({
+    required String itemId,
+    required String conditionRating,
+    String? damageDescription,
+    required double damageCharges,
+    required int damagedQuantity,
+    CancelToken? cancelToken,
+  }) async {
+    await _repository.updateOrderItemDamage(
+      itemId: itemId,
+      conditionRating: conditionRating,
+      damageDescription: damageDescription,
+      damageCharges: damageCharges,
+      damagedQuantity: damagedQuantity,
+      cancelToken: cancelToken,
     );
   }
 
