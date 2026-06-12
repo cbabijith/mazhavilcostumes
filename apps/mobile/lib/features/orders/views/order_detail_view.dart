@@ -687,44 +687,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildLogisticsQuickStats(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-                  _buildInfoCard(
-                    title: 'Customer Information',
-                    icon: Icons.person_outline_rounded,
-                    action: _currentOrder.customer?.phone != null
-                        ? IconButton(
-                            icon: Icon(
-                              Icons.phone_in_talk_rounded,
-                              size: Responsive.icon(AppSizes.iconSmall),
-                              color: AppColors.primary,
-                            ),
-                            onPressed: () async {
-                              final phone = _currentOrder.customer!.phone;
-                              final uri = Uri.parse('tel:$phone');
-                              if (await canLaunchUrl(uri)) {
-                                await launchUrl(uri);
-                              }
-                            },
-                          )
-                        : null,
-                    children: [
-                      _buildDetailRow('Name', _currentOrder.customer?.name ?? 'N/A'),
-                      _buildDetailRow(
-                        'Phone',
-                        _currentOrder.customer?.phone ?? 'N/A',
-                        isPhone: true,
-                      ),
-                      if (_currentOrder.customer?.altPhone != null)
-                        _buildDetailRow(
-                          'Alt Phone',
-                          _currentOrder.customer!.altPhone!,
-                          isPhone: true,
-                        ),
-                      if (_currentOrder.customer?.email != null)
-                        _buildDetailRow('Email', _currentOrder.customer!.email!),
-                      if (_currentOrder.branch != null)
-                        _buildDetailRow('Branch', _currentOrder.branch!.name),
-                    ],
-                  ),
+                  _buildCustomerCard(),
 
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildItemsCard(),
@@ -732,21 +695,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   _buildFinancialReceiptCard(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildPaymentsCard(),
-                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-                  _buildInfoCard(
-                    title: 'Logistics Details',
-                    icon: Icons.local_shipping_outlined,
-                    children: [
-                      if (_currentOrder.deliveryMethod != null)
-                        _buildDetailRow('Method', _currentOrder.deliveryMethod!.name.toUpperCase()),
-                      if (_currentOrder.deliveryAddress != null && _currentOrder.deliveryAddress!.isNotEmpty)
-                        _buildDetailRow('Delivery Address', _currentOrder.deliveryAddress!),
-                      if (_currentOrder.pickupAddress != null && _currentOrder.pickupAddress!.isNotEmpty)
-                        _buildDetailRow('Pickup Address', _currentOrder.pickupAddress!),
-                      if (_currentOrder.notes != null && _currentOrder.notes!.isNotEmpty)
-                        _buildDetailRow('Notes', _currentOrder.notes!),
-                    ],
-                  ),
                   SizedBox(height: Responsive.h(AppSizes.spacingMassive)),
                 ],
               ),
@@ -1179,13 +1127,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-  Widget _buildInfoCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-    Widget? action,
-  }) {
+
+  Widget _buildCustomerCard() {
+    final customer = _currentOrder.customer;
+    if (customer == null) return const SizedBox.shrink();
+
     return Container(
+      width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
@@ -1198,115 +1146,351 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ),
         ],
       ),
+      padding: Responsive.all(AppSizes.spacingLarge),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: Responsive.all(AppSizes.spacingMedium),
-            child: Row(
-              children: [
-                Container(
-                  padding: Responsive.all(AppSizes.spacingSmall),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: Responsive.icon(AppSizes.iconSmall),
-                    color: AppColors.primary,
-                  ),
-                ),
-                SizedBox(width: Responsive.w(AppSizes.spacingSmall + 2)),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: Responsive.sp(AppSizes.fontMedium),
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-                ),
-                if (action != null) action,
-              ],
+          Text(
+            'CUSTOMER',
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontTiny),
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondaryText,
+              letterSpacing: 1.2,
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
-          Padding(
-            padding: Responsive.all(AppSizes.spacingMedium),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: children,
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+          Text(
+            customer.name,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontXLarge + 1),
+              fontWeight: FontWeight.w900,
+              color: AppColors.text,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value, {bool isBold = false, Color? valueColor, bool isPhone = false}) {
-    final displayWidget = isPhone && value != 'N/A'
-        ? InkWell(
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          
+          // Primary Call Button (Green pill styled button like web)
+          InkWell(
             onTap: () async {
-              final uri = Uri.parse('tel:$value');
+              final uri = Uri.parse('tel:${customer.phone}');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
             },
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                    fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
-                    color: AppColors.info,
-                    decoration: TextDecoration.underline,
+            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+            child: Container(
+              width: double.infinity,
+              padding: Responsive.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.08),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.2), width: 1.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.phone_rounded,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                    color: AppColors.success,
                   ),
-                ),
-                SizedBox(width: Responsive.w(4)),
-                Icon(
-                  Icons.phone_rounded,
-                  size: Responsive.icon(12),
-                  color: AppColors.info,
-                ),
-              ],
-            ),
-          )
-        : Text(
-            value,
-            style: TextStyle(
-              fontSize: Responsive.sp(AppSizes.fontSmall),
-              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: valueColor ?? AppColors.text,
-            ),
-          );
-
-    return Padding(
-      padding: Responsive.symmetric(vertical: AppSizes.spacingTiny + 1),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: Responsive.w(110),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: Responsive.sp(AppSizes.fontSmall),
-                fontWeight: FontWeight.w600,
-                color: AppColors.secondaryText,
+                  SizedBox(width: Responsive.w(8)),
+                  Text(
+                    customer.phone,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.success,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: displayWidget,
-          ),
+          
+          // Alt Phone call button if present
+          if (customer.altPhone != null && customer.altPhone!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(8)),
+            InkWell(
+              onTap: () async {
+                final uri = Uri.parse('tel:${customer.altPhone}');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              child: Container(
+                width: double.infinity,
+                padding: Responsive.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.scaffoldBackground,
+                  border: Border.all(color: AppColors.border, width: 1),
+                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.phone_rounded,
+                      size: Responsive.icon(16),
+                      color: AppColors.secondaryText,
+                    ),
+                    SizedBox(width: Responsive.w(8)),
+                    Text(
+                      '${customer.altPhone} (Alt)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          
+          // Email & Branch if present
+          if (customer.email != null && customer.email!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Row(
+              children: [
+                Icon(
+                  Icons.email_outlined,
+                  size: Responsive.icon(16),
+                  color: AppColors.secondaryText,
+                ),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: Text(
+                    customer.email!,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          if (_currentOrder.branch != null) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+            Row(
+              children: [
+                Icon(
+                  Icons.storefront_outlined,
+                  size: Responsive.icon(16),
+                  color: AppColors.secondaryText,
+                ),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: Text(
+                    'Branch: ${_currentOrder.branch!.name}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          // Delivery Address (Styled Pin Section)
+          if (_currentOrder.deliveryAddress != null && _currentOrder.deliveryAddress!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'DELIVERY ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.local_shipping_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      _currentOrder.deliveryAddress!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Pickup Address (if present)
+          if (_currentOrder.pickupAddress != null && _currentOrder.pickupAddress!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'PICKUP ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.store_mall_directory_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      _currentOrder.pickupAddress!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Customer Address (Styled Pin Section)
+          if (customer.address != null && customer.address!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'CUSTOMER ADDRESS',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.scaffoldBackground,
+                border: Border.all(color: AppColors.border, width: 0.5),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.map_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.secondaryText,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      customer.address!,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // Order Notes (if present, amber box matching web)
+          if (_currentOrder.notes != null && _currentOrder.notes!.isNotEmpty) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+            const Divider(color: AppColors.border, height: 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Text(
+              'ORDER NOTES',
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.secondaryText,
+                letterSpacing: 1.0,
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.05),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.15), width: 1),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: Responsive.icon(18),
+                    color: AppColors.warning,
+                  ),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Text(
+                      '"${_currentOrder.notes!}"',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.text,
+                        fontStyle: FontStyle.italic,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
+
 
   Widget _buildItemsCard() {
     final items = _currentOrder.items ?? [];

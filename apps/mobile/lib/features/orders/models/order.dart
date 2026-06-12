@@ -577,6 +577,7 @@ class CustomerInfo extends Equatable {
   final String phone;
   final String? altPhone;
   final String? email;
+  final String? address;
 
   const CustomerInfo({
     required this.id,
@@ -584,10 +585,11 @@ class CustomerInfo extends Equatable {
     required this.phone,
     this.altPhone,
     this.email,
+    this.address,
   });
 
   @override
-  List<Object?> get props => [id, name, phone, altPhone, email];
+  List<Object?> get props => [id, name, phone, altPhone, email, address];
 
   factory CustomerInfo.fromJson(Map<String, dynamic> json) {
     return CustomerInfo(
@@ -596,6 +598,7 @@ class CustomerInfo extends Equatable {
       phone: json['phone'] as String? ?? '',
       altPhone: json['alt_phone'] as String?,
       email: json['email'] as String?,
+      address: json['address'] as String?,
     );
   }
 
@@ -606,6 +609,7 @@ class CustomerInfo extends Equatable {
       'phone': phone,
       'alt_phone': altPhone,
       'email': email,
+      'address': address,
     };
   }
 }
