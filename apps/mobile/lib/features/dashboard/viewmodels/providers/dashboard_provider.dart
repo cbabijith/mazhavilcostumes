@@ -127,14 +127,16 @@ final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) async {
   final repo = ref.read(dashboardRepositoryProvider);
   final branchId = ref.watch(effectiveBranchIdProvider);
   final range = ref.watch(analyticsRangeProvider);
-  debugPrint('[DashboardProvider] Fetching base analytics metrics: range=${range.apiValue}, branch=$branchId');
+  debugPrint('[DashboardProvider] Fetching base analytics metrics: range=${range.apiValue}, branch=$branchId, roiLimit=${RoiLimit.three.value}');
   try {
-    return await repo.getAnalyticsMetrics(
+    final metrics = await repo.getAnalyticsMetrics(
       branchId: branchId,
       range: range.apiValue,
       categoryPeriod: CategoryPeriod.month.apiValue,
       roiLimit: RoiLimit.three.value,
     );
+    debugPrint('[DashboardProvider] Base analytics metrics loaded. Top performers count: ${metrics.topPerformers.length}');
+    return metrics;
   } catch (e) {
     debugPrint('[DashboardProvider] Analytics error: $e');
     rethrow;
@@ -173,10 +175,13 @@ final categoryRevenueProvider = FutureProvider<List<CategoryRevenue>>((ref) asyn
 /// Inventory ROI provider — watches branchId, range, and roiLimit
 final inventoryRoiProvider = FutureProvider<List<TopPerformer>>((ref) async {
   final roiLimit = ref.watch(roiLimitProvider);
+  debugPrint('[DashboardProvider] inventoryRoiProvider invoked. Selected roiLimit: ${roiLimit.name} (${roiLimit.value})');
 
   // If using default 'three', reuse the already loaded base metrics to avoid duplicate requests
   if (roiLimit == RoiLimit.three) {
+    debugPrint('[DashboardProvider] roiLimit is Top 3. Reusing base metrics topPerformers.');
     final baseMetrics = await ref.watch(analyticsMetricsProvider.future);
+    debugPrint('[DashboardProvider] Reused base metrics. topPerformers count: ${baseMetrics.topPerformers.length}');
     return baseMetrics.topPerformers;
   }
 
@@ -192,6 +197,7 @@ final inventoryRoiProvider = FutureProvider<List<TopPerformer>>((ref) async {
       categoryPeriod: CategoryPeriod.month.apiValue,
       roiLimit: roiLimit.value,
     );
+    debugPrint('[DashboardProvider] inventoryRoiProvider loaded from API. topPerformers count: ${metrics.topPerformers.length}');
     return metrics.topPerformers;
   } catch (e) {
     debugPrint('[DashboardProvider] Inventory ROI error: $e');

@@ -23,6 +23,8 @@ import {
   subDays, subWeeks, subMonths,
 } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const guard = await apiGuard(request, 'dashboard');
@@ -97,7 +99,8 @@ export async function GET(request: NextRequest) {
     }
 
     const catPeriod = (searchParams.get('cat_period') as 'month' | 'year' | 'all') || 'month';
-    const roiLimit = searchParams.get('roi_limit') ? parseInt(searchParams.get('roi_limit')!) : 5;
+    const roiLimitStr = searchParams.get('roi_limit') || searchParams.get('roiLimit');
+    const roiLimit = roiLimitStr ? parseInt(roiLimitStr) : 3;
 
     const metrics = await dashboardService.getMetrics(
       startDate,

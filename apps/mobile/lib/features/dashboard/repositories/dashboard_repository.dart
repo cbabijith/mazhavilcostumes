@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../../core/supabase/api_client.dart';
 import '../domain/operational_card.dart';
@@ -194,7 +195,7 @@ class DashboardRepository {
     String? branchId,
     String range = 'this_week',
     String categoryPeriod = 'month',
-    int roiLimit = 5,
+    int roiLimit = 3,
     CancelToken? cancelToken,
   }) async {
     try {
@@ -207,14 +208,19 @@ class DashboardRepository {
         queryParams['branch_id'] = branchId;
       }
 
+      debugPrint('[DashboardRepository] Sending GET request to /dashboard/mobile-analytics with query parameters: $queryParams');
       final response = await _api.get(
         '/dashboard/mobile-analytics',
         queryParameters: queryParams,
         cancelToken: cancelToken,
       );
 
-      return AnalyticsMetrics.fromJson(response.data);
+      debugPrint('[DashboardRepository] Response code: ${response.statusCode}');
+      final metrics = AnalyticsMetrics.fromJson(response.data);
+      debugPrint('[DashboardRepository] Parsed topPerformers count: ${metrics.topPerformers.length}');
+      return metrics;
     } catch (e) {
+      debugPrint('[DashboardRepository] Error fetching analytics metrics: $e');
       throw Exception('Failed to load analytics metrics: $e');
     }
   }

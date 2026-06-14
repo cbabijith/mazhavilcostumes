@@ -13,7 +13,7 @@ class DashboardService {
     String? branchId,
     String range = 'this_week',
     String categoryPeriod = 'month',
-    int roiLimit = 5,
+    int roiLimit = 3,
   }) async {
     return await _repository.getAnalyticsMetrics(
       branchId: branchId,
