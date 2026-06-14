@@ -812,7 +812,7 @@ class AnalyticsSection extends ConsumerWidget {
           ),
           SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           categoryRevenueAsync.when(
-            skipLoadingOnReload: true,
+            skipLoadingOnReload: false,
             data: (categories) {
               if (categories.isEmpty) {
                 return Padding(
@@ -894,15 +894,7 @@ class AnalyticsSection extends ConsumerWidget {
                 }).toList(),
               );
             },
-            loading: () => Padding(
-              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
+            loading: () => _buildCategoryRevenueShimmer(),
             error: (err, stack) => Padding(
               padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
               child: Center(
@@ -1017,7 +1009,7 @@ class AnalyticsSection extends ConsumerWidget {
             ),
           ),
           topPerformersAsync.when(
-            skipLoadingOnReload: true,
+            skipLoadingOnReload: false,
             data: (performers) {
               if (performers.isEmpty) {
                 return Padding(
@@ -1148,15 +1140,7 @@ class AnalyticsSection extends ConsumerWidget {
                 ],
               );
             },
-            loading: () => Padding(
-              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
+            loading: () => _buildTopPerformersShimmer(selectedLimit.value),
             error: (err, stack) => Padding(
               padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
               child: Center(
@@ -1380,5 +1364,169 @@ class AnalyticsSection extends ConsumerWidget {
 
   String _formatCurrency(double amount) {
     return CurrencyFormatter.formatINR(amount);
+  }
+
+  Widget _buildTopPerformersShimmer(int limit) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Table header placeholder
+          Container(
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingLarge,
+              vertical: AppSizes.spacingSmall,
+            ),
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(16)),
+                Expanded(
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(16)),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Rows placeholder
+          ...List.generate(limit, (index) => Container(
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingLarge,
+              vertical: AppSizes.spacingMedium,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey[200]!,
+                  width: AppSizes.spacingTiny / 4,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(24)),
+                Expanded(
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(24)),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryRevenueShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(
+          3,
+          (index) => Padding(
+            padding: EdgeInsets.only(
+              bottom: Responsive.h(AppSizes.spacingMedium),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: Responsive.w(AppSizes.spacingMassive * 3),
+                      height: Responsive.h(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: Responsive.w(AppSizes.spacingHuge),
+                      height: Responsive.h(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Container(
+                  width: double.infinity,
+                  height: Responsive.h(AppSizes.spacingSmall),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.spacingTiny),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
