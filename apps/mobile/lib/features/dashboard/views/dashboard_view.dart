@@ -221,13 +221,26 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
       children: [
         if (pendingCards.isNotEmpty) ...[
           _buildSectionHeader(AppStrings.pendingTasks, Icons.warning_amber_rounded, AppColors.warning, screenWidth),
-          SizedBox(height: screenWidth * 0.015),
-          ...pendingCards.map((card) => _buildCompactActionCard(card)),
-          SizedBox(height: screenWidth * DashboardConstants.sectionSpacingPercent),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          ...pendingCards.map((card) => _buildWarningActionCard(card, screenWidth)),
+          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
         ],
-        _buildSectionHeader(AppStrings.allOperations, Icons.dashboard, AppColors.text, screenWidth),
-        SizedBox(height: screenWidth * 0.015),
-        ...clearCards.map((card) => _buildCompactActionCard(card)),
+        _buildSectionHeader(AppStrings.allOperations, Icons.dashboard_rounded, AppColors.text, screenWidth),
+        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: Responsive.w(AppSizes.spacingMedium),
+            mainAxisSpacing: Responsive.h(AppSizes.spacingMedium),
+            childAspectRatio: 1.25,
+          ),
+          itemCount: clearCards.length,
+          itemBuilder: (context, index) {
+            return _buildGridActionCard(clearCards[index], screenWidth);
+          },
+        ),
       ],
     );
   }
@@ -235,13 +248,13 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   Widget _buildSectionHeader(String title, IconData icon, Color color, double screenWidth) {
     return Row(
       children: [
-        Icon(icon, size: screenWidth * 0.05, color: color),
-        SizedBox(width: screenWidth * 0.02),
+        Icon(icon, size: Responsive.icon(AppSizes.iconSmall), color: color),
+        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
         Expanded(
           child: AutoSizeText(
             title,
             style: TextStyle(
-              fontSize: screenWidth * 0.045,
+              fontSize: Responsive.sp(AppSizes.fontMedium),
               fontWeight: FontWeight.bold,
               color: AppColors.text,
             ),
@@ -253,114 +266,251 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     );
   }
 
-  Widget _buildCompactActionCard(OperationalCard card) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final screenWidth = constraints.maxWidth;
-        final cardHeight = screenWidth * DashboardConstants.cardHeightPercent;
-        final iconSize = screenWidth * DashboardConstants.iconSizePercent;
-        final spacing = screenWidth * DashboardConstants.cardSpacingPercent;
-        final color = _getColorForCard(card.color);
-        final hasValue = card.orderCount > 0 ||
-                         (card.isProgressCard && card.totalCount! > 0) ||
-                         (card.amount != null && card.amount! > 0);
-        
-        return Container(
-          margin: EdgeInsets.only(bottom: screenWidth * DashboardConstants.cardBottomMarginPercent),
-          child: Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(cardHeight * 0.12),
-            elevation: card.hasWarning ? 2 : 1,
-            child: InkWell(
-              onTap: () {},
-              borderRadius: BorderRadius.circular(cardHeight * 0.12),
-              child: Container(
-                height: cardHeight,
-                padding: EdgeInsets.all(spacing),
-                child: Row(
+  Widget _buildWarningActionCard(OperationalCard card, double screenWidth) {
+    final color = _getColorForCard(card.color);
+    final hasValue = card.orderCount > 0 ||
+                     (card.isProgressCard && card.totalCount! > 0) ||
+                     (card.amount != null && card.amount! > 0);
+    
+    return Container(
+      margin: EdgeInsets.only(bottom: Responsive.h(AppSizes.spacingSmall)),
+      height: Responsive.h(85),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.04),
+            blurRadius: Responsive.r(AppSizes.spacingSmall),
+            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+          ),
+        ],
+        border: Border.all(
+          color: color.withValues(alpha: 0.2),
+          width: AppSizes.spacingTiny / 4,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Left status highlight stripe
+            Container(
+              width: Responsive.w(4),
+              color: color,
+            ),
+            Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {},
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
+                    bottomRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
+                  ),
+                  child: Padding(
+                    padding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingLarge,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: Responsive.w(AppSizes.spacingXXLarge * 1.5),
+                          height: Responsive.h(AppSizes.spacingXXLarge * 1.5),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          ),
+                          child: Icon(
+                            _getIconForCard(card.icon),
+                            color: color,
+                            size: Responsive.icon(AppSizes.iconTiny),
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              AutoSizeText(
+                                card.label,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.text,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                              AutoSizeText(
+                                card.statusText,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                                  color: color,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        if (hasValue)
+                          Container(
+                            padding: Responsive.symmetric(
+                              horizontal: AppSizes.spacingMedium,
+                              vertical: AppSizes.spacingSmall,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            ),
+                            child: Text(
+                              card.isProgressCard
+                                  ? '${card.completedCount}/${card.totalCount}'
+                                  : card.amount != null
+                                      ? CurrencyFormatter.formatINR(card.amount!)
+                                      : card.orderCount.toString(),
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                fontWeight: FontWeight.w900,
+                                color: color,
+                              ),
+                            ),
+                          )
+                        else
+                          Icon(
+                            Icons.check_circle,
+                            color: AppColors.success,
+                            size: Responsive.icon(AppSizes.iconMedium),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGridActionCard(OperationalCard card, double screenWidth) {
+    final color = _getColorForCard(card.color);
+    final hasValue = card.orderCount > 0 ||
+                     (card.isProgressCard && card.totalCount! > 0) ||
+                     (card.amount != null && card.amount! > 0);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.spacingSmall),
+            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+          ),
+        ],
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {},
+          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+          child: Padding(
+            padding: Responsive.all(AppSizes.spacingMedium),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: iconSize,
-                      height: iconSize,
+                      width: Responsive.w(AppSizes.spacingXXLarge * 1.5),
+                      height: Responsive.h(AppSizes.spacingXXLarge * 1.5),
                       decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(iconSize * 0.2),
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
                       ),
                       child: Icon(
                         _getIconForCard(card.icon),
                         color: color,
-                        size: iconSize * 0.45,
-                      ),
-                    ),
-                    SizedBox(width: spacing),
-                    Expanded(
-                      child: ClipRect(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AutoSizeText(
-                              card.label,
-                              style: TextStyle(
-                                fontSize: iconSize * 0.28,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.text,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            AutoSizeText(
-                              card.statusText,
-                              style: TextStyle(
-                                fontSize: iconSize * 0.24,
-                                color: AppColors.secondaryText,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                        size: Responsive.icon(AppSizes.iconTiny),
                       ),
                     ),
                     if (hasValue)
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: spacing * 0.6,
-                      vertical: spacing * 0.25,
-                    ),
-                    decoration: BoxDecoration(
-                      color: card.hasWarning ? color.withValues(alpha: 0.15) : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(iconSize * 0.15),
-                    ),
-                    child: AutoSizeText(
-                      card.isProgressCard
-                          ? '${card.completedCount}/${card.totalCount}'
-                          : card.amount != null
-                              ? CurrencyFormatter.formatINR(card.amount!)
-                              : card.orderCount.toString(),
+                      Container(
+                        padding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingSmall,
+                          vertical: AppSizes.spacingTiny,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.scaffoldBackground,
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        child: Text(
+                          card.isProgressCard
+                              ? '${card.completedCount}/${card.totalCount}'
+                              : card.amount != null
+                                  ? CurrencyFormatter.formatINR(card.amount!)
+                                  : card.orderCount.toString(),
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      )
+                    else
+                      Icon(
+                        Icons.check_circle,
+                        color: AppColors.success,
+                        size: Responsive.icon(AppSizes.iconSmall),
+                      ),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AutoSizeText(
+                      card.label,
                       style: TextStyle(
-                        fontSize: iconSize * 0.38,
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
                         fontWeight: FontWeight.bold,
-                        color: card.hasWarning ? color : AppColors.text,
+                        color: AppColors.text,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  )
-                else
-                  Icon(
-                    Icons.check_circle,
-                    color: AppColors.success,
-                    size: iconSize * 0.45,
-                  ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                    AutoSizeText(
+                      card.statusText,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        color: AppColors.secondaryText,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ],
                 ),
-              ),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -390,7 +540,6 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     }
   }
 
-
   Widget _buildLoadingState(double screenWidth) {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
@@ -399,15 +548,26 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildShimmerSectionHeader(screenWidth),
-          SizedBox(height: screenWidth * 0.015),
-          _buildShimmerCompactCard(screenWidth),
-          _buildShimmerCompactCard(screenWidth),
-          SizedBox(height: screenWidth * 0.03),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          _buildShimmerWarningCard(screenWidth),
+          _buildShimmerWarningCard(screenWidth),
+          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           _buildShimmerSectionHeader(screenWidth),
-          SizedBox(height: screenWidth * 0.015),
-          _buildShimmerCompactCard(screenWidth),
-          _buildShimmerCompactCard(screenWidth),
-          _buildShimmerCompactCard(screenWidth),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: Responsive.w(AppSizes.spacingMedium),
+              mainAxisSpacing: Responsive.h(AppSizes.spacingMedium),
+              childAspectRatio: 1.25,
+            ),
+            itemCount: 4,
+            itemBuilder: (context, index) {
+              return _buildShimmerGridCard(screenWidth);
+            },
+          ),
         ],
       ),
     );
@@ -424,13 +584,22 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     );
   }
 
-  Widget _buildShimmerCompactCard(double screenWidth) {
+  Widget _buildShimmerWarningCard(double screenWidth) {
     return Container(
-      margin: EdgeInsets.only(bottom: screenWidth * DashboardConstants.cardBottomMarginPercent),
-      height: screenWidth * DashboardConstants.cardHeightPercent,
+      margin: EdgeInsets.only(bottom: Responsive.h(AppSizes.spacingSmall)),
+      height: Responsive.h(85),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(screenWidth * 0.025),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+      ),
+    );
+  }
+
+  Widget _buildShimmerGridCard(double screenWidth) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
       ),
     );
   }
