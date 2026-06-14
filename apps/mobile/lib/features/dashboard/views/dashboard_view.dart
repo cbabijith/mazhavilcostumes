@@ -18,10 +18,27 @@ class DashboardView extends ConsumerStatefulWidget {
 }
 
 class _DashboardViewState extends ConsumerState<DashboardView> {
+  int _activeTab = 0;
+  late PageController _pageController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _activeTab);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
     final operationalAsync = ref.watch(operationalMetricsProvider);
+    final user = ref.watch(authUserProvider);
+    final isAdmin = user != null && user.isAdmin;
 
     return Scaffold(
       body: Container(
@@ -41,59 +58,124 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
         child: CustomPaint(
           painter: MeshGradientPainter(AppColors.primary),
           child: SafeArea(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(operationalMetricsProvider);
-                ref.invalidate(analyticsMetricsProvider);
-                ref.invalidate(categoryRevenueProvider);
-                ref.invalidate(inventoryRoiProvider);
-              },
-              color: AppColors.primary,
-              backgroundColor: Colors.white,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final screenWidth = constraints.maxWidth;
-                  final padding = screenWidth * DashboardConstants.screenPaddingPercent;
-                  final bottomPadding = MediaQuery.of(context).padding.bottom;
-                  
-                  return CustomScrollView(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                            left: padding,
-                            right: padding,
-                            top: padding,
-                            bottom: padding + bottomPadding + screenWidth * 0.02,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildPageHeader(screenWidth),
-                              SizedBox(height: screenWidth * 0.025),
-                              operationalAsync.when(
-                                data: (metrics) => _buildDashboardContent(metrics, screenWidth),
-                                loading: () => _buildLoadingState(screenWidth),
-                                error: (error, stack) => _buildErrorState(error, stack, screenWidth),
-                              ),
-                              // Analytics section — admin only
-                              Consumer(
-                                builder: (context, ref, _) {
-                                  final user = ref.watch(authUserProvider);
-                                  if (user == null || !user.isAdmin) {
-                                    return const SizedBox.shrink();
-                                  }
-                                  return const AnalyticsSection();
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final screenWidth = constraints.maxWidth;
+                final padding = screenWidth * DashboardConstants.screenPaddingPercent;
+                final bottomPadding = MediaQuery.of(context).padding.bottom;
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: padding,
+                        right: padding,
+                        top: padding,
                       ),
-                    ],
-                  );
-                },
-              ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildPageHeader(screenWidth),
+                          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                          if (isAdmin) ...[
+                            _buildTabBar(screenWidth),
+                            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: !isAdmin
+                          ? RefreshIndicator(
+                              onRefresh: () async {
+                                ref.invalidate(operationalMetricsProvider);
+                              },
+                              color: AppColors.primary,
+                              backgroundColor: Colors.white,
+                              child: CustomScrollView(
+                                slivers: [
+                                  SliverToBoxAdapter(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        left: padding,
+                                        right: padding,
+                                        bottom: padding + bottomPadding + screenWidth * 0.02,
+                                      ),
+                                      child: operationalAsync.when(
+                                        data: (metrics) => _buildDashboardContent(metrics, screenWidth),
+                                        loading: () => _buildLoadingState(screenWidth),
+                                        error: (error, stack) => _buildErrorState(error, stack, screenWidth),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : PageView(
+                              controller: _pageController,
+                              onPageChanged: (index) {
+                                setState(() {
+                                  _activeTab = index;
+                                });
+                              },
+                              children: [
+                                // Page 0: Operations
+                                RefreshIndicator(
+                                  onRefresh: () async {
+                                    ref.invalidate(operationalMetricsProvider);
+                                  },
+                                  color: AppColors.primary,
+                                  backgroundColor: Colors.white,
+                                  child: CustomScrollView(
+                                    slivers: [
+                                      SliverToBoxAdapter(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                            left: padding,
+                                            right: padding,
+                                            bottom: padding + bottomPadding + screenWidth * 0.02,
+                                          ),
+                                          child: operationalAsync.when(
+                                            data: (metrics) => _buildDashboardContent(metrics, screenWidth),
+                                            loading: () => _buildLoadingState(screenWidth),
+                                            error: (error, stack) => _buildErrorState(error, stack, screenWidth),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                // Page 1: Analytics
+                                RefreshIndicator(
+                                  onRefresh: () async {
+                                    ref.invalidate(analyticsMetricsProvider);
+                                    ref.invalidate(categoryRevenueProvider);
+                                    ref.invalidate(inventoryRoiProvider);
+                                  },
+                                  color: AppColors.primary,
+                                  backgroundColor: Colors.white,
+                                  child: CustomScrollView(
+                                    slivers: [
+                                      SliverToBoxAdapter(
+                                        child: Padding(
+                                          padding: EdgeInsets.only(
+                                            left: padding,
+                                            right: padding,
+                                            bottom: padding + bottomPadding + screenWidth * 0.02,
+                                          ),
+                                          child: const AnalyticsSection(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),
@@ -405,6 +487,126 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabBar(double screenWidth) {
+    return Container(
+      padding: Responsive.all(AppSizes.spacingTiny),
+      decoration: BoxDecoration(
+        color: AppColors.scaffoldBackground,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: Responsive.symmetric(
+                  vertical: AppSizes.spacingSmall,
+                ),
+                decoration: BoxDecoration(
+                  color: _activeTab == 0 ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
+                  boxShadow: _activeTab == 0
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            blurRadius: Responsive.r(AppSizes.spacingTiny),
+                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.dashboard_rounded,
+                      size: Responsive.icon(AppSizes.iconTiny),
+                      color: _activeTab == 0 ? Colors.white : AppColors.secondaryText,
+                    ),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    Text(
+                      'Operations',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: _activeTab == 0 ? FontWeight.bold : FontWeight.w500,
+                        color: _activeTab == 0 ? Colors.white : AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                _pageController.animateToPage(
+                  1,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: Responsive.symmetric(
+                  vertical: AppSizes.spacingSmall,
+                ),
+                decoration: BoxDecoration(
+                  color: _activeTab == 1 ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
+                  boxShadow: _activeTab == 1
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.2),
+                            blurRadius: Responsive.r(AppSizes.spacingTiny),
+                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.bar_chart_rounded,
+                      size: Responsive.icon(AppSizes.iconTiny),
+                      color: _activeTab == 1 ? Colors.white : AppColors.secondaryText,
+                    ),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    Text(
+                      'Analytics',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: _activeTab == 1 ? FontWeight.bold : FontWeight.w500,
+                        color: _activeTab == 1 ? Colors.white : AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

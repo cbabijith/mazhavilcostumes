@@ -66,6 +66,9 @@ class AppStrings {
   static const String topPerformers = 'Top Performers';
   static const String topPerformersDesc = 'Highest revenue products';
   static const String deadStock = 'Dead Stock (90+ Days)';
+  static const String operationalBottlenecks = 'Operational Bottlenecks';
+  static const String operationalBottlenecksDesc = 'Items stuck in process preventing revenue';
+  static const String noBottlenecks = 'No active bottlenecks! Everything is running smoothly.';
   static const String noDataForPeriod = 'No data for this period';
   static const String noDeadStock = 'No dead stock detected';
   static const String noCategoryData = 'No category data';

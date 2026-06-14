@@ -8,6 +8,8 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/analytics_metrics.dart';
 import '../../viewmodels/providers/dashboard_provider.dart';
 import 'revenue_chart.dart';
+import '../../../orders/viewmodels/providers/order_provider.dart';
+import '../../../orders/views/order_detail_view.dart';
 
 /// Analytics section of the dashboard — admin-only.
 /// Shows revenue pacing, collection trends, revenue status cards,
@@ -24,7 +26,7 @@ class AnalyticsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
+        const SizedBox.shrink(),
         // Section header + range filter
         _buildSectionHeader(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
@@ -196,10 +198,10 @@ class AnalyticsSection extends ConsumerWidget {
         _buildCategoryRevenueCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
-        // Inventory ROI + Dead Stock
+        // Inventory ROI + Operational Bottlenecks
         _buildTopPerformersCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-        _buildDeadStockCard(metrics.deadStock),
+        _buildBottlenecksCard(context, ref, metrics.bottlenecks),
       ],
     );
   }
@@ -1159,9 +1161,9 @@ class AnalyticsSection extends ConsumerWidget {
     );
   }
 
-  // ── Dead Stock Card ──────────────────────────────────────────────────
+  // ── Operational Bottlenecks Card ─────────────────────────────────────
 
-  Widget _buildDeadStockCard(List<DeadStockItem> deadStock) {
+  Widget _buildBottlenecksCard(BuildContext context, WidgetRef ref, List<Bottleneck> bottlenecks) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1179,22 +1181,36 @@ class AnalyticsSection extends ConsumerWidget {
         children: [
           Padding(
             padding: Responsive.all(AppSizes.spacingLarge),
-            child: AutoSizeText(
-              AppStrings.deadStock,
-              style: TextStyle(
-                fontSize: Responsive.sp(AppSizes.fontMedium),
-                fontWeight: FontWeight.bold,
-                color: AppColors.text,
-              ),
-              maxLines: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutoSizeText(
+                  AppStrings.operationalBottlenecks,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                  maxLines: 1,
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                AutoSizeText(
+                  AppStrings.operationalBottlenecksDesc,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                    color: AppColors.secondaryText,
+                  ),
+                  maxLines: 1,
+                ),
+              ],
             ),
           ),
-          if (deadStock.isEmpty)
+          if (bottlenecks.isEmpty)
             Padding(
-              padding: Responsive.symmetric(vertical: AppSizes.spacingXLarge),
+              padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
               child: Center(
                 child: AutoSizeText(
-                  AppStrings.noDeadStock,
+                  AppStrings.noBottlenecks,
                   style: TextStyle(
                     fontSize: Responsive.sp(AppSizes.fontSmall),
                     color: AppColors.success,
@@ -1205,46 +1221,128 @@ class AnalyticsSection extends ConsumerWidget {
               ),
             )
           else
-            ...deadStock.map((item) => Container(
-                  padding: Responsive.symmetric(
-                    horizontal: AppSizes.spacingLarge,
-                    vertical: AppSizes.spacingMedium,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppColors.scaffoldBackground,
-                        width: AppSizes.spacingTiny / 4,
-                      ),
+            ...bottlenecks.map((item) {
+              final isHighSeverity = item.severity.toLowerCase() == 'high';
+              final severityColor = isHighSeverity ? AppColors.error : AppColors.warning;
+              
+              IconData iconData;
+              switch (item.type.toLowerCase()) {
+                case 'cleaning':
+                  iconData = Icons.inventory_2_outlined;
+                  break;
+                case 'approval':
+                  iconData = Icons.check_circle_outline;
+                  break;
+                default:
+                  iconData = Icons.access_time;
+              }
+
+              return Container(
+                padding: Responsive.all(AppSizes.spacingLarge),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColors.scaffoldBackground,
+                      width: AppSizes.spacingTiny / 4,
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: AutoSizeText(
-                          item.name,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.text,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingSmall),
+                      decoration: BoxDecoration(
+                        color: severityColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                      child: Icon(
+                        iconData,
+                        size: Responsive.icon(AppSizes.iconTiny),
+                        color: severityColor,
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AutoSizeText(
+                            item.message,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.text,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          OutlinedButton(
+                            onPressed: () async {
+                              // Show loading indicator
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(color: AppColors.primary),
+                                ),
+                              );
+                              try {
+                                final order = await ref.read(orderProvider(item.id).future);
+                                if (context.mounted) {
+                                  Navigator.of(context).pop(); // Dismiss loading
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => OrderDetailView(order: order),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  Navigator.of(context).pop(); // Dismiss loading
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to load order: $e'),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: Responsive.symmetric(
+                                horizontal: AppSizes.spacingMedium,
+                                vertical: AppSizes.spacingSmall / 2,
+                              ),
+                              side: BorderSide(
+                                color: AppColors.border,
+                                width: AppSizes.spacingTiny / 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                            ),
+                            child: AutoSizeText(
+                              'View Order',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontTiny),
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
                       ),
-                      AutoSizeText(
-                        '${item.daysIdle} days idle',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontSmall),
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.error,
-                        ),
-                        maxLines: 1,
-                      ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
