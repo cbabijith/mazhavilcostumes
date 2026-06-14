@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../features/auth/viewmodels/auth_provider.dart' as core_auth;
 import '../features/auth/viewmodels/providers/auth_provider.dart';
 import '../features/auth/views/login_view.dart';
@@ -58,17 +57,24 @@ class _MainLayoutState extends State<MainLayout> {
           child: Padding(
             padding: Responsive.only(left: 16),
             child: Center(
-              child: SvgPicture.asset(
-                'assets/images/logo_paris.svg',
-                width: Responsive.icon(28),
-                height: Responsive.icon(28),
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              child: Container(
+                width: Responsive.icon(32),
+                height: Responsive.icon(32),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(
+                  'assets/images/mazhavil.png',
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
         ),
         title: Text(
-          'MAZHAVIL COSTUMES',
+          AppStrings.appName.toUpperCase(),
           style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Colors.white),
         ),
         actions: [
@@ -92,11 +98,18 @@ class _MainLayoutState extends State<MainLayout> {
         child: Padding(
           padding: Responsive.only(left: 16),
           child: Center(
-            child: SvgPicture.asset(
-              'assets/images/logo_paris.svg',
-              width: Responsive.icon(28),
-              height: Responsive.icon(28),
-              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            child: Container(
+              width: Responsive.icon(32),
+              height: Responsive.icon(32),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset(
+                'assets/images/mazhavil.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ),
@@ -135,16 +148,16 @@ class _MainLayoutState extends State<MainLayout> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: Responsive.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(Responsive.r(14)),
+                    width: Responsive.icon(48),
+                    height: Responsive.icon(48),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
-                    child: SvgPicture.asset(
-                      'assets/images/logo_paris.svg',
-                      width: Responsive.icon(32),
-                      height: Responsive.icon(32),
-                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/mazhavil.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                   SizedBox(height: Responsive.h(16)),
@@ -357,7 +370,7 @@ class _MainLayoutState extends State<MainLayout> {
           ],
         ),
         content: Text(
-          'Are you sure you want to log out of Mazhavil Costumes?',
+          'Are you sure you want to log out of ${AppStrings.appName}?',
           style: TextStyle(fontSize: Responsive.sp(14), height: 1.5),
         ),
         actionsPadding: Responsive.only(left: 16, right: 16, bottom: 16),

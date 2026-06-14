@@ -15,7 +15,7 @@ class AppColors {
 }
 
 class AppStrings {
-  static const String appName = 'Mazhavil Costumes';
+  static const String appName = 'Mazhavil costumes';
   static const String adminDashboard = 'Admin Dashboard';
   static const String signIn = 'Sign In';
   static const String email = 'Email';
@@ -27,7 +27,7 @@ class AppStrings {
   static const String pleaseEnterYourPassword = 'Please enter your password';
   static const String passwordMustBeAtLeast6Characters = 'Password must be at least 6 characters';
   static const String invalidCredentials = 'Invalid credentials. Please try again.';
-  static const String copyright = '© 2025 Mazhavil Costumes';
+  static const String copyright = '© 2025 Mazhavil costumes';
   
   // Dashboard strings
   static const String todaysOverview = "Today's Overview";

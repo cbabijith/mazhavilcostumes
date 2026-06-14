@@ -44,19 +44,7 @@ class CustomerSearchDropdown extends ConsumerWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(Responsive.r(8)),
         clipBehavior: Clip.antiAlias,
-        child:
-            (searchState.isLoading || searchState.isSearchingRemote) &&
-                customers.isEmpty &&
-                searchQuery.isEmpty
-            ? Center(
-                child: Padding(
-                  padding: Responsive.all(16),
-                  child: const CircularProgressIndicator(
-                    color: AppColors.primary,
-                  ),
-                ),
-              )
-            : searchState.error != null && customers.isEmpty
+        child: searchState.error != null && customers.isEmpty
             ? Center(
                 child: Padding(
                   padding: Responsive.all(16),

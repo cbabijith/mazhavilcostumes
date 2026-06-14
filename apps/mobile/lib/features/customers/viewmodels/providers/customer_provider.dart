@@ -25,7 +25,7 @@ final customersProvider = FutureProvider.autoDispose.family<PaginatedCustomers, 
 // Keep the provider alive for 5 minutes to enable hybrid search
 final customersCacheProvider = Provider.autoDispose((ref) {
   ref.keepAlive();
-  return ref.watch(customersProvider({'page': 1, 'limit': 100, 'lightweight': true}));
+  return ref.watch(customersProvider({'page': 1, 'limit': 1000, 'lightweight': true}));
 }, name: 'customersCacheProvider');
 
 // Single customer provider
@@ -79,7 +79,7 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
 
     // Dynamically update search list if the initial cache finishes loading
     ref.listen(customersCacheProvider, (previous, next) {
-      if (next.hasValue && state.query.isNotEmpty) {
+      if (next.hasValue) {
         search(state.query);
       }
     });
@@ -108,20 +108,24 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
     
     // Step 1: Instant local search (0ms)
     final localResults = _searchLocal(query);
+    
+    // Keep previous results if local search returned empty to prevent visual flicker/lag
+    final displayResults = localResults.isNotEmpty ? localResults : state.results;
+    
     state = state.copyWith(
       query: query,
-      results: localResults,
+      results: displayResults,
       isLoading: false,
       error: null,
     );
     
-    // Step 2: Debounced remote search (300ms)
+    // Step 2: Debounced remote search (150ms)
     if (query.isNotEmpty) {
       state = state.copyWith(
         isSearchingRemote: true,
         isLoading: localResults.isEmpty,
       );
-      _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      _debounceTimer = Timer(const Duration(milliseconds: 150), () async {
         try {
           final repository = ref.read(customerRepositoryProvider);
           final remoteResults = await repository.getCustomers(
@@ -155,6 +159,7 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
       });
     } else {
       state = state.copyWith(
+        results: localResults,
         isSearchingRemote: false,
         isLoading: false,
       );

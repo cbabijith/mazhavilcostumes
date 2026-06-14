@@ -9,6 +9,7 @@ import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
 import '../domain/operational_card.dart';
 import 'widgets/analytics_section.dart';
+import '../../customers/viewmodels/providers/customer_provider.dart';
 
 class DashboardView extends ConsumerStatefulWidget {
   const DashboardView({super.key});
@@ -25,6 +26,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _activeTab);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(customersCacheProvider);
+    });
   }
 
   @override
