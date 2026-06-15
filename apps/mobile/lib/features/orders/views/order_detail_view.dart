@@ -913,12 +913,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               child: OutlinedButton.icon(
                 onPressed: _openCancelDialog,
                 icon: Icon(Icons.cancel_outlined, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
-                label: Text(
-                  'Cancel Order',
-                  style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Cancel Order',
+                    style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.error, width: 1.5),
+                  side: BorderSide(color: AppColors.error, width: AppSizes.spacingTiny * 0.375),
                   padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
                 ),
@@ -945,9 +948,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             ),
             onPressed: _startRentalWithCheck,
             icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: Text(
-              AppStrings.startRental,
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                AppStrings.startRental,
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
@@ -968,9 +974,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             ),
             onPressed: _openReturnDialog,
             icon: Icon(Icons.assignment_turned_in_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: Text(
-              'Process Return',
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Process Return',
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
@@ -984,16 +993,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         Expanded(
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.white, width: 1.5),
+              side: BorderSide(color: Colors.white, width: AppSizes.spacingTiny * 0.375),
               foregroundColor: Colors.white,
               padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
             ),
             onPressed: _openPaymentDialog,
             icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: Text(
-              'Collect Payment',
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Collect Payment',
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
@@ -1007,16 +1019,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         Expanded(
           child: OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.45), width: 1),
+              side: BorderSide(color: Colors.white.withValues(alpha: 0.45), width: AppSizes.spacingTiny / 4),
               foregroundColor: Colors.red[100],
               padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
             ),
             onPressed: _openCancelDialog,
             icon: Icon(Icons.cancel_outlined, size: Responsive.icon(AppSizes.iconSmall), color: Colors.red[100]),
-            label: Text(
-              'Cancel',
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'Cancel',
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ),
