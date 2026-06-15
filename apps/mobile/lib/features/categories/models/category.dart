@@ -43,6 +43,40 @@ class Category extends Equatable {
   /// Whether this is a Main (root) category.
   bool get isMain => parentId == null;
 
+  Category copyWith({
+    String? id,
+    String? name,
+    String? slug,
+    String? description,
+    String? imageUrl,
+    String? parentId,
+    int? sortOrder,
+    bool? isActive,
+    bool? isGlobal,
+    String? createdAt,
+    String? updatedAt,
+    Category? parent,
+    List<Category>? children,
+    int? productCount,
+  }) {
+    return Category(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      slug: slug ?? this.slug,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      parentId: parentId ?? this.parentId,
+      sortOrder: sortOrder ?? this.sortOrder,
+      isActive: isActive ?? this.isActive,
+      isGlobal: isGlobal ?? this.isGlobal,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      parent: parent ?? this.parent,
+      children: children ?? this.children,
+      productCount: productCount ?? this.productCount,
+    );
+  }
+
   @override
   List<Object?> get props => [
         id,

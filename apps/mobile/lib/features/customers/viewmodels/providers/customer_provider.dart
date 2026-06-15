@@ -1,9 +1,42 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:equatable/equatable.dart';
 
 import '../../models/customer.dart';
 import '../../repositories/customer_repository.dart';
+
+// Parameter class with value equality to prevent constant provider recreation in Riverpod
+class CustomersParams extends Equatable {
+  final int page;
+  final int limit;
+  final String? query;
+  final String? phone;
+  final String sortBy;
+  final String sortOrder;
+  final bool lightweight;
+
+  const CustomersParams({
+    this.page = 1,
+    this.limit = 20,
+    this.query,
+    this.phone,
+    this.sortBy = 'created_at',
+    this.sortOrder = 'desc',
+    this.lightweight = false,
+  });
+
+  @override
+  List<Object?> get props => [
+        page,
+        limit,
+        query,
+        phone,
+        sortBy,
+        sortOrder,
+        lightweight,
+      ];
+}
 
 // Repository provider
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
@@ -12,16 +45,16 @@ final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
 
 // Customers list provider with keepAlive for caching
 final customersProvider = FutureProvider.autoDispose
-    .family<PaginatedCustomers, Map<String, dynamic>>((ref, params) async {
+    .family<PaginatedCustomers, CustomersParams>((ref, params) async {
       final repository = ref.watch(customerRepositoryProvider);
       return repository.getCustomers(
-        page: params['page'] ?? 1,
-        limit: params['limit'] ?? 20,
-        query: params['query'],
-        phone: params['phone'],
-        sortBy: params['sortBy'] ?? 'created_at',
-        sortOrder: params['sortOrder'] ?? 'desc',
-        lightweight: params['lightweight'] ?? false,
+        page: params.page,
+        limit: params.limit,
+        query: params.query,
+        phone: params.phone,
+        sortBy: params.sortBy,
+        sortOrder: params.sortOrder,
+        lightweight: params.lightweight,
       );
     }, name: 'customersProvider');
 
@@ -29,7 +62,7 @@ final customersProvider = FutureProvider.autoDispose
 final customersCacheProvider = Provider.autoDispose((ref) {
   ref.keepAlive();
   return ref.watch(
-    customersProvider({'page': 1, 'limit': 1000, 'lightweight': true}),
+    customersProvider(const CustomersParams(page: 1, limit: 1000, lightweight: true)),
   );
 }, name: 'customersCacheProvider');
 

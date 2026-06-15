@@ -195,7 +195,7 @@ class _MainLayoutState extends State<MainLayout> {
                   if (isAdmin) ...[
                     _buildDrawerSectionLabel('Management'),
                     _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                    _buildDrawerItem(Icons.account_tree_rounded, 'Categories', null, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
@@ -237,7 +237,7 @@ class _MainLayoutState extends State<MainLayout> {
                     // Manager sees nav items but no settings
                     _buildDrawerSectionLabel('Navigation'),
                     _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                    _buildDrawerItem(Icons.account_tree_rounded, 'Categories', null, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,

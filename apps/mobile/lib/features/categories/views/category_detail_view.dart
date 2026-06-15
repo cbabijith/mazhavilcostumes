@@ -253,51 +253,78 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   child: Center(child: Text('No items found', style: TextStyle(color: Colors.grey, fontSize: Responsive.sp(13)))),
                 );
               }
-              return Column(
-                children: children.map((child) => GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => CategoryDetailView(initialCategory: child)),
-                    ).then((_) {
-                      ref.invalidate(categoriesProvider);
-                    });
-                  },
-                  child: Container(
-                    margin: Responsive.only(bottom: 12),
-                    padding: Responsive.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(Responsive.r(12)),
-                      border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-                    ),
-                    child: Row(
-                      children: [
-                        if (child.imageUrl != null && child.imageUrl!.isNotEmpty)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(Responsive.r(8)),
-                            child: Image.network(child.imageUrl!, width: Responsive.w(40), height: Responsive.w(40), fit: BoxFit.cover,
-                                errorBuilder: (_, error, stackTrace) => _buildSmallPlaceholder()),
-                          )
-                        else
-                          _buildSmallPlaceholder(),
-                        SizedBox(width: Responsive.w(12)),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(child.name, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary)),
-                              SizedBox(height: Responsive.h(4)),
-                              Text(child.isActive ? 'Active' : 'Inactive', 
-                                   style: TextStyle(fontSize: Responsive.sp(11), color: child.isActive ? const Color(0xFF4CAF50) : Colors.grey)),
-                            ],
+              
+              final sortedChildren = children..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+              
+              if (canManage) {
+                return ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  itemCount: sortedChildren.length,
+                  onReorderItem: (oldIndex, newIndex) async {
+                    final allCategories = ref.read(categoriesProvider).value;
+                    if (allCategories == null) return;
+
+                    final allCategoriesCopy = [...allCategories];
+
+                    // 1. Get siblings sorted by sortOrder
+                    final siblings = allCategoriesCopy.where((c) => c.parentId == _category.id).toList()
+                      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+                    // 2. Move item
+                    final moved = siblings.removeAt(oldIndex);
+                    siblings.insert(newIndex, moved);
+
+                    // 3. Construct payload and update locally
+                    final List<Map<String, dynamic>> payload = [];
+                    for (int i = 0; i < siblings.length; i++) {
+                      final cat = siblings[i];
+                      payload.add({
+                        'id': cat.id,
+                        'sort_order': i,
+                      });
+
+                      final updatedCat = cat.copyWith(sortOrder: i);
+                      final indexInAll = allCategoriesCopy.indexWhere((c) => c.id == cat.id);
+                      if (indexInAll != -1) {
+                        allCategoriesCopy[indexInAll] = updatedCat;
+                      }
+                    }
+
+                    // 4. Save changes
+                    try {
+                      await ref.read(categoriesProvider.notifier).reorder(allCategoriesCopy, payload);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Order updated successfully'),
+                            backgroundColor: Color(0xFF4CAF50),
+                            duration: Duration(seconds: 1),
                           ),
-                        ),
-                        Icon(Icons.chevron_right, color: Colors.grey[400]),
-                      ],
-                    ),
-                  ),
-                )).toList(),
-              );
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to save order: $e'),
+                            backgroundColor: const Color(0xFFFF6B8A),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  itemBuilder: (context, index) {
+                    final child = sortedChildren[index];
+                    return _buildChildCategoryRow(context, child, canManage, index: index);
+                  },
+                );
+              } else {
+                return Column(
+                  children: sortedChildren.map((child) => _buildChildCategoryRow(context, child, canManage)).toList(),
+                );
+              }
             },
             loading: () => _buildChildrenShimmerList(),
             error: (e, _) => Text('Error loading', style: TextStyle(color: Colors.red)),
@@ -318,6 +345,65 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
         const Spacer(),
         Text(value, style: TextStyle(fontSize: Responsive.sp(15), fontWeight: FontWeight.w700, color: AppColors.primary)),
       ],
+    );
+  }
+
+  Widget _buildChildCategoryRow(BuildContext context, Category child, bool canManage, {int? index}) {
+    return GestureDetector(
+      key: ValueKey(child.id),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => CategoryDetailView(initialCategory: child)),
+        ).then((_) {
+          ref.invalidate(categoriesProvider);
+        });
+      },
+      child: Container(
+        margin: Responsive.only(bottom: 12),
+        padding: Responsive.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(Responsive.r(12)),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            if (canManage && index != null)
+              ReorderableDragStartListener(
+                index: index,
+                child: Padding(
+                  padding: Responsive.only(right: 8),
+                  child: Icon(
+                    Icons.drag_indicator_rounded,
+                    size: Responsive.icon(20),
+                    color: Colors.grey[400],
+                  ),
+                ),
+              ),
+            if (child.imageUrl != null && child.imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(Responsive.r(8)),
+                child: Image.network(child.imageUrl!, width: Responsive.w(40), height: Responsive.w(40), fit: BoxFit.cover,
+                    errorBuilder: (_, error, stackTrace) => _buildSmallPlaceholder()),
+              )
+            else
+              _buildSmallPlaceholder(),
+            SizedBox(width: Responsive.w(12)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(child.name, style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  SizedBox(height: Responsive.h(4)),
+                  Text(child.isActive ? 'Active' : 'Inactive', 
+                       style: TextStyle(fontSize: Responsive.sp(11), color: child.isActive ? const Color(0xFF4CAF50) : Colors.grey)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
+          ],
+        ),
+      ),
     );
   }
 
