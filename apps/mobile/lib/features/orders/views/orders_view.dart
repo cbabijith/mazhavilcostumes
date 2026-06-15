@@ -881,7 +881,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                               .then((_) => ref.invalidate(ordersProvider));
                         },
                         icon: Icon(Icons.account_balance_wallet_rounded, size: Responsive.icon(AppSizes.fontSmall + AppSizes.spacingTiny / 2), color: AppColors.warning),
-                        label: Text('₹${balanceDue.toStringAsFixed(0)}', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600, color: AppColors.warning)),
+                        label: Text(AppStrings.amount, style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600, color: AppColors.warning)),
                         style: OutlinedButton.styleFrom(
                           padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingTiny + 1),
                           minimumSize: Size.zero,

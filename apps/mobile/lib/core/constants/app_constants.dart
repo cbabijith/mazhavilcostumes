@@ -80,6 +80,7 @@ class AppStrings {
   static const String pickups = 'pickups';
   static const String startRental = 'Start Rental';
   static const String confirmStartRental = 'Confirm Start Rental';
+  static const String amount = 'AMOUNT';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility
