@@ -863,7 +863,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             onPressed: _startRentalWithCheck,
             icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
             label: Text(
-              'Start Rental',
+              AppStrings.startRental,
               style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
             ),
           ),

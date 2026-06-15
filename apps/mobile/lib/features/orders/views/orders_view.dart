@@ -868,12 +868,12 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildContextualActionButton(Order order) {
-    // Hand Over for Scheduled/Pending orders
+    // Start Rental for Scheduled/Pending orders
     if (order.status == OrderStatus.scheduled || order.status == OrderStatus.pending) {
       return ElevatedButton.icon(
-        onPressed: () => _confirmHandOver(order),
-        icon: Icon(Icons.send_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
-        label: Text('Hand Over', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
+        onPressed: () => _confirmStartRental(order),
+        icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
+        label: Text(AppStrings.startRental, style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
         style: ElevatedButton.styleFrom(
           padding: Responsive.symmetric(horizontal: AppSizes.spacingLarge, vertical: AppSizes.spacingSmall),
           minimumSize: Size.zero,
@@ -913,11 +913,11 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     return const SizedBox.shrink();
   }
 
-  Future<void> _confirmHandOver(Order order) async {
+  Future<void> _confirmStartRental(Order order) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Hand Over'),
+        title: const Text(AppStrings.confirmStartRental),
         content: Text('Have you handed over all items to ${order.customer?.name ?? 'the customer'}?'),
         actions: [
           TextButton(
@@ -939,7 +939,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
         ref.invalidate(ordersProvider);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Order marked as ongoing')),
+            const SnackBar(content: Text('Rental started successfully!')),
           );
         }
       } catch (e) {

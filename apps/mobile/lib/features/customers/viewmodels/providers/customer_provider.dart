@@ -1,5 +1,7 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../models/customer.dart';
 import '../../repositories/customer_repository.dart';
 
@@ -9,27 +11,33 @@ final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
 });
 
 // Customers list provider with keepAlive for caching
-final customersProvider = FutureProvider.autoDispose.family<PaginatedCustomers, Map<String, dynamic>>((ref, params) async {
-  final repository = ref.watch(customerRepositoryProvider);
-  return repository.getCustomers(
-    page: params['page'] ?? 1,
-    limit: params['limit'] ?? 20,
-    query: params['query'],
-    phone: params['phone'],
-    sortBy: params['sortBy'] ?? 'created_at',
-    sortOrder: params['sortOrder'] ?? 'desc',
-    lightweight: params['lightweight'] ?? false,
-  );
-}, name: 'customersProvider');
+final customersProvider = FutureProvider.autoDispose
+    .family<PaginatedCustomers, Map<String, dynamic>>((ref, params) async {
+      final repository = ref.watch(customerRepositoryProvider);
+      return repository.getCustomers(
+        page: params['page'] ?? 1,
+        limit: params['limit'] ?? 20,
+        query: params['query'],
+        phone: params['phone'],
+        sortBy: params['sortBy'] ?? 'created_at',
+        sortOrder: params['sortOrder'] ?? 'desc',
+        lightweight: params['lightweight'] ?? false,
+      );
+    }, name: 'customersProvider');
 
 // Keep the provider alive for 5 minutes to enable hybrid search
 final customersCacheProvider = Provider.autoDispose((ref) {
   ref.keepAlive();
-  return ref.watch(customersProvider({'page': 1, 'limit': 1000, 'lightweight': true}));
+  return ref.watch(
+    customersProvider({'page': 1, 'limit': 1000, 'lightweight': true}),
+  );
 }, name: 'customersCacheProvider');
 
 // Single customer provider
-final customerProvider = FutureProvider.family.autoDispose<Customer, String>((ref, id) async {
+final customerProvider = FutureProvider.family.autoDispose<Customer, String>((
+  ref,
+  id,
+) async {
   final repository = ref.watch(customerRepositoryProvider);
   return repository.getCustomerById(id);
 }, name: 'customerProvider');
@@ -91,13 +99,13 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   List<Customer> _searchLocal(String query) {
     final cache = ref.read(customersCacheProvider);
     final cachedCustomers = cache.value?.customers ?? [];
-    
+
     if (query.isEmpty) return cachedCustomers;
-    
+
     final lowerQuery = query.toLowerCase();
     return cachedCustomers.where((customer) {
       return customer.name.toLowerCase().contains(lowerQuery) ||
-             customer.phone.contains(query);
+          customer.phone.contains(query);
     }).toList();
   }
 
@@ -105,20 +113,22 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   void search(String query) {
     // Cancel any pending remote search
     _debounceTimer?.cancel();
-    
+
     // Step 1: Instant local search (0ms)
     final localResults = _searchLocal(query);
-    
+
     // Keep previous results if local search returned empty to prevent visual flicker/lag
-    final displayResults = localResults.isNotEmpty ? localResults : state.results;
-    
+    final displayResults = localResults.isNotEmpty
+        ? localResults
+        : state.results;
+
     state = state.copyWith(
       query: query,
       results: displayResults,
       isLoading: false,
       error: null,
     );
-    
+
     // Step 2: Debounced remote search (150ms)
     if (query.isNotEmpty) {
       state = state.copyWith(
@@ -133,17 +143,17 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
             limit: 20,
             lightweight: true,
           );
-          
+
           // Merge local and remote results, deduplicating by ID
           final mergedResults = [...localResults];
           final existingIds = mergedResults.map((c) => c.id).toSet();
-          
+
           for (final customer in remoteResults.customers) {
             if (!existingIds.contains(customer.id)) {
               mergedResults.add(customer);
             }
           }
-          
+
           state = state.copyWith(
             results: mergedResults,
             isSearchingRemote: false,
@@ -172,7 +182,11 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   }
 }
 
-final customerSearchProvider = NotifierProvider.autoDispose<CustomerSearchNotifier, CustomerSearchState>(CustomerSearchNotifier.new, name: 'customerSearchProvider');
+final customerSearchProvider =
+    NotifierProvider.autoDispose<CustomerSearchNotifier, CustomerSearchState>(
+      CustomerSearchNotifier.new,
+      name: 'customerSearchProvider',
+    );
 
 // Customer operations provider - simple function-based approach
 class CustomerOperations {
