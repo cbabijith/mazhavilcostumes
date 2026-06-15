@@ -7,7 +7,6 @@ import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
 import 'category_detail_view.dart';
-import 'category_form_view.dart';
 
 /// Categories listing view – hierarchical tree: Main → Sub → Variant.
 class CategoriesView extends ConsumerStatefulWidget {
@@ -39,23 +38,6 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
               loading: () => _buildShimmerList(),
               error: (error, _) => _buildError(error),
             ),
-            // FAB — only for admin/manager
-            if (canManage)
-              Positioned(
-                right: Responsive.w(16),
-                bottom: Responsive.h(16),
-                child: FloatingActionButton.extended(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CategoryFormView()),
-                    ).then((_) => ref.invalidate(categoriesProvider));
-                  },
-                  backgroundColor: AppColors.warning,
-                  foregroundColor: AppColors.primary,
-                  icon: Icon(Icons.add, size: Responsive.icon(24)),
-                  label: Text('Add Category', style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold)),
-                ),
-              ),
           ],
         ),
       ),
@@ -321,6 +303,15 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       _buildStatusDot(main.isActive),
                       SizedBox(width: Responsive.w(6)),
                       Text(main.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                      SizedBox(width: Responsive.w(10)),
+                      Container(
+                        padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(Responsive.r(8)),
+                        ),
+                        child: Text('${main.gstPercentage}% GST', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      ),
                       if (subs.isNotEmpty) ...[
                         SizedBox(width: Responsive.w(10)),
                         Container(

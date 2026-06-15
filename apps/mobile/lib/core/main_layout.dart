@@ -224,15 +224,6 @@ class _MainLayoutState extends State<MainLayout> {
                         MaterialPageRoute(builder: (context) => const CustomersView()),
                       );
                     }),
-                    Padding(
-                      padding: Responsive.symmetric(horizontal: 24),
-                      child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
-                    ),
-                    _buildDrawerSectionLabel('Settings'),
-                    _buildDrawerItem(Icons.settings_rounded, 'Settings', null, onTap: () {
-                      Navigator.pop(context);
-                      // TODO: navigate to settings
-                    }),
                   ] else if (canManage) ...[
                     // Manager sees nav items but no settings
                     _buildDrawerSectionLabel('Navigation'),
