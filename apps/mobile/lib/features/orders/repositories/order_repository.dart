@@ -203,7 +203,7 @@ class OrderRepository {
     CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _api.post(
+      final response = await _api.patch(
         '/orders/$orderId/return',
         data: {
           'items': items,
@@ -236,7 +236,7 @@ class OrderRepository {
           'amount': amount,
           'payment_mode': paymentMode,
           'notes': notes,
-          if (paymentType != null) 'payment_type': paymentType,
+          'payment_type': paymentType ?? 'final',
         },
         cancelToken: cancelToken,
       );

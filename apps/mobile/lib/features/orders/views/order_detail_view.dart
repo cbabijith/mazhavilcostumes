@@ -102,15 +102,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
                 top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -208,7 +208,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                     ? 'Damage Fee' 
                                     : 'Extra Charge';
 
-                        Navigator.pop(context);
+                        Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
                           // 1. Record as adjustment payment
@@ -846,6 +846,89 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   }
 
   Widget _buildHeroActions() {
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+
+    final rentalEnd = DateTime.tryParse(_currentOrder.endDate);
+    final rentalEndMidnight = rentalEnd != null ? DateTime(rentalEnd.year, rentalEnd.month, rentalEnd.day) : null;
+
+    final createdAt = DateTime.tryParse(_currentOrder.createdAt);
+    final createdAtMidnight = createdAt != null ? DateTime(createdAt.year, createdAt.month, createdAt.day) : null;
+
+    final rentalStart = DateTime.tryParse(_currentOrder.startDate);
+    final rentalStartMidnight = rentalStart != null ? DateTime(rentalStart.year, rentalStart.month, rentalStart.day) : null;
+
+    final isBackdated = rentalStartMidnight != null && createdAtMidnight != null && rentalStartMidnight.isBefore(createdAtMidnight);
+    final isExpired = !isBackdated && rentalEndMidnight != null && todayMidnight.isAfter(rentalEndMidnight);
+
+    if ((_currentOrder.status == OrderStatus.confirmed || _currentOrder.status == OrderStatus.scheduled) && isExpired) {
+      return Padding(
+        padding: Responsive.only(top: AppSizes.spacingMedium),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                border: Border.all(color: Colors.red[200]!, width: 1),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
+                  SizedBox(width: Responsive.w(8)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Rental Period Expired',
+                          style: TextStyle(
+                            color: Colors.red[900],
+                            fontWeight: FontWeight.bold,
+                            fontSize: Responsive.sp(AppSizes.fontSmall + 1),
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(4)),
+                        Text(
+                          'The return date for this scheduled order has already passed. You cannot start this rental. Please cancel this order and create a fresh one.',
+                          style: TextStyle(
+                            color: Colors.red[800],
+                            fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openCancelDialog,
+                icon: Icon(Icons.cancel_outlined, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
+                label: Text(
+                  'Cancel Order',
+                  style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.error, width: 1.5),
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final actions = <Widget>[];
 
     // Status transition action buttons
@@ -909,7 +992,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             onPressed: _openPaymentDialog,
             icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
             label: Text(
-              'Collect Pay',
+              'Collect Payment',
               style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
             ),
           ),
@@ -2204,7 +2287,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   void _showFulfillmentFailedModal(List<dynamic> itemsList) {
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Row(
             children: [
@@ -2235,7 +2318,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('OK'),
             ),
           ],
@@ -2251,7 +2334,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Cancel Order'),
           content: Column(
@@ -2284,7 +2367,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -2298,7 +2381,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   return;
                 }
                 final refund = double.tryParse(refundController.text) ?? 0.0;
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 setState(() => _isLoading = true);
                 try {
                   await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
@@ -2339,15 +2422,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
                 top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2416,7 +2499,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           return;
                         }
 
-                        Navigator.pop(context);
+                        Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
                           await ref.read(orderOperationsProvider).collectPayment(
@@ -2424,6 +2507,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                 amount: amt,
                                 paymentMode: paymentMode,
                               );
+                          final newAmountPaid = _currentOrder.amountPaid + amt;
+                          final newPaymentStatus = newAmountPaid >= _currentOrder.totalAmount ? 'paid' : 'partial';
+                          await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
+                            'amount_paid': newAmountPaid,
+                            'payment_status': newPaymentStatus,
+                          });
                           await _refreshOrder();
                           ref.invalidate(orderPaymentsProvider(_currentOrder.id));
                           if (mounted) {
@@ -2461,15 +2550,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
                 top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2521,7 +2610,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () async {
-                        Navigator.pop(context);
+                        Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
                           await ref.read(orderOperationsProvider).updatePayment(
@@ -2584,9 +2673,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             double liveDamageTotal = 0.0;
             returnConditions.forEach((itemId, cond) {
               if (cond == ConditionRating.damaged) {
@@ -2601,8 +2690,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             // Barcode scan function
             void handleBarcodeScan() {
               showDialog(
-                context: context,
-                builder: (context) => QRScannerDialog(
+                context: modalContext,
+                builder: (dialogContext) => QRScannerDialog(
                   onRawCodeScanned: (rawCode) async {
                     try {
                       final response = await ref.read(productRepositoryProvider)
@@ -2622,8 +2711,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           returnConditions[matchedItem.id] = ConditionRating.good;
                         });
 
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                        if (modalContext.mounted) {
+                          ScaffoldMessenger.of(modalContext).showSnackBar(
                             SnackBar(
                               content: Text('Item marked as GOOD: ${matchedItem.product?.name ?? "Product"}'),
                               backgroundColor: Colors.green,
@@ -2631,15 +2720,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           );
                         }
                       } else {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                        if (modalContext.mounted) {
+                          ScaffoldMessenger.of(modalContext).showSnackBar(
                             const SnackBar(content: Text('No matching item in order for barcode/SKU')),
                           );
                         }
                       }
                     } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                      if (modalContext.mounted) {
+                        ScaffoldMessenger.of(modalContext).showSnackBar(
                           SnackBar(content: Text('Error resolving barcode: $e')),
                         );
                       }
@@ -2654,7 +2743,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 left: 16,
                 right: 16,
                 top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -2890,7 +2979,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                             return;
                           }
 
-                          Navigator.pop(context);
+                          Navigator.pop(modalContext);
                           setState(() => _isLoading = true);
                           try {
                             await ref.read(orderOperationsProvider).processReturn(
