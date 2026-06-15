@@ -13,12 +13,18 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   int _currentPage = 1;
   bool _isLoadingMore = false;
   String _currentSearch = '';
-  String? _currentStatus;
+  dynamic _currentStatus;
   String? _currentBranchId;
   String _currentDateFilter = 'ALL';
   String? _currentDateFrom;
   String? _currentDateTo;
+  dynamic _excludeStatus;
+  String? _dateField;
+  dynamic _paymentStatus;
+  bool? _hasStockConflict;
 
+  String? get currentStatus => _currentStatus is String ? _currentStatus as String? : null;
+  dynamic get currentStatusRaw => _currentStatus;
   String get currentDateFilter => _currentDateFilter;
   String? get currentDateFrom => _currentDateFrom;
   String? get currentDateTo => _currentDateTo;
@@ -35,8 +41,12 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       status: _currentStatus,
       branchId: _currentBranchId,
       dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+      dateField: _dateField,
       dateFrom: _currentDateFrom,
       dateTo: _currentDateTo,
+      excludeStatus: _excludeStatus,
+      paymentStatus: _paymentStatus,
+      hasStockConflict: _hasStockConflict,
     );
   }
 
@@ -53,14 +63,22 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         status: _currentStatus,
         branchId: _currentBranchId,
         dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
         dateFrom: _currentDateFrom,
         dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
       );
     });
   }
 
   Future<void> filterByStatus(String? status) async {
     _currentStatus = status;
+    _excludeStatus = null;
+    _paymentStatus = null;
+    _dateField = null;
+    _hasStockConflict = null;
     _currentPage = 1;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -72,8 +90,12 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         status: _currentStatus,
         branchId: _currentBranchId,
         dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
         dateFrom: _currentDateFrom,
         dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
       );
     });
   }
@@ -91,8 +113,12 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         status: _currentStatus,
         branchId: _currentBranchId,
         dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
         dateFrom: _currentDateFrom,
         dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
       );
     });
   }
@@ -101,6 +127,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _currentDateFilter = dateFilter;
     _currentDateFrom = dateFrom;
     _currentDateTo = dateTo;
+    _dateField = null;
     _currentPage = 1;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
@@ -112,8 +139,51 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         status: _currentStatus,
         branchId: _currentBranchId,
         dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
         dateFrom: _currentDateFrom,
         dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
+      );
+    });
+  }
+
+  Future<void> setFilters({
+    dynamic status,
+    dynamic excludeStatus,
+    dynamic paymentStatus,
+    String dateFilter = 'ALL',
+    String? dateField,
+    String? dateFrom,
+    String? dateTo,
+    bool? hasStockConflict,
+  }) async {
+    _currentStatus = status;
+    _excludeStatus = excludeStatus;
+    _paymentStatus = paymentStatus;
+    _currentDateFilter = dateFilter;
+    _dateField = dateField;
+    _currentDateFrom = dateFrom;
+    _currentDateTo = dateTo;
+    _hasStockConflict = hasStockConflict;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 15,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
+        dateFrom: _currentDateFrom,
+        dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
       );
     });
   }
@@ -134,8 +204,12 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         status: _currentStatus,
         branchId: _currentBranchId,
         dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
+        dateField: _dateField,
         dateFrom: _currentDateFrom,
         dateTo: _currentDateTo,
+        excludeStatus: _excludeStatus,
+        paymentStatus: _paymentStatus,
+        hasStockConflict: _hasStockConflict,
       );
 
       _currentPage++;

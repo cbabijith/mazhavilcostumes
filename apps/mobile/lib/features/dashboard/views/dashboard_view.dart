@@ -10,6 +10,7 @@ import '../viewmodels/providers/dashboard_provider.dart';
 import '../domain/operational_card.dart';
 import 'widgets/analytics_section.dart';
 import '../../customers/viewmodels/providers/customer_provider.dart';
+import '../../../core/providers/navigation_provider.dart';
 
 class DashboardView extends ConsumerStatefulWidget {
   const DashboardView({super.key});
@@ -308,7 +309,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: () {},
+                  onTap: () => navigateToOrdersWithUrl(ref, card.filterUrl),
                   borderRadius: BorderRadius.only(
                     topRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
                     bottomRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
@@ -429,7 +430,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {},
+          onTap: () => navigateToOrdersWithUrl(ref, card.filterUrl),
           borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
           child: Padding(
             padding: Responsive.all(AppSizes.spacingMedium),

@@ -48,6 +48,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
+    _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
 
     return Container(
       color: AppColors.background,

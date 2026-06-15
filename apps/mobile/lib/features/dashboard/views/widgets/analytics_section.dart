@@ -10,6 +10,9 @@ import '../../viewmodels/providers/dashboard_provider.dart';
 import 'revenue_chart.dart';
 import '../../../orders/viewmodels/providers/order_provider.dart';
 import '../../../orders/views/order_detail_view.dart';
+import '../../../../core/providers/navigation_provider.dart';
+import '../transaction_report_view.dart';
+import '../../../branches/viewmodels/providers/branch_provider.dart';
 
 /// Analytics section of the dashboard — admin-only.
 /// Shows revenue pacing, collection trends, revenue status cards,
@@ -123,17 +126,42 @@ class AnalyticsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Booking Sales + Amount Collection
-        _buildPacingCard(
-          title: AppStrings.bookingSales,
-          description: AppStrings.bookingSalesDesc,
-          amount: metrics.salesPacing.current,
-          percentageChange: metrics.salesPacing.percentageChange,
-          isPositive: metrics.salesPacing.isPositive,
-          prevLabel: prevLabel,
-          accentColor: AppColors.info,
+        GestureDetector(
+          onTap: () {
+            final range = ref.read(analyticsRangeProvider);
+            final url = '/dashboard/orders?date_filter=${range.apiValue}&date_field=created_at&exclude_status=cancelled';
+            navigateToOrdersWithUrl(ref, url);
+          },
+          child: _buildPacingCard(
+            title: AppStrings.bookingSales,
+            description: AppStrings.bookingSalesDesc,
+            amount: metrics.salesPacing.current,
+            percentageChange: metrics.salesPacing.percentageChange,
+            isPositive: metrics.salesPacing.isPositive,
+            prevLabel: prevLabel,
+            accentColor: AppColors.info,
+          ),
         ),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-        _buildAmountCollectionCard(metrics, prevLabel),
+        GestureDetector(
+          onTap: () {
+            final range = ref.read(analyticsRangeProvider);
+            final branchId = ref.read(effectiveBranchIdProvider);
+            final dates = _getDatesForRange(range);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TransactionReportView(
+                  fromDate: dates['fromDate']!,
+                  toDate: dates['toDate']!,
+                  branchId: branchId,
+                  rangeLabel: range.label,
+                ),
+              ),
+            );
+          },
+          child: _buildAmountCollectionCard(metrics, prevLabel),
+        ),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Collection Trends Chart
@@ -145,7 +173,7 @@ class AnalyticsSection extends ConsumerWidget {
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Revenue Status Grid (2 columns)
-        _buildRevenueStatusGrid(metrics),
+        _buildRevenueStatusGrid(metrics, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Cancellations + Overdue Returns
@@ -519,7 +547,7 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Revenue Status Grid ──────────────────────────────────────────────
 
-  Widget _buildRevenueStatusGrid(AnalyticsMetrics metrics) {
+  Widget _buildRevenueStatusGrid(AnalyticsMetrics metrics, WidgetRef ref) {
     return Column(
       children: [
         Row(
@@ -562,17 +590,23 @@ class AnalyticsSection extends ConsumerWidget {
             ),
             SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
             Expanded(
-              child: _buildRevenueStatusCard(
-                title: AppStrings.dueFromReturned,
-                amount: metrics.revenueByStatus.pendingAmount,
-                description: AppStrings.dueFromReturnedDesc,
-                icon: Icons.access_time,
-                iconColor: metrics.revenueByStatus.pendingAmount > 0
-                    ? AppColors.error
-                    : AppColors.secondaryText,
-                amountColor: metrics.revenueByStatus.pendingAmount > 0
-                    ? AppColors.error
-                    : AppColors.text,
+              child: GestureDetector(
+                onTap: () {
+                  final url = '/dashboard/orders?status=returned&status=completed&payment_status=partial&payment_status=pending&payment_status=due';
+                  navigateToOrdersWithUrl(ref, url);
+                },
+                child: _buildRevenueStatusCard(
+                  title: AppStrings.dueFromReturned,
+                  amount: metrics.revenueByStatus.pendingAmount,
+                  description: AppStrings.dueFromReturnedDesc,
+                  icon: Icons.access_time,
+                  iconColor: metrics.revenueByStatus.pendingAmount > 0
+                      ? AppColors.error
+                      : AppColors.secondaryText,
+                  amountColor: metrics.revenueByStatus.pendingAmount > 0
+                      ? AppColors.error
+                      : AppColors.text,
+                ),
               ),
             ),
           ],
@@ -1626,5 +1660,45 @@ class AnalyticsSection extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Map<String, String> _getDatesForRange(AnalyticsRange range) {
+    final now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate;
+
+    String formatDate(DateTime date) {
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    switch (range) {
+      case AnalyticsRange.today:
+        startDate = DateTime(now.year, now.month, now.day);
+        endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case AnalyticsRange.thisWeek:
+        final daysToSubtract = now.weekday - 1;
+        startDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: daysToSubtract));
+        endDate = now;
+        break;
+      case AnalyticsRange.lastWeek:
+        final currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+        startDate = currentWeekStart.subtract(const Duration(days: 7));
+        endDate = startDate.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+        break;
+      case AnalyticsRange.thisMonth:
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = now;
+        break;
+      case AnalyticsRange.lastMonth:
+        startDate = DateTime(now.year, now.month - 1, 1);
+        endDate = DateTime(now.year, now.month, 1).subtract(const Duration(seconds: 1));
+        break;
+    }
+
+    return {
+      'fromDate': formatDate(startDate),
+      'toDate': formatDate(endDate),
+    };
   }
 }
