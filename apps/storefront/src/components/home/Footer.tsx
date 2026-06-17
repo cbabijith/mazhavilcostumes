@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Instagram, Facebook, Twitter, Mail, Phone } from "lucide-react";
+import { Instagram, Facebook, Twitter, Mail, Phone, MapPin } from "lucide-react";
 import { Store, Category } from "@/lib/supabase/queries";
 import { Separator } from "@/components/ui/separator";
 import { DISPLAY_PHONE } from "@/lib/whatsapp";
@@ -134,6 +134,22 @@ export default function Footer({ store, categories: initialCategories }: FooterP
                   <p className="text-[9px] uppercase tracking-widest text-caption mb-1">Email</p>
                   <a href={`mailto:${storeEmail}`} className="text-sm text-heading font-medium hover:text-rosegold transition-colors">
                     {storeEmail}
+                  </a>
+                </div>
+              </li>
+              <li className="flex gap-3 sm:gap-4 items-start group">
+                <div className="w-8 h-8 rounded-full bg-rosegold/5 flex items-center justify-center group-hover:bg-rosegold transition-colors duration-500 shrink-0">
+                  <MapPin size={14} className="text-rosegold group-hover:text-white transition-colors" />
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-caption mb-1">Address</p>
+                  <a 
+                    href="https://maps.google.com/?q=Mazhavil+Dance+Costumes+Karamana+Thiruvananthapuram+Kerala+695002"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-heading font-medium hover:text-rosegold transition-colors leading-relaxed block max-w-[240px]"
+                  >
+                    Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002
                   </a>
                 </div>
               </li>
