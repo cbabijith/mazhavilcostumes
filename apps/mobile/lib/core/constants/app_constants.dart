@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Mazhavil Costumes Brand Constants
 class AppColors {
-  static const Color primary = Color(0xFF059669); // Green
+  static const Color primary = Color(0xFFFF3E6C); // Vibrant Pink
   static const Color background = Color(0xFFFFFFFF); // White
   static const Color text = Color(0xFF111827); // Dark text
   static const Color secondaryText = Color(0xFF6B7280); // Gray text
