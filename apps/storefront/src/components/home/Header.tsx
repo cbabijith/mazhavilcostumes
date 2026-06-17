@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Heart, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShoppingBag, Heart, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Store, Category } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -122,13 +122,12 @@ export default function Header({ store, categories }: HeaderProps) {
                   className="w-auto object-contain transition-all duration-500 h-12 sm:h-14 md:h-16"
                 />
               </div>
-              <div className="hidden sm:flex flex-col text-left justify-center">
-                <span className="text-sm sm:text-base md:text-xl font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
+              <div className="flex flex-col text-left justify-center">
+                <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-xl font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
                   Mazhavil Dance Costumes
                 </span>
                 <span 
-                  className="w-full text-center text-[10px] sm:text-[11px] md:text-[12px] tracking-[0.6em] text-body uppercase opacity-80 leading-none mt-1.5 font-medium font-sans block italic"
-                  style={{ marginRight: "-0.6em" }}
+                  className="text-[7px] min-[380px]:text-[9px] sm:text-[11px] md:text-[12px] tracking-[0.2em] min-[380px]:tracking-[0.4em] sm:tracking-[0.6em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold font-sans block italic whitespace-nowrap"
                 >
                   Karamana | Trivandrum
                 </span>
@@ -150,8 +149,17 @@ export default function Header({ store, categories }: HeaderProps) {
 
             {/* Actions & Search */}
             <div className="flex items-center flex-1 justify-end gap-2 sm:gap-4 shrink-0">
-              {/* Search Bar — uses ActionSearchBar on all sizes */}
-              <div className="flex-1 max-w-[400px]">
+              {/* Search Icon alone for Mobile View */}
+              <Link
+                href="/search"
+                className="flex sm:hidden p-2.5 text-body hover:text-rosegold transition-all hover:bg-rosegold/5 rounded-full relative cursor-pointer"
+                aria-label="Search"
+              >
+                <Search size={20} strokeWidth={1.5} />
+              </Link>
+
+              {/* Full Search Bar for Desktop View */}
+              <div className="hidden sm:block flex-1 max-w-[400px]">
                 <ActionSearchBar storeId={store?.id} />
               </div>
 
@@ -189,41 +197,46 @@ export default function Header({ store, categories }: HeaderProps) {
         {displayCategories.length > 0 && (
           <div className="border-t border-[var(--border-silk)] mt-2">
             <div className="w-full lg:max-w-[1600px] lg:mx-auto relative group/nav">
-              {/* Left Arrow */}
+              {/* Left Arrow & Gradient Overlay */}
               {showLeftArrow && (
-                <button
-                  onClick={() => scroll("left")}
-                  className="absolute left-4 top-[43px] -translate-y-1/2 z-10 size-9 rounded-full bg-white/80 backdrop-blur-md border border-[var(--border-silk)] shadow-sm hover:shadow-md hover:shadow-rosegold/10 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-90 cursor-pointer animate-in fade-in duration-300"
-                  aria-label="Scroll left"
-                >
-                  <ChevronLeft size={18} strokeWidth={2} />
-                </button>
+                <>
+                  <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-r from-white via-white/90 to-transparent pointer-events-none z-10" />
+                  <button
+                    onClick={() => scroll("left")}
+                    className="hidden sm:flex absolute left-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-white/95 border border-[var(--border-silk)] shadow-md hover:shadow-lg hover:shadow-rosegold/15 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
+                    aria-label="Scroll left"
+                  >
+                    <ChevronLeft size={16} strokeWidth={2.5} />
+                  </button>
+                </>
               )}
 
-              {/* Right Arrow */}
+              {/* Right Arrow & Gradient Overlay */}
               {showRightArrow && (
-                <button
-                  onClick={() => scroll("right")}
-                  className="absolute right-4 top-[43px] -translate-y-1/2 z-10 size-9 rounded-full bg-white/80 backdrop-blur-md border border-[var(--border-silk)] shadow-sm hover:shadow-md hover:shadow-rosegold/10 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-90 cursor-pointer animate-in fade-in duration-300"
-                  aria-label="Scroll right"
-                >
-                  <ChevronRight size={18} strokeWidth={2} />
-                </button>
+                <>
+                  <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-l from-white via-white/90 to-transparent pointer-events-none z-10" />
+                  <button
+                    onClick={() => scroll("right")}
+                    className="hidden sm:flex absolute right-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-white/95 border border-[var(--border-silk)] shadow-md hover:shadow-lg hover:shadow-rosegold/15 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
+                    aria-label="Scroll right"
+                  >
+                    <ChevronRight size={16} strokeWidth={2.5} />
+                  </button>
+                </>
               )}
 
               <div
                 ref={scrollRef}
                 className="flex items-center overflow-x-auto gap-4 sm:gap-6 py-3 hide-scrollbar px-6 sm:px-8 lg:px-12 scroll-smooth"
               >
-                {/* "For You" Circle */}
+                {/* "Home" Circle */}
                 <Link
-                  href="/collections"
+                  href="/"
                   className="flex items-center gap-2 shrink-0 transition-all duration-300 luxury-link flex-col h-20 justify-center"
                 >
                   <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white shadow-lg shadow-rosegold/30 border-2 border-white transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-rosegold/50 group-active:scale-95">
-                    <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight">For<br/>You</span>
+                    <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight font-sans">Home</span>
                   </div>
-                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-rosegold leading-none transition-all">Discovery</span>
                 </Link>
 
                 {displayCategories.map((category, index) => (

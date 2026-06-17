@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 interface ProductSuggestion {
   id: string;
   name: string;
+  sku?: string | null;
+  barcode?: string | null;
   category_name?: string;
 }
 
@@ -66,6 +68,9 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
   const [filteredActions, setFilteredActions] = useState<SearchAction[]>(QUICK_ACTIONS);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -76,6 +81,8 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
     if (!query.trim()) {
       setFilteredActions(QUICK_ACTIONS);
       setSuggestions([]);
+      setHasMore(false);
+      setPage(0);
       return;
     }
 
@@ -91,9 +98,11 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
       try {
         let queryBuilder = supabase
           .from("products")
-          .select("id, name, category:category_id(name)")
+          .select("id, name, sku, barcode, category:category_id(name)")
+          .eq("is_active", true)
           .ilike("name", `%${query}%`)
-          .limit(5);
+          .order("name", { ascending: true })
+          .range(0, 14); // Fetch first 15 suggestions
         
         if (storeId) {
           queryBuilder = queryBuilder.eq("store_id", storeId);
@@ -105,8 +114,12 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
           setSuggestions(data.map((p: any) => ({
             id: p.id,
             name: p.name,
+            sku: p.sku,
+            barcode: p.barcode,
             category_name: p.category?.name
           })));
+          setPage(0);
+          setHasMore(data.length === 15);
         }
       } catch (err) {
         console.error("Search suggestion error:", err);
@@ -116,6 +129,61 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
     }, 300);
     return () => clearTimeout(timer);
   }, [query, storeId, supabase]);
+
+  const fetchMoreSuggestions = async () => {
+    if (isFetchingMore || !hasMore || !query.trim()) return;
+
+    setIsFetchingMore(true);
+    const nextPage = page + 1;
+    const pageSize = 15;
+    const from = nextPage * pageSize;
+    const to = from + pageSize - 1;
+
+    try {
+      let queryBuilder = supabase
+        .from("products")
+        .select("id, name, sku, barcode, category:category_id(name)")
+        .eq("is_active", true)
+        .ilike("name", `%${query}%`)
+        .order("name", { ascending: true })
+        .range(from, to);
+
+      if (storeId) {
+        queryBuilder = queryBuilder.eq("store_id", storeId);
+      }
+
+      const { data, error } = await queryBuilder;
+
+      if (!error && data) {
+        setSuggestions((prev) => [
+          ...prev,
+          ...data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            barcode: p.barcode,
+            category_name: p.category?.name
+          }))
+        ]);
+        setPage(nextPage);
+        setHasMore(data.length === pageSize);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      console.error("Fetch more suggestions error:", err);
+      setHasMore(false);
+    } finally {
+      setIsFetchingMore(false);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
+      fetchMoreSuggestions();
+    }
+  };
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -184,7 +252,10 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
 
         {/* Suggestions Dropdown */}
         {isDropdownOpen && (query || filteredActions.length > 0) && (
-          <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-[var(--border-silk)] p-3 z-50 animate-in slide-in-from-top-2 fade-in duration-200 min-w-0 md:min-w-[400px] max-h-[70vh] overflow-y-auto">
+          <div 
+            onScroll={handleScroll}
+            className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-[var(--border-silk)] p-3 z-50 animate-in slide-in-from-top-2 fade-in duration-200 min-w-0 md:min-w-[400px] max-h-[70vh] overflow-y-auto"
+          >
             <div className="space-y-4">
               {/* Product Suggestions */}
               {suggestions.length > 0 && (
@@ -203,13 +274,32 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
                       >
                         <div className="flex items-center gap-2 md:gap-3 min-w-0">
                           <Package size={14} className="text-muted-foreground group-hover:text-rosegold shrink-0" />
-                          <span className="text-sm text-heading group-hover:text-rosegold transition-colors truncate">{product.name}</span>
+                          <span className="text-sm text-heading group-hover:text-rosegold transition-colors truncate">
+                            {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="font-semibold text-rosegold">{product.sku}</span>
+                                <span className="text-muted-foreground font-normal">-</span>
+                                <span className="text-muted-foreground font-normal">{product.name}</span>
+                              </span>
+                            ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
+                              <span className="inline-flex items-center gap-1.5">
+                                <span className="font-semibold text-rosegold">{product.barcode}</span>
+                                <span className="text-muted-foreground font-normal">-</span>
+                                <span className="text-muted-foreground font-normal">{product.name}</span>
+                              </span>
+                            ) : (
+                              product.name
+                            )}
+                          </span>
                         </div>
                         {product.category_name && (
                           <span className="text-[10px] text-caption uppercase tracking-wider shrink-0 ml-2 hidden sm:inline">{product.category_name}</span>
                         )}
                       </button>
                     ))}
+                    {isFetchingMore && (
+                      <div className="py-2 text-center text-xs text-caption animate-pulse">Loading more suggestions...</div>
+                    )}
                   </div>
                 </div>
               )}

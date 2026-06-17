@@ -6,31 +6,31 @@
 
 /* ─── Rose Gold Silk Design System ─────────────────────────── */
 :root {
-  /* Rose Gold Palette */
-  --rosegold: #B76E79;
-  --rosegold-light: #D4A0A7;
-  --rosegold-lighter: #E8C4C9;
-  --rosegold-dark: #8B4A52;
-  --rosegold-glow: rgba(183, 110, 121, 0.15);
+  /* Rose Gold Palette (Now customized to #ff3e6c) */
+  --rosegold: #ff3e6c;
+  --rosegold-light: #ff708f;
+  --rosegold-lighter: #ffa8bc;
+  --rosegold-dark: #c21a44;
+  --rosegold-glow: rgba(255, 62, 108, 0.15);
 
-  /* Silk / Warm Neutrals */
-  --silk: #FAF7F5;
-  --silk-dark: #F0EBE6;
-  --champagne: #F5E6D8;
-  --ivory: #FFFBF7;
+  /* Silk / Cool & Clean Neutrals */
+  --silk: #FAF9F9;
+  --silk-dark: #F1EFF0;
+  --champagne: #F5EFF1;
+  --ivory: #FFFFFF;
 
   /* Design Tokens (Premium Refresh) */
-  --primary: oklch(0.65 0.12 15);
-  --primary-deep: oklch(0.55 0.15 15);
-  --clay-silk: oklch(0.96 0.02 15);
-  --clay-silk-deep: oklch(0.88 0.05 15);
-  --border-premium: oklch(0.92 0.01 15);
+  --primary: oklch(0.666 0.213 10.2);
+  --primary-deep: oklch(0.527 0.186 11.2);
+  --clay-silk: oklch(0.96 0.02 10.2);
+  --clay-silk-deep: oklch(0.88 0.05 10.2);
+  --border-premium: oklch(0.92 0.01 10.2);
 
   /* Silk / Warm Neutrals */
 
   /* Borders */
-  --border-silk: #E8DDD5;
-  --border-rose: rgba(183, 110, 121, 0.2);
+  --border-silk: #E5E1E3;
+  --border-rose: rgba(255, 62, 108, 0.2);
 
   /* Fonts */
   --font-serif: var(--font-cormorant), 'Cormorant Garamond', serif;
@@ -43,7 +43,7 @@
   --card-foreground: oklch(0.18 0.02 20);
   --popover: oklch(0.99 0.003 60);
   --popover-foreground: oklch(0.18 0.02 20);
-  --primary: oklch(0.55 0.1 15);
+  --primary: oklch(0.666 0.213 10.2);
   --primary-foreground: oklch(0.98 0.005 60);
   --secondary: oklch(0.95 0.01 40);
   --secondary-foreground: oklch(0.25 0.02 20);
@@ -54,7 +54,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.9 0.01 40);
   --input: oklch(0.9 0.01 40);
-  --ring: oklch(0.55 0.1 15);
+  --ring: oklch(0.666 0.213 10.2);
   --radius: 0.625rem;
 
   /* Charts */
@@ -118,17 +118,17 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* Custom colors for Tailwind */
-  --color-rosegold: #B76E79;
-  --color-rosegold-light: #D4A0A7;
-  --color-rosegold-lighter: #E8C4C9;
-  --color-rosegold-dark: #8B4A52;
-  --color-silk: #FFFFFF;
-  --color-silk-dark: #F8F8F8;
-  --color-champagne: #F5E6D8;
-  --color-ivory: #FFFBF7;
-  --color-heading: #0a0507;
-  --color-body: #2a1e21;
-  --color-caption: #5a4e51;
+  --color-rosegold: #ff3e6c;
+  --color-rosegold-light: #ff708f;
+  --color-rosegold-lighter: #ffa8bc;
+  --color-rosegold-dark: #c21a44;
+  --color-silk: #FAF9F9;
+  --color-silk-dark: #F1EFF0;
+  --color-champagne: #F5EFF1;
+  --color-ivory: #FFFFFF;
+  --color-heading: #0d0608;
+  --color-body: #211618;
+  --color-caption: #4d4043;
 }
 
 /* ─── Dark mode (not primary but included for shadcn compat) ─── */
@@ -176,14 +176,8 @@
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-serif);
-    color: var(--text-heading);
+    color: var(--rosegold);
     font-weight: 500;
-    background: linear-gradient(135deg, #6B2A32 0%, #9B5A62 20%, #D78E99 40%, #F4C0C7 60%, #FFE4E9 80%, #F4C0C7 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-shadow: 0 1px 2px rgba(139, 74, 82, 0.15);
   }
 }
 
@@ -253,14 +247,14 @@
   font-family: var(--font-serif);
   font-size: clamp(1.5rem, 5vw, 3rem);
   font-weight: 400;
-  color: var(--text-heading);
+  color: var(--rosegold);
   letter-spacing: -0.01em;
   line-height: 1.2;
   margin-bottom: 0.5rem;
 }
 .section-title em {
   font-style: italic;
-  color: var(--rosegold);
+  color: inherit;
 }
 
 /* Warm silk background */
@@ -276,15 +270,15 @@
 
 /* Glass morphism */
 .glass {
-  background: rgba(250, 247, 245, 0.85);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 
 /* Soft shadow (Rose tinted glow) */
 .shadow-silk {
-  box-shadow: 0 4px 30px -4px rgba(183, 110, 121, 0.12),
-              0 2px 10px -2px rgba(183, 110, 121, 0.08);
+  box-shadow: 0 4px 30px -4px rgba(255, 62, 108, 0.12),
+              0 2px 10px -2px rgba(255, 62, 108, 0.08);
 }
 
 /* Rose gold shimmer button */
@@ -313,28 +307,28 @@
 
 /* Metallic rosegold gradient text with silky feel */
 .text-metallic-rosegold {
-  background: linear-gradient(135deg, #8B4A52 0%, #B76E79 25%, #D4A0A7 50%, #E8C4C9 75%, #D4A0A7 100%);
+  background: linear-gradient(135deg, #8b0c26 0%, #c21a44 30%, #ff3e6c 70%, #c21a44 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 1px 2px rgba(139, 74, 82, 0.15);
+  text-shadow: 0 1px 2px rgba(194, 26, 68, 0.15);
   transition: all 0.3s ease;
 }
 
 .text-metallic-rosegold:hover {
   background-position: right center;
-  text-shadow: 0 2px 4px rgba(139, 74, 82, 0.25);
+  text-shadow: 0 2px 4px rgba(194, 26, 68, 0.25);
 }
 
 /* Subtle shimmer animation for metallic text */
 .text-metallic-shimmer {
-  background: linear-gradient(135deg, #8B4A52 0%, #B76E79 25%, #D4A0A7 50%, #E8C4C9 75%, #D4A0A7 100%);
+  background: linear-gradient(135deg, #8b0c26 0%, #c21a44 30%, #ff3e6c 70%, #c21a44 100%);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  text-shadow: 0 1px 2px rgba(139, 74, 82, 0.15);
+  text-shadow: 0 1px 2px rgba(194, 26, 68, 0.15);
   animation: metallicShimmer 3s ease-in-out infinite;
 }
 
