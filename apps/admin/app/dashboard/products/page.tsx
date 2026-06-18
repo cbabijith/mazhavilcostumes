@@ -30,6 +30,7 @@ import {
   Box,
   Filter,
   X,
+  Printer,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -49,6 +50,7 @@ import { formatCurrency } from "@/lib/shared-utils";
 import {
   downloadBarcode,
   downloadMultipleBarcodes,
+  printBarcode,
 } from "@/lib/barcode";
 import { type Product, type ProductWithRelations } from "@/domain";
 import Image from "next/image";
@@ -632,14 +634,26 @@ function ProductsContent() {
                             </Button>
                           )}
                           {product.barcode && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                              onClick={() => product.barcode ? downloadBarcode(product.barcode, product.name) : undefined}
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                                onClick={() => product.barcode ? downloadBarcode(product.barcode, product.name) : undefined}
+                                title="Download Barcode"
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                                onClick={() => product.barcode ? printBarcode(product.barcode, product.name) : undefined}
+                                title="Print Barcode"
+                              >
+                                <Printer className="w-4 h-4" />
+                              </Button>
+                            </>
                           )}
                           <Button
                             variant="ghost"

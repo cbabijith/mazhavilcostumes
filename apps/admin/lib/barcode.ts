@@ -102,6 +102,116 @@ export async function downloadBarcode(
 }
 
 /**
+ * Generate barcode and open print dialog
+ */
+export async function printBarcode(
+  barcode: string, 
+  productName: string,
+  options?: { width?: number; height?: number; }
+): Promise<void> {
+  try {
+    const JsBarcode = (await import('jsbarcode')).default;
+    const barcodeCanvas = document.createElement('canvas');
+    JsBarcode(barcodeCanvas, barcode, {
+      width: options?.width || 3,
+      height: options?.height || 120,
+      format: 'CODE128',
+      displayValue: true,
+      fontSize: 14,
+      margin: 10,
+    });
+    
+    const finalCanvas = document.createElement('canvas');
+    const ctx = finalCanvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+    
+    const padding = 20;
+    const textSpace = 30;
+    
+    finalCanvas.width = barcodeCanvas.width + (padding * 2);
+    finalCanvas.height = barcodeCanvas.height + textSpace + (padding * 2);
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    ctx.drawImage(barcodeCanvas, padding, padding);
+    
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    
+    let displayName = productName;
+    if (displayName.length > 40) {
+      displayName = displayName.substring(0, 37) + '...';
+    }
+    
+    ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
+    
+    const dataUrl = finalCanvas.toDataURL('image/png');
+    
+    // Create an iframe to print the image
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) throw new Error('Could not get iframe document');
+    
+    iframeDoc.write(`
+      <html>
+        <head>
+          <title>Print Barcode - ${barcode}</title>
+          <style>
+            @page {
+              margin: 0;
+              size: auto;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              background-color: white;
+            }
+            img {
+              width: 100%;
+              max-width: 600px; /* optimal size for standard print sheets, scales down for small labels */
+              height: auto;
+              display: block;
+              image-rendering: -webkit-optimize-contrast;
+              image-rendering: crisp-edges;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" />
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+              setTimeout(function() {
+                window.parent.document.body.removeChild(window.frameElement);
+              }, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+  } catch (error) {
+    console.error('Error printing barcode:', error);
+    throw new Error('Failed to print barcode');
+  }
+}
+
+
+/**
  * Generate multiple barcodes for bulk download
  */
 export async function downloadMultipleBarcodes(
