@@ -1,12 +1,12 @@
-# Mazhavil Costumes - System Architecture
+﻿# Rentocostume - System Architecture
 
-This document describes the technical architecture, design patterns, and engineering standards for the **Mazhavil Costumes** monorepo codebase.
+This document describes the technical architecture, design patterns, and engineering standards for the **Rentocostume** monorepo codebase.
 
 ---
 
 ## 1. System Overview
 
-Mazhavil Costumes uses a modern monorepo layout powered by `pnpm workspaces` and `Turborepo`.
+Rentocostume uses a modern monorepo layout powered by `pnpm workspaces` and `Turborepo`.
 
 ```mermaid
 graph TD

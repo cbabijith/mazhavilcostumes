@@ -1,4 +1,4 @@
--- ============================================================================
+﻿-- ============================================================================
 -- Migration 004: Super Admin Setup
 -- 
 -- IMPORTANT: This is a TWO-STEP process.
@@ -36,13 +36,13 @@ SELECT
   b.id,
   'eb613e18-572d-4468-b887-44d370bc4887'::UUID,          -- ← Replace with UUID from Step 1
   'Admin',                          -- ← Replace with real name
-  'mazhavildancecostumes01@gmail.com',                     -- ← Replace with real email (must match Auth user)
+  'Rentocostumedancecostumes01@gmail.com',                     -- ← Replace with real email (must match Auth user)
   '+919447923234',                       -- ← Replace with real phone
   'super_admin',
   true
 FROM stores s
 JOIN branches b ON b.store_id = s.id AND b.is_main = true
-WHERE s.slug = 'mazhavil-costumes';
+WHERE s.slug = 'Rentocostume-costumes';
 
 -- ============================================================================
 -- VERIFICATION: After running, check that the staff record was created:

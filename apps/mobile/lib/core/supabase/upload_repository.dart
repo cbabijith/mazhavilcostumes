@@ -14,7 +14,7 @@ class UploadRepository {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split(Platform.pathSeparator).last}';
       final path = '$folder/$fileName';
       
-      const bucketName = 'mazhavilcostumes';
+      const bucketName = 'rentocostume';
       
       await _supabase.storage.from(bucketName).upload(
         path,

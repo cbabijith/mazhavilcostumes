@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Daily Report Panel
  *
  * Admin-only client component that shows today's cash reconciliation stats.
@@ -128,7 +128,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
     // Header
     doc.setFontSize(22);
     doc.setTextColor(15, 23, 42); // slate-900
-    doc.text("Mazhavil Dance Costumes", 14, 20);
+    doc.text("Rentocostume", 14, 20);
     
     doc.setFontSize(12);
     doc.setTextColor(100, 116, 139); // slate-500

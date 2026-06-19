@@ -1,7 +1,7 @@
-/**
+﻿/**
  * Query Client Configuration
  *
- * Configures TanStack Query with proper defaults for the Mazhavil Dance Costumes admin dashboard.
+ * Configures TanStack Query with proper defaults for the Rentocostume admin dashboard.
  * Includes error handling, retry logic, and cache configuration.
  *
  * @module lib/query-client

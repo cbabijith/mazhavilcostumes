@@ -1,8 +1,8 @@
 {
-  "name": "mazhavilcostumes-monorepo",
+  "name": "rentocostume-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Mazhavil Dance Costumes - Costumes Rental Business Monorepo",
+  "description": "Rentocostume - Costumes Rental Business Monorepo",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",

@@ -1,15 +1,15 @@
--- ============================================================================
+﻿-- ============================================================================
 -- Migration 003: Seed Store and Main Branch
--- Creates the Mazhavil Dance Costumes store and its main branch.
+-- Creates the Rentocostume store and its main branch.
 -- This MUST run before creating the super admin (004).
 -- ============================================================================
 
 -- Create the store
 INSERT INTO stores (name, slug, email, phone, address, is_active, subscription_status)
 VALUES (
-  'Mazhavil Dance Costumes',
-  'mazhavil-costumes',
-  'mazhavildancecostumes01@gmail.com',        -- ← Update with real email
+  'Rentocostume',
+  'Rentocostume-costumes',
+  'Rentocostumedancecostumes01@gmail.com',        -- ← Update with real email
   '+919447923234',                      -- ← Update with real phone
   'Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002',         -- ← Update with real address
   true,
@@ -27,5 +27,5 @@ SELECT
   true,
   true
 FROM stores
-WHERE slug = 'mazhavil-costumes'
+WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT DO NOTHING;

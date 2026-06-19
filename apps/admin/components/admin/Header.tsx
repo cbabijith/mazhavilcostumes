@@ -27,7 +27,7 @@ export default function Header() {
           </div>
           <div className="text-sm">
             <p className="font-medium">Admin User</p>
-            <p className="text-muted-foreground text-xs">admin@mazhavilcostumes.com</p>
+            <p className="text-muted-foreground text-xs">admin@rentocostume.com</p>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+﻿import { Suspense } from 'react';
 import Header from "@/components/home/Header";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import NewArrivals from "@/components/home/NewArrivals";
@@ -26,7 +26,7 @@ export default async function Home() {
     return (
       <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-center bg-silk min-h-screen">
         <div className="text-center animate-fadeInUp">
-          <h1 className="text-4xl font-serif text-heading mb-4">Mazhavil Dance Costumes</h1>
+          <h1 className="text-4xl font-serif text-heading mb-4">Rentocostume</h1>
           <p className="text-body font-light">Elegance is taking a moment. Please check back soon.</p>
         </div>
       </div>

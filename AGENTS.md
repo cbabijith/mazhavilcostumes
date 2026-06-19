@@ -1,6 +1,6 @@
-# AGENTS.md — Mazhavil Dance Costumes Development Rules
+# AGENTS.md — Rentocostume Development Rules
 
-> This document serves as the single source of truth for AI agents working on the Mazhavil Dance Costumes monorepo. Read this BEFORE writing any code.
+> This document serves as the single source of truth for AI agents working on the Rentocostume monorepo. Read this BEFORE writing any code.
 
 ---
 
@@ -27,10 +27,10 @@
 - Do NOT silently make changes and move on. The user must understand every modification.
 
 ### 🔄 Synchronization with RentoCostumes (Separate Repository)
-- **Separate Repositories**: `mazhavilcostumes` and `RENTOCOSTUMES` are separate git repositories. Changes made in one do **not** automatically sync.
+- **Separate Repositories**: `rentocostume` and `RENTOCOSTUMES` are separate git repositories. Changes made in one do **not** automatically sync.
 - **Porting Changes**: When requested, the agent must assist in porting changes to `RENTOCOSTUMES`.
 - **MANDATORY Branding Safety**:
-  - The agent must **NEVER** copy files directly without verifying brand-specific strings (e.g. `Mazhavil Costumes` / `Mazhavil Dance Costumes` vs `RENTOCOSTUMES` in WhatsApp templates, labels, or configurations).
+  - The agent must **NEVER** copy files directly without verifying brand-specific strings (e.g. `Rentocostume` / `Rentocostume` vs `RENTOCOSTUMES` in WhatsApp templates, labels, or configurations).
   - Protect and preserve the respective brand names of the repository being worked on.
 - **Always Ask for Permission**:
   - The agent must **NEVER** automatically edit, commit, or sync files in the other repository (`RENTOCOSTUMES`) without explicitly asking the user for permission first.
@@ -39,7 +39,7 @@
 
 ## 1. Project Overview
 
-**Business**: Mazhavil Dance Costumes — a single-shop costumes rental business (NOT multi-tenant SaaS).
+**Business**: Rentocostume — a single-shop costumes rental business (NOT multi-tenant SaaS).
 **Monorepo**: pnpm workspaces + Turborepo
 **Tech Stack**: Next.js 16, React 19, TypeScript (strict), Tailwind CSS 4, Supabase, Cloudflare R2, shadcn/ui (new-york style)
 
@@ -622,7 +622,7 @@ components/
 - Luxury minimalist aesthetic (ivory, gold, charcoal palette)
 - Mobile-first responsive design
 - Bottom mobile navigation bar
-- Vendor/store-specific data filtering (only show Mazhavil Dance Costumes content)
+- Vendor/store-specific data filtering (only show Rentocostume content)
 
 ### Storefront Data Access
 - The Storefront MUST follow the exact same 5-layer architecture as the Admin app (`Domain → Repository → Service → Hooks → Components/Pages`).
@@ -681,7 +681,7 @@ components/
 
 ## 19. API Communication (Flutter Mobile)
 
-- Base URL: `https://mazhavilcostumes-admin.vercel.app/api`
+- Base URL: `https://rentocostume-admin.vercel.app/api`
 - All requests go through the shared `apiClient` (Dio instance in `core/api_client.dart`)
 - Response format follows the admin API conventions:
   - Lists: `{ categories: [...] }`, `{ products: [...] }`

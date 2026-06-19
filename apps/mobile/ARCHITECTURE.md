@@ -1,6 +1,6 @@
 # Mobile App Architecture
 
-This document describes the architecture, patterns, and guidelines of the **Mazhavil Costumes** Flutter mobile application (`apps/mobile`).
+This document describes the architecture, patterns, and guidelines of the **Rentocostume** Flutter mobile application (`apps/mobile`).
 
 ---
 
@@ -24,7 +24,7 @@ View (Widget) ──> Provider (Riverpod) ──> Repository (Dio HTTP) ──> 
 
 ### API Communication (`lib/core/supabase/api_client.dart`)
 - A centralized `ApiClient` instance handles session authentication headers, base URLs, timeouts, and JSON transformations.
-- **Base URL**: `https://mazhavilcostumes-admin.vercel.app/api`
+- **Base URL**: `https://rentocostume-admin.vercel.app/api`
 - Follows standard REST methods (`GET`, `POST`, `PATCH`, `DELETE`).
 
 ### Responsive UI Engine (`lib/core/utils/responsive.dart`)

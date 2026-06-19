@@ -324,7 +324,7 @@ export default function StaffForm({ staff }: StaffFormProps) {
                 onChange={(e) => updateField("email", e.target.value)}
                 onBlur={() => handleBlur("email")}
                 required
-                placeholder="staff@mazhavilcostumes.com"
+                placeholder="staff@rentocostume.com"
                 className={`h-11 border-slate-200 focus:border-slate-900 text-base ${
                   touched.email && fieldErrors.email ? "border-red-300 focus:border-red-500" : ""
                 }`}

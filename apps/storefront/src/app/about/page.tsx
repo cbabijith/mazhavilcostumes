@@ -1,4 +1,4 @@
-import Header from "@/components/home/Header";
+﻿import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import Image from "next/image";
@@ -8,7 +8,7 @@ export default async function AboutPage() {
   const store = await getParisBridalsStore();
   if (!store) return null;
 
-  const logoUrl = store.logo_url || "/logo_mazhavil.jpeg";
+  const logoUrl = store.logo_url || "/logo_Rentocostume.jpeg";
 
   return (
     <main className="min-h-screen bg-silk selection:bg-rosegold/20 selection:text-rosegold-dark">
@@ -20,7 +20,7 @@ export default async function AboutPage() {
           <div className="relative overflow-hidden rounded-full mb-8 border border-[var(--border-silk)]">
             <Image 
               src={logoUrl} 
-              alt="Mazhavil Dance Costumes Logo" 
+              alt="Rentocostume Logo" 
               width={160}
               height={160}
               className="w-28 h-28 sm:w-36 sm:h-36 object-contain animate-fadeIn"
@@ -28,7 +28,7 @@ export default async function AboutPage() {
           </div>
           <div className="section-eyebrow mb-4">About Us</div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-heading mb-6 tracking-tight">
-            Mazhavil Dance Costumes
+            Rentocostume
           </h1>
           <p className="text-base sm:text-lg font-light text-body leading-relaxed max-w-2xl mx-auto">
             With over 10 years of experience in the field, we proudly bring elegance, tradition, and creativity together through our premium costume collections. We are dedicated to providing beautifully designed costumes that make every performance special and memorable.
@@ -102,7 +102,7 @@ export default async function AboutPage() {
           <div className="bg-white rounded-[3rem] p-8 sm:p-12 shadow-silk border border-[var(--border-silk)] space-y-8">
             <div className="text-center">
               <div className="section-eyebrow justify-center">Why Choose Us</div>
-              <h2 className="text-3xl font-serif text-heading mt-2">The Mazhavil Standard</h2>
+              <h2 className="text-3xl font-serif text-heading mt-2">The Rentocostume Standard</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6 pt-2">
               {[

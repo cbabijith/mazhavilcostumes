@@ -1,4 +1,4 @@
-# Lessons Learned - Mazhavil Costumes Mobile App
+﻿# Lessons Learned - Rentocostume Mobile App
 
 This document captures common mistakes and lessons learned during development to avoid repeating them in future projects.
 

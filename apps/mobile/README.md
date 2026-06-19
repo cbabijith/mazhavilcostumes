@@ -1,11 +1,11 @@
-# Mazhavil Costumes Mobile App
+# Rentocostume Mobile App
 
-This directory contains the Flutter mobile application for **Mazhavil Costumes**, acting as the mobile version of the admin dashboard.
+This directory contains the Flutter mobile application for **Rentocostume**, acting as the mobile version of the admin dashboard.
 
 ## Overview
 The mobile app mirrors the functionality of the web admin portal, allowing store managers, administrators, and staff to manage products, categories, stores, branches, customers, and orders right from their mobile devices. 
 
-It consumes the exact same Next.js API (`https://mazhavilcostumes-admin.vercel.app/api`) built for the web admin portal, meaning business logic is centralized and synchronized in real-time.
+It consumes the exact same Next.js API (`https://rentocostume-admin.vercel.app/api`) built for the web admin portal, meaning business logic is centralized and synchronized in real-time.
 
 ---
 

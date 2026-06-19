@@ -1,4 +1,4 @@
-import Header from "@/components/home/Header";
+﻿import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
 
@@ -14,7 +14,7 @@ export default async function TermsPage() {
         <div className="prose prose-stone max-w-none space-y-6 text-body">
           <p>Effective Date: April 20, 2026</p>
           <h2 className="text-xl font-bold text-heading">1. Rental Agreement</h2>
-          <p>By renting from Mazhavil Dance Costumes, you agree to return the items in the same condition as received. Rental periods are strictly enforced.</p>
+          <p>By renting from Rentocostume, you agree to return the items in the same condition as received. Rental periods are strictly enforced.</p>
           <h2 className="text-xl font-bold text-heading">2. Security Deposit</h2>
           <p>A security deposit is required for all rentals. This will be refunded within next business day after the item is returned and inspected.</p>
           <h2 className="text-xl font-bold text-heading">3. Damage and Loss</h2>

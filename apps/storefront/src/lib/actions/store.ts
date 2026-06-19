@@ -3,18 +3,18 @@
 import { unstable_cache } from 'next/cache';
 import { getStoreByEmail, getStoreBySlug } from '@/lib/supabase/queries';
 
-const MAZHAVIL_COSTUMES_EMAIL = 'mazhavilcostumes1@gmail.com';
-const MAZHAVIL_COSTUMES_SLUG = 'mazhavil-costumes';
+const Rentocostume_COSTUMES_EMAIL = 'rentocostume1@gmail.com';
+const Rentocostume_COSTUMES_SLUG = 'Rentocostume-costumes';
 
 const fetchStoreConfig = unstable_cache(
   async () => {
-    let store = await getStoreByEmail(MAZHAVIL_COSTUMES_EMAIL);
+    let store = await getStoreByEmail(Rentocostume_COSTUMES_EMAIL);
     if (!store) {
-      store = await getStoreBySlug(MAZHAVIL_COSTUMES_SLUG);
+      store = await getStoreBySlug(Rentocostume_COSTUMES_SLUG);
     }
     return store;
   },
-  ['mazhavil_store_config'],
+  ['Rentocostume_store_config'],
   {
     revalidate: 3600, // cache for 1 hour
     tags: ['store_config'],
@@ -22,7 +22,7 @@ const fetchStoreConfig = unstable_cache(
 );
 
 /**
- * Get Mazhavil Dance Costumes store data
+ * Get Rentocostume store data
  * First tries by email, then by slug as fallback
  */
 export async function getParisBridalsStore() {

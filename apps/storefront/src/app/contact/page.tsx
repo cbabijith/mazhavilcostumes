@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Header from "@/components/home/Header";
@@ -173,8 +173,8 @@ export default function ContactPage() {
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Email</p>
-                      <a href="mailto:mazhavildancecostumes@gmail.com" className="text-heading font-medium hover:text-rosegold transition-colors">
-                        mazhavildancecostumes@gmail.com
+                      <a href="mailto:Rentocostumedancecostumes@gmail.com" className="text-heading font-medium hover:text-rosegold transition-colors">
+                        Rentocostumedancecostumes@gmail.com
                       </a>
                     </div>
                   </div>

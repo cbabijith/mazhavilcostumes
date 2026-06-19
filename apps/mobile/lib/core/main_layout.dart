@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../features/auth/viewmodels/auth_provider.dart' as core_auth;
@@ -68,7 +68,7 @@ class _MainLayoutState extends State<MainLayout> {
           ),
         ),
         title: Text(
-          'MAZHAVIL COSTUMES',
+          'Rentocostume',
           style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Colors.white),
         ),
         actions: [
@@ -357,7 +357,7 @@ class _MainLayoutState extends State<MainLayout> {
           ],
         ),
         content: Text(
-          'Are you sure you want to log out of Mazhavil Costumes?',
+          'Are you sure you want to log out of Rentocostume?',
           style: TextStyle(fontSize: Responsive.sp(14), height: 1.5),
         ),
         actionsPadding: Responsive.only(left: 16, right: 16, bottom: 16),

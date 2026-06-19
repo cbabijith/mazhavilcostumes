@@ -1,4 +1,4 @@
-# Mazhavil Dance Costumes - Database Schema
+﻿# Rentocostume - Database Schema
 
 ## Tables and Columns
 

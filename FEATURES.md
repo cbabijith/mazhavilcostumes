@@ -1,6 +1,6 @@
-# Mazhavil Costumes - Feature Catalog
+﻿# Rentocostume - Feature Catalog
 
-This document details the functional capabilities and features of the **Mazhavil Costumes** monorepo workspace.
+This document details the functional capabilities and features of the **Rentocostume** monorepo workspace.
 
 ---
 

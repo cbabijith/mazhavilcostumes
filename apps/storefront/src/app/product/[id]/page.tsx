@@ -14,12 +14,12 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   const product = await getCachedProductById(id);
-  if (!product) return { title: "Product — Mazhavil Dance Costumes" };
+  if (!product) return { title: "Product — Rentocostume" };
   return {
-    title: `${product.name} — Mazhavil Dance Costumes`,
+    title: `${product.name} — Rentocostume`,
     description:
       product.description ||
-      `Rent ${product.name} from Mazhavil Dance Costumes. Premium classical and traditional dance costumes.`,
+      `Rent ${product.name} from Rentocostume. Premium classical and traditional dance costumes.`,
   };
 }
 

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/theme.dart';
 import 'features/auth/views/splash_view.dart';
@@ -16,7 +16,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Mazhavil Costumes',
+      title: 'Rentocostume',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       home: const SplashView(),

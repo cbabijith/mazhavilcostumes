@@ -1,6 +1,6 @@
-# 📚 Category Module — Technical Documentation
+﻿# 📚 Category Module — Technical Documentation
 
-> **Mazhavil Dance Costumes Admin • `apps/admin/`**
+> **Rentocostume Admin • `apps/admin/`**
 >
 > This document provides an in-depth technical reference for the Categories module,
 > covering every data structure, algorithm, and architectural decision with full
@@ -52,7 +52,7 @@ Level 2: Sub Category        (parent_id → Main)
 Level 3: Variant             (parent_id → Sub)  ← LEAF NODE
 ```
 
-### Real-World Example (Mazhavil Dance Costumes)
+### Real-World Example (Rentocostume)
 
 ```mermaid
 graph TD

@@ -1,5 +1,5 @@
--- ============================================================================
--- Mazhavil Costumes - Latest Database Schema (Exported from Live Supabase)
+﻿-- ============================================================================
+-- Rentocostume - Latest Database Schema (Exported from Live Supabase)
 -- Generated on 2026-06-05
 -- ============================================================================
 

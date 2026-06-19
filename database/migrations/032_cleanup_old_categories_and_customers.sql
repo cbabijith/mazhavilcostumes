@@ -1,4 +1,4 @@
--- e:/PROJECTS/mazhavilcostumes/database/migrations/032_cleanup_old_categories_and_customers.sql
+-- e:/PROJECTS/rentocostume/database/migrations/032_cleanup_old_categories_and_customers.sql
 
 BEGIN;
 

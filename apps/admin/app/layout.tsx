@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes Admin",
-  description: "Admin dashboard for Mazhavil Dance Costumes costumes rental system",
+  title: "Rentocostume Admin",
+  description: "Admin dashboard for Rentocostume costumes rental system",
   icons: {
     icon: "/logo.jpeg",
     apple: "/logo.jpeg",

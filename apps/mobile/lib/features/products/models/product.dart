@@ -1,6 +1,6 @@
-import 'package:equatable/equatable.dart';
+﻿import 'package:equatable/equatable.dart';
 
-// Product domain models for the Mazhavil Costumes mobile app.
+// Product domain models for the Rentocostume mobile app.
 //
 // Mirrors the Next.js Product domain types including costumes-specific
 // fields (material, metal_purity, metal_color, weight_grams) and

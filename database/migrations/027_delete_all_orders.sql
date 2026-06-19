@@ -1,4 +1,4 @@
--- e:/PROJECTS/mazhavilcostumes/database/migrations/027_delete_all_orders.sql
+-- e:/PROJECTS/rentocostume/database/migrations/027_delete_all_orders.sql
 
 BEGIN;
 

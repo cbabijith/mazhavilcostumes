@@ -1,4 +1,4 @@
-# Flutter MVVM Architecture Rules
+﻿# Flutter MVVM Architecture Rules
 
 ## 🚨 MANDATORY: Post-Work Build Verification
 **After EVERY code change in this module, the agent MUST:**
@@ -302,7 +302,7 @@ Always reuse existing ViewModels and repositories when possible.
 
 ---
 
-## Mazhavil Business Rules
+## Rentocostume Business Rules
 
 Products:
 - Must support inventory tracking

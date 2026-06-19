@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Export Utilities
  *
  * Client-side helpers for exporting report data to Excel (.xlsx) and PDF.
@@ -73,7 +73,7 @@ export async function exportToPDF(
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 24);
-  doc.text(`Mazhavil Dance Costumes`, 14, 29);
+  doc.text(`Rentocostume`, 14, 29);
   doc.setTextColor(0, 0, 0);
 
   // Table

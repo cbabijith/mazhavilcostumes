@@ -1,6 +1,6 @@
-# Product Management Module Documentation
+﻿# Product Management Module Documentation
 
-The Product Module is the core of the Mazhavil Dance Costumes Admin Dashboard, designed to manage high-value rental costumes. It features advanced stock tracking across multiple branches, instant saving, parallel image processing, and a highly optimized user experience.
+The Product Module is the core of the Rentocostume Admin Dashboard, designed to manage high-value rental costumes. It features advanced stock tracking across multiple branches, instant saving, parallel image processing, and a highly optimized user experience.
 
 ## 🌟 Key Features
 

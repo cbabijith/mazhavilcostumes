@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -51,8 +51,8 @@ export default function Footer({ store, categories: initialCategories }: FooterP
     loadCategories();
   }, [store?.id, initialCategories]);
 
-  const storeName = store?.name || "Mazhavil Dance Costumes";
-  const storeEmail = "mazhavildancecostumes@gmail.com";
+  const storeName = store?.name || "Rentocostume";
+  const storeEmail = "Rentocostumedancecostumes@gmail.com";
   const storePhone = DISPLAY_PHONE;
 
   return (
@@ -63,7 +63,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
             <Link href="/" className="block mb-4 sm:mb-6 group">
               <div className="flex flex-col text-left justify-center">
                 <span className="text-sm sm:text-base md:text-lg font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight">
-                  Mazhavil Dance Costumes
+                  Rentocostume
                 </span>
                 <span 
                   className="w-full text-left text-[10px] sm:text-[11px] md:text-[12px] tracking-[0.4em] text-body uppercase opacity-80 leading-none mt-2 font-medium font-sans block italic"
@@ -144,7 +144,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
                 <div>
                   <p className="text-[9px] uppercase tracking-widest text-caption mb-1">Address</p>
                   <a 
-                    href="https://maps.google.com/?q=Mazhavil+Dance+Costumes+Karamana+Thiruvananthapuram+Kerala+695002"
+                    href="https://maps.google.com/?q=Rentocostume+Dance+Costumes+Karamana+Thiruvananthapuram+Kerala+695002"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-heading font-medium hover:text-rosegold transition-colors leading-relaxed block max-w-[240px]"

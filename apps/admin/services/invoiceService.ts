@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Invoice Service
  *
  * Service for generating PDF invoices for orders.
@@ -230,7 +230,7 @@ export class InvoiceService {
     }));
 
     return {
-      companyName: order.store?.name || 'Mazhavil Dance Costumes',
+      companyName: order.store?.name || 'Rentocostume',
       companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
       companyPhone: order.store?.phone || '9446961765, 9447961765',
       companyEmail: order.store?.email,

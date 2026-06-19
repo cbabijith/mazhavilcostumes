@@ -1,6 +1,6 @@
-import 'package:equatable/equatable.dart';
+﻿import 'package:equatable/equatable.dart';
 
-// Order domain models for the Mazhavil Costumes mobile app.
+// Order domain models for the Rentocostume mobile app.
 //
 // Mirrors the Next.js Order domain types and enums, ensuring exact mapping
 // of fields (start/end dates, tax structures, discount types, late flags, and relationships).

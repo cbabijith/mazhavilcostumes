@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -18,19 +18,19 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes — Premium Costumes Rental",
+  title: "Rentocostume — Premium Costumes Rental",
   description:
     "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
   keywords: [
     "bridal costumes rental",
     "wedding costumes",
     "Kerala costumes rental",
-    "Mazhavil Dance Costumes",
+    "Rentocostume",
     "premium costumes",
   ],
   icons: {
-    icon: "/logo_mazhavil.jpeg",
-    apple: "/logo_mazhavil.jpeg",
+    icon: "/logo_Rentocostume.jpeg",
+    apple: "/logo_Rentocostume.jpeg",
   },
 };
 

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Products List Page
  *
  * Branch-aware product listing. Responds to the top-right BranchSwitcher:
@@ -196,7 +196,7 @@ function ProductsContent() {
         p.quantity || 0
       ]);
 
-      const titleRow = ['Mazhavil Dance Costumes Catalog', '', '', '', '', '', ''];
+      const titleRow = ['Rentocostume Catalog', '', '', '', '', '', ''];
       const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
 
       const sheetData = [titleRow, headerRow, ...dataRows];

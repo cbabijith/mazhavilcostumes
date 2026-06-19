@@ -196,7 +196,7 @@ export default function BranchDetailPage() {
           </div>
           <div>
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email *</label>
-            <Input name="email" type="email" defaultValue={editStaff?.email || ""} placeholder="staff@mazhavilcostumes.com" required className="mt-1 h-10" />
+            <Input name="email" type="email" defaultValue={editStaff?.email || ""} placeholder="staff@rentocostume.com" required className="mt-1 h-10" />
           </div>
           {!editStaff && (
             <div>

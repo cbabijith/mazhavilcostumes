@@ -1,8 +1,8 @@
-import { Metadata } from "next";
+﻿import { Metadata } from "next";
 import OrderForm from "@/components/admin/OrderForm";
 
 export const metadata: Metadata = {
-  title: "Create Order | Mazhavil Dance Costumes",
+  title: "Create Order | Rentocostume",
   description: "Create a new rental order",
 };
 

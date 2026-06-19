@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -55,8 +55,8 @@ export default function Header({ store, categories }: HeaderProps) {
 
   const compactCategories = false;
 
-  const storeName = store?.name || "Mazhavil Dance Costumes";
-  const logoUrl = store?.logo_url || "/logo_mazhavil.jpeg";
+  const storeName = store?.name || "Rentocostume";
+  const logoUrl = store?.logo_url || "/logo_Rentocostume.jpeg";
 
   const displayCategories = categories || [];
 
@@ -116,7 +116,7 @@ export default function Header({ store, categories }: HeaderProps) {
               <div className="relative overflow-hidden rounded-full">
                 <Image
                   src={logoUrl}
-                  alt="Mazhavil Dance Costumes"
+                  alt="Rentocostume"
                   width={180}
                   height={60}
                   className="w-auto object-contain transition-all duration-500 h-12 sm:h-14 md:h-16"
@@ -124,7 +124,7 @@ export default function Header({ store, categories }: HeaderProps) {
               </div>
               <div className="flex flex-col text-left justify-center">
                 <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-xl font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
-                  Mazhavil Dance Costumes
+                  Rentocostume
                 </span>
                 <span 
                   className="text-[7px] min-[380px]:text-[9px] sm:text-[11px] md:text-[12px] tracking-[0.2em] min-[380px]:tracking-[0.4em] sm:tracking-[0.6em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold font-sans block italic whitespace-nowrap"

@@ -1,5 +1,5 @@
--- ============================================================================
--- DEMO DATABASE SETUP — Mazhavil Dance Costumes (Training Environment)
+﻿-- ============================================================================
+-- DEMO DATABASE SETUP — Rentocostume (Training Environment)
 -- ============================================================================
 -- Run this ENTIRE script in your new Supabase project's SQL Editor.
 -- It creates all tables, RLS policies, functions, triggers, seed data,
@@ -876,9 +876,9 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Store
 INSERT INTO public.stores (name, slug, email, phone, address, is_active, subscription_status)
 VALUES (
-  'Mazhavil Dance Costumes',
-  'mazhavil-costumes',
-  'mazhavildancecostumes01@gmail.com',
+  'Rentocostume',
+  'Rentocostume-costumes',
+  'Rentocostumedancecostumes01@gmail.com',
   '+919447923234',
   'Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002',
   true,
@@ -892,7 +892,7 @@ SELECT
   id, 'Main Branch',
   'Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002',
   '+919447923234', true, true
-FROM public.stores WHERE slug = 'mazhavil-costumes'
+FROM public.stores WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -919,27 +919,27 @@ SELECT
   true
 FROM public.stores s
 JOIN public.branches b ON b.store_id = s.id AND b.is_main = true
-WHERE s.slug = 'mazhavil-costumes';
+WHERE s.slug = 'Rentocostume-costumes';
 
 -- ============================================================================
 -- 11. DEFAULT SETTINGS
 -- ============================================================================
 
 INSERT INTO public.settings (store_id, key, value)
-SELECT id, 'gst_percentage', '18.00' FROM public.stores WHERE slug = 'mazhavil-costumes'
+SELECT id, 'gst_percentage', '18.00' FROM public.stores WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT (store_id, key) DO NOTHING;
 
 INSERT INTO public.settings (store_id, key, value)
-SELECT id, 'invoice_prefix', 'INV-' FROM public.stores WHERE slug = 'mazhavil-costumes'
+SELECT id, 'invoice_prefix', 'INV-' FROM public.stores WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT (store_id, key) DO NOTHING;
 
 INSERT INTO public.settings (store_id, key, value)
 SELECT id, 'payment_terms', 'Payment must be made before or at the time of delivery. Security deposit is refundable upon return of items in good condition.'
-FROM public.stores WHERE slug = 'mazhavil-costumes'
+FROM public.stores WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT (store_id, key) DO NOTHING;
 
 INSERT INTO public.settings (store_id, key, value)
-SELECT id, 'authorized_signature', 'Authorized Signatory' FROM public.stores WHERE slug = 'mazhavil-costumes'
+SELECT id, 'authorized_signature', 'Authorized Signatory' FROM public.stores WHERE slug = 'Rentocostume-costumes'
 ON CONFLICT (store_id, key) DO NOTHING;
 
 -- ============================================================================
@@ -949,62 +949,62 @@ ON CONFLICT (store_id, key) DO NOTHING;
 -- Level 1: Main Categories
 INSERT INTO public.categories (name, slug, description, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Bharatanatyam', 'bharatanatyam', 'Bharatanatyam dance costumes', id, true, true, 1, 5.00, true
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Mohiniyattam', 'mohiniyattam', 'Mohiniyattam dance costumes', id, true, true, 2, 5.00, true
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Kathakali', 'kathakali', 'Kathakali dance costumes', id, true, true, 3, 5.00, true
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Kuchipudi', 'kuchipudi', 'Kuchipudi dance costumes', id, true, true, 4, 5.00, true
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Accessories', 'accessories', 'Dance accessories and jewelry', id, true, true, 5, 5.00, false
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 -- Level 2: Sub Categories (under Bharatanatyam)
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Costumes', 'bharatanatyam-costumes', 'Bharatanatyam costumes', c.id, s.id, true, true, 1, 5.00, true
 FROM public.categories c, public.stores s
-WHERE c.slug = 'bharatanatyam' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'bharatanatyam' AND s.slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Jewelry', 'bharatanatyam-jewelry', 'Bharatanatyam jewelry sets', c.id, s.id, true, true, 2, 5.00, false
 FROM public.categories c, public.stores s
-WHERE c.slug = 'bharatanatyam' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'bharatanatyam' AND s.slug = 'Rentocostume-costumes';
 
 -- Level 2: Sub Categories (under Mohiniyattam)
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Costumes', 'mohiniyattam-costumes', 'Mohiniyattam costumes', c.id, s.id, true, true, 1, 5.00, true
 FROM public.categories c, public.stores s
-WHERE c.slug = 'mohiniyattam' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'mohiniyattam' AND s.slug = 'Rentocostume-costumes';
 
 -- Level 2: Sub Categories (under Accessories)
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Earrings', 'earrings', 'Dance earrings', c.id, s.id, true, true, 1, 5.00, false
 FROM public.categories c, public.stores s
-WHERE c.slug = 'accessories' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'accessories' AND s.slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Necklaces', 'necklaces', 'Dance necklaces', c.id, s.id, true, true, 2, 5.00, false
 FROM public.categories c, public.stores s
-WHERE c.slug = 'accessories' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'accessories' AND s.slug = 'Rentocostume-costumes';
 
 -- Level 3: Variants (under Bharatanatyam Costumes)
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Adult', 'bharatanatyam-costumes-adult', 'Adult size Bharatanatyam costumes', c.id, s.id, true, true, 1, 5.00, true
 FROM public.categories c, public.stores s
-WHERE c.slug = 'bharatanatyam-costumes' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'bharatanatyam-costumes' AND s.slug = 'Rentocostume-costumes';
 
 INSERT INTO public.categories (name, slug, description, parent_id, store_id, is_active, is_global, sort_order, gst_percentage, has_buffer)
 SELECT 'Kids', 'bharatanatyam-costumes-kids', 'Kids size Bharatanatyam costumes', c.id, s.id, true, true, 2, 5.00, true
 FROM public.categories c, public.stores s
-WHERE c.slug = 'bharatanatyam-costumes' AND s.slug = 'mazhavil-costumes';
+WHERE c.slug = 'bharatanatyam-costumes' AND s.slug = 'Rentocostume-costumes';
 
 -- ============================================================================
 -- 13. DEMO PRODUCTS
@@ -1022,7 +1022,7 @@ SELECT
   'Silk',
   true, true, true, 2, 15000.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'bharatanatyam-costumes-adult' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'bharatanatyam-costumes-adult' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price)
 SELECT
@@ -1036,7 +1036,7 @@ SELECT
   'Cotton Silk',
   true, false, true, 3, 8000.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'bharatanatyam-costumes-kids' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'bharatanatyam-costumes-kids' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price)
 SELECT
@@ -1050,7 +1050,7 @@ SELECT
   'Silk',
   true, true, true, 1, 12000.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'mohiniyattam-costumes' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'mohiniyattam-costumes' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price, gemstones, metal_purity, weight)
 SELECT
@@ -1067,7 +1067,7 @@ SELECT
   '22K Gold Plated',
   150.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'necklaces' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'necklaces' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price, gemstones, metal_purity, weight)
 SELECT
@@ -1084,7 +1084,7 @@ SELECT
   '22K Gold Plated',
   50.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'earrings' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'earrings' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price)
 SELECT
@@ -1098,7 +1098,7 @@ SELECT
   'Mixed Materials',
   true, true, true, 1, 25000.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'kathakali' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'kathakali' AND b.is_main = true;
 
 INSERT INTO public.products (store_id, category_id, branch_id, name, slug, description, price_per_day, quantity, available_quantity, sizes, colors, material, is_active, is_featured, track_inventory, low_stock_threshold, purchase_price)
 SELECT
@@ -1112,7 +1112,7 @@ SELECT
   'Silk',
   true, false, true, 2, 10000.00
 FROM public.stores s, public.categories c, public.branches b
-WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'kuchipudi' AND b.is_main = true;
+WHERE s.slug = 'Rentocostume-costumes' AND c.slug = 'kuchipudi' AND b.is_main = true;
 
 -- ============================================================================
 -- 14. PRODUCT INVENTORY
@@ -1121,7 +1121,7 @@ WHERE s.slug = 'mazhavil-costumes' AND c.slug = 'kuchipudi' AND b.is_main = true
 INSERT INTO public.product_inventory (product_id, branch_id, quantity, available_quantity, low_stock_threshold)
 SELECT p.id, b.id, p.quantity, p.available_quantity, p.low_stock_threshold
 FROM public.products p, public.branches b
-WHERE b.is_main = true AND b.store_id = (SELECT id FROM public.stores WHERE slug = 'mazhavil-costumes')
+WHERE b.is_main = true AND b.store_id = (SELECT id FROM public.stores WHERE slug = 'Rentocostume-costumes')
 ON CONFLICT (product_id, branch_id) DO NOTHING;
 
 -- ============================================================================
@@ -1266,12 +1266,12 @@ END $$;
 -- ============================================================================
 
 INSERT INTO public.banners (store_id, title, subtitle, web_image_url, banner_type, is_active, priority, position, call_to_action, redirect_type, alt_text)
-SELECT id, 'Welcome to Mazhavil Dance Costumes', 'Premium dance costume rentals in Trivandrum', 'https://placehold.co/1200x400?text=Mazhavil+Dance+Costumes', 'hero', true, 1, 'top', 'Browse Collection', 'url', 'Mazhavil Dance Costumes Hero Banner'
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+SELECT id, 'Welcome to Rentocostume', 'Premium dance costume rentals in Trivandrum', 'https://placehold.co/1200x400?text=Rentocostume+Dance+Costumes', 'hero', true, 1, 'top', 'Browse Collection', 'url', 'Rentocostume Hero Banner'
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 INSERT INTO public.banners (store_id, title, subtitle, web_image_url, banner_type, is_active, priority, position, call_to_action, redirect_type, alt_text)
 SELECT id, 'Bharatanatyam Special', 'Traditional costumes now available', 'https://placehold.co/1200x300?text=Bharatanatyam+Special', 'promo', true, 2, 'middle', 'View Now', 'category', 'Bharatanatyam promotional banner'
-FROM public.stores WHERE slug = 'mazhavil-costumes';
+FROM public.stores WHERE slug = 'Rentocostume-costumes';
 
 -- ============================================================================
 -- DONE! 
