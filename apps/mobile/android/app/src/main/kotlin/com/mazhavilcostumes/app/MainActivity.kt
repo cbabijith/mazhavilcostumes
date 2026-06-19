@@ -1,4 +1,4 @@
-package com.parisbridals.mobile
+package com.mazhavilcostumes.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

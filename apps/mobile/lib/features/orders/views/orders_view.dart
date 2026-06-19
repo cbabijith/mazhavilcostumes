@@ -48,6 +48,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
+    _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
 
     return Container(
       color: AppColors.background,
@@ -533,7 +534,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                         color: isActive ? textActiveColor : textInactiveColor,
                       ),
                     ),
-                    if (badge != null) badge,
+                    ?badge,
                   ],
                 ),
               ),
@@ -550,6 +551,14 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     final customerPhone = order.customer?.phone ?? '';
     final itemCount = order.items?.length ?? 0;
     final balanceDue = order.totalAmount - order.amountPaid;
+
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    final startDate = DateTime.tryParse(order.startDate);
+    final startDateMidnight = startDate != null ? DateTime(startDate.year, startDate.month, startDate.day) : null;
+    final isActionNeeded = order.status == OrderStatus.scheduled &&
+        startDateMidnight != null &&
+        (startDateMidnight.isBefore(todayMidnight) || startDateMidnight.isAtSameMomentAs(todayMidnight));
 
     return Container(
       decoration: BoxDecoration(
@@ -718,6 +727,34 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                               ],
                             ),
                           ),
+                        if (isActionNeeded)
+                          Container(
+                            margin: Responsive.only(top: AppSizes.spacingTiny),
+                            padding: Responsive.symmetric(horizontal: AppSizes.spacingTiny, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall - 2)),
+                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.warning,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                SizedBox(width: Responsive.w(AppSizes.spacingTiny + 1)),
+                                Text(
+                                  'Action Needed',
+                                  style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny - 1), color: AppColors.warning, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -845,7 +882,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                               .then((_) => ref.invalidate(ordersProvider));
                         },
                         icon: Icon(Icons.account_balance_wallet_rounded, size: Responsive.icon(AppSizes.fontSmall + AppSizes.spacingTiny / 2), color: AppColors.warning),
-                        label: Text('Collect', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600, color: AppColors.warning)),
+                        label: Text(AppStrings.amount, style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall + 1), fontWeight: FontWeight.w600, color: AppColors.warning)),
                         style: OutlinedButton.styleFrom(
                           padding: Responsive.symmetric(horizontal: AppSizes.spacingMedium, vertical: AppSizes.spacingTiny + 1),
                           minimumSize: Size.zero,
@@ -868,12 +905,26 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   }
 
   Widget _buildContextualActionButton(Order order) {
-    // Hand Over for Scheduled/Pending orders
-    if (order.status == OrderStatus.scheduled || order.status == OrderStatus.pending) {
+    final today = DateTime.now();
+    final todayMidnight = DateTime(today.year, today.month, today.day);
+    final rentalEnd = DateTime.tryParse(order.endDate);
+    final rentalEndMidnight = rentalEnd != null ? DateTime(rentalEnd.year, rentalEnd.month, rentalEnd.day) : null;
+    final createdAt = DateTime.tryParse(order.createdAt);
+    final createdAtMidnight = createdAt != null ? DateTime(createdAt.year, createdAt.month, createdAt.day) : null;
+    final rentalStart = DateTime.tryParse(order.startDate);
+    final rentalStartMidnight = rentalStart != null ? DateTime(rentalStart.year, rentalStart.month, rentalStart.day) : null;
+    final isBackdated = rentalStartMidnight != null && createdAtMidnight != null && rentalStartMidnight.isBefore(createdAtMidnight);
+    final isExpired = !isBackdated && rentalEndMidnight != null && todayMidnight.isAfter(rentalEndMidnight);
+
+    // Start Rental for Scheduled/Confirmed/Pending orders (unless expired)
+    if ((order.status == OrderStatus.scheduled ||
+            order.status == OrderStatus.confirmed ||
+            order.status == OrderStatus.pending) &&
+        !isExpired) {
       return ElevatedButton.icon(
-        onPressed: () => _confirmHandOver(order),
-        icon: Icon(Icons.send_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
-        label: Text('Hand Over', style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
+        onPressed: () => _confirmStartRental(order),
+        icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconTiny), color: Colors.white),
+        label: Text(AppStrings.startRental, style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.w700, color: Colors.white)),
         style: ElevatedButton.styleFrom(
           padding: Responsive.symmetric(horizontal: AppSizes.spacingLarge, vertical: AppSizes.spacingSmall),
           minimumSize: Size.zero,
@@ -885,7 +936,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
         ),
       );
     }
-    
+
     // Return for Ongoing/In-Use orders
     if (order.status == OrderStatus.ongoing || order.status == OrderStatus.inUse) {
       return ElevatedButton.icon(
@@ -913,20 +964,21 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     return const SizedBox.shrink();
   }
 
-  Future<void> _confirmHandOver(Order order) async {
+
+  Future<void> _confirmStartRental(Order order) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Hand Over'),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(AppStrings.confirmStartRental),
         content: Text('Have you handed over all items to ${order.customer?.name ?? 'the customer'}?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('Confirm'),
           ),
         ],
@@ -939,7 +991,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
         ref.invalidate(ordersProvider);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Order marked as ongoing')),
+            const SnackBar(content: Text('Rental started successfully!')),
           );
         }
       } catch (e) {

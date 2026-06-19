@@ -105,4 +105,17 @@ class CategoryRepository {
     // Backend endpoint doesn't exist - return 0, use products list total instead
     return 0;
   }
+
+  /// Reorder categories.
+  Future<void> reorderCategories(List<Map<String, dynamic>> items, {CancelToken? cancelToken}) async {
+    try {
+      await _api.patch(
+        '/categories/reorder',
+        data: {'items': items},
+        cancelToken: cancelToken,
+      );
+    } catch (e) {
+      throw Exception('Failed to reorder categories: $e');
+    }
+  }
 }

@@ -29,6 +29,7 @@ class Customer {
   final String storeId;
   final String name;
   final String phone;
+  final String? altPhone;
   final String? email;
   final String? address;
   final String? gstin;
@@ -48,6 +49,7 @@ class Customer {
     required this.storeId,
     required this.name,
     required this.phone,
+    this.altPhone,
     this.email,
     this.address,
     this.gstin,
@@ -69,6 +71,7 @@ class Customer {
       storeId: json['store_id'] as String? ?? '',
       name: json['name'] as String,
       phone: json['phone'] as String,
+      altPhone: json['alt_phone'] as String?,
       email: json['email'] as String?,
       address: json['address'] as String?,
       gstin: json['gstin'] as String?,
@@ -125,6 +128,7 @@ class Customer {
       'store_id': storeId,
       'name': name,
       'phone': phone,
+      'alt_phone': altPhone,
       'email': email,
       'address': address,
       'gstin': gstin,

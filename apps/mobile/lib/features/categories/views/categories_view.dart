@@ -7,7 +7,6 @@ import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
 import 'category_detail_view.dart';
-import 'category_form_view.dart';
 
 /// Categories listing view – hierarchical tree: Main → Sub → Variant.
 class CategoriesView extends ConsumerStatefulWidget {
@@ -26,33 +25,21 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
     final categoriesAsync = ref.watch(categoriesProvider);
     final canManage = ref.watch(canManageProvider);
 
-    return Container(
-      color: AppColors.background,
-      child: Stack(
-        children: [
-          categoriesAsync.when(
-            data: (categories) => _buildContent(context, categories, canManage),
-            loading: () => _buildShimmerList(),
-            error: (error, _) => _buildError(error),
-          ),
-          // FAB — only for admin/manager
-          if (canManage)
-            Positioned(
-              right: Responsive.w(16),
-              bottom: Responsive.h(16),
-              child: FloatingActionButton.extended(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CategoryFormView()),
-                  ).then((_) => ref.invalidate(categoriesProvider));
-                },
-                backgroundColor: AppColors.warning,
-                foregroundColor: AppColors.primary,
-                icon: Icon(Icons.add, size: Responsive.icon(24)),
-                label: Text('Add Category', style: TextStyle(fontSize: Responsive.sp(14), fontWeight: FontWeight.bold)),
-              ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Categories'),
+      ),
+      body: Container(
+        color: AppColors.background,
+        child: Stack(
+          children: [
+            categoriesAsync.when(
+              data: (categories) => _buildContent(context, categories, canManage),
+              loading: () => _buildShimmerList(),
+              error: (error, _) => _buildError(error),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -66,7 +53,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
             c.slug.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             (c.description ?? '').toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
-    final allMainCats = categories.where((c) => c.parentId == null).toList();
+    final allMainCats = categories.where((c) => c.parentId == null).toList()
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     final filteredMainCats = filtered.where((c) => c.parentId == null).toList();
 
     // When searching, also show parents of matching sub/variants
@@ -162,15 +150,97 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
             child: RefreshIndicator(
               color: AppColors.primary,
               onRefresh: () async => ref.invalidate(categoriesProvider),
-              child: ListView.builder(
-                padding: Responsive.only(left: 16, right: 16, bottom: 80),
-                itemCount: displayMainCats.length,
-                itemBuilder: (context, index) {
-                  final main = displayMainCats[index];
-                  final subs = categories.where((c) => c.parentId == main.id).toList();
-                  return _buildMainCategoryCard(context, main, subs, categories, canManage);
-                },
-              ),
+              child: _searchQuery.isEmpty && canManage
+                  ? ReorderableListView.builder(
+                      padding: Responsive.only(left: 16, right: 16, bottom: 80),
+                      itemCount: displayMainCats.length,
+                      buildDefaultDragHandles: false,
+                      onReorderItem: (oldIndex, newIndex) async {
+                        final allCategories = ref.read(categoriesProvider).value;
+                        if (allCategories == null) return;
+
+                        final allCategoriesCopy = [...allCategories];
+
+                        // 1. Get mains sorted by sortOrder
+                        final mains = allCategoriesCopy.where((c) => c.parentId == null).toList()
+                          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+                        // 2. Move item
+                        final moved = mains.removeAt(oldIndex);
+                        mains.insert(newIndex, moved);
+
+                        // 3. Construct payload and update locally
+                        final List<Map<String, dynamic>> payload = [];
+                        for (int i = 0; i < mains.length; i++) {
+                          final cat = mains[i];
+                          payload.add({
+                            'id': cat.id,
+                            'sort_order': i,
+                          });
+
+                          final updatedCat = cat.copyWith(sortOrder: i);
+                          final indexInAll = allCategoriesCopy.indexWhere((c) => c.id == cat.id);
+                          if (indexInAll != -1) {
+                            allCategoriesCopy[indexInAll] = updatedCat;
+                          }
+                        }
+
+                        // 4. Save changes
+                        try {
+                          await ref.read(categoriesProvider.notifier).reorder(allCategoriesCopy, payload);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Order updated successfully'),
+                                backgroundColor: Color(0xFF4CAF50),
+                                duration: Duration(seconds: 1),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to save order: $e'),
+                                backgroundColor: const Color(0xFFFF6B8A),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      itemBuilder: (context, index) {
+                        final main = displayMainCats[index];
+                        final subs = categories.where((c) => c.parentId == main.id).toList();
+                        return _buildMainCategoryCard(
+                          context,
+                          main,
+                          subs,
+                          categories,
+                          canManage,
+                          key: ValueKey(main.id),
+                          dragHandle: ReorderableDragStartListener(
+                            index: index,
+                            child: Padding(
+                              padding: Responsive.only(right: 8),
+                              child: Icon(
+                                Icons.drag_indicator_rounded,
+                                size: Responsive.icon(22),
+                                color: Colors.grey[400],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    )
+                  : ListView.builder(
+                      padding: Responsive.only(left: 16, right: 16, bottom: 80),
+                      itemCount: displayMainCats.length,
+                      itemBuilder: (context, index) {
+                        final main = displayMainCats[index];
+                        final subs = categories.where((c) => c.parentId == main.id).toList();
+                        return _buildMainCategoryCard(context, main, subs, categories, canManage);
+                      },
+                    ),
             ),
           ),
       ],
@@ -197,8 +267,17 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
     );
   }
 
-  Widget _buildMainCategoryCard(BuildContext context, Category main, List<Category> subs, List<Category> all, bool canManage) {
+  Widget _buildMainCategoryCard(
+    BuildContext context,
+    Category main,
+    List<Category> subs,
+    List<Category> all,
+    bool canManage, {
+    Key? key,
+    Widget? dragHandle,
+  }) {
     return GestureDetector(
+      key: key,
       onTap: () => _navigateToDetail(context, main),
       child: Container(
         margin: Responsive.only(bottom: 12),
@@ -210,6 +289,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
         ),
         child: Row(
           children: [
+            ?dragHandle,
             _buildCategoryImage(main, size: 56),
             SizedBox(width: Responsive.w(16)),
             Expanded(
@@ -223,6 +303,15 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       _buildStatusDot(main.isActive),
                       SizedBox(width: Responsive.w(6)),
                       Text(main.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                      SizedBox(width: Responsive.w(10)),
+                      Container(
+                        padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(Responsive.r(8)),
+                        ),
+                        child: Text('${main.gstPercentage}% GST', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                      ),
                       if (subs.isNotEmpty) ...[
                         SizedBox(width: Responsive.w(10)),
                         Container(

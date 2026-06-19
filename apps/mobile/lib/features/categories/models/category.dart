@@ -15,6 +15,7 @@ class Category extends Equatable {
   final int sortOrder;
   final bool isActive;
   final bool isGlobal;
+  final int gstPercentage;
   final String createdAt;
   final String? updatedAt;
 
@@ -33,6 +34,7 @@ class Category extends Equatable {
     this.sortOrder = 0,
     this.isActive = true,
     this.isGlobal = false,
+    this.gstPercentage = 5,
     required this.createdAt,
     this.updatedAt,
     this.parent,
@@ -42,6 +44,42 @@ class Category extends Equatable {
 
   /// Whether this is a Main (root) category.
   bool get isMain => parentId == null;
+
+  Category copyWith({
+    String? id,
+    String? name,
+    String? slug,
+    String? description,
+    String? imageUrl,
+    String? parentId,
+    int? sortOrder,
+    bool? isActive,
+    bool? isGlobal,
+    int? gstPercentage,
+    String? createdAt,
+    String? updatedAt,
+    Category? parent,
+    List<Category>? children,
+    int? productCount,
+  }) {
+    return Category(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      slug: slug ?? this.slug,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      parentId: parentId ?? this.parentId,
+      sortOrder: sortOrder ?? this.sortOrder,
+      isActive: isActive ?? this.isActive,
+      isGlobal: isGlobal ?? this.isGlobal,
+      gstPercentage: gstPercentage ?? this.gstPercentage,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      parent: parent ?? this.parent,
+      children: children ?? this.children,
+      productCount: productCount ?? this.productCount,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -54,6 +92,7 @@ class Category extends Equatable {
         sortOrder,
         isActive,
         isGlobal,
+        gstPercentage,
         createdAt,
         updatedAt,
         parent,
@@ -72,6 +111,7 @@ class Category extends Equatable {
       sortOrder: (json['sort_order'] as num?)?.toInt() ?? 0,
       isActive: json['is_active'] as bool? ?? true,
       isGlobal: json['is_global'] as bool? ?? true,
+      gstPercentage: (json['gst_percentage'] as num?)?.toInt() ?? 5,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String?,
       parent: json['parent'] != null && json['parent'] is Map
@@ -97,6 +137,7 @@ class Category extends Equatable {
       'sort_order': sortOrder,
       'is_active': isActive,
       'is_global': isGlobal,
+      'gst_percentage': gstPercentage,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };

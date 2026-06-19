@@ -15,7 +15,7 @@ class AppColors {
 }
 
 class AppStrings {
-  static const String appName = 'Mazhavil Costumes';
+  static const String appName = 'Mazhavil costumes';
   static const String adminDashboard = 'Admin Dashboard';
   static const String signIn = 'Sign In';
   static const String email = 'Email';
@@ -27,7 +27,7 @@ class AppStrings {
   static const String pleaseEnterYourPassword = 'Please enter your password';
   static const String passwordMustBeAtLeast6Characters = 'Password must be at least 6 characters';
   static const String invalidCredentials = 'Invalid credentials. Please try again.';
-  static const String copyright = '© 2025 Mazhavil Costumes';
+  static const String copyright = '© 2025 Mazhavil costumes';
   
   // Dashboard strings
   static const String todaysOverview = "Today's Overview";
@@ -66,6 +66,9 @@ class AppStrings {
   static const String topPerformers = 'Top Performers';
   static const String topPerformersDesc = 'Highest revenue products';
   static const String deadStock = 'Dead Stock (90+ Days)';
+  static const String operationalBottlenecks = 'Operational Bottlenecks';
+  static const String operationalBottlenecksDesc = 'Items stuck in process preventing revenue';
+  static const String noBottlenecks = 'No active bottlenecks! Everything is running smoothly.';
   static const String noDataForPeriod = 'No data for this period';
   static const String noDeadStock = 'No dead stock detected';
   static const String noCategoryData = 'No category data';
@@ -75,6 +78,9 @@ class AppStrings {
   static const String bank = 'Bank';
   static const String vs = 'vs';
   static const String pickups = 'pickups';
+  static const String startRental = 'Start Rental';
+  static const String confirmStartRental = 'Confirm Start Rental';
+  static const String amount = 'AMOUNT';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility

@@ -115,6 +115,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
           _selectedBranchId = currentBranchId;
         });
       }
+      // Prefetch customer cache to ensure it is warm/warming up
+      ref.read(customersCacheProvider);
     });
 
     if (widget.order != null) {
@@ -252,22 +254,31 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         backgroundColor: Colors.white,
         iconTheme: IconThemeData(color: AppColors.primary),
       ),
-      body: Stack(
-        children: [
-          Form(
-            key: _formKey,
-            child: _buildFormContent(isEditing),
-          ),
-          if (_isLoading)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.25),
-                child: const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+      body: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          _update(() {
+            _showCustomerDropdown = false;
+          });
+        },
+        child: Stack(
+          children: [
+            Form(
+              key: _formKey,
+              child: _buildFormContent(isEditing),
+            ),
+            if (_isLoading)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar:
           _currentPage == 1 ? _buildFloatingCartSummaryBar() : null,
