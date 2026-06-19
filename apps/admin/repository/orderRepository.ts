@@ -302,6 +302,11 @@ export class OrderRepository extends BaseRepository {
    * Fetch active orders overlapping a specific date range for the calendar view.
    */
   async getCalendarOrders(branchId: string, startDate: string, endDate: string): Promise<RepositoryResult<OrderWithRelations[]>> {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!branchId || !uuidPattern.test(branchId)) {
+      return { data: [], error: null, success: true };
+    }
+
     const response = await this.client
       .from(this.tableName)
       .select(`

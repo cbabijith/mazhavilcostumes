@@ -45,9 +45,14 @@ export class ProductRepository extends BaseRepository {
     const offset = (page - 1) * limit;
 
     // Build filters
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isValidCategoryId = category_id && uuidPattern.test(category_id);
+    const isValidStoreId = store_id && uuidPattern.test(store_id);
+    const isValidBranchId = branch_id && uuidPattern.test(branch_id);
+
     const filters: Record<string, any> = {};
-    if (category_id) filters.category_id = category_id;
-    if (store_id) filters.store_id = store_id;
+    if (isValidCategoryId) filters.category_id = category_id;
+    if (isValidStoreId) filters.store_id = store_id;
     if (status !== undefined) filters.is_active = status === 'active';
     if (is_featured !== undefined) filters.is_featured = is_featured;
     if (in_stock !== undefined) {
@@ -89,7 +94,7 @@ export class ProductRepository extends BaseRepository {
     // Exclude soft-deleted
     selectQuery = (selectQuery as any).is('deleted_at', null);
     
-    if (branch_id) {
+    if (isValidBranchId) {
       selectQuery = (selectQuery as any).or(`branch_id.eq.${branch_id},branch_id.is.null`);
     }
 
@@ -133,7 +138,7 @@ export class ProductRepository extends BaseRepository {
       
       sumQuery = sumQuery.is('deleted_at', null);
       
-      if (branch_id) {
+      if (isValidBranchId) {
         sumQuery = sumQuery.or(`branch_id.eq.${branch_id},branch_id.is.null`);
       }
       
@@ -145,11 +150,11 @@ export class ProductRepository extends BaseRepository {
         sumQuery = sumQuery.lte('price_per_day', max_price);
       }
 
-      if (category_id) {
+      if (isValidCategoryId) {
         sumQuery = sumQuery.eq('category_id', category_id);
       }
 
-      if (store_id) {
+      if (isValidStoreId) {
         sumQuery = sumQuery.eq('store_id', store_id);
       }
 

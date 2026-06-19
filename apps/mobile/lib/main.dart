@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'core/constants/app_constants.dart';
 import 'core/theme/theme.dart';
 import 'features/auth/views/splash_view.dart';

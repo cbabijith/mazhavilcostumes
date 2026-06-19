@@ -42,6 +42,10 @@ export class BranchRepository extends BaseRepository {
 
     // Get staff count for each branch
     const branchIds = (branches || []).map((b: any) => b.id);
+    if (branchIds.length === 0) {
+      return { data: [], error: null, success: true };
+    }
+
     const { data: staffCounts, error: countError } = await this.client
       .from('staff')
       .select('branch_id')

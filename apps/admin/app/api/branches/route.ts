@@ -16,6 +16,22 @@ export async function GET(request: NextRequest) {
     const guard = await apiGuard(request, 'dashboard');
     if (guard.error) return guard.error;
 
+    console.log('[API] GET /api/branches — user context:', {
+      id: guard.user.id,
+      email: guard.user.email,
+      role: guard.user.role,
+      store_id: guard.user.store_id,
+      branch_id: guard.user.branch_id,
+      staff_id: guard.user.staff_id,
+    });
+
+    // If store_id is missing, the user has no staff record linked.
+    // Return empty branches instead of crashing with invalid UUID query.
+    if (!guard.user.store_id) {
+      console.warn('[API] GET /api/branches — no store_id for user, returning empty list');
+      return apiSuccess([]);
+    }
+
     // Set user context in service to ensure store-scoped fetch
     branchService.setUserContext(
       guard.user.staff_id, 

@@ -89,7 +89,7 @@ DateTime _parseDateString(String dateStr) {
 final calendarOrdersProvider = FutureProvider<List<Order>>((ref) async {
   final repo = ref.watch(calendarRepositoryProvider);
   final branchId = ref.watch(effectiveBranchIdProvider);
-  if (branchId == null || branchId.isEmpty) {
+  if (branchId == null || branchId.isEmpty || branchId == 'null' || branchId == 'undefined') {
     return const [];
   }
   

@@ -114,14 +114,26 @@ class ProductVariant extends Equatable {
   @override
   List<Object?> get props => [id, name, value, additionalPrice, inStock];
 
-  factory ProductVariant.fromJson(Map<String, dynamic> json) {
-    return ProductVariant(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      value: json['value'] as String? ?? '',
-      additionalPrice: (json['additional_price'] as num?)?.toDouble() ?? 0,
-      inStock: json['in_stock'] as bool? ?? true,
-    );
+  factory ProductVariant.fromJson(dynamic json) {
+    if (json is String) {
+      return ProductVariant(
+        id: json,
+        name: json,
+        value: json,
+        additionalPrice: 0.0,
+        inStock: true,
+      );
+    }
+    if (json is Map) {
+      return ProductVariant(
+        id: json['id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        value: json['value'] as String? ?? '',
+        additionalPrice: (json['additional_price'] as num?)?.toDouble() ?? 0.0,
+        inStock: json['in_stock'] as bool? ?? true,
+      );
+    }
+    return const ProductVariant(id: '', name: '', value: '');
   }
 
   Map<String, dynamic> toJson() {
@@ -341,11 +353,11 @@ class Product extends Equatable {
               .toList() ??
           [],
       sizes: (json['sizes'] as List<dynamic>?)
-              ?.map((e) => ProductVariant.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => ProductVariant.fromJson(e))
               .toList() ??
           [],
       colors: (json['colors'] as List<dynamic>?)
-              ?.map((e) => ProductVariant.fromJson(e as Map<String, dynamic>))
+              ?.map((e) => ProductVariant.fromJson(e))
               .toList() ??
           [],
       isActive: json['is_active'] as bool? ?? true,

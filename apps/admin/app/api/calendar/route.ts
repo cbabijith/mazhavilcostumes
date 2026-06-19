@@ -15,11 +15,11 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('end_date');
     const branchId = searchParams.get('branch_id');
 
-    if (!startDate || !endDate || !branchId) {
-      return apiBadRequest('Missing required parameters: start_date, end_date, branch_id');
+    if (!startDate || !endDate || !branchId || branchId === 'null' || branchId === 'undefined') {
+      return apiSuccess([]);
     }
 
-    orderRepository.setUserContext(authUser.id, authUser.store_id || '');
+    orderRepository.setUserContext(authUser.staff_id || authUser.id, authUser.branch_id);
 
     const result = await orderRepository.getCalendarOrders(branchId, startDate, endDate);
 
