@@ -63,7 +63,22 @@ final effectiveBranchIdProvider = Provider<String?>((ref) {
   final selectedBranchId = ref.watch(selectedBranchIdProvider);
 
   if (user == null) return null;
-  if (user.canSwitchBranches) return selectedBranchId;
+  if (user.canSwitchBranches) {
+    if (selectedBranchId != null) return selectedBranchId;
+    
+    // Fallback: If no branch is explicitly selected yet, automatically use the first active branch from loaded data
+    final branchesAsync = ref.watch(branchesProvider);
+    return branchesAsync.maybeWhen(
+      data: (branches) {
+        if (branches.isNotEmpty) {
+          final firstActive = branches.firstWhere((b) => b.isActive, orElse: () => branches.first);
+          return firstActive.id;
+        }
+        return null;
+      },
+      orElse: () => null,
+    );
+  }
   return user.branchId;
 });
 
