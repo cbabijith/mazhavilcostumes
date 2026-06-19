@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
@@ -35,17 +33,15 @@ class _LoginViewState extends ConsumerState<LoginView> {
       );
     } else if (mounted) {
       final errorMsg = ref.read(authProvider).error ?? AppStrings.invalidCredentials;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: SelectableText(errorMsg),
+          content: Text(errorMsg),
           backgroundColor: AppColors.error,
-          action: SnackBarAction(
-            label: 'Copy',
-            textColor: Colors.white,
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: errorMsg));
-            },
-          ),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          showCloseIcon: true,
+          closeIconColor: Colors.white,
         ),
       );
     }
@@ -80,16 +76,23 @@ class _LoginViewState extends ConsumerState<LoginView> {
                   // Logo
                   Center(
                     child: Container(
-                      padding: Responsive.all(AppSizes.spacingXLarge),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
+                      width: Responsive.w(100),
+                      height: Responsive.w(100),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
                         shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 8,
+                            offset: Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      child: SvgPicture.asset(
-                        'assets/images/logo_paris.svg',
-                        width: Responsive.icon(AppSizes.iconHuge),
-                        height: Responsive.icon(AppSizes.iconHuge),
-                        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                      clipBehavior: Clip.antiAlias,
+                      child: Image.asset(
+                        'assets/images/mazhavil.png',
+                        fit: BoxFit.cover,
                       ),
                     ),
                   ),

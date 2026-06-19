@@ -8,6 +8,11 @@ import '../../../../core/utils/currency_formatter.dart';
 import '../../domain/analytics_metrics.dart';
 import '../../viewmodels/providers/dashboard_provider.dart';
 import 'revenue_chart.dart';
+import '../../../orders/viewmodels/providers/order_provider.dart';
+import '../../../orders/views/order_detail_view.dart';
+import '../../../../core/providers/navigation_provider.dart';
+import '../transaction_report_view.dart';
+import '../../../branches/viewmodels/providers/branch_provider.dart';
 
 /// Analytics section of the dashboard — admin-only.
 /// Shows revenue pacing, collection trends, revenue status cards,
@@ -24,7 +29,7 @@ class AnalyticsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
+        const SizedBox.shrink(),
         // Section header + range filter
         _buildSectionHeader(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
@@ -121,17 +126,42 @@ class AnalyticsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Booking Sales + Amount Collection
-        _buildPacingCard(
-          title: AppStrings.bookingSales,
-          description: AppStrings.bookingSalesDesc,
-          amount: metrics.salesPacing.current,
-          percentageChange: metrics.salesPacing.percentageChange,
-          isPositive: metrics.salesPacing.isPositive,
-          prevLabel: prevLabel,
-          accentColor: AppColors.info,
+        GestureDetector(
+          onTap: () {
+            final range = ref.read(analyticsRangeProvider);
+            final url = '/dashboard/orders?date_filter=${range.apiValue}&date_field=created_at&exclude_status=cancelled';
+            navigateToOrdersWithUrl(ref, url);
+          },
+          child: _buildPacingCard(
+            title: AppStrings.bookingSales,
+            description: AppStrings.bookingSalesDesc,
+            amount: metrics.salesPacing.current,
+            percentageChange: metrics.salesPacing.percentageChange,
+            isPositive: metrics.salesPacing.isPositive,
+            prevLabel: prevLabel,
+            accentColor: AppColors.info,
+          ),
         ),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-        _buildAmountCollectionCard(metrics, prevLabel),
+        GestureDetector(
+          onTap: () {
+            final range = ref.read(analyticsRangeProvider);
+            final branchId = ref.read(effectiveBranchIdProvider);
+            final dates = _getDatesForRange(range);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => TransactionReportView(
+                  fromDate: dates['fromDate']!,
+                  toDate: dates['toDate']!,
+                  branchId: branchId,
+                  rangeLabel: range.label,
+                ),
+              ),
+            );
+          },
+          child: _buildAmountCollectionCard(metrics, prevLabel),
+        ),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Collection Trends Chart
@@ -143,7 +173,7 @@ class AnalyticsSection extends ConsumerWidget {
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Revenue Status Grid (2 columns)
-        _buildRevenueStatusGrid(metrics),
+        _buildRevenueStatusGrid(metrics, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
         // Cancellations + Overdue Returns
@@ -196,10 +226,10 @@ class AnalyticsSection extends ConsumerWidget {
         _buildCategoryRevenueCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
 
-        // Inventory ROI + Dead Stock
+        // Inventory ROI + Operational Bottlenecks
         _buildTopPerformersCard(context, ref),
         SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-        _buildDeadStockCard(metrics.deadStock),
+        _buildBottlenecksCard(context, ref, metrics.bottlenecks),
       ],
     );
   }
@@ -517,7 +547,7 @@ class AnalyticsSection extends ConsumerWidget {
 
   // ── Revenue Status Grid ──────────────────────────────────────────────
 
-  Widget _buildRevenueStatusGrid(AnalyticsMetrics metrics) {
+  Widget _buildRevenueStatusGrid(AnalyticsMetrics metrics, WidgetRef ref) {
     return Column(
       children: [
         Row(
@@ -560,17 +590,23 @@ class AnalyticsSection extends ConsumerWidget {
             ),
             SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
             Expanded(
-              child: _buildRevenueStatusCard(
-                title: AppStrings.dueFromReturned,
-                amount: metrics.revenueByStatus.pendingAmount,
-                description: AppStrings.dueFromReturnedDesc,
-                icon: Icons.access_time,
-                iconColor: metrics.revenueByStatus.pendingAmount > 0
-                    ? AppColors.error
-                    : AppColors.secondaryText,
-                amountColor: metrics.revenueByStatus.pendingAmount > 0
-                    ? AppColors.error
-                    : AppColors.text,
+              child: GestureDetector(
+                onTap: () {
+                  final url = '/dashboard/orders?status=returned&status=completed&payment_status=partial&payment_status=pending&payment_status=due';
+                  navigateToOrdersWithUrl(ref, url);
+                },
+                child: _buildRevenueStatusCard(
+                  title: AppStrings.dueFromReturned,
+                  amount: metrics.revenueByStatus.pendingAmount,
+                  description: AppStrings.dueFromReturnedDesc,
+                  icon: Icons.access_time,
+                  iconColor: metrics.revenueByStatus.pendingAmount > 0
+                      ? AppColors.error
+                      : AppColors.secondaryText,
+                  amountColor: metrics.revenueByStatus.pendingAmount > 0
+                      ? AppColors.error
+                      : AppColors.text,
+                ),
               ),
             ),
           ],
@@ -812,7 +848,7 @@ class AnalyticsSection extends ConsumerWidget {
           ),
           SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           categoryRevenueAsync.when(
-            skipLoadingOnReload: true,
+            skipLoadingOnReload: false,
             data: (categories) {
               if (categories.isEmpty) {
                 return Padding(
@@ -894,15 +930,7 @@ class AnalyticsSection extends ConsumerWidget {
                 }).toList(),
               );
             },
-            loading: () => Padding(
-              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
+            loading: () => _buildCategoryRevenueShimmer(),
             error: (err, stack) => Padding(
               padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
               child: Center(
@@ -1017,7 +1045,7 @@ class AnalyticsSection extends ConsumerWidget {
             ),
           ),
           topPerformersAsync.when(
-            skipLoadingOnReload: true,
+            skipLoadingOnReload: false,
             data: (performers) {
               if (performers.isEmpty) {
                 return Padding(
@@ -1148,15 +1176,7 @@ class AnalyticsSection extends ConsumerWidget {
                 ],
               );
             },
-            loading: () => Padding(
-              padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingXXLarge)),
-              child: const Center(
-                child: CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-              ),
-            ),
+            loading: () => _buildTopPerformersShimmer(selectedLimit.value),
             error: (err, stack) => Padding(
               padding: EdgeInsets.symmetric(vertical: Responsive.h(AppSizes.spacingLarge)),
               child: Center(
@@ -1175,9 +1195,9 @@ class AnalyticsSection extends ConsumerWidget {
     );
   }
 
-  // ── Dead Stock Card ──────────────────────────────────────────────────
+  // ── Operational Bottlenecks Card ─────────────────────────────────────
 
-  Widget _buildDeadStockCard(List<DeadStockItem> deadStock) {
+  Widget _buildBottlenecksCard(BuildContext context, WidgetRef ref, List<Bottleneck> bottlenecks) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1195,22 +1215,36 @@ class AnalyticsSection extends ConsumerWidget {
         children: [
           Padding(
             padding: Responsive.all(AppSizes.spacingLarge),
-            child: AutoSizeText(
-              AppStrings.deadStock,
-              style: TextStyle(
-                fontSize: Responsive.sp(AppSizes.fontMedium),
-                fontWeight: FontWeight.bold,
-                color: AppColors.text,
-              ),
-              maxLines: 1,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AutoSizeText(
+                  AppStrings.operationalBottlenecks,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                  maxLines: 1,
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                AutoSizeText(
+                  AppStrings.operationalBottlenecksDesc,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                    color: AppColors.secondaryText,
+                  ),
+                  maxLines: 1,
+                ),
+              ],
             ),
           ),
-          if (deadStock.isEmpty)
+          if (bottlenecks.isEmpty)
             Padding(
-              padding: Responsive.symmetric(vertical: AppSizes.spacingXLarge),
+              padding: Responsive.symmetric(vertical: AppSizes.spacingXXLarge),
               child: Center(
                 child: AutoSizeText(
-                  AppStrings.noDeadStock,
+                  AppStrings.noBottlenecks,
                   style: TextStyle(
                     fontSize: Responsive.sp(AppSizes.fontSmall),
                     color: AppColors.success,
@@ -1221,46 +1255,128 @@ class AnalyticsSection extends ConsumerWidget {
               ),
             )
           else
-            ...deadStock.map((item) => Container(
-                  padding: Responsive.symmetric(
-                    horizontal: AppSizes.spacingLarge,
-                    vertical: AppSizes.spacingMedium,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: AppColors.scaffoldBackground,
-                        width: AppSizes.spacingTiny / 4,
-                      ),
+            ...bottlenecks.map((item) {
+              final isHighSeverity = item.severity.toLowerCase() == 'high';
+              final severityColor = isHighSeverity ? AppColors.error : AppColors.warning;
+              
+              IconData iconData;
+              switch (item.type.toLowerCase()) {
+                case 'cleaning':
+                  iconData = Icons.inventory_2_outlined;
+                  break;
+                case 'approval':
+                  iconData = Icons.check_circle_outline;
+                  break;
+                default:
+                  iconData = Icons.access_time;
+              }
+
+              return Container(
+                padding: Responsive.all(AppSizes.spacingLarge),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColors.scaffoldBackground,
+                      width: AppSizes.spacingTiny / 4,
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: AutoSizeText(
-                          item.name,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.text,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingSmall),
+                      decoration: BoxDecoration(
+                        color: severityColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                      child: Icon(
+                        iconData,
+                        size: Responsive.icon(AppSizes.iconTiny),
+                        color: severityColor,
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AutoSizeText(
+                            item.message,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.text,
+                              height: 1.3,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          OutlinedButton(
+                            onPressed: () async {
+                              // Show loading indicator
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(color: AppColors.primary),
+                                ),
+                              );
+                              try {
+                                final order = await ref.read(orderProvider(item.id).future);
+                                if (context.mounted) {
+                                  Navigator.of(context).pop(); // Dismiss loading
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => OrderDetailView(order: order),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  Navigator.of(context).pop(); // Dismiss loading
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Failed to load order: $e'),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              padding: Responsive.symmetric(
+                                horizontal: AppSizes.spacingMedium,
+                                vertical: AppSizes.spacingSmall / 2,
+                              ),
+                              side: BorderSide(
+                                color: AppColors.border,
+                                width: AppSizes.spacingTiny / 4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                            ),
+                            child: AutoSizeText(
+                              'View Order',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontTiny),
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
                       ),
-                      AutoSizeText(
-                        '${item.daysIdle} days idle',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontSmall),
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.error,
-                        ),
-                        maxLines: 1,
-                      ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -1380,5 +1496,209 @@ class AnalyticsSection extends ConsumerWidget {
 
   String _formatCurrency(double amount) {
     return CurrencyFormatter.formatINR(amount);
+  }
+
+  Widget _buildTopPerformersShimmer(int limit) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Table header placeholder
+          Container(
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingLarge,
+              vertical: AppSizes.spacingSmall,
+            ),
+            color: Colors.white,
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(16)),
+                Expanded(
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(16)),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: Responsive.h(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Rows placeholder
+          ...List.generate(limit, (index) => Container(
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingLarge,
+              vertical: AppSizes.spacingMedium,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: Colors.grey[200]!,
+                  width: AppSizes.spacingTiny / 4,
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(24)),
+                Expanded(
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                SizedBox(width: Responsive.w(24)),
+                Expanded(
+                  flex: 2,
+                  child: Container(
+                    height: Responsive.h(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryRevenueShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: List.generate(
+          3,
+          (index) => Padding(
+            padding: EdgeInsets.only(
+              bottom: Responsive.h(AppSizes.spacingMedium),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      width: Responsive.w(AppSizes.spacingMassive * 3),
+                      height: Responsive.h(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: Responsive.w(AppSizes.spacingHuge),
+                      height: Responsive.h(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Container(
+                  width: double.infinity,
+                  height: Responsive.h(AppSizes.spacingSmall),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.spacingTiny),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Map<String, String> _getDatesForRange(AnalyticsRange range) {
+    final now = DateTime.now();
+    DateTime startDate;
+    DateTime endDate;
+
+    String formatDate(DateTime date) {
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    }
+
+    switch (range) {
+      case AnalyticsRange.today:
+        startDate = DateTime(now.year, now.month, now.day);
+        endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
+        break;
+      case AnalyticsRange.thisWeek:
+        final daysToSubtract = now.weekday - 1;
+        startDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: daysToSubtract));
+        endDate = now;
+        break;
+      case AnalyticsRange.lastWeek:
+        final currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+        startDate = currentWeekStart.subtract(const Duration(days: 7));
+        endDate = startDate.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+        break;
+      case AnalyticsRange.thisMonth:
+        startDate = DateTime(now.year, now.month, 1);
+        endDate = now;
+        break;
+      case AnalyticsRange.lastMonth:
+        startDate = DateTime(now.year, now.month - 1, 1);
+        endDate = DateTime(now.year, now.month, 1).subtract(const Duration(seconds: 1));
+        break;
+    }
+
+    return {
+      'fromDate': formatDate(startDate),
+      'toDate': formatDate(endDate),
+    };
   }
 }

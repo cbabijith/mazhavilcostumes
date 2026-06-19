@@ -1,6 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../features/auth/viewmodels/auth_provider.dart' as core_auth;
 import '../features/auth/viewmodels/providers/auth_provider.dart';
 import '../features/auth/views/login_view.dart';
@@ -15,6 +14,7 @@ import '../features/branches/views/branches_view.dart';
 import '../features/customers/views/customers_view.dart';
 import 'utils/responsive.dart';
 import 'constants/app_constants.dart';
+import 'providers/navigation_provider.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -24,7 +24,6 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  int _selectedIndex = 0;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
@@ -35,20 +34,21 @@ class _MainLayoutState extends State<MainLayout> {
       builder: (context, ref, _) {
         final user = ref.watch(authUserProvider);
         final branchesAsync = ref.watch(branchesProvider);
+        final selectedIndex = ref.watch(navigationTabProvider);
         return Scaffold(
           key: _scaffoldKey,
-          appBar: _buildAppBar(ref, user, branchesAsync),
-          drawer: _buildDrawer(context, user, ref),
-          body: _buildBody(),
-          bottomNavigationBar: _buildBottomNav(),
+          appBar: _buildAppBar(ref, user, branchesAsync, selectedIndex),
+          drawer: _buildDrawer(context, user, ref, selectedIndex),
+          body: _buildBody(selectedIndex),
+          bottomNavigationBar: _buildBottomNav(ref, selectedIndex),
         );
       },
     );
   }
 
   // ── App Bar ──
-  PreferredSizeWidget _buildAppBar(WidgetRef ref, AuthUser? user, AsyncValue<List<Branch>> branchesAsync) {
-    if (_selectedIndex == 0) {
+  PreferredSizeWidget _buildAppBar(WidgetRef ref, AuthUser? user, AsyncValue<List<Branch>> branchesAsync, int selectedIndex) {
+    if (selectedIndex == 0) {
       return AppBar(
         backgroundColor: AppColors.primary,
         titleSpacing: 0,
@@ -58,17 +58,24 @@ class _MainLayoutState extends State<MainLayout> {
           child: Padding(
             padding: Responsive.only(left: 16),
             child: Center(
-              child: SvgPicture.asset(
-                'assets/images/logo_paris.svg',
-                width: Responsive.icon(28),
-                height: Responsive.icon(28),
-                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              child: Container(
+                width: Responsive.icon(32),
+                height: Responsive.icon(32),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(
+                  'assets/images/mazhavil.png',
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
           ),
         ),
         title: Text(
-          'Rentocostume',
+          AppStrings.appName.toUpperCase(),
           style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Colors.white),
         ),
         actions: [
@@ -92,16 +99,23 @@ class _MainLayoutState extends State<MainLayout> {
         child: Padding(
           padding: Responsive.only(left: 16),
           child: Center(
-            child: SvgPicture.asset(
-              'assets/images/logo_paris.svg',
-              width: Responsive.icon(28),
-              height: Responsive.icon(28),
-              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+            child: Container(
+              width: Responsive.icon(32),
+              height: Responsive.icon(32),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Image.asset(
+                'assets/images/mazhavil.png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ),
       ),
-      title: Text(titles[_selectedIndex], style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.w700, color: Colors.white)),
+      title: Text(titles[selectedIndex], style: TextStyle(fontSize: Responsive.sp(18), fontWeight: FontWeight.w700, color: Colors.white)),
       actions: [
         _buildBranchSwitcher(ref, user, branchesAsync),
         SizedBox(width: Responsive.w(8)),
@@ -110,7 +124,7 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   // ── Drawer / Sidebar ──
-  Widget _buildDrawer(BuildContext context, AuthUser? user, WidgetRef ref) {
+  Widget _buildDrawer(BuildContext context, AuthUser? user, WidgetRef ref, int selectedIndex) {
     final isAdmin = user?.isAdmin ?? false;
     final canManage = user?.canManage ?? false;
 
@@ -135,16 +149,16 @@ class _MainLayoutState extends State<MainLayout> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: Responsive.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(Responsive.r(14)),
+                    width: Responsive.icon(48),
+                    height: Responsive.icon(48),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
                     ),
-                    child: SvgPicture.asset(
-                      'assets/images/logo_paris.svg',
-                      width: Responsive.icon(32),
-                      height: Responsive.icon(32),
-                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/mazhavil.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                   SizedBox(height: Responsive.h(16)),
@@ -181,72 +195,63 @@ class _MainLayoutState extends State<MainLayout> {
                   // Admin-only menu items
                   if (isAdmin) ...[
                     _buildDrawerSectionLabel('Management'),
-                    _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.dashboard_rounded, 'Dashboard', 0, selectedIndex),
+                    _buildDrawerItem(ref, Icons.account_tree_rounded, 'Categories', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const CategoriesView()),
                       );
                     }),
-                    _buildDrawerItem(Icons.inventory_2_rounded, 'Products', 3),
-                    _buildDrawerItem(Icons.receipt_long_rounded, 'Orders', 1),
-                    _buildDrawerItem(Icons.calendar_month_rounded, 'Calendar', 2),
+                    _buildDrawerItem(ref, Icons.inventory_2_rounded, 'Products', 3, selectedIndex),
+                    _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
+                    _buildDrawerItem(ref, Icons.calendar_month_rounded, 'Calendar', 2, selectedIndex),
                     Padding(
                       padding: Responsive.symmetric(horizontal: 24),
                       child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
                     ),
                     _buildDrawerSectionLabel('Management'),
-                    _buildDrawerItem(Icons.storefront_rounded, 'Branches', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.storefront_rounded, 'Branches', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const BranchesView()),
                       );
                     }),
-                    _buildDrawerItem(Icons.people_rounded, 'Customers', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.people_rounded, 'Customers', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const CustomersView()),
                       );
                     }),
-                    Padding(
-                      padding: Responsive.symmetric(horizontal: 24),
-                      child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
-                    ),
-                    _buildDrawerSectionLabel('Settings'),
-                    _buildDrawerItem(Icons.settings_rounded, 'Settings', null, onTap: () {
-                      Navigator.pop(context);
-                      // TODO: navigate to settings
-                    }),
                   ] else if (canManage) ...[
                     // Manager sees nav items but no settings
                     _buildDrawerSectionLabel('Navigation'),
-                    _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.category_rounded, 'Categories', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.dashboard_rounded, 'Dashboard', 0, selectedIndex),
+                    _buildDrawerItem(ref, Icons.account_tree_rounded, 'Categories', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const CategoriesView()),
                       );
                     }),
-                    _buildDrawerItem(Icons.inventory_2_rounded, 'Products', 3),
-                    _buildDrawerItem(Icons.receipt_long_rounded, 'Orders', 1),
-                    _buildDrawerItem(Icons.calendar_month_rounded, 'Calendar', 2),
+                    _buildDrawerItem(ref, Icons.inventory_2_rounded, 'Products', 3, selectedIndex),
+                    _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
+                    _buildDrawerItem(ref, Icons.calendar_month_rounded, 'Calendar', 2, selectedIndex),
                     Padding(
                       padding: Responsive.symmetric(horizontal: 24),
                       child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
                     ),
                     _buildDrawerSectionLabel('Management'),
-                    _buildDrawerItem(Icons.storefront_rounded, 'Branches', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.storefront_rounded, 'Branches', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const BranchesView()),
                       );
                     }),
-                    _buildDrawerItem(Icons.people_rounded, 'Customers', null, onTap: () {
+                    _buildDrawerItem(ref, Icons.people_rounded, 'Customers', null, selectedIndex, onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
@@ -256,8 +261,8 @@ class _MainLayoutState extends State<MainLayout> {
                   ] else ...[
                     // Staff sees minimal menu
                     _buildDrawerSectionLabel('Navigation'),
-                    _buildDrawerItem(Icons.dashboard_rounded, 'Dashboard', 0),
-                    _buildDrawerItem(Icons.receipt_long_rounded, 'Orders', 1),
+                    _buildDrawerItem(ref, Icons.dashboard_rounded, 'Dashboard', 0, selectedIndex),
+                    _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
                   ],
                 ],
               ),
@@ -297,8 +302,8 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String label, int? tabIndex, {VoidCallback? onTap}) {
-    final isSelected = tabIndex != null && _selectedIndex == tabIndex;
+  Widget _buildDrawerItem(WidgetRef ref, IconData icon, String label, int? tabIndex, int selectedIndex, {VoidCallback? onTap}) {
+    final isSelected = tabIndex != null && selectedIndex == tabIndex;
 
     return Padding(
       padding: Responsive.symmetric(horizontal: 12, vertical: 2),
@@ -311,7 +316,7 @@ class _MainLayoutState extends State<MainLayout> {
             if (onTap != null) {
               onTap();
             } else if (tabIndex != null) {
-              setState(() => _selectedIndex = tabIndex);
+              ref.read(navigationTabProvider.notifier).setTab(tabIndex);
               Navigator.pop(context);
             }
           },
@@ -357,7 +362,7 @@ class _MainLayoutState extends State<MainLayout> {
           ],
         ),
         content: Text(
-          'Are you sure you want to log out of Rentocostume?',
+          'Are you sure you want to log out of ${AppStrings.appName}?',
           style: TextStyle(fontSize: Responsive.sp(14), height: 1.5),
         ),
         actionsPadding: Responsive.only(left: 16, right: 16, bottom: 16),
@@ -515,7 +520,7 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   // ── Bottom Nav ──
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(WidgetRef ref, int selectedIndex) {
     return SafeArea(
       top: false,
       child: Container(
@@ -534,10 +539,10 @@ class _MainLayoutState extends State<MainLayout> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildCustomNavItem(Icons.home_outlined, Icons.home_rounded, 'Home', 0),
-              _buildCustomNavItem(Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Orders', 1),
-              _buildCustomNavItem(Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Calendar', 2),
-              _buildCustomNavItem(Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Products', 3),
+              _buildCustomNavItem(ref, Icons.home_outlined, Icons.home_rounded, 'Home', 0, selectedIndex),
+              _buildCustomNavItem(ref, Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
+              _buildCustomNavItem(ref, Icons.calendar_month_outlined, Icons.calendar_month_rounded, 'Calendar', 2, selectedIndex),
+              _buildCustomNavItem(ref, Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Products', 3, selectedIndex),
             ],
           ),
         ),
@@ -545,10 +550,10 @@ class _MainLayoutState extends State<MainLayout> {
     );
   }
 
-  Widget _buildCustomNavItem(IconData icon, IconData activeIcon, String label, int index) {
-    final isSelected = _selectedIndex == index;
+  Widget _buildCustomNavItem(WidgetRef ref, IconData icon, IconData activeIcon, String label, int index, int selectedIndex) {
+    final isSelected = selectedIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () => ref.read(navigationTabProvider.notifier).setTab(index),
       child: Container(
         padding: Responsive.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -579,8 +584,8 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   // ── Body ──
-  Widget _buildBody() {
-    switch (_selectedIndex) {
+  Widget _buildBody(int selectedIndex) {
+    switch (selectedIndex) {
       case 0: return const DashboardView();
       case 1: return const OrdersView();
       case 2: return const CalendarView();

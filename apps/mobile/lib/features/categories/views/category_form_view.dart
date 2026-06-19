@@ -28,6 +28,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
   bool _isActive = true;
   bool _isGlobal = false;
   String? _parentId;
+  int _gstPercentage = 5;
   bool _isLoading = false;
   bool _isUploading = false;
 
@@ -51,6 +52,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
     _sortOrderController = TextEditingController(text: '${c?.sortOrder ?? 0}');
     _isActive = c?.isActive ?? true;
     _isGlobal = c?.isGlobal ?? true;
+    _gstPercentage = c?.gstPercentage ?? 5;
     _parentId = c?.parentId ?? widget.initialParentId;
     _uploadedImageUrl = c?.imageUrl;
 
@@ -225,6 +227,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
         'sort_order': int.tryParse(_sortOrderController.text) ?? 0,
         'is_active': _isActive,
         'is_global': _isGlobal,
+        'gst_percentage': _gstPercentage,
       };
 
       debugPrint('[CategoryForm] Submitting body: $body');
@@ -300,6 +303,42 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
             _buildLabel('Sort Order'),
             SizedBox(height: Responsive.h(6)),
             _buildTextField(_sortOrderController, '0', keyboardType: TextInputType.number),
+            SizedBox(height: Responsive.h(16)),
+
+            // GST Rate
+            _buildLabel('GST Rate *'),
+            SizedBox(height: Responsive.h(6)),
+            DropdownButtonFormField<int>(
+              initialValue: _gstPercentage,
+              style: TextStyle(fontSize: Responsive.sp(15), color: Colors.black87),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: Responsive.symmetric(horizontal: 16, vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Responsive.r(12)),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Responsive.r(12)),
+                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(Responsive.r(12)),
+                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                ),
+              ),
+              items: const [
+                DropdownMenuItem(value: 5, child: Text('5%')),
+                DropdownMenuItem(value: 12, child: Text('12%')),
+                DropdownMenuItem(value: 18, child: Text('18%')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _gstPercentage = val);
+                }
+              },
+            ),
             SizedBox(height: Responsive.h(20)),
 
             // Toggles

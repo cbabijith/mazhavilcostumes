@@ -27,6 +27,20 @@ class CategoriesNotifier extends AsyncNotifier<List<Category>> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => build());
   }
+
+  /// Reorders categories locally and updates the database.
+  Future<void> reorder(List<Category> reorderedList, List<Map<String, dynamic>> payload) async {
+    final previousState = state;
+    state = AsyncValue.data(reorderedList);
+
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      await repo.reorderCategories(payload);
+    } catch (e) {
+      state = previousState;
+      rethrow;
+    }
+  }
 }
 
 /// Fetches a single category by ID.

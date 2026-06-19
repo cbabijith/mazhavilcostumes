@@ -24,6 +24,7 @@ class AddCustomerDialog extends ConsumerStatefulWidget {
 class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
+  final _altPhoneController = TextEditingController();
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
   bool _isLoading = false;
@@ -38,6 +39,7 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
   @override
   void dispose() {
     _phoneController.dispose();
+    _altPhoneController.dispose();
     _nameController.dispose();
     _addressController.dispose();
     super.dispose();
@@ -53,6 +55,9 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
       final customer = await operations.createCustomer({
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
+        'alt_phone': _altPhoneController.text.trim().isEmpty
+            ? null
+            : _altPhoneController.text.trim(),
         'address': _addressController.text.trim().isEmpty
             ? null
             : _addressController.text.trim(),
@@ -70,6 +75,35 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
         );
       }
     }
+  }
+
+  Widget _buildInputLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          fontSize: Responsive.sp(AppSizes.fontMedium),
+          color: Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+        children: [
+          if (isRequired)
+            const TextSpan(
+              text: ' *',
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+            )
+          else
+            TextSpan(
+              text: ' (Optional)',
+              style: TextStyle(
+                fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                color: Colors.grey[500],
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -104,7 +138,7 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                     keyboardType: TextInputType.phone,
                     style: TextStyle(fontSize: Responsive.sp(14)),
                     decoration: InputDecoration(
-                      labelText: 'Phone Number *',
+                      label: _buildInputLabel('Phone Number', isRequired: true),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(Responsive.r(8)),
                       ),
@@ -125,10 +159,37 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                   ),
                   SizedBox(height: Responsive.h(12)),
                   TextFormField(
+                    controller: _altPhoneController,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      label: _buildInputLabel('Alternate Phone', isRequired: false),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                      ),
+                      contentPadding: Responsive.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value != null && value.trim().isNotEmpty) {
+                        if (value.trim().length < 10) {
+                          return 'Alternate phone must be at least 10 characters';
+                        }
+                        if (value.trim().length > 20) {
+                          return 'Alternate phone must be at most 20 characters';
+                        }
+                      }
+                      return null;
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(12)),
+                  TextFormField(
                     controller: _nameController,
                     style: TextStyle(fontSize: Responsive.sp(14)),
                     decoration: InputDecoration(
-                      labelText: 'Name *',
+                      label: _buildInputLabel('Name', isRequired: true),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(Responsive.r(8)),
                       ),
@@ -149,7 +210,7 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                     controller: _addressController,
                     style: TextStyle(fontSize: Responsive.sp(14)),
                     decoration: InputDecoration(
-                      labelText: 'Address',
+                      label: _buildInputLabel('Address', isRequired: false),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(Responsive.r(8)),
                       ),
@@ -205,7 +266,7 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                             ),
                           )
                         : Text(
-                            'Save',
+                            'Save & Select',
                             style: TextStyle(
                               fontSize: Responsive.sp(13),
                               fontWeight: FontWeight.bold,

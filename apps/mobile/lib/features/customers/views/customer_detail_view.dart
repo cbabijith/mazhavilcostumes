@@ -79,6 +79,10 @@ class CustomerDetailView extends ConsumerWidget {
                     const SizedBox(height: 8),
                     _buildDetailRow('Phone', customer.phone),
                     const SizedBox(height: 8),
+                    if (customer.altPhone != null && customer.altPhone!.isNotEmpty) ...[
+                      _buildDetailRow('Alt Phone', customer.altPhone!),
+                      const SizedBox(height: 8),
+                    ],
                     _buildDetailRow('Email', customer.email ?? 'N/A'),
                     const SizedBox(height: 8),
                     _buildDetailRow('Address', customer.address ?? 'N/A'),

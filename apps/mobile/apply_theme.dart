@@ -1,7 +1,7 @@
 import 'dart:io';
 
 void main() {
-  final directory = Directory('c:/Personal Projects/rentocostume/apps/mobile/lib');
+  final directory = Directory('c:/Personal Projects/mazhavilcostumes/apps/mobile/lib');
   
   for (final entity in directory.listSync(recursive: true)) {
     if (entity is File && entity.path.endsWith('.dart')) {

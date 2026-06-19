@@ -31,11 +31,11 @@ class _CustomersViewState extends ConsumerState<CustomersView> {
 
   @override
   Widget build(BuildContext context) {
-    final customersAsync = ref.watch(customersProvider({
-      'page': _page,
-      'limit': _limit,
-      'query': _searchController.text.isNotEmpty ? _searchController.text : null,
-    }));
+    final customersAsync = ref.watch(customersProvider(CustomersParams(
+      page: _page,
+      limit: _limit,
+      query: _searchController.text.isNotEmpty ? _searchController.text : null,
+    )));
 
     return Scaffold(
       appBar: AppBar(
