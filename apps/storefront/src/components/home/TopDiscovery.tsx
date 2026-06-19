@@ -21,16 +21,15 @@ export default function TopDiscovery({ categories }: TopDiscoveryProps) {
   return (
     <div className="lg:hidden bg-white/50 backdrop-blur-md pt-2 pb-6 border-b border-border/50">
       <div className="flex overflow-x-auto gap-6 px-6 hide-scrollbar snap-x snap-mandatory">
-        {/* "For You" Circle - Ref: Toy Shop */}
+        {/* "Home" Circle */}
         <Link 
-          href="/collections?filter=for-you"
+          href="/"
           className="flex flex-col items-center gap-3 snap-start group shrink-0"
         >
           <div className="relative size-16 sm:size-20 rounded-full flex items-center justify-center bg-rosegold text-white shadow-lg shadow-rosegold/30 border-2 border-white ring-4 ring-rosegold/5 transition-transform group-active:scale-95">
-             <span className="text-[10px] uppercase font-bold tracking-widest text-center leading-tight">For<br/>You</span>
+             <span className="text-[10px] uppercase font-bold tracking-widest text-center leading-tight font-sans">Home</span>
              <div className="absolute -inset-1 rounded-full border border-rosegold/20 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-rosegold leading-none">Discovery</span>
         </Link>
 
         {displayCategories.map((category, index) => (

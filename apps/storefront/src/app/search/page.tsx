@@ -16,10 +16,13 @@ export default async function SearchPage() {
 
   return (
     <main className="min-h-screen bg-silk">
-      <Header store={store} categories={categories} />
+      <div className="hidden lg:block">
+        <Header store={store} categories={categories} />
+      </div>
       
       <div className="lg:hidden">
         <SearchClient 
+          storeId={store.id}
           categories={categories} 
           featured={featured} 
         />
@@ -39,7 +42,9 @@ export default async function SearchPage() {
         </div>
       </div>
 
-      <Footer store={store} />
+      <div className="hidden lg:block">
+        <Footer store={store} />
+      </div>
     </main>
   );
 }

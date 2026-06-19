@@ -7,6 +7,8 @@
  */
 import { Suspense } from "react";
 import { getPageAuthUser } from "@/lib/pageAuth";
+
+export const dynamic = 'force-dynamic';
 import { CleaningQueue } from "@/components/admin/dashboard/CleaningQueue";
 import { Sparkles, Info, Package, Link as LinkIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";

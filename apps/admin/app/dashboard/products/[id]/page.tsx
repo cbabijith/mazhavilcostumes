@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Edit, Trash2, Package, AlertTriangle, Store,
   XCircle, Barcode, Image as ImageIcon, CalendarDays, TrendingUp, Clock, Users, BarChart3,
-  ShieldAlert, RotateCcw, Trash
+  ShieldAlert, RotateCcw, Trash, Download, Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import ProductAvailabilityCalendar from "@/components/admin/ProductAvailabilityC
 import { useProduct, useDeleteProduct } from "@/hooks";
 import { useProductStore, useAppStore } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
-import { downloadBarcode } from "@/lib/barcode";
+import { downloadBarcode, printBarcode } from "@/lib/barcode";
 import Image from "next/image";
 
 interface BranchInventoryRow {
@@ -217,15 +217,26 @@ export default function ProductDetailPage() {
 
         <div className="flex items-center gap-2">
           {product.barcode && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => downloadBarcode(product.barcode!, product.name)}
-              className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
-            >
-              <Barcode className="h-4 w-4" />
-              <span className="hidden sm:inline">Print Barcode</span>
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => downloadBarcode(product.barcode!, product.name)}
+                className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download Barcode</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => printBarcode(product.barcode!, product.name)}
+                className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
+              >
+                <Printer className="h-4 w-4" />
+                <span className="hidden sm:inline">Print Barcode</span>
+              </Button>
+            </>
           )}
           {canEdit && (
             <Button 

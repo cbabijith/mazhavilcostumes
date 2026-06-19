@@ -22,7 +22,7 @@ export default async function FAQsPage() {
         },
         {
           q: "How far in advance should I book?",
-          a: "For season time book a month in advance,For normal time visist at your convenience",
+          a: "For season time book a month in advance,For normal time visit at your convenience",
         },
       ],
     },

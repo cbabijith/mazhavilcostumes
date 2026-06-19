@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useEffect } from "react";
+import { useTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import {
   Search, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronsLeft,
+  ChevronsRight,
   Loader2 
 } from "lucide-react";
 import { Product, Category, getProductImageUrls } from "@/lib/supabase/queries";
@@ -68,37 +70,21 @@ export default function CollectionsClient({
     });
   };
 
-  // Generate page numbers for pagination bar with ellipses
+  const [pageGroupStart, setPageGroupStart] = useState(() => {
+    return Math.floor((currentPage - 1) / 6) * 6 + 1;
+  });
+
+  useEffect(() => {
+    const groupStart = Math.floor((currentPage - 1) / 6) * 6 + 1;
+    setPageGroupStart(groupStart);
+  }, [currentPage]);
+
+  // Generate 6 page numbers starting from pageGroupStart
   const getPageNumbers = () => {
-    const pages: (number | string)[] = [];
-    const siblingCount = 1; // Number of adjacent pages to show around current page
-
-    if (totalPages <= 5) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      const leftSiblingIndex = Math.max(currentPage - siblingCount, 1);
-      const rightSiblingIndex = Math.min(currentPage + siblingCount, totalPages);
-
-      const shouldShowLeftDots = leftSiblingIndex > 2;
-      const shouldShowRightDots = rightSiblingIndex < totalPages - 1;
-
-      if (!shouldShowLeftDots && shouldShowRightDots) {
-        const itemCount = 3 + 2 * siblingCount;
-        for (let i = 1; i <= itemCount; i++) pages.push(i);
-        pages.push("...");
-        pages.push(totalPages);
-      } else if (shouldShowLeftDots && !shouldShowRightDots) {
-        pages.push(1);
-        pages.push("...");
-        const itemCount = 3 + 2 * siblingCount;
-        for (let i = totalPages - itemCount + 1; i <= totalPages; i++) pages.push(i);
-      } else if (shouldShowLeftDots && shouldShowRightDots) {
-        pages.push(1);
-        pages.push("...");
-        for (let i = leftSiblingIndex; i <= rightSiblingIndex; i++) pages.push(i);
-        pages.push("...");
-        pages.push(totalPages);
-      }
+    const pages: number[] = [];
+    const end = Math.min(pageGroupStart + 5, totalPages);
+    for (let i = pageGroupStart; i <= end; i++) {
+      pages.push(i);
     }
     return pages;
   };
@@ -178,55 +164,61 @@ export default function CollectionsClient({
       {totalPages > 1 && (
         <div className="mt-12 sm:mt-16 flex flex-col items-center justify-center gap-4 border-t border-[var(--border-silk)] pt-8">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Previous Page */}
+            {/* First Page */}
             <button
-              onClick={() => handlePageChange(currentPage - 1)}
+              onClick={() => handlePageChange(1)}
               disabled={currentPage === 1 || isPending}
-              className="size-9 sm:size-10 flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="Previous page"
+              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
+              aria-label="First page"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+
+            {/* Previous Set of 6 Pages */}
+            <button
+              onClick={() => setPageGroupStart(prev => Math.max(prev - 6, 1))}
+              disabled={pageGroupStart === 1 || isPending}
+              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
+              aria-label="Previous set of pages"
             >
               <ChevronLeft size={16} />
             </button>
 
             {/* Page Numbers */}
-            {pageNumbers.map((page, index) => {
-              if (page === "...") {
-                return (
-                  <span
-                    key={`dots-${index}`}
-                    className="size-9 sm:size-10 flex items-center justify-center text-xs text-muted-foreground font-sans"
-                  >
-                    ...
-                  </span>
-                );
-              }
+            {pageNumbers.map((pageNum) => (
+              <button
+                key={`page-${pageNum}`}
+                onClick={() => handlePageChange(pageNum)}
+                disabled={isPending}
+                className={cn(
+                  "size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full text-xs font-bold font-sans transition-all duration-300 border",
+                  currentPage === pageNum
+                    ? "bg-rosegold border-rosegold text-white shadow-md shadow-rosegold/20 cursor-default"
+                    : "bg-white border-[var(--border-silk)] text-body hover:border-rosegold hover:text-rosegold"
+                )}
+              >
+                {pageNum}
+              </button>
+            ))}
 
-              const pageNum = page as number;
-              return (
-                <button
-                  key={`page-${pageNum}`}
-                  onClick={() => handlePageChange(pageNum)}
-                  disabled={isPending}
-                  className={cn(
-                    "size-9 sm:size-10 flex items-center justify-center rounded-full text-xs font-bold font-sans transition-all duration-300 border",
-                    currentPage === pageNum
-                      ? "bg-rosegold border-rosegold text-white shadow-md shadow-rosegold/20"
-                      : "bg-white border-[var(--border-silk)] text-body hover:border-rosegold hover:text-rosegold"
-                  )}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            {/* Next Page */}
+            {/* Next Set of 6 Pages */}
             <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages || isPending}
-              className="size-9 sm:size-10 flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="Next page"
+              onClick={() => setPageGroupStart(prev => Math.min(prev + 6, totalPages))}
+              disabled={pageGroupStart + 6 > totalPages || isPending}
+              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
+              aria-label="Next set of pages"
             >
               <ChevronRight size={16} />
+            </button>
+
+            {/* Last Page */}
+            <button
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage === totalPages || isPending}
+              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
+              aria-label="Last page"
+            >
+              <ChevronsRight size={16} />
             </button>
           </div>
           
