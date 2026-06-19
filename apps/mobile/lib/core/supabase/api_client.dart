@@ -23,7 +23,7 @@ class ApiClient {
   ApiClient._internal() {
     const baseUrl = String.fromEnvironment(
       'API_BASE_URL',
-      defaultValue: 'https://rentocostume-admin.vercel.app/api',
+      defaultValue: 'https://mazhavilcostumes-admin-dsak.vercel.app/api',
     );
 
     _dio = Dio(BaseOptions(

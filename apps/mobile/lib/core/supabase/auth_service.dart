@@ -28,7 +28,7 @@ class AuthService {
     _dio = Dio(BaseOptions(
       baseUrl: const String.fromEnvironment(
         'API_BASE_URL',
-        defaultValue: 'https://rentocostume-admin.vercel.app/api',
+        defaultValue: 'https://mazhavilcostumes-admin-dsak.vercel.app/api',
       ),
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
