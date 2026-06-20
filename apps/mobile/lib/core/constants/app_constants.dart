@@ -15,7 +15,7 @@ class AppColors {
 }
 
 class AppStrings {
-  static const String appName = 'Rentocostume Demo';
+  static const String appName = 'Rentocostume';
   static const String adminDashboard = 'Admin Dashboard';
   static const String signIn = 'Sign In';
   static const String email = 'Email';

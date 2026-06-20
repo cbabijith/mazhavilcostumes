@@ -1,4 +1,4 @@
-package com.rentocostumedemo.app
+package com.rentocostume.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
