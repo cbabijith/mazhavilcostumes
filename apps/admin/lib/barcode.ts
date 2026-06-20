@@ -241,7 +241,7 @@ export async function checkBarcodeUniqueness(barcode: string, excludeId?: string
  * Label size presets for bulk barcode printing on A4 sheets.
  * All dimensions in millimeters. A4 = 210mm × 297mm.
  */
-export type LabelSizeKey = 'price-tag' | 'small-square' | 'large-label';
+export type LabelSizeKey = 'costume-label' | 'price-tag' | 'small-square' | 'large-label';
 
 export interface LabelSize {
   key: LabelSizeKey;
@@ -257,6 +257,18 @@ export interface LabelSize {
 }
 
 export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
+  'costume-label': {
+    key: 'costume-label',
+    label: '32mm × 20mm',
+    description: 'Best for costume labels — 56 per sheet',
+    width_mm: 32,
+    height_mm: 20,
+    cols: 5,
+    rows: 12,
+    gap_mm: 3,
+    margin_mm: 7,
+    perSheet: 56,
+  },
   'price-tag': {
     key: 'price-tag',
     label: '35mm × 16mm',
@@ -284,7 +296,7 @@ export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
   'large-label': {
     key: 'large-label',
     label: '50mm × 25mm',
-    description: 'Best for costume labels — 30 per sheet',
+    description: 'Large label — 30 per sheet',
     width_mm: 50,
     height_mm: 25,
     cols: 3,
@@ -360,7 +372,7 @@ async function renderBarcodeLabel(
  */
 export async function bulkPrintBarcodes(
   products: Array<{ barcode: string; name: string }>,
-  sizeKey: LabelSizeKey = 'price-tag',
+  sizeKey: LabelSizeKey = 'costume-label',
 ): Promise<void> {
   if (products.length === 0) return;
 
@@ -368,6 +380,7 @@ export async function bulkPrintBarcodes(
   const perSheet = size.perSheet;
 
   const renderParams: Record<LabelSizeKey, { barWidth: number; barHeight: number; fontSize: number }> = {
+    'costume-label': { barWidth: 1, barHeight: 34, fontSize: 8 },
     'price-tag': { barWidth: 1, barHeight: 28, fontSize: 7 },
     'small-square': { barWidth: 1, barHeight: 38, fontSize: 7 },
     'large-label': { barWidth: 2, barHeight: 48, fontSize: 9 },
