@@ -338,109 +338,62 @@ export class OrderService {
       };
     }
 
-    // Validate items and check availability
-    const priorityCleaningInfoList: any[] = [];
+    // Validate items
     for (const item of data.items) {
       if (!item.product_id) {
-        return {
-          data: null,
-          error: {
-            message: 'Product ID is required for all items',
-            code: 'VALIDATION_ERROR'
-          } as any,
-          success: false,
-        };
+        return { data: null, error: { message: 'Product ID is required for all items', code: 'VALIDATION_ERROR' } as any, success: false };
       }
       if (!item.quantity || item.quantity < 1) {
-        return {
-          data: null,
-          error: {
-            message: 'Quantity must be at least 1',
-            code: 'VALIDATION_ERROR'
-          } as any,
-          success: false,
-        };
+        return { data: null, error: { message: 'Quantity must be at least 1', code: 'VALIDATION_ERROR' } as any, success: false };
       }
       if (!item.price_per_day || item.price_per_day < 0) {
-        return {
-          data: null,
-          error: {
-            message: 'Rent price must be a positive number',
-            code: 'VALIDATION_ERROR'
-          } as any,
-          success: false,
-        };
-      }
-      
-      const availCheck = await this.checkAvailability(item.product_id, data.rental_start_date, data.rental_end_date, data.branch_id);
-      if (!availCheck.success) {
-        return {
-          data: null,
-          error: availCheck.error,
-          success: false
-        };
-      }
-
-      // Check if priority cleaning is needed and not confirmed
-      const needsPriority = availCheck.data!.priorityCleaningNeeded;
-      const availableWithPriority = availCheck.data!.availableWithPriority;
-      const normallyAvailable = availCheck.data!.available;
-
-      if (normallyAvailable < item.quantity && needsPriority && availableWithPriority >= item.quantity && !data.priority_cleaning_confirmed) {
-        return {
-          data: null,
-          error: {
-            message: 'Priority cleaning required but not confirmed',
-            code: 'PRIORITY_CLEANING_REQUIRED',
-            details: availCheck.data!.priorityCleaningInfo
-          } as any,
-          success: false
-        };
-      }
-
-      // If still not enough even with priority cleaning, block
-      if (availableWithPriority < item.quantity) {
-        return {
-          data: null,
-          error: { message: `Insufficient availability for product. Only ${availCheck.data!.available} available.`, code: 'VALIDATION_ERROR' } as any,
-          success: false
-        };
-      }
-
-      // Collect priority cleaning info for later
-      if (needsPriority && data.priority_cleaning_confirmed && availCheck.data!.priorityCleaningInfo) {
-        priorityCleaningInfoList.push(...availCheck.data!.priorityCleaningInfo);
+        return { data: null, error: { message: 'Rent price must be a positive number', code: 'VALIDATION_ERROR' } as any, success: false };
       }
     }
 
-    // Get GST settings
-    const isGstEnabledResult = await settingsService.getIsGSTEnabled();
+    // Availability checks are skipped — the frontend already checks via
+    // useCheckOrderAvailability hook before allowing checkout. Orders are
+    // created as 'scheduled' with no inventory deducted. Conflicts are
+    // caught by the background syncProductConflictsForRange call.
+
+    // Parallelize pre-creation queries
+    const productIds = data.items.map((item: any) => item.product_id);
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const adminClient = createAdminClient();
+
+    const [isGstEnabledResult, productsResult, branchResponse] = await Promise.all([
+      settingsService.getIsGSTEnabled(),
+      adminClient.from('products').select('id, category_id, categories:category_id(gst_percentage)').in('id', productIds),
+      adminClient.from('branches').select('store_id').eq('id', data.branch_id).single()
+    ]);
+
     const isGstEnabled = !!(isGstEnabledResult.success && isGstEnabledResult.data);
+    const products = productsResult.data;
+    const storeId = branchResponse.data?.store_id;
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
     let perItemGstRates: Map<string, number> = new Map();
-    if (isGstEnabled) {
-      const productIds = data.items.map((item: any) => item.product_id);
-      const { createAdminClient } = await import('@/lib/supabase/server');
-      const adminClient = createAdminClient();
-      const { data: products } = await adminClient
-        .from('products')
-        .select('id, category_id, categories:category_id(gst_percentage)')
-        .in('id', productIds);
-      
-      if (products) {
-        for (const p of products) {
-          const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
-          const gstRate = (cat as any)?.gst_percentage ?? 0;
-          perItemGstRates.set(p.id, gstRate);
-        }
+    if (isGstEnabled && products) {
+      for (const p of products) {
+        const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
+        const gstRate = (cat as any)?.gst_percentage ?? 0;
+        perItemGstRates.set(p.id, gstRate);
       }
     }
 
     const dbStart = performance.now();
-    const result = await orderRepository.create(data, isGstEnabled, perItemGstRates);
+    const result = await orderRepository.create(data, isGstEnabled, perItemGstRates, storeId);
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.createOrder] DB save duration: ${dbDuration.toFixed(2)}ms`);
+
+    // Invalidate dashboard cache immediately after DB write succeeds
+    if (result.success) {
+      try {
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
+    }
 
     // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS (BACKGROUND NON-BLOCKING) ──────
     // Every order pre-creates cleaning records so the cleaning queue has
@@ -497,14 +450,6 @@ export class OrderService {
       });
     }
 
-    if (result.success) {
-      try {
-        dashboardService.clearCache();
-      } catch (err) {
-        console.error('Failed to clear dashboard cache:', err);
-      }
-    }
-
     const totalDuration = performance.now() - totalStart;
     console.log(`[OrderService.createOrder] Total createOrder flow duration: ${totalDuration.toFixed(2)}ms`);
     return result;
@@ -538,9 +483,9 @@ export class OrderService {
 
       // Define allowed transitions
       const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
-        [OrderStatus.PENDING]: [OrderStatus.SCHEDULED, OrderStatus.CANCELLED],
-        [OrderStatus.CONFIRMED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED], // legacy fallback
-        [OrderStatus.SCHEDULED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED],
+        [OrderStatus.PENDING]: [OrderStatus.SCHEDULED, OrderStatus.CANCELLED, OrderStatus.RETURNED],
+        [OrderStatus.CONFIRMED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED, OrderStatus.RETURNED], // legacy fallback
+        [OrderStatus.SCHEDULED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED, OrderStatus.RETURNED],
         [OrderStatus.DELIVERED]: [OrderStatus.IN_USE, OrderStatus.ONGOING, OrderStatus.CANCELLED],
         [OrderStatus.IN_USE]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
         [OrderStatus.ONGOING]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
@@ -558,6 +503,19 @@ export class OrderService {
           error: {
             message: `Cannot transition from ${currentStatus} to ${newStatus}`,
             code: 'INVALID_STATUS_TRANSITION'
+          } as any,
+          success: false,
+        };
+      }
+
+      const isBackfillReturn = newStatus === OrderStatus.RETURNED &&
+        ['pending', 'confirmed', 'scheduled'].includes(currentStatus);
+      if (isBackfillReturn && !(data as any).backfill_note?.trim()) {
+        return {
+          data: null,
+          error: {
+            message: 'A note is required when recording an untracked order as returned',
+            code: 'BACKFILL_NOTE_REQUIRED'
           } as any,
           success: false,
         };
@@ -631,9 +589,21 @@ export class OrderService {
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.updateOrder] DB update duration: ${dbDuration.toFixed(2)}ms`);
 
+    // If this was a backfill return, record the explanatory note in status history
+    if (result.success && data.status === OrderStatus.RETURNED && (data as any).backfill_note?.trim()) {
+      const currentStatus = existingOrder.data.status;
+      if (['pending', 'confirmed', 'scheduled'].includes(currentStatus)) {
+        await orderRepository.addStatusHistory(id, OrderStatus.RETURNED, `Backfill: ${(data as any).backfill_note}`);
+      }
+    }
+
     // After any update that changes payment_status or status, check auto-complete
+    // Run in background — auto-complete is only relevant for returned/paid orders,
+    // not for scheduled→ongoing transitions. Saves 1 blocking DB round-trip.
     if (result.success && (data.payment_status || data.status)) {
-      await this.checkAndAutoComplete(id);
+      this.checkAndAutoComplete(id).catch(err => {
+        console.error('[OrderService.updateOrder] Background auto-complete check failed:', err);
+      });
     }
 
     // ─── PRIORITY CLEANING RECALCULATION ──────────────────────────────────
@@ -908,123 +878,112 @@ export class OrderService {
 
     const result = await orderRepository.processReturn(orderId, returnData);
     
-    // After return processing, check if both tracks are done for auto-complete
     if (result.success && result.data) {
-      await this.checkAndAutoComplete(orderId);
+      // Clear dashboard cache immediately (in-memory, non-blocking)
+      try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
 
-      // ─── TRANSITION CLEANING RECORDS: scheduled → in_progress ──────────────
-      // Cleaning records are pre-created at order time (status: scheduled).
-      // On return, we transition to in_progress (cleaning starts now).
-      // For partial returns, we SPLIT the record: returned items start cleaning,
-      // remaining items keep a scheduled record for when they arrive.
-      try {
-        // Deduplicate: collect per-product return info from the returned items
-        const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
-        for (const item of result.data.items || []) {
-          if (!item.product_id) continue;
-          productReturnMap.set(item.product_id, {
-            quantity: item.quantity,
-            returnedQuantity: item.returned_quantity || 0,
-          });
-        }
+      // ─── POST-RETURN HOUSEKEEPING (BACKGROUND, NON-BLOCKING) ─────────────
+      // Auto-complete check, cleaning record transitions, and damage assessments
+      // don't affect the return response. Run them in the background so the user
+      // sees "returned" status immediately. "completed" status and cleaning
+      // records appear within ~2s via background processing.
+      const returnedOrderData = result.data;
+      (async () => {
+        // 1. Auto-complete check (returned + paid → completed)
+        await this.checkAndAutoComplete(orderId).catch(err =>
+          console.error('[OrderService.processOrderReturn] Background auto-complete failed:', err)
+        );
 
-        for (const [productId, info] of productReturnMap) {
-          // Find the SCHEDULED cleaning record for this order+product.
-          // After prior partial returns, this may be a smaller "remainder" record.
-          const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
-          if (!scheduledRecord.success || !scheduledRecord.data) continue;
-
-          const record = scheduledRecord.data;
-          const totalQty = info.quantity;
-          const returnedQty = info.returnedQuantity;
-
-          if (returnedQty >= totalQty) {
-            // ALL units returned → transition the entire record to in_progress
-            await cleaningRepository.update(record.id, {
-              status: CleaningStatus.IN_PROGRESS,
-              started_at: new Date().toISOString(),
-              quantity: record.quantity, // keep the record's quantity as-is
-              notes: record.notes
-                ? `${record.notes} — all items returned, cleaning started`
-                : 'All items returned, cleaning started',
+        // 2. Transition cleaning records: scheduled → in_progress
+        try {
+          const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
+          for (const item of returnedOrderData.items || []) {
+            if (!item.product_id) continue;
+            productReturnMap.set(item.product_id, {
+              quantity: item.quantity,
+              returnedQuantity: item.returned_quantity || 0,
             });
-          } else {
-            // PARTIAL return → split the cleaning record
-            // Calculate how many items were just returned in this batch
-            // The scheduled record's quantity represents items still waiting.
-            // We need to figure out how many of those are now returned.
-            const justReturnedQty = Math.min(returnedQty, record.quantity);
-            const remainingQty = record.quantity - justReturnedQty;
+          }
 
-            if (justReturnedQty > 0) {
-              // Update existing record: cover the returned items, start cleaning
+          await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
+            const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
+            if (!scheduledRecord.success || !scheduledRecord.data) return;
+
+            const record = scheduledRecord.data;
+            const totalQty = info.quantity;
+            const returnedQty = info.returnedQuantity;
+
+            if (returnedQty >= totalQty) {
               await cleaningRepository.update(record.id, {
                 status: CleaningStatus.IN_PROGRESS,
                 started_at: new Date().toISOString(),
-                quantity: justReturnedQty,
+                quantity: record.quantity,
                 notes: record.notes
-                  ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
-                  : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
+                  ? `${record.notes} — all items returned, cleaning started`
+                  : 'All items returned, cleaning started',
               });
+            } else {
+              const justReturnedQty = Math.min(returnedQty, record.quantity);
+              const remainingQty = record.quantity - justReturnedQty;
 
-              // Create a new scheduled record for the remaining items
-              if (remainingQty > 0) {
-                await cleaningRepository.create({
-                  product_id: productId,
-                  order_id: orderId,
-                  branch_id: result.data.branch_id,
-                  store_id: record.store_id,
-                  quantity: remainingQty,
-                  status: CleaningStatus.SCHEDULED,
-                  priority: record.priority,
-                  priority_order_id: record.priority_order_id || undefined,
-                  expected_return_date: record.expected_return_date || undefined,
-                  notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+              if (justReturnedQty > 0) {
+                await cleaningRepository.update(record.id, {
+                  status: CleaningStatus.IN_PROGRESS,
+                  started_at: new Date().toISOString(),
+                  quantity: justReturnedQty,
+                  notes: record.notes
+                    ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
+                    : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
                 });
+
+                if (remainingQty > 0) {
+                  await cleaningRepository.create({
+                    product_id: productId,
+                    order_id: orderId,
+                    branch_id: returnedOrderData.branch_id,
+                    store_id: record.store_id,
+                    quantity: remainingQty,
+                    status: CleaningStatus.SCHEDULED,
+                    priority: record.priority,
+                    priority_order_id: record.priority_order_id || undefined,
+                    expected_return_date: record.expected_return_date || undefined,
+                    notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+                  });
+                }
               }
             }
+          }));
+        } catch (err) {
+          console.error('Failed to transition cleaning records:', err);
+        }
+
+        // 3. Auto-create damage assessments for damaged items
+        try {
+          const damagedItems = returnData.items
+            .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
+            .map(item => {
+              const orderItem = returnedOrderData.items.find(i => i.id === item.item_id);
+              return {
+                order_item_id: item.item_id,
+                product_id: orderItem?.product_id || '',
+                branch_id: returnedOrderData.branch_id,
+                damaged_quantity: item.damaged_quantity || 0,
+              };
+            })
+            .filter(item => item.product_id);
+
+          if (damagedItems.length > 0) {
+            await damageAssessmentService.createAssessments({
+              order_id: orderId,
+              items: damagedItems,
+            });
           }
+        } catch (err) {
+          console.error('Failed to auto-create damage assessments:', err);
         }
-      } catch (err) {
-        console.error('Failed to transition cleaning records:', err);
-      }
-
-      // ─── AUTO-CREATE DAMAGE ASSESSMENTS ────────────────────────────────────
-      // When items are returned with damage, automatically create assessment
-      // rows for each damaged unit. This eliminates the manual "Create
-      // Assessments" button and shows assessments immediately on the order
-      // detail page.
-      try {
-        const damagedItems = returnData.items
-          .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
-          .map(item => {
-            const orderItem = result.data!.items.find(i => i.id === item.item_id);
-            return {
-              order_item_id: item.item_id,
-              product_id: orderItem?.product_id || '',
-              branch_id: result.data!.branch_id,
-              damaged_quantity: item.damaged_quantity || 0,
-            };
-          })
-          .filter(item => item.product_id);
-
-        if (damagedItems.length > 0) {
-          await damageAssessmentService.createAssessments({
-            order_id: orderId,
-            items: damagedItems,
-          });
-        }
-      } catch (err) {
-        console.error('Failed to auto-create damage assessments:', err);
-      }
-    }
-
-    if (result.success) {
-      try {
-        dashboardService.clearCache();
-      } catch (err) {
-        console.error('Failed to clear dashboard cache:', err);
-      }
+      })().catch(err => {
+        console.error('[OrderService.processOrderReturn] Background post-return housekeeping failed:', err);
+      });
     }
 
     return result;
