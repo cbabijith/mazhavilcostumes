@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import '../../../branches/viewmodels/providers/branch_provider.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
 
@@ -33,6 +34,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   Future<PaginatedOrders> build() async {
     ref.keepAlive();
     _currentPage = 1;
+    _currentBranchId = ref.watch(effectiveBranchIdProvider);
     final repo = ref.watch(orderRepositoryProvider);
     return repo.getOrders(
       page: _currentPage,
@@ -53,6 +55,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   Future<void> search(String query) async {
     _currentSearch = query;
     _currentPage = 1;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(orderRepositoryProvider);
@@ -80,6 +83,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _dateField = null;
     _hasStockConflict = null;
     _currentPage = 1;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(orderRepositoryProvider);
@@ -129,6 +133,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _currentDateTo = dateTo;
     _dateField = null;
     _currentPage = 1;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(orderRepositoryProvider);
@@ -168,6 +173,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _currentDateTo = dateTo;
     _hasStockConflict = hasStockConflict;
     _currentPage = 1;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(orderRepositoryProvider);

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../features/orders/viewmodels/providers/order_provider.dart';
 
 class NavigationTabNotifier extends Notifier<int> {
@@ -17,8 +18,10 @@ final navigationTabProvider = NotifierProvider<NavigationTabNotifier, int>(
 /// Helper to navigate to the Orders view and apply search/status/date filters
 /// based on a query parameter URL (e.g. from dashboard cards).
 void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
+  print('[navigateToOrdersWithUrl] Navigating with filterUrl: $filterUrl');
   final uri = Uri.parse(filterUrl);
   final params = uri.queryParametersAll;
+  print('[navigateToOrdersWithUrl] Extracted params: $params');
 
   // Extract params
   final statusList = params['status'];
@@ -37,13 +40,36 @@ void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
       ? params['date_from']!.first
       : null;
       
-  final dateTo = (params['date_to'] != null && params['date_to']!.isNotEmpty)
+  var dateTo = (params['date_to'] != null && params['date_to']!.isNotEmpty)
       ? params['date_to']!.first
       : null;
       
   final hasStockConflict = params['has_stock_conflict'] != null &&
       params['has_stock_conflict']!.isNotEmpty &&
       params['has_stock_conflict']!.first == 'true';
+
+  // Client-side safeguard for "Pending Return" (overdue returns) card:
+  // If status contains ongoing/in_use, date_field is end_date, and date_filter is custom,
+  // we want overdue returns (i.e. end_date <= yesterday).
+  // If the server mistakenly sends tomorrow's date or today's date, we clamp dateTo to yesterday's date in IST context.
+  final isPendingReturn = statusList != null && 
+      (statusList.contains('ongoing') || statusList.contains('in_use')) && 
+      dateField == 'end_date' && 
+      dateFilter == 'custom';
+
+  if (isPendingReturn) {
+    // Get IST yesterday date
+    final now = DateTime.now();
+    // Convert to IST offset (UTC + 5:30)
+    final istNow = now.toUtc().add(const Duration(hours: 5, minutes: 30));
+    final yesterday = istNow.subtract(const Duration(days: 1));
+    final yesterdayStr = DateFormat('yyyy-MM-dd').format(yesterday);
+    
+    if (dateTo == null || dateTo.compareTo(yesterdayStr) > 0) {
+      print('[navigateToOrdersWithUrl] Client safeguard triggered: Clamping dateTo from $dateTo to yesterday ($yesterdayStr)');
+      dateTo = yesterdayStr;
+    }
+  }
 
   // Apply filters to orders notifier
   ref.read(ordersProvider.notifier).setFilters(

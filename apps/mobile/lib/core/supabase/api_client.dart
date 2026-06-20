@@ -34,11 +34,13 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      listFormat: ListFormat.multi,
     ));
 
     // Add auth interceptor
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {
+        print('[ApiClient] Request: ${options.method} ${options.path} queryParameters: ${options.queryParameters}');
         // Skip token injection for the login endpoint (no token needed)
         if (!options.path.contains('/auth/login')) {
           // Use in-memory token from AuthService to avoid secure storage hangs
