@@ -12,7 +12,6 @@
 import { NextRequest } from "next/server";
 import { orderService } from "@/services/orderService";
 import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
 import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
 
 interface RouteContext {
@@ -25,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    const authUser = await getAuthUser(request);
+    const authUser = guard.user;
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
 
     const { id } = await params;
