@@ -213,6 +213,7 @@ export interface UpdateOrderDTO {
   has_priority_cleaning?: boolean;
   has_stock_conflict?: boolean;
   conflict_details?: any[] | null;
+  backfill_note?: string;
 
   items?: {
     product_id: string;
