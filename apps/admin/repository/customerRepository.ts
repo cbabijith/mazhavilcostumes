@@ -123,7 +123,10 @@ export class CustomerRepository extends BaseRepository {
     return this.executeOperation<Customer>(async () => {
       const response = await this.client
         .from(this.tableName)
-        .insert([data])
+        .insert({
+          ...data,
+          ...this.getCreateAuditFields(),
+        })
         .select()
         .single();
         
@@ -138,7 +141,11 @@ export class CustomerRepository extends BaseRepository {
     return this.executeOperation<Customer>(async () => {
       const response = await this.client
         .from(this.tableName)
-        .update(data)
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+          ...this.getUpdateAuditFields(),
+        })
         .eq('id', id)
         .select()
         .single();

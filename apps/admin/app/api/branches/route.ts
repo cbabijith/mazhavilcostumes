@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       staff_id: guard.user.staff_id,
     });
 
-    // If store_id is missing, the user has no staff record linked.
+    // If store_id is missing or empty, the user has no staff record linked.
     // Return empty branches instead of crashing with invalid UUID query.
-    if (!guard.user.store_id) {
+    if (!guard.user.store_id || guard.user.store_id.trim() === '') {
       console.warn('[API] GET /api/branches — no store_id for user, returning empty list');
       return apiSuccess([]);
     }

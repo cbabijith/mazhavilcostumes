@@ -64,7 +64,9 @@ final effectiveBranchIdProvider = Provider<String?>((ref) {
 
   if (user == null) return null;
   if (user.canSwitchBranches) {
-    if (selectedBranchId != null) return selectedBranchId;
+    if (selectedBranchId != null && selectedBranchId != 'null' && selectedBranchId != 'undefined') {
+      return selectedBranchId;
+    }
     
     // Fallback: If no branch is explicitly selected yet, automatically use the first active branch from loaded data
     final branchesAsync = ref.watch(branchesProvider);
@@ -79,7 +81,10 @@ final effectiveBranchIdProvider = Provider<String?>((ref) {
       orElse: () => null,
     );
   }
-  return user.branchId;
+  
+  final bId = user.branchId;
+  if (bId == 'null' || bId == 'undefined') return null;
+  return bId;
 });
 
 final selectedBranchProvider = Provider<AsyncValue<Branch?>>((ref) {

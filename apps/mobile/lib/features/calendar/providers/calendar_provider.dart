@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../orders/models/order.dart';
@@ -107,11 +108,18 @@ final calendarOrdersProvider = FutureProvider<List<Order>>((ref) async {
   final endDateStr =
       "${fetchEnd.year}-${fetchEnd.month.toString().padLeft(2, '0')}-${fetchEnd.day.toString().padLeft(2, '0')}";
 
-  return repo.getCalendarOrders(
-    branchId: branchId,
-    startDate: startDateStr,
-    endDate: endDateStr,
-  );
+  try {
+    final orders = await repo.getCalendarOrders(
+      branchId: branchId,
+      startDate: startDateStr,
+      endDate: endDateStr,
+    );
+    debugPrint('[calendarOrdersProvider] Successfully fetched ${orders.length} orders for branch: $branchId');
+    return orders;
+  } catch (e, stackTrace) {
+    debugPrint('[calendarOrdersProvider] Error loading calendar orders: $e\n$stackTrace');
+    rethrow;
+  }
 });
 
 /// Processes raw orders into day-by-day summaries for the active month view

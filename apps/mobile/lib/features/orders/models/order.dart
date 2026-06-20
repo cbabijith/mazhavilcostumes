@@ -448,7 +448,13 @@ class Order extends Equatable {
       items: (json['items'] as List<dynamic>?)
           ?.map((e) => OrderItem.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
-      branch: json['branch'] != null ? BranchInfo.fromJson(json['branch']) : null,
+      branch: json['branch'] != null
+          ? (json['branch'] is List
+              ? (json['branch'].isNotEmpty
+                  ? BranchInfo.fromJson(Map<String, dynamic>.from(json['branch'][0]))
+                  : null)
+              : BranchInfo.fromJson(Map<String, dynamic>.from(json['branch'])))
+          : null,
     );
   }
 

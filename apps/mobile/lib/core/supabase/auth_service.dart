@@ -74,13 +74,21 @@ class AuthService {
 
         debugPrint('[AuthService] Login successful, user: ${data['email']}');
 
+        final storeIdVal = data['store_id']?.toString();
+        final branchIdVal = data['branch_id']?.toString();
+        final staffIdVal = data['staff_id']?.toString();
+
+        final storeId = (storeIdVal == 'null' || storeIdVal == 'undefined' || storeIdVal == '') ? null : storeIdVal;
+        final branchId = (branchIdVal == 'null' || branchIdVal == 'undefined' || branchIdVal == '') ? null : branchIdVal;
+        final staffId = (staffIdVal == 'null' || staffIdVal == 'undefined' || staffIdVal == '') ? null : staffIdVal;
+
         return AuthUser(
           id: data['id'],
           email: data['email'],
           role: data['role'],
-          storeId: data['store_id'],
-          branchId: data['branch_id'],
-          staffId: data['staff_id'],
+          storeId: storeId,
+          branchId: branchId,
+          staffId: staffId,
         );
       } else {
         debugPrint('[AuthService] Login failed: ${response.data['error'] ?? 'Unknown error'}');
@@ -94,6 +102,16 @@ class AuthService {
     } catch (e) {
       debugPrint('[AuthService] Login error: $e');
       return null;
+    }
+  }
+
+  /// Helper to cleanly write or delete storage values to prevent stringified nulls
+  Future<void> _writeCleanKey(String key, dynamic value) async {
+    final strVal = value?.toString();
+    if (strVal != null && strVal != 'null' && strVal != 'undefined' && strVal.isNotEmpty) {
+      await _storage.write(key: key, value: strVal);
+    } else {
+      await _storage.delete(key: key);
     }
   }
 
@@ -116,12 +134,14 @@ class AuthService {
       debugPrint('[AuthService] Failed to save refresh_token: $e');
     }
 
-    await _storage.write(key: _userIdKey, value: data['id']);
-    await _storage.write(key: _userEmailKey, value: data['email']);
-    await _storage.write(key: _userRoleKey, value: data['role']);
-    await _storage.write(key: _storeIdKey, value: data['store_id']);
-    await _storage.write(key: _branchIdKey, value: data['branch_id']);
-    await _storage.write(key: _staffIdKey, value: data['staff_id']);
+    await _storage.write(key: _userIdKey, value: data['id']?.toString());
+    await _storage.write(key: _userEmailKey, value: data['email']?.toString());
+    await _storage.write(key: _userRoleKey, value: data['role']?.toString());
+
+    // Clean write to prevent stringified nulls
+    await _writeCleanKey(_storeIdKey, data['store_id']);
+    await _writeCleanKey(_branchIdKey, data['branch_id']);
+    await _writeCleanKey(_staffIdKey, data['staff_id']);
   }
 
   /// Load the cached token from storage on app start.
@@ -168,19 +188,23 @@ class AuthService {
       final role = await _storage
           .read(key: _userRoleKey)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final storeId = await _storage
+      final storeIdVal = await _storage
           .read(key: _storeIdKey)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final branchId = await _storage
+      final branchIdVal = await _storage
           .read(key: _branchIdKey)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final staffId = await _storage
+      final staffIdVal = await _storage
           .read(key: _staffIdKey)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
 
       if (id == null || email == null || role == null) {
         return null;
       }
+
+      final storeId = (storeIdVal == 'null' || storeIdVal == 'undefined' || storeIdVal == '') ? null : storeIdVal;
+      final branchId = (branchIdVal == 'null' || branchIdVal == 'undefined' || branchIdVal == '') ? null : branchIdVal;
+      final staffId = (staffIdVal == 'null' || staffIdVal == 'undefined' || staffIdVal == '') ? null : staffIdVal;
 
       return AuthUser(
         id: id,

@@ -7,6 +7,7 @@ import '../../../core/utils/responsive.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../orders/models/order.dart';
 import '../../orders/views/order_detail_view.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/calendar_day_summary.dart';
 import '../providers/calendar_provider.dart';
 
@@ -31,8 +32,140 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
     final daySummaries = ref.watch(calendarDaySummaryProvider);
     final monthStats = ref.watch(calendarMonthStatsProvider);
 
-    // If no branch is selected (which only happens for super_admins/admins initially), show prompt
-    if (branchId == null || branchId.isEmpty) {
+    final user = ref.watch(authUserProvider);
+    final branchesAsync = ref.watch(branchesProvider);
+
+    // If no branch is selected, show robust selection prompt with status handling
+    if (branchId == null || branchId.isEmpty || branchId == 'null' || branchId == 'undefined') {
+      return Container(
+        color: AppColors.scaffoldBackground,
+        child: Center(
+          child: Padding(
+            padding: Responsive.all(AppSizes.screenPaddingSmall),
+            child: branchesAsync.when(
+              loading: () => const CircularProgressIndicator(color: AppColors.primary),
+              error: (err, stack) => Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: Responsive.icon(AppSizes.iconHuge),
+                    color: AppColors.error,
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  Text(
+                    'Failed to Load Branches',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontXLarge),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  Text(
+                    err.toString(),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  ElevatedButton(
+                    onPressed: () => ref.invalidate(branchesProvider),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      padding: Responsive.symmetric(
+                        horizontal: AppSizes.spacingLarge,
+                        vertical: AppSizes.spacingMedium,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                    ),
+                    child: Text(
+                      'Retry',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontMedium),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              data: (branches) {
+                final activeBranches = branches.where((b) => b.isActive).toList();
+                if (activeBranches.isEmpty) {
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.storefront_rounded,
+                        size: Responsive.icon(AppSizes.iconHuge),
+                        color: Colors.grey[400],
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                      Text(
+                        'No Branches Found',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontXLarge),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                      Text(
+                        'Please add branches in the admin panel or assign a branch to this user.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.storefront_rounded,
+                      size: Responsive.icon(AppSizes.iconHuge),
+                      color: Colors.grey[400],
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    Text(
+                      'Select a Branch',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontXLarge),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    Text(
+                      user?.canSwitchBranches == true
+                          ? 'Choose a branch from the top menu to view its booking calendar.'
+                          : 'You do not have a branch assigned to your account. Please contact an administrator.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Expose error state if calendar loading fails
+    if (ordersAsync.hasError && !ordersAsync.isLoading) {
       return Container(
         color: AppColors.scaffoldBackground,
         child: Center(
@@ -42,13 +175,13 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.storefront_rounded,
+                  Icons.error_outline_rounded,
                   size: Responsive.icon(AppSizes.iconHuge),
-                  color: Colors.grey[400],
+                  color: AppColors.error,
                 ),
                 SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
                 Text(
-                  'Select a Branch',
+                  'Failed to Load Calendar',
                   style: TextStyle(
                     fontSize: Responsive.sp(AppSizes.fontXLarge),
                     fontWeight: FontWeight.bold,
@@ -57,11 +190,33 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                 ),
                 SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                 Text(
-                  'Choose a branch from the top menu to view its booking calendar.',
+                  ordersAsync.error?.toString() ?? 'An unexpected error occurred.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: Responsive.sp(AppSizes.fontSmall),
                     color: AppColors.secondaryText,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(calendarOrdersProvider),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingLarge,
+                      vertical: AppSizes.spacingMedium,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    ),
+                  ),
+                  child: Text(
+                    'Retry',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ],

@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
     }
 
     const role = staff?.role || data.user.user_metadata?.role || 'admin';
-    const storeId = staff?.store_id || data.user.user_metadata?.store_id || null;
-    const branchId = staff?.branch_id || null;
-    const staffId = staff?.id || null;
+    const storeId = (staff?.store_id || data.user.user_metadata?.store_id || '').toString().trim() || null;
+    const branchId = (staff?.branch_id || '').toString().trim() || null;
+    const staffId = (staff?.id || '').toString().trim() || null;
 
     return NextResponse.json({
       success: true,

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../../../core/supabase/api_client.dart';
 import '../../orders/models/order.dart';
@@ -28,7 +29,8 @@ class CalendarRepository {
       return data
           .map((e) => Order.fromJson(Map<String, dynamic>.from(e)))
           .toList();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[CalendarRepository] Failed to load calendar orders: $e\n$stackTrace');
       throw Exception('Failed to load calendar orders: $e');
     }
   }

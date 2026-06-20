@@ -43,11 +43,17 @@ class BranchService {
   // ─── Branch Operations ───────────────────────────────────────────────
 
   async getBranches(): Promise<RepositoryResult<BranchWithStaffCount[]>> {
-    return branchRepository.findAllWithStaffCount(this.currentStoreId || '');
+    if (!this.currentStoreId) {
+      return { data: [], error: null, success: true };
+    }
+    return branchRepository.findAllWithStaffCount(this.currentStoreId);
   }
 
   async getSimpleBranches(): Promise<RepositoryResult<Branch[]>> {
-    return branchRepository.findAll(this.currentStoreId || '');
+    if (!this.currentStoreId) {
+      return { data: [], error: null, success: true };
+    }
+    return branchRepository.findAll(this.currentStoreId);
   }
 
   async getBranchById(id: string): Promise<RepositoryResult<Branch>> {
@@ -57,7 +63,10 @@ class BranchService {
   async createBranch(data: Omit<CreateBranchDTO, 'store_id'>): Promise<RepositoryResult<Branch>> {
     // New branches can never be main — there can only ever be one main branch,
     // set at initial system setup. Force-clear any attempt.
-    const payload = { ...data, is_main: false, store_id: this.currentStoreId || '' };
+    if (!this.currentStoreId) {
+      return validationError('Store context is required to create a branch. Please log in again.');
+    }
+    const payload = { ...data, is_main: false, store_id: this.currentStoreId };
     const validation = CreateBranchSchema.safeParse(payload);
     if (!validation.success) {
       return validationError(validation.error.issues.map(i => i.message).join(', '));

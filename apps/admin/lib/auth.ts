@@ -15,6 +15,12 @@ import { cache } from 'react';
 import type { NextRequest } from 'next/server';
 import type { StaffRole } from '@/domain/types/branch';
 
+/** Normalize empty/whitespace UUID strings to null */
+function validUuidOrNull(val: string | null | undefined): string | null {
+  if (!val || val.trim() === '') return null;
+  return val;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -47,9 +53,9 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
           .maybeSingle();
 
         const role = staff?.role || user.user_metadata?.role || 'admin';
-        const storeId = staff?.store_id || user.user_metadata?.store_id || null;
-        const branchId = staff?.branch_id || null;
-        const staffId = staff?.id || null;
+        const storeId = validUuidOrNull(staff?.store_id) || validUuidOrNull(user.user_metadata?.store_id as string) || null;
+        const branchId = validUuidOrNull(staff?.branch_id);
+        const staffId = validUuidOrNull(staff?.id);
 
         return {
           id: user.id,
@@ -97,16 +103,16 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
         id: user.id,
         email: user.email || '',
         role: staff.role as StaffRole,
-        store_id: staff.store_id,
-        branch_id: staff.branch_id,
-        staff_id: staff.id,
+        store_id: validUuidOrNull(staff.store_id),
+        branch_id: validUuidOrNull(staff.branch_id),
+        staff_id: validUuidOrNull(staff.id),
         name: staff.name,
       };
     }
  
     // If no staff record, check user_metadata for role (admin users)
     const metaRole = user.user_metadata?.role as StaffRole | undefined;
-    const metaStoreId = user.user_metadata?.store_id as string | undefined;
+    const metaStoreId = validUuidOrNull(user.user_metadata?.store_id as string);
     return {
       id: user.id,
       email: user.email || '',
