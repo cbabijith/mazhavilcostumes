@@ -682,6 +682,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 children: [
                   _buildHeroCard(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  _buildStatusStepper(),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildUrgentAlertBanner(),
                   if (_currentOrder.hasStockConflict)
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1047,6 +1049,168 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     return Padding(
       padding: Responsive.only(top: AppSizes.spacingMedium),
       child: Row(children: actions),
+    );
+  }
+
+  Widget _buildStatusStepper() {
+    final status = _currentOrder.status;
+    final amountPaid = _currentOrder.amountPaid;
+    final isCancelled = status == OrderStatus.cancelled;
+
+    final steps = [
+      _StepItem(
+        label: 'Created',
+        stepNumber: 'Step 1',
+        isActive: true,
+        icon: Icons.calendar_today_rounded,
+      ),
+      _StepItem(
+        label: 'Payment',
+        stepNumber: 'Step 2',
+        isActive: amountPaid > 0,
+        icon: Icons.account_balance_wallet_rounded,
+      ),
+      _StepItem(
+        label: 'Ready',
+        stepNumber: 'Step 3',
+        isActive: const [
+          OrderStatus.confirmed,
+          OrderStatus.scheduled,
+          OrderStatus.ongoing,
+          OrderStatus.inUse,
+          OrderStatus.partial,
+          OrderStatus.returned,
+          OrderStatus.completed,
+        ].contains(status),
+        icon: Icons.inventory_2_rounded,
+      ),
+      _StepItem(
+        label: 'Rented',
+        stepNumber: 'Step 4',
+        isActive: const [
+          OrderStatus.ongoing,
+          OrderStatus.inUse,
+          OrderStatus.partial,
+          OrderStatus.returned,
+          OrderStatus.completed,
+        ].contains(status),
+        icon: Icons.local_shipping_rounded,
+      ),
+      _StepItem(
+        label: isCancelled ? 'Cancelled' : 'Completed',
+        stepNumber: 'Step 5',
+        isActive: const [
+          OrderStatus.returned,
+          OrderStatus.completed,
+          OrderStatus.cancelled,
+        ].contains(status),
+        icon: isCancelled ? Icons.cancel_rounded : Icons.check_circle_rounded,
+        activeColor: isCancelled ? AppColors.error : AppColors.success,
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.radiusSmall),
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: Responsive.symmetric(
+        horizontal: AppSizes.spacingMedium,
+        vertical: AppSizes.spacingLarge,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'ORDER STATUS TIMELINE',
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontTiny),
+              fontWeight: FontWeight.bold,
+              color: Colors.grey[500],
+              letterSpacing: 1.1,
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(steps.length * 2 - 1, (index) {
+              if (index % 2 == 1) {
+                final stepIndex = index ~/ 2;
+                final nextStepActive = steps[stepIndex + 1].isActive;
+                return Expanded(
+                  child: Container(
+                    height: 2,
+                    color: nextStepActive
+                        ? AppColors.primary.withValues(alpha: 0.3)
+                        : Colors.grey[200],
+                  ),
+                );
+              } else {
+                final step = steps[index ~/ 2];
+                final color = step.isActive
+                    ? (step.activeColor ?? AppColors.primary)
+                    : Colors.grey[300]!;
+                final bg = step.isActive
+                    ? (step.activeColor?.withValues(alpha: 0.08) ?? AppColors.primary.withValues(alpha: 0.08))
+                    : Colors.grey[50]!;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: Responsive.w(36),
+                      height: Responsive.w(36),
+                      decoration: BoxDecoration(
+                        color: bg,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: color, width: 1.5),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          step.icon,
+                          size: Responsive.icon(16),
+                          color: color,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(6)),
+                    SizedBox(
+                      width: Responsive.w(60),
+                      child: Text(
+                        step.label,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(9),
+                          fontWeight: FontWeight.bold,
+                          color: step.isActive ? AppColors.text : Colors.grey[400],
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      step.stepNumber,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(8),
+                        color: Colors.grey[400],
+                      ),
+                    ),
+                  ],
+                );
+              }
+            }),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3109,4 +3273,20 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       return dateStr;
     }
   }
+}
+
+class _StepItem {
+  final String label;
+  final String stepNumber;
+  final bool isActive;
+  final IconData icon;
+  final Color? activeColor;
+
+  _StepItem({
+    required this.label,
+    required this.stepNumber,
+    required this.isActive,
+    required this.icon,
+    this.activeColor,
+  });
 }
