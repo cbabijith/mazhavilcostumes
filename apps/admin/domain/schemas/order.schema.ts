@@ -5,6 +5,7 @@ const orderItemSchema = z.object({
   product_id: z.string().uuid("Invalid product ID"),
   quantity: z.number().int().positive("Quantity must be a positive integer"),
   price_per_day: z.number().nonnegative("Rent price cannot be negative"),
+  original_price_per_day: z.number().nonnegative().optional(),
   discount: z.number().nonnegative().optional().default(0),
   discount_type: z.enum(['flat', 'percent']).optional().default('flat'),
 });

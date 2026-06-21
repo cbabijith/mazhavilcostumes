@@ -49,28 +49,18 @@ export class OrderRepository extends BaseRepository {
    * Find all orders
    */
   async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
-    let customerIds: string[] = [];
     const searchTerm = params?.query?.trim();
 
-    // Two-step search: if query provided, first find matching customers
+    // Parallel search: query customers and orders simultaneously to avoid sequential round trips
+    let customerIds: string[] = [];
     if (searchTerm) {
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isUuid = uuidPattern.test(searchTerm);
-      
-      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
-      if (isUuid) {
-        customerOr += `,id.eq.${searchTerm}`;
-      }
-
       const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(customerOr);
-
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       if (customerError) {
-        console.error('Customer Search Query Error:', customerError);
+        console.error('[OrderRepository.findAll] Customer search error:', customerError);
       }
-
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
@@ -160,29 +150,17 @@ export class OrderRepository extends BaseRepository {
 
     if (searchTerm) {
       const filters: string[] = [];
-      
-      // 1. Add customer ID matches
       if (customerIds.length > 0) {
         filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
-
-      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
-
       if (uuidPattern.test(searchTerm)) {
         filters.push(`id.eq.${searchTerm}`);
-      } else if (isHexIsh && searchTerm.length >= 4) {
-        // Support searching by the first 8 characters (short ID used in invoices)
-        // ONLY if it looks like a hex string to avoid performance issues on UUID column
-        filters.push(`id.ilike.${searchTerm}%`);
       }
-
-
+      filters.push(`invoice_number.ilike.%${searchTerm}%`);
       if (filters.length > 0) {
         query = query.or(filters.join(','));
       } else {
-        // If searchTerm provided but no matching customers or ID pattern, force empty result
         query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
@@ -265,6 +243,9 @@ export class OrderRepository extends BaseRepository {
 
     const response = await query;
     const { data, count, error } = response as any;
+    if (error) {
+      console.error('[OrderRepository.findAll] Supabase query error:', error);
+    }
     const result = this.handleResponse<OrderWithRelations[]>({ data, error });
 
     if (!result.success || !result.data) {
@@ -984,6 +965,23 @@ export class OrderRepository extends BaseRepository {
     const startDateStr = startDate.toISOString().split('T')[0];
     const initialStatus = 'scheduled';
 
+    // Generate sequential invoice number: MAZ-{fiscalYear}-{sequentialNum}
+    const now = new Date();
+    const orderYear = now.getFullYear();
+    const orderMonth = now.getMonth(); // 0-indexed
+    const fiscalStartYear = orderMonth < 3 ? orderYear - 1 : orderYear;
+    const startYY = String(fiscalStartYear).slice(-2);
+    const endYY = String(fiscalStartYear + 1).slice(-2);
+    const fiscalSuffix = `${startYY}${endYY}`;
+
+    const { count: existingCount } = await this.client
+      .from(this.tableName)
+      .select('id', { count: 'exact', head: true })
+      .like('invoice_number', `MAZ-${fiscalSuffix}-%`);
+
+    const seqNum = (existingCount || 0) + 1;
+    const invoiceNumber = `MAZ-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
+
     // Create order first
     const orderResponse = await this.client
       .from(this.tableName)
@@ -992,6 +990,7 @@ export class OrderRepository extends BaseRepository {
         branch_id: data.branch_id,
         store_id: storeId,
         status: initialStatus,
+        invoice_number: invoiceNumber,
         start_date: startDateStr,
         end_date: endDate.toISOString().split('T')[0],
         event_date: data.event_date ? new Date(data.event_date).toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
@@ -1034,6 +1033,7 @@ export class OrderRepository extends BaseRepository {
             product_id: item.product_id,
             quantity: item.quantity,
             price_per_day: item.price_per_day,
+            original_price_per_day: item.original_price_per_day || item.price_per_day,
             discount: item.discount || 0,
             discount_type: item.discount_type || 'flat',
             subtotal: item.price_per_day * item.quantity * pricingMultiplier,
@@ -1207,6 +1207,7 @@ export class OrderRepository extends BaseRepository {
             product_id: item.product_id,
             quantity: item.quantity,
             price_per_day: item.price_per_day,
+            original_price_per_day: item.original_price_per_day || item.price_per_day,
             discount: item.discount || 0,
             discount_type: item.discount_type || 'flat',
             subtotal: lineTotal,
@@ -1437,28 +1438,17 @@ export class OrderRepository extends BaseRepository {
    * Count orders
    */
   async count(params?: OrderSearchParams): Promise<RepositoryResult<number>> {
-    let customerIds: string[] = [];
     const searchTerm = params?.query?.trim();
 
-    // Two-step search: if query provided, first find matching customers
+    let customerIds: string[] = [];
     if (searchTerm) {
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isUuid = uuidPattern.test(searchTerm);
-      
-      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
-      if (isUuid) {
-        customerOr += `,id.eq.${searchTerm}`;
-      }
-
       const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(customerOr);
-
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       if (customerError) {
-        console.error('Customer Search Query Error:', customerError);
+        console.error('[OrderRepository.count] Customer search error:', customerError);
       }
-
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
@@ -1521,29 +1511,17 @@ export class OrderRepository extends BaseRepository {
 
     if (searchTerm) {
       const filters: string[] = [];
-      
-      // 1. Add customer ID matches
       if (customerIds.length > 0) {
         filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
-
-      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
-
       if (uuidPattern.test(searchTerm)) {
         filters.push(`id.eq.${searchTerm}`);
-      } else if (isHexIsh && searchTerm.length >= 4) {
-        // Support searching by the first 8 characters (short ID used in invoices)
-        // ONLY if it looks like a hex string to avoid performance issues on UUID column
-        filters.push(`id.ilike.${searchTerm}%`);
       }
-
-
+      filters.push(`invoice_number.ilike.%${searchTerm}%`);
       if (filters.length > 0) {
         query = query.or(filters.join(','));
       } else {
-        // If searchTerm provided but no matching customers or ID pattern, force empty result
         query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
