@@ -1027,7 +1027,7 @@ export class ReportService {
           const fiscalSuffix = `${startYY}${endYY}`;
           
           const seqNum = orderSequenceMap[order.id] || 1;
-          const formattedInvoiceNo = `MAZ-${fiscalSuffix}-${seqNum}`;
+          const formattedInvoiceNo = `REN-${fiscalSuffix}-${seqNum}`;
 
           invoiceMap[order.id] = {
             order_id: order.id,

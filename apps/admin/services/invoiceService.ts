@@ -82,8 +82,8 @@ export class InvoiceService {
         .lte('created_at', order.created_at);
       if (!countErr && count !== null) { sequentialNum = count; }
       invoiceNumber = invoiceType === 'final'
-        ? `MAZ-${fiscalSuffix}-${sequentialNum}`
-        : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
+        ? `REN-${fiscalSuffix}-${sequentialNum}`
+        : `REN-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     }
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 

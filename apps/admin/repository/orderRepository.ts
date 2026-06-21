@@ -965,7 +965,7 @@ export class OrderRepository extends BaseRepository {
     const startDateStr = startDate.toISOString().split('T')[0];
     const initialStatus = 'scheduled';
 
-    // Generate sequential invoice number: MAZ-{fiscalYear}-{sequentialNum}
+    // Generate sequential invoice number: REN-{fiscalYear}-{sequentialNum}
     const now = new Date();
     const orderYear = now.getFullYear();
     const orderMonth = now.getMonth(); // 0-indexed
@@ -977,10 +977,10 @@ export class OrderRepository extends BaseRepository {
     const { count: existingCount } = await this.client
       .from(this.tableName)
       .select('id', { count: 'exact', head: true })
-      .like('invoice_number', `MAZ-${fiscalSuffix}-%`);
+      .like('invoice_number', `REN-${fiscalSuffix}-%`);
 
     const seqNum = (existingCount || 0) + 1;
-    const invoiceNumber = `MAZ-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
+    const invoiceNumber = `REN-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
 
     // Create order first
     const orderResponse = await this.client
