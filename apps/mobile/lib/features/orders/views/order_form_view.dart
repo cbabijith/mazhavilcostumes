@@ -148,6 +148,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
               productName: item.product?.name ?? 'Linked Product',
               quantity: item.quantity,
               pricePerDay: item.pricePerDay,
+              originalPricePerDay: item.originalPricePerDay ?? item.pricePerDay,
               gstPercentage: item.gstPercentage,
               isAvailable: true,
               discount: item.discount,
@@ -217,7 +218,9 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
     String appBarTitle = '1. Customer & Dates';
     if (isEditing) {
-      appBarTitle = 'Edit Order #${widget.order!.id.substring(0, 8)}';
+      appBarTitle = widget.order!.invoiceNumber != null
+          ? 'Edit Order #${widget.order!.invoiceNumber}'
+          : 'Edit Order #${widget.order!.id.substring(0, 8)}';
     } else if (_currentPage == 1) {
       appBarTitle = '2. Select Costumes';
     } else if (_currentPage == 2) {
@@ -288,6 +291,8 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   Widget _buildFloatingCartSummaryBar() {
     if (_items.isEmpty) return const SizedBox.shrink();
 
+    final hasInvalidPrice = _items.any((item) => item.pricePerDay < item.originalPricePerDay);
+
     return SafeArea(
       child: Container(
         padding: Responsive.all(AppSizes.spacingMedium),
@@ -334,25 +339,31 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: hasInvalidPrice ? Colors.grey[300] : AppColors.primary,
+                foregroundColor: hasInvalidPrice ? Colors.grey[500] : Colors.white,
                 minimumSize: Size(Responsive.w(150), Responsive.h(40)),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
                 ),
               ),
-              onPressed: () {
-                _pageController.nextPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
+              onPressed: hasInvalidPrice
+                  ? null
+                  : () {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    },
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text('Review & Pay'),
                   SizedBox(width: Responsive.w(4)),
-                  const Icon(Icons.arrow_forward_rounded, size: 16),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: hasInvalidPrice ? Colors.grey[500] : Colors.white,
+                  ),
                 ],
               ),
             ),

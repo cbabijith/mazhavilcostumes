@@ -613,10 +613,15 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                           Text(customerName,
                               style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w700, color: AppColors.primary),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
-                          Row(
+                          Wrap(
+                            spacing: Responsive.w(AppSizes.spacingSmall),
+                            runSpacing: Responsive.h(2),
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Text(
-                                'ID: ${order.id.substring(0, 8).toUpperCase()}',
+                                order.invoiceNumber != null
+                                    ? 'Invoice: ${order.invoiceNumber}'
+                                    : 'ID: ${order.id.substring(0, 8).toUpperCase()}',
                                 style: TextStyle(
                                   fontSize: Responsive.sp(AppSizes.fontTiny),
                                   fontFamily: 'monospace',
@@ -624,7 +629,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                                   color: Colors.grey[500],
                                 ),
                               ),
-                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                               Text(
                                 '• Booked: ${_fmtDate(order.createdAt)}',
                                 style: TextStyle(

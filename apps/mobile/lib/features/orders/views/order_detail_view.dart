@@ -735,7 +735,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '#${_currentOrder.id.substring(0, 8).toUpperCase()}',
+                _currentOrder.invoiceNumber != null
+                    ? 'Invoice: ${_currentOrder.invoiceNumber}'
+                    : '#${_currentOrder.id.substring(0, 8).toUpperCase()}',
                 style: TextStyle(
                   fontSize: Responsive.sp(AppSizes.fontLarge),
                   fontWeight: FontWeight.bold,

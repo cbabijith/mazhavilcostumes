@@ -109,13 +109,13 @@ class ProductInfo extends Equatable {
     };
   }
 }
-
 class OrderItem extends Equatable {
   final String id;
   final String orderId;
   final String productId;
   final int quantity;
   final double pricePerDay;
+  final double? originalPricePerDay;
   final double totalPrice;
   final double subtotal;
   final double discount;
@@ -139,6 +139,7 @@ class OrderItem extends Equatable {
     required this.productId,
     required this.quantity,
     required this.pricePerDay,
+    this.originalPricePerDay,
     required this.totalPrice,
     required this.subtotal,
     this.discount = 0.0,
@@ -164,6 +165,7 @@ class OrderItem extends Equatable {
         productId,
         quantity,
         pricePerDay,
+        originalPricePerDay,
         totalPrice,
         subtotal,
         discount,
@@ -189,6 +191,7 @@ class OrderItem extends Equatable {
       productId: json['product_id'] as String? ?? '',
       quantity: json['quantity'] as int? ?? 0,
       pricePerDay: (json['price_per_day'] as num?)?.toDouble() ?? 0.0,
+      originalPricePerDay: (json['original_price_per_day'] as num?)?.toDouble(),
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0.0,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
@@ -249,6 +252,7 @@ class OrderItem extends Equatable {
       'product_id': productId,
       'quantity': quantity,
       'price_per_day': pricePerDay,
+      'original_price_per_day': originalPricePerDay,
       'total_price': totalPrice,
       'subtotal': subtotal,
       'discount': discount,
@@ -301,6 +305,7 @@ class Order extends Equatable {
   final String? cancelledBy;
   final String? cancelledAt;
   final bool isLate;
+  final String? invoiceNumber;
   final String createdAt;
   final String? updatedAt;
   final CustomerInfo? customer;
@@ -343,6 +348,7 @@ class Order extends Equatable {
     this.cancelledBy,
     this.cancelledAt,
     this.isLate = false,
+    this.invoiceNumber,
     required this.createdAt,
     this.updatedAt,
     this.customer,
@@ -384,6 +390,7 @@ class Order extends Equatable {
         cancelledBy,
         cancelledAt,
         isLate,
+        invoiceNumber,
         createdAt,
         updatedAt,
         customer,
@@ -436,6 +443,7 @@ class Order extends Equatable {
       cancelledBy: json['cancelled_by'] as String?,
       cancelledAt: json['cancelled_at'] as String?,
       isLate: json['is_late'] as bool? ?? false,
+      invoiceNumber: json['invoice_number'] as String?,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String?,
       customer: json['customer'] != null
@@ -562,6 +570,7 @@ class Order extends Equatable {
       'cancelled_by': cancelledBy,
       'cancelled_at': cancelledAt,
       'is_late': isLate,
+      'invoice_number': invoiceNumber,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'customer': customer?.toJson(),

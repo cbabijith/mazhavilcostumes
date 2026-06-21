@@ -415,6 +415,79 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
           Row(
             children: [
               Expanded(
+                child: Focus(
+                  onFocusChange: (hasFocus) {
+                    if (!hasFocus) {
+                      final val = item.priceController.text;
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed < item.originalPricePerDay) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Price Override: Price cannot be lower than ₹${item.originalPricePerDay.toStringAsFixed(2)}.',
+                            ),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        _update(() {
+                          item.pricePerDay = item.originalPricePerDay;
+                          item.priceController.text = item.originalPricePerDay % 1 == 0
+                              ? item.originalPricePerDay.toStringAsFixed(0)
+                              : item.originalPricePerDay.toStringAsFixed(2);
+                        });
+                        _calculateTotals();
+                      }
+                    }
+                  },
+                  child: TextFormField(
+                    controller: item.priceController,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: TextStyle(fontSize: Responsive.sp(14)),
+                    decoration: InputDecoration(
+                      labelText: 'Price Per Day',
+                      hintText: item.originalPricePerDay.toStringAsFixed(0),
+                      contentPadding: Responsive.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      suffixText: item.pricePerDay > item.originalPricePerDay ? 'Adjusted' : null,
+                      suffixStyle: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: Responsive.sp(11),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.isEmpty) return 'Required';
+                      final parsed = double.tryParse(val);
+                      if (parsed == null) return 'Invalid price';
+                      if (parsed < item.originalPricePerDay) {
+                        return 'Price cannot be lower than ₹${item.originalPricePerDay.toStringAsFixed(2)}.';
+                      }
+                      return null;
+                    },
+                    onChanged: (val) {
+                      final parsed = double.tryParse(val);
+                      if (parsed != null) {
+                        _update(() {
+                          item.pricePerDay = parsed;
+                        });
+                        _calculateTotals();
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(12)),
+          Row(
+            children: [
+              Expanded(
                 child: TextFormField(
                   initialValue: item.discount == 0.0
                       ? ''

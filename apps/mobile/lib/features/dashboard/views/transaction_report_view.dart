@@ -358,7 +358,9 @@ class TransactionReportView extends ConsumerWidget {
                 Row(
                   children: [
                     Text(
-                      'Order #${tx.orderId.substring(tx.orderId.length > 5 ? tx.orderId.length - 5 : 0).toUpperCase()}',
+                      tx.invoiceNumber != null
+                          ? 'Invoice: ${tx.invoiceNumber}'
+                          : 'Order #${tx.orderId.substring(tx.orderId.length > 5 ? tx.orderId.length - 5 : 0).toUpperCase()}',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
                         fontWeight: FontWeight.bold,
