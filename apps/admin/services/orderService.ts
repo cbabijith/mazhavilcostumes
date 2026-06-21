@@ -363,13 +363,38 @@ export class OrderService {
 
     const [isGstEnabledResult, productsResult, branchResponse] = await Promise.all([
       settingsService.getIsGSTEnabled(),
-      adminClient.from('products').select('id, category_id, categories:category_id(gst_percentage)').in('id', productIds),
+      adminClient.from('products').select('id, price_per_day, category_id, categories:category_id(gst_percentage)').in('id', productIds),
       adminClient.from('branches').select('store_id').eq('id', data.branch_id).single()
     ]);
 
     const isGstEnabled = !!(isGstEnabledResult.success && isGstEnabledResult.data);
     const products = productsResult.data;
     const storeId = branchResponse.data?.store_id;
+
+    // Validate price override: price_per_day must be >= product's actual price
+    if (products) {
+      const productPriceMap = new Map<string, number>();
+      for (const p of products) {
+        productPriceMap.set(p.id, (p as any).price_per_day ?? 0);
+      }
+      for (const item of data.items) {
+        const productPrice = productPriceMap.get(item.product_id);
+        if (productPrice !== undefined && item.price_per_day < productPrice) {
+          return {
+            data: null,
+            error: {
+              message: `Price for a product cannot be lower than the original price (${productPrice})`,
+              code: 'PRICE_BELOW_ORIGINAL'
+            } as any,
+            success: false,
+          };
+        }
+        // Set original_price_per_day from DB if not already provided
+        if (!(item as any).original_price_per_day && productPrice !== undefined) {
+          (item as any).original_price_per_day = productPrice;
+        }
+      }
+    }
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
     let perItemGstRates: Map<string, number> = new Map();
@@ -581,6 +606,41 @@ export class OrderService {
           } as any,
           success: false,
         };
+      }
+    }
+
+    // Validate price override for items (if provided)
+    if (data.items && data.items.length > 0) {
+      const productIds = data.items.map((item: any) => item.product_id);
+      const { createAdminClient } = await import('@/lib/supabase/server');
+      const adminClient = createAdminClient();
+      const { data: products } = await adminClient
+        .from('products')
+        .select('id, price_per_day')
+        .in('id', productIds);
+
+      if (products) {
+        const productPriceMap = new Map<string, number>();
+        for (const p of products) {
+          productPriceMap.set(p.id, (p as any).price_per_day ?? 0);
+        }
+        for (const item of data.items) {
+          const productPrice = productPriceMap.get(item.product_id);
+          if (productPrice !== undefined && item.price_per_day < productPrice) {
+            return {
+              data: null,
+              error: {
+                message: `Price for a product cannot be lower than the original price (${productPrice})`,
+                code: 'PRICE_BELOW_ORIGINAL'
+              } as any,
+              success: false,
+            };
+          }
+          // Set original_price_per_day from DB if not already provided
+          if (!(item as any).original_price_per_day && productPrice !== undefined) {
+            (item as any).original_price_per_day = productPrice;
+          }
+        }
       }
     }
 

@@ -78,6 +78,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       product: item.product || { id: item.product_id, name: "Product", price_per_day: item.price_per_day },
       quantity: item.quantity,
       price_per_day: item.price_per_day,
+      original_price_per_day: item.original_price_per_day || item.price_per_day,
       discount: item.discount || 0,
       discount_type: item.discount_type || 'flat' as 'flat' | 'percent',
     })) || []
@@ -360,7 +361,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       if (ex) {
         return prev.map(p => p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
-      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
+      return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, original_price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
     });
     setProductSearch("");
     setIsProductDropdownOpen(false);
@@ -421,7 +422,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             p.product.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
           );
         }
-        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
+        return [...prev, { product, quantity: 1, price_per_day: product.price_per_day, original_price_per_day: product.price_per_day, discount: 0, discount_type: 'flat' as const }];
       });
       showSuccess(wasExisting ? `${product.name} — quantity increased` : `${product.name} added to cart`);
     } catch {
@@ -531,6 +532,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         product_id: item.product.id,
         quantity: item.quantity,
         price_per_day: item.price_per_day,
+        original_price_per_day: item.original_price_per_day,
         discount: item.discount || 0,
         discount_type: item.discount_type || 'flat',
       }))
@@ -591,6 +593,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
           product_id: item.product.id,
           quantity: item.quantity,
           price_per_day: item.price_per_day,
+          original_price_per_day: item.original_price_per_day,
           discount: item.discount || 0,
           discount_type: item.discount_type || 'flat',
         }))
@@ -998,7 +1001,38 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="font-medium text-slate-900 text-sm truncate">{item.product.name}</h5>
-                            <p className="text-xs text-slate-500 mt-0.5">{formatCurrency(item.price_per_day)}/day</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-slate-400 font-medium">₹</span>
+                              <input
+                                type="number"
+                                value={item.price_per_day}
+                                min={item.original_price_per_day}
+                                step="1"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  if (isNaN(val)) return;
+                                  const minPrice = item.original_price_per_day ?? 0;
+                                  if (val < minPrice) {
+                                    showError("Price Override", `Price cannot be lower than ${formatCurrency(minPrice)}.`);
+                                    setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, price_per_day: minPrice } : p
+                                    ));
+                                    return;
+                                  }
+                                  setCartItems(prev => prev.map(p =>
+                                    p.product.id === item.product.id ? { ...p, price_per_day: val } : p
+                                  ));
+                                }}
+                                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                                className="w-20 h-6 text-xs text-right font-semibold border border-slate-200 rounded px-1.5 outline-none focus:border-slate-900 bg-white"
+                              />
+                              <span className="text-[10px] text-slate-400">/day</span>
+                              {item.price_per_day > (item.original_price_per_day ?? 0) && (
+                                <span className="text-[9px] text-emerald-600 font-medium bg-emerald-50 px-1 py-0.5 rounded">
+                                  adjusted
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <button
                             type="button"
