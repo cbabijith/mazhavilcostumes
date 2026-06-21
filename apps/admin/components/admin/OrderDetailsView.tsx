@@ -549,7 +549,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </Button>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                Order #{order.id.slice(0, 6).toUpperCase()}
+                {order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}
               </h1>
               <div className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wide ${statusDisplay.color}`}>
                 {statusDisplay.label}
@@ -1869,7 +1869,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">{order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}</span>? This action cannot be undone.
                   </p>
                 </div>
               </div>

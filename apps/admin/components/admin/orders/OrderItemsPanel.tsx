@@ -50,7 +50,7 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
             </h2>
             <div className="flex items-center gap-3 mt-1.5">
               <span className="text-xs font-mono text-slate-500">
-                #{order.id.slice(0, 8)}
+                {order.invoice_number || `#${order.id.slice(0, 8)}`}
               </span>
               <div className="flex items-center gap-1 text-xs text-slate-500">
                 <User className="w-3 h-3" />

@@ -62,7 +62,7 @@ function OrderCancelModalInner({
             <p className="text-sm text-slate-600 leading-relaxed">
               Are you sure you want to cancel order{" "}
               <span className="font-semibold text-slate-900">
-                #{order?.id.slice(0, 8)}
+                {order?.invoice_number || `#${order?.id.slice(0, 8)}`}
               </span>
               {order?.customer?.name && (
                 <> for <span className="font-semibold text-slate-900">{order.customer.name}</span></>

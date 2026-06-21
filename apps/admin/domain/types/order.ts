@@ -123,6 +123,7 @@ export interface Order {
   cancelled_by?: string;
   cancelled_at?: string;
   is_late: boolean;
+  invoice_number?: string;
 
   readonly created_at: string;
   readonly updated_at?: string;
