@@ -394,7 +394,7 @@ export class DashboardService {
     const ordersOrFilter = `status.in.(${activeStatuses}),and(status.in.(${completedStatuses}),payment_status.in.(${paymentDueStatuses})),and(status.in.(${completedStatuses}),updated_at.gte.${startDateStr},updated_at.lte.${endDateStr})`;
     
     let ordersQuery = supabase.from('orders')
-      .select('id, status, payment_status, total_amount, amount_paid, updated_at, end_date')
+      .select('id, status, payment_status, total_amount, amount_paid, updated_at, end_date, invoice_number')
       .or(ordersOrFilter);
     if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
 
@@ -642,7 +642,7 @@ export class DashboardService {
       bottlenecks: overdueOrders.slice(0, 3).map(o => ({
         id: o.id,
         type: 'overdue' as const,
-        message: `Order #${o.id.substring(0, 8)} is overdue for return`,
+        message: `Order ${o.invoice_number || '#' + o.id.substring(0, 8)} is overdue for return`,
         severity: 'high' as const,
       })),
       priorityCleaning: (priorityRes.data || []).map((r: any) => ({

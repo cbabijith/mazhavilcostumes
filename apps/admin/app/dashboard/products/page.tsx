@@ -152,7 +152,7 @@ function ProductsContent() {
 
   const [exporting, setExporting] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('large-label');
+  const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
   const [printingBarcodes, setPrintingBarcodes] = useState(false);
   const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
 
@@ -883,7 +883,7 @@ function ProductsContent() {
                             <div className="font-semibold">{size.label}</div>
                             <div className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{size.perSheet} labels per sheet</div>
                           </div>
-                          {key === 'large-label' && (
+                          {key === 'costume-label' && (
                             <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
                               Best
                             </span>

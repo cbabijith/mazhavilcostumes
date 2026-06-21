@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Package, CheckCircle2, AlertTriangle, Loader2, Info,
-  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode, Save, MapPin, FileText
+  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode, Save, MapPin, FileText,
+  CalendarDays, Clock, Box, CircleDollarSign, Truck, RotateCcw
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -487,6 +488,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const statusDisplay = getStatusDisplay(order.status, order.end_date);
+  const rentalDurationDays = Math.max(1, Math.ceil((new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  const totalItemQuantity = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const paymentStatusLabel = order.payment_status === PaymentStatus.PAID ? 'Paid' : order.payment_status === PaymentStatus.PARTIAL ? 'Partial Payment' : order.payment_status;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
@@ -537,140 +541,164 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
         )}
 
-      {/* 1. Hero Banner (The 2-Second Glance) */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
-        {/* Top Row: Order ID + Status */}
-        <div className="flex items-center gap-5">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/dashboard/orders")} className="h-12 w-12 rounded-full bg-slate-50 hover:bg-slate-100 shrink-0">
-            <ArrowLeft className="w-5 h-5 text-slate-700" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-1">
-              #{order.id.slice(0, 6).toUpperCase()}
-            </h1>
-            <p className="text-slate-500 font-bold uppercase tracking-wide text-sm truncate">{order.customer?.name}</p>
-          </div>
-          <div className={`px-4 py-1.5 rounded-full border-2 font-black uppercase tracking-wider text-sm whitespace-nowrap shrink-0 ${statusDisplay.color}`}>
-            {statusDisplay.label}
-          </div>
-        </div>
-
-        {/* Bottom Row: Actions */}
-        <div className="flex items-center gap-3 flex-wrap pl-[68px]">
-          {/* Payment Pill — only for active orders */}
-          {!isFinalized && (
-            amount_due > 0 ? (
-              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-2 rounded-xl text-base font-black text-center whitespace-nowrap">
-                DUE: {formatCurrency(amount_due)}
-              </div>
-            ) : (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-sm font-black text-center">
-                PAID
-              </div>
-            )
-          )}
-
-          {/* Primary Action Button — Start Rental for pending + confirmed + scheduled */}
-          {(order.status === OrderStatus.PENDING || order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.SCHEDULED) && (() => {
-            const today = startOfDay(new Date());
-            const rentalStart = startOfDay(new Date(order.start_date));
-            const rentalEnd = startOfDay(new Date(order.end_date));
-            
-            const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
-            const isBackdated = order.start_date < creationDateStr;
-            const isExpired = !isBackdated && today > rentalEnd;
-            const isEarlyStart = today < rentalStart;
-
-            if (isExpired) {
-              return (
-                <div className="flex flex-col md:flex-row md:items-center gap-4 w-full">
-                  <div className="flex items-start gap-2.5 p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex-1">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5 animate-pulse" />
-                    <div>
-                      <p className="font-extrabold text-red-900 uppercase tracking-wider text-[10px]">Rental Period Expired</p>
-                      <p className="mt-0.5 leading-relaxed text-red-700">
-                        The return date for this order has already passed. You cannot start this rental. If the costume was actually given and returned, record it below. Otherwise, cancel this order.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 self-start md:self-auto">
-                    <Button
-                      onClick={() => setIsBackfillModalOpen(true)}
-                      disabled={isUpdating}
-                      className="h-11 px-4 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-xl whitespace-nowrap"
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-1.5" /> Record as Returned
-                    </Button>
-                    <Button
-                      onClick={() => setIsCancelModalOpen(true)}
-                      disabled={isUpdating}
-                      variant="outline"
-                      className="h-11 px-4 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold text-sm rounded-xl whitespace-nowrap"
-                    >
-                      <XCircle className="w-4 h-4 mr-1.5" /> Cancel Order
-                    </Button>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <>
-                <Button
-                  onClick={handleStartOrder}
-                  disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict}
-                  className="h-11 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isCheckingStock ? (
-                    <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> Checking...</>
-                  ) : (
-                    order.has_stock_conflict ? 'Stock Conflict (Blocked)' : 'Start Rental'
-                  )}
-                </Button>
-                <Button
-                  onClick={() => setIsCancelModalOpen(true)}
-                  disabled={isUpdating}
-                  variant="outline"
-                  className="h-11 px-4 border-2 border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 font-bold text-sm rounded-xl"
-                >
-                  <XCircle className="w-4 h-4 mr-1.5" /> Cancel Order
-                </Button>
-                {isEarlyStart && (
-                  <p className="text-xs text-amber-600 font-semibold bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
-                    Original pickup: {format(rentalStart, "dd MMM, yyyy")}
-                  </p>
-                )}
-              </>
-            );
-          })()}
-          {order.status !== OrderStatus.SCHEDULED && !isFinalized && amount_due > 0 && (
-            <Button onClick={() => setIsPaymentModalOpen(true)} className="h-11 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl">
-              Collect Payment
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-3">
+            <Button variant="ghost" onClick={() => router.push("/dashboard/orders")} className="h-9 px-0 text-slate-600 hover:bg-transparent hover:text-slate-900">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Orders
             </Button>
-          )}
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                {order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}
+              </h1>
+              <div className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wide ${statusDisplay.color}`}>
+                {statusDisplay.label}
+              </div>
+            </div>
+            <p className="text-sm text-slate-500">
+              Created on {format(new Date(order.created_at), "dd MMM, yyyy • h:mm a")} by Admin
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            {!isFinalized && (
+              amount_due > 0 ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
+                  Due {formatCurrency(amount_due)}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">
+                  Paid
+                </div>
+              )
+            )}
+            {(order.status === OrderStatus.PENDING || order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.SCHEDULED) && (() => {
+              const today = startOfDay(new Date());
+              const rentalStart = startOfDay(new Date(order.start_date));
+              const rentalEnd = startOfDay(new Date(order.end_date));
+              const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
+              const isBackdated = order.start_date < creationDateStr;
+              const isExpired = !isBackdated && today > rentalEnd;
+              const isEarlyStart = today < rentalStart;
+
+              if (isExpired) {
+                return (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+                      Rental period expired
+                    </div>
+                    <Button onClick={() => setIsBackfillModalOpen(true)} disabled={isUpdating} className="h-11 bg-amber-600 px-5 font-semibold text-white hover:bg-amber-700">
+                      <CheckCircle2 className="w-4 h-4 mr-2" /> Record Returned
+                    </Button>
+                    <Button onClick={() => setIsCancelModalOpen(true)} disabled={isUpdating} variant="outline" className="h-11 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50">
+                      <XCircle className="w-4 h-4 mr-2" /> Cancel
+                    </Button>
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  <Button onClick={handleStartOrder} disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict} className="h-12 bg-blue-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    {isCheckingStock ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...</>
+                    ) : (
+                      order.has_stock_conflict ? 'Stock Conflict' : 'Start Rental'
+                    )}
+                  </Button>
+                  <Button onClick={() => setIsCancelModalOpen(true)} disabled={isUpdating} variant="outline" className="h-12 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50">
+                    Cancel
+                  </Button>
+                  {isEarlyStart && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                      Pickup: {format(rentalStart, "dd MMM, yyyy")}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+            {order.status !== OrderStatus.SCHEDULED && !isFinalized && amount_due > 0 && (
+              <Button onClick={() => setIsPaymentModalOpen(true)} className="h-12 bg-red-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-red-700">
+                Collect Payment
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:grid-cols-2 xl:grid-cols-5">
+          <div className="flex items-center gap-3 border-b border-slate-100 p-4 sm:border-r xl:border-b-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pickup</p>
+              <p className="text-sm font-bold text-slate-900">{format(new Date(order.start_date), "dd MMM, yyyy")}</p>
+            </div>
+          </div>
+          <div className={`flex items-center gap-3 border-b border-slate-100 p-4 xl:border-b-0 xl:border-r ${order.is_late ? 'bg-red-50' : ''}`}>
+            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${order.is_late ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${order.is_late ? 'text-red-500' : 'text-slate-400'}`}>Return</p>
+              <p className={`text-sm font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}>{format(new Date(order.end_date), "dd MMM, yyyy")}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 border-b border-slate-100 p-4 sm:border-r xl:border-b-0">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+              <Clock className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Duration</p>
+              <p className="text-sm font-bold text-slate-900">{rentalDurationDays} Day{rentalDurationDays !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 border-b border-slate-100 p-4 xl:border-b-0 xl:border-r">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-50 text-violet-600">
+              <Box className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Items</p>
+              <p className="text-sm font-bold text-slate-900">{totalItemQuantity} Piece{totalItemQuantity !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <CircleDollarSign className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment</p>
+              <p className="text-sm font-bold text-slate-900 capitalize">{paymentStatusLabel}</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* 2. Logistics Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Out (Pickup)</p>
-          <p className="text-2xl font-bold text-slate-900">{format(new Date(order.start_date), "MMM d, yyyy")}</p>
-        </div>
-        <div className={`bg-white rounded-2xl border p-5 ${order.is_late ? 'border-red-400 bg-red-50 ring-4 ring-red-50' : 'border-slate-200'}`}>
-          <p className={`text-xs font-bold uppercase tracking-widest mb-1 ${order.is_late ? 'text-red-600' : 'text-slate-500'}`}>
-            In (Return)
-          </p>
-          <p className={`text-2xl font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}>
-            {format(new Date(order.end_date), "MMM d, yyyy")}
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-5">
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Items</p>
-          <p className="text-2xl font-bold text-slate-900">{order.items.length} Pieces</p>
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          {[
+            { label: 'Created', active: true, icon: CalendarDays },
+            { label: 'Payment', active: order.amount_paid > 0, icon: Banknote },
+            { label: 'Ready', active: [OrderStatus.CONFIRMED, OrderStatus.SCHEDULED, OrderStatus.ONGOING, OrderStatus.IN_USE, OrderStatus.PARTIAL, OrderStatus.RETURNED, OrderStatus.COMPLETED].includes(order.status), icon: Package },
+            { label: 'Rented', active: [OrderStatus.ONGOING, OrderStatus.IN_USE, OrderStatus.PARTIAL, OrderStatus.RETURNED, OrderStatus.COMPLETED].includes(order.status), icon: Truck },
+            { label: order.status === OrderStatus.CANCELLED ? 'Cancelled' : 'Completed', active: [OrderStatus.RETURNED, OrderStatus.COMPLETED, OrderStatus.CANCELLED].includes(order.status), icon: order.status === OrderStatus.CANCELLED ? XCircle : CheckCircle2 },
+          ].map((step, index) => {
+            const Icon = step.icon;
+            return (
+              <div key={step.label} className="relative flex items-center gap-3">
+                {index > 0 && <div className={`hidden md:block absolute -left-1/2 top-5 h-px w-full ${step.active ? 'bg-blue-200' : 'bg-slate-200'}`} />}
+                <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${step.active ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className={`text-xs font-bold ${step.active ? 'text-slate-900' : 'text-slate-400'}`}>{step.label}</p>
+                  <p className="text-[10px] text-slate-400">Step {index + 1}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-
 
       {/* Payment History Block */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -1841,7 +1869,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">#{order.id.slice(0, 6).toUpperCase()}</span>? This action cannot be undone.
+                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">{order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}</span>? This action cannot be undone.
                   </p>
                 </div>
               </div>

@@ -102,7 +102,7 @@ function OrderRowInner({
               {order.customer?.name || "Unknown Customer"}
             </p>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
-              ID: {order.id.slice(0, 8)}
+              {order.invoice_number || order.id.slice(0, 8)}
             </p>
           </div>
         </div>
@@ -256,7 +256,7 @@ function OrderRowInner({
                 if (!phone) return;
 
                 const customerName = order.customer?.name || 'Customer';
-                const orderIdShort = order.id.slice(0, 8);
+                const orderIdShort = order.invoice_number || order.id.slice(0, 8);
                 const startDate = format(new Date(order.start_date), 'MMM d, yyyy');
                 const endDate = format(new Date(order.end_date), 'MMM d, yyyy');
 
@@ -264,33 +264,33 @@ function OrderRowInner({
                 switch (order.status) {
                   case OrderStatus.PENDING:
                   case OrderStatus.SCHEDULED:
-                    message = `Hi ${customerName}, this is regarding your upcoming order #${orderIdShort} scheduled for ${startDate}. Please confirm your availability.`;
+                    message = `Hi ${customerName}, this is regarding your upcoming order ${orderIdShort} scheduled for ${startDate}. Please confirm your availability.`;
                     break;
                   case OrderStatus.ONGOING:
                   case OrderStatus.IN_USE:
-                    message = `Hi ${customerName}, your order #${orderIdShort} is currently active. Please remember to return by ${endDate}.`;
+                    message = `Hi ${customerName}, your order ${orderIdShort} is currently active. Please remember to return by ${endDate}.`;
                     break;
                   // LATE_RETURN removed - now handled by is_late boolean flag
                   case OrderStatus.PARTIAL:
-                    message = `Hi ${customerName}, your order #${orderIdShort} has partial returns pending. Please complete the return process.`;
+                    message = `Hi ${customerName}, your order ${orderIdShort} has partial returns pending. Please complete the return process.`;
                     break;
                   case OrderStatus.DELIVERED:
-                    message = `Hi ${customerName}, your order #${orderIdShort} has been delivered. Enjoy your event! Please return by ${endDate}.`;
+                    message = `Hi ${customerName}, your order ${orderIdShort} has been delivered. Enjoy your event! Please return by ${endDate}.`;
                     break;
                   case OrderStatus.RETURNED:
-                    message = `Hi ${customerName}, thank you for returning your order #${orderIdShort}. We hope you had a great experience!`;
+                    message = `Hi ${customerName}, thank you for returning your order ${orderIdShort}. We hope you had a great experience!`;
                     break;
                   case OrderStatus.COMPLETED:
-                    message = `Hi ${customerName}, your order #${orderIdShort} has been completed. Thank you for choosing Rentocostume!`;
+                    message = `Hi ${customerName}, your order ${orderIdShort} has been completed. Thank you for choosing Rentocostume!`;
                     break;
                   case OrderStatus.CANCELLED:
-                    message = `Hi ${customerName}, your order #${orderIdShort} has been cancelled. Contact us if you need assistance.`;
+                    message = `Hi ${customerName}, your order ${orderIdShort} has been cancelled. Contact us if you need assistance.`;
                     break;
                   case OrderStatus.FLAGGED:
-                    message = `Hi ${customerName}, there is an issue with your order #${orderIdShort}. Please contact us immediately.`;
+                    message = `Hi ${customerName}, there is an issue with your order ${orderIdShort}. Please contact us immediately.`;
                     break;
                   default:
-                    message = `Hi ${customerName}, this is regarding your order #${orderIdShort} at Rentocostume.`;
+                    message = `Hi ${customerName}, this is regarding your order ${orderIdShort} at Rentocostume.`;
                 }
 
                 const encodedMessage = encodeURIComponent(message);
