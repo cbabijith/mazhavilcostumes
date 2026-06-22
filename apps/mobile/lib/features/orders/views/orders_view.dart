@@ -68,28 +68,51 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                 child: ordersAsync.when(
                   data: (paginated) {
                     if (paginated.orders.isEmpty) return _buildEmptyState();
-                    return RefreshIndicator(
-                      color: AppColors.primary,
-                      onRefresh: () async => ref.invalidate(ordersProvider),
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
-                        itemCount: paginated.orders.length + (paginated.hasNext ? 1 : 0),
-                        separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        itemBuilder: (context, i) {
-                          if (i == paginated.orders.length) {
-                            return Padding(
-                              padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
-                              child: const Center(
-                                child: CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                ),
-                              ),
-                            );
-                          }
-                          return _buildOrderCard(paginated.orders[i]);
-                        },
-                      ),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: Responsive.only(
+                            left: AppSizes.screenPaddingSmall,
+                            right: AppSizes.screenPaddingSmall,
+                            top: AppSizes.spacingTiny,
+                            bottom: AppSizes.spacingTiny,
+                          ),
+                          child: Text(
+                            'Total Records: ${paginated.total}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: RefreshIndicator(
+                            color: AppColors.primary,
+                            onRefresh: () async => ref.invalidate(ordersProvider),
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
+                              itemCount: paginated.orders.length + (paginated.hasNext ? 1 : 0),
+                              separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                              itemBuilder: (context, i) {
+                                if (i == paginated.orders.length) {
+                                  return Padding(
+                                    padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return _buildOrderCard(paginated.orders[i]);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   },
                   loading: () => _buildShimmerList(),
