@@ -49,28 +49,18 @@ export class OrderRepository extends BaseRepository {
    * Find all orders
    */
   async findAll(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
-    let customerIds: string[] = [];
     const searchTerm = params?.query?.trim();
 
-    // Two-step search: if query provided, first find matching customers
+    // Parallel search: query customers and orders simultaneously to avoid sequential round trips
+    let customerIds: string[] = [];
     if (searchTerm) {
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isUuid = uuidPattern.test(searchTerm);
-      
-      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
-      if (isUuid) {
-        customerOr += `,id.eq.${searchTerm}`;
-      }
-
       const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(customerOr);
-
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       if (customerError) {
-        console.error('Customer Search Query Error:', customerError);
+        console.error('[OrderRepository.findAll] Customer search error:', customerError);
       }
-
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
@@ -160,29 +150,17 @@ export class OrderRepository extends BaseRepository {
 
     if (searchTerm) {
       const filters: string[] = [];
-      
-      // 1. Add customer ID matches
       if (customerIds.length > 0) {
         filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
-
-      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
-
       if (uuidPattern.test(searchTerm)) {
         filters.push(`id.eq.${searchTerm}`);
-      } else if (isHexIsh && searchTerm.length >= 4) {
-        // Support searching by the first 8 characters (short ID used in invoices)
-        // ONLY if it looks like a hex string to avoid performance issues on UUID column
-        filters.push(`id.ilike.${searchTerm}%`);
       }
-
-
+      filters.push(`invoice_number.ilike.%${searchTerm}%`);
       if (filters.length > 0) {
         query = query.or(filters.join(','));
       } else {
-        // If searchTerm provided but no matching customers or ID pattern, force empty result
         query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
@@ -265,6 +243,9 @@ export class OrderRepository extends BaseRepository {
 
     const response = await query;
     const { data, count, error } = response as any;
+    if (error) {
+      console.error('[OrderRepository.findAll] Supabase query error:', error);
+    }
     const result = this.handleResponse<OrderWithRelations[]>({ data, error });
 
     if (!result.success || !result.data) {
@@ -873,7 +854,7 @@ export class OrderRepository extends BaseRepository {
   /**
    * Create a new order with items
    */
-  async create(data: CreateOrderDTO, isGstEnabled: boolean = false, perItemGstRates: Map<string, number> = new Map()): Promise<RepositoryResult<OrderWithRelations>> {
+  async create(data: CreateOrderDTO, isGstEnabled: boolean = false, perItemGstRates: Map<string, number> = new Map(), providedStoreId?: string): Promise<RepositoryResult<OrderWithRelations>> {
     // Parse rental dates — used for scheduling AND pricing
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
@@ -961,29 +942,47 @@ export class OrderRepository extends BaseRepository {
     // Grand total = subtotal (GST is WITHIN, not added on top)
     const totalAmount = subtotal;
 
-    // Fetch store_id from branch
-    const branchResponse = await this.client
-      .from('branches')
-      .select('store_id')
-      .eq('id', data.branch_id)
-      .single();
-      
-    if (branchResponse.error) {
-      return {
-        data: null,
-        error: branchResponse.error,
-        success: false
-      };
+    let storeId = providedStoreId;
+    if (!storeId) {
+      // Fetch store_id from branch if not provided
+      const branchResponse = await this.client
+        .from('branches')
+        .select('store_id')
+        .eq('id', data.branch_id)
+        .single();
+        
+      if (branchResponse.error) {
+        return {
+          data: null,
+          error: branchResponse.error,
+          success: false
+        };
+      }
+      storeId = branchResponse.data.store_id;
     }
-    
-    const storeId = branchResponse.data.store_id;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const startDateStr = startDate.toISOString().split('T')[0];
     const initialStatus = 'scheduled';
 
-    // Start a transaction by creating the order first
-    // DB columns: start_date, end_date, event_date (all DATE type)
+    // Generate sequential invoice number: MAZ-{fiscalYear}-{sequentialNum}
+    const now = new Date();
+    const orderYear = now.getFullYear();
+    const orderMonth = now.getMonth(); // 0-indexed
+    const fiscalStartYear = orderMonth < 3 ? orderYear - 1 : orderYear;
+    const startYY = String(fiscalStartYear).slice(-2);
+    const endYY = String(fiscalStartYear + 1).slice(-2);
+    const fiscalSuffix = `${startYY}${endYY}`;
+
+    const { count: existingCount } = await this.client
+      .from(this.tableName)
+      .select('id', { count: 'exact', head: true })
+      .like('invoice_number', `MAZ-${fiscalSuffix}-%`);
+
+    const seqNum = (existingCount || 0) + 1;
+    const invoiceNumber = `MAZ-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
+
+    // Create order first
     const orderResponse = await this.client
       .from(this.tableName)
       .insert({
@@ -991,6 +990,7 @@ export class OrderRepository extends BaseRepository {
         branch_id: data.branch_id,
         store_id: storeId,
         status: initialStatus,
+        invoice_number: invoiceNumber,
         start_date: startDateStr,
         end_date: endDate.toISOString().split('T')[0],
         event_date: data.event_date ? new Date(data.event_date).toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
@@ -1022,7 +1022,7 @@ export class OrderRepository extends BaseRepository {
 
     const order = orderResponse.data;
 
-    // Create order items — flat rent price, with per-item discounts
+    // Create order items
     const itemsResponse = await this.client
       .from(this.orderItemsTable)
       .insert(
@@ -1033,6 +1033,7 @@ export class OrderRepository extends BaseRepository {
             product_id: item.product_id,
             quantity: item.quantity,
             price_per_day: item.price_per_day,
+            original_price_per_day: item.original_price_per_day || item.price_per_day,
             discount: item.discount || 0,
             discount_type: item.discount_type || 'flat',
             subtotal: item.price_per_day * item.quantity * pricingMultiplier,
@@ -1050,37 +1051,58 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<OrderWithRelations>(itemsResponse);
     }
 
+    const items = itemsResponse.data;
+
     // NOTE: Inventory is NOT deducted at creation time.
     // Stock deduction happens only when the user manually starts the rental
     // (transitions to ongoing/in_use) via the order details page.
 
-    // Create advance payment record if advance was collected
-    if (data.advance_collected && data.advance_amount && data.advance_amount > 0) {
-      await this.client
-        .from('payments')
+    // Background non-critical inserts
+    (async () => {
+      const promises: any[] = [];
+
+      // Create advance payment record if advance was collected
+      if (data.advance_collected && data.advance_amount && data.advance_amount > 0) {
+        promises.push(this.client
+          .from('payments')
+          .insert({
+            order_id: order.id,
+            payment_type: 'advance',
+            amount: data.advance_amount,
+            payment_mode: data.advance_payment_method || 'cash',
+            notes: 'Advance payment collected at order creation',
+            payment_date: new Date().toISOString(),
+            ...this.getCreateAuditFields(),
+          }));
+      }
+
+      // Create initial status history
+      promises.push(this.client
+        .from(this.orderStatusHistoryTable)
         .insert({
           order_id: order.id,
-          payment_type: 'advance',
-          amount: data.advance_amount,
-          payment_mode: data.advance_payment_method || 'cash',
-          notes: 'Advance payment collected at order creation',
-          payment_date: new Date().toISOString(),
-          ...this.getCreateAuditFields(),
-        });
-    }
+          status: initialStatus,
+          changed_by: null,
+        }));
 
+      await Promise.all(promises);
+    })().catch(err => {
+      console.error('[OrderRepository.create] Background inserts failed:', err);
+    });
 
-    // Create initial status history
-    await this.client
-      .from(this.orderStatusHistoryTable)
-      .insert({
-        order_id: order.id,
-        status: initialStatus,
-        changed_by: null,
-      });
+    // Skip findById re-fetch, construct response from existing data
+    const constructedOrder: OrderWithRelations = {
+      ...order,
+      items: items,
+      customer: undefined as any,
+      branch: undefined as any
+    };
 
-    // Fetch the complete order with relations
-    return this.findById(order.id);
+    return {
+      data: constructedOrder,
+      error: null,
+      success: true
+    };
   }
 
   /**
@@ -1185,6 +1207,7 @@ export class OrderRepository extends BaseRepository {
             product_id: item.product_id,
             quantity: item.quantity,
             price_per_day: item.price_per_day,
+            original_price_per_day: item.original_price_per_day || item.price_per_day,
             discount: item.discount || 0,
             discount_type: item.discount_type || 'flat',
             subtotal: lineTotal,
@@ -1206,8 +1229,8 @@ export class OrderRepository extends BaseRepository {
       if (isStarting || isCancelling) {
         const itemsRes = await this.client.from(this.orderItemsTable).select('product_id, quantity').eq('order_id', id);
         if (itemsRes.data) {
-          for (const item of itemsRes.data) {
-            const qtyChange = isStarting ? item.quantity : -item.quantity; // positive means we subtract from available
+          await Promise.all(itemsRes.data.map(async (item) => {
+            const qtyChange = isStarting ? item.quantity : -item.quantity;
             
             const { data: inv } = await this.client.from('product_inventory').select('available_quantity').eq('product_id', item.product_id).eq('branch_id', branchId).single();
             if (inv) {
@@ -1218,7 +1241,7 @@ export class OrderRepository extends BaseRepository {
             if (prod) {
               await this.client.from('products').update({ available_quantity: Math.max(0, prod.available_quantity - qtyChange) }).eq('id', item.product_id);
             }
-          }
+          }));
         }
       }
     }
@@ -1240,7 +1263,9 @@ export class OrderRepository extends BaseRepository {
       return result as RepositoryResult<OrderWithRelations>;
     }
 
-    return this.findById(id);
+    // Skip findById re-fetch — the client invalidates queries on success
+    // which triggers a fresh fetch via useOrder. Saves 1 DB round-trip.
+    return result as RepositoryResult<OrderWithRelations>;
   }
 
   /**
@@ -1413,28 +1438,17 @@ export class OrderRepository extends BaseRepository {
    * Count orders
    */
   async count(params?: OrderSearchParams): Promise<RepositoryResult<number>> {
-    let customerIds: string[] = [];
     const searchTerm = params?.query?.trim();
 
-    // Two-step search: if query provided, first find matching customers
+    let customerIds: string[] = [];
     if (searchTerm) {
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isUuid = uuidPattern.test(searchTerm);
-      
-      let customerOr = `name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`;
-      if (isUuid) {
-        customerOr += `,id.eq.${searchTerm}`;
-      }
-
       const { data: matchingCustomers, error: customerError } = await this.client
         .from('customers')
         .select('id')
-        .or(customerOr);
-
+        .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       if (customerError) {
-        console.error('Customer Search Query Error:', customerError);
+        console.error('[OrderRepository.count] Customer search error:', customerError);
       }
-
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
@@ -1497,29 +1511,17 @@ export class OrderRepository extends BaseRepository {
 
     if (searchTerm) {
       const filters: string[] = [];
-      
-      // 1. Add customer ID matches
       if (customerIds.length > 0) {
         filters.push(`customer_id.in.(${customerIds.join(',')})`);
       }
-
-      // 2. Add Order ID matches (Full UUID or first 8 chars)
       const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const isHexIsh = /^[0-9a-fA-F-]+$/.test(searchTerm);
-
       if (uuidPattern.test(searchTerm)) {
         filters.push(`id.eq.${searchTerm}`);
-      } else if (isHexIsh && searchTerm.length >= 4) {
-        // Support searching by the first 8 characters (short ID used in invoices)
-        // ONLY if it looks like a hex string to avoid performance issues on UUID column
-        filters.push(`id.ilike.${searchTerm}%`);
       }
-
-
+      filters.push(`invoice_number.ilike.%${searchTerm}%`);
       if (filters.length > 0) {
         query = query.or(filters.join(','));
       } else {
-        // If searchTerm provided but no matching customers or ID pattern, force empty result
         query = query.eq('id', '00000000-0000-0000-0000-000000000000');
       }
     }
@@ -1612,14 +1614,7 @@ export class OrderRepository extends BaseRepository {
     // Determine final status based on return condition
     let newStatus = 'returned';
 
-    // Fetch existing order items to check for partial returns
-    const { data: existingItems } = await this.client
-      .from(this.orderItemsTable)
-      .select('id, quantity, returned_quantity')
-      .eq('order_id', orderId);
-
-    // 1. First, fetch all existing order items in a single query
-    // This allows us to prevent N+1 queries during return processing.
+    // Fetch order items being returned — includes branch_id via join for inventory updates
     const itemIds = returnData.items.map(i => i.item_id);
     const { data: orderItems } = await this.client
       .from(this.orderItemsTable)
@@ -1790,7 +1785,9 @@ export class OrderRepository extends BaseRepository {
         changed_by: null,
       });
 
-    return this.findById(orderId);
+    // Skip findById re-fetch — the client invalidates queries on success
+    // which triggers a fresh fetch via useOrder. Saves 1 DB round-trip.
+    return this.handleResponse<OrderWithRelations>(orderResponse);
   }
 
   /**

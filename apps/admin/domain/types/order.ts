@@ -60,6 +60,7 @@ export interface OrderItem {
   readonly product_id: string;
   quantity: number;
   price_per_day: number;
+  original_price_per_day?: number;
   total_price: number;
   subtotal: number;
   discount: number;
@@ -122,6 +123,7 @@ export interface Order {
   cancelled_by?: string;
   cancelled_at?: string;
   is_late: boolean;
+  invoice_number?: string;
 
   readonly created_at: string;
   readonly updated_at?: string;
@@ -171,6 +173,7 @@ export interface CreateOrderDTO {
     product_id: string;
     quantity: number;
     price_per_day: number;
+    original_price_per_day?: number;
   }[];
   rental_start_date: string;
   rental_end_date: string;
@@ -213,11 +216,13 @@ export interface UpdateOrderDTO {
   has_priority_cleaning?: boolean;
   has_stock_conflict?: boolean;
   conflict_details?: any[] | null;
+  backfill_note?: string;
 
   items?: {
     product_id: string;
     quantity: number;
     price_per_day: number;
+    original_price_per_day?: number;
     discount?: number;
     discount_type?: 'flat' | 'percent';
     gst_percentage?: number;

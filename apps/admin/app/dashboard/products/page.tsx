@@ -51,6 +51,9 @@ import {
   downloadBarcode,
   downloadMultipleBarcodes,
   printBarcode,
+  bulkPrintBarcodes,
+  LABEL_SIZES,
+  type LabelSizeKey,
 } from "@/lib/barcode";
 import { type Product, type ProductWithRelations } from "@/domain";
 import Image from "next/image";
@@ -148,6 +151,10 @@ function ProductsContent() {
   const bulkOperation = useBulkProductOperation();
 
   const [exporting, setExporting] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
+  const [printingBarcodes, setPrintingBarcodes] = useState(false);
+  const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
 
   const handleExportCatalog = async () => {
     setExporting(true);
@@ -314,6 +321,41 @@ function ProductsContent() {
     }
   };
 
+  const handleBulkPrintBarcodes = async () => {
+    const list = visibleProducts.filter(
+      (p) => selectedProducts.includes(p.id) && p.barcode
+    );
+    if (list.length === 0) {
+      showError("No Barcodes", "No selected products have barcodes assigned.");
+      return;
+    }
+    setShowPrintModal(true);
+  };
+
+  const handleConfirmPrint = async () => {
+    const list = visibleProducts.filter(
+      (p) => selectedProducts.includes(p.id) && p.barcode
+    );
+    if (list.length === 0) {
+      showError("No Barcodes", "No selected products have barcodes assigned.");
+      setShowPrintModal(false);
+      return;
+    }
+    setPrintingBarcodes(true);
+    try {
+      await bulkPrintBarcodes(
+        list.map((p) => ({ barcode: p.barcode!, name: p.name })),
+        selectedLabelSize,
+      );
+      showSuccess("Print Ready", `Sending ${list.length} barcodes to print (${LABEL_SIZES[selectedLabelSize].label})`);
+      setShowPrintModal(false);
+    } catch {
+      showError("Print Error", "Failed to generate barcode sheets for printing");
+    } finally {
+      setPrintingBarcodes(false);
+    }
+  };
+
   const handleBulkActivate = async () => {
     if (selectedProducts.length === 0) return;
     try {
@@ -459,6 +501,10 @@ function ProductsContent() {
                 <Button size="sm" variant="outline" className="border-slate-200 gap-1.5" onClick={handleBulkDownloadBarcodes} disabled={bulkOperation.isPending}>
                   <Download className="w-4 h-4" />
                   Barcodes
+                </Button>
+                <Button size="sm" variant="outline" className="border-slate-200 gap-1.5" onClick={handleBulkPrintBarcodes} disabled={bulkOperation.isPending}>
+                  <Printer className="w-4 h-4" />
+                  Print
                 </Button>
                 <Button size="sm" variant="destructive" className="gap-1.5" onClick={handleBulkDelete} disabled={bulkOperation.isPending}>
                   <Trash2 className="w-4 h-4" />
@@ -762,6 +808,123 @@ function ProductsContent() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        open={showPrintModal}
+        onClose={() => !printingBarcodes && setShowPrintModal(false)}
+        title="Print Barcodes"
+        maxWidth="max-w-md"
+      >
+        {(() => {
+          const products = visibleProducts.filter(
+            (p) => selectedProducts.includes(p.id) && p.barcode
+          );
+          const selectedSize = LABEL_SIZES[selectedLabelSize];
+          const totalLabels = products.length;
+          const sheets = Math.ceil(totalLabels / selectedSize.perSheet);
+          return (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{totalLabels}</div>
+                    <div className="text-xs font-medium text-slate-500">Labels</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{products.length}</div>
+                    <div className="text-xs font-medium text-slate-500">Products</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-slate-900">{sheets}</div>
+                    <div className="text-xs font-medium text-slate-500">Sheets</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label size</div>
+                    <div className="mt-1 text-lg font-bold text-slate-900">{selectedSize.label}</div>
+                    <div className="mt-0.5 text-sm text-slate-500">Best for costume labels</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLabelSizeOptions(!showLabelSizeOptions)}
+                    disabled={printingBarcodes}
+                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Change
+                  </button>
+                </div>
+              </div>
+
+              {showLabelSizeOptions && (
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
+                  {(Object.keys(LABEL_SIZES) as LabelSizeKey[]).map((key) => {
+                    const size = LABEL_SIZES[key];
+                    const isSelected = selectedLabelSize === key;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setSelectedLabelSize(key);
+                          setShowLabelSizeOptions(false);
+                        }}
+                        disabled={printingBarcodes}
+                        className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
+                          isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-semibold">{size.label}</div>
+                            <div className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{size.perSheet} labels per sheet</div>
+                          </div>
+                          {key === 'costume-label' && (
+                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
+                              Best
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPrintModal(false)}
+                  disabled={printingBarcodes}
+                  className="h-12 w-28 border-slate-200 text-base"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmPrint}
+                  disabled={printingBarcodes || totalLabels === 0}
+                  className="h-12 flex-1 text-base font-bold gap-2"
+                >
+                  {printingBarcodes ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Preparing...
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-5 h-5" />
+                      Print
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
 
 

@@ -236,3 +236,265 @@ export async function checkBarcodeUniqueness(barcode: string, excludeId?: string
   // For now, return true (assume unique)
   return true;
 }
+
+/**
+ * Label size presets for bulk barcode printing on A4 sheets.
+ * All dimensions in millimeters. A4 = 210mm × 297mm.
+ */
+export type LabelSizeKey = 'costume-label' | 'price-tag' | 'small-square' | 'large-label';
+
+export interface LabelSize {
+  key: LabelSizeKey;
+  label: string;
+  description: string;
+  width_mm: number;
+  height_mm: number;
+  cols: number;
+  rows: number;
+  gap_mm: number;
+  margin_mm: number;
+  perSheet: number;
+}
+
+export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
+  'costume-label': {
+    key: 'costume-label',
+    label: '32mm × 20mm',
+    description: 'Best for costume labels — 56 per sheet',
+    width_mm: 32,
+    height_mm: 20,
+    cols: 5,
+    rows: 12,
+    gap_mm: 3,
+    margin_mm: 7,
+    perSheet: 56,
+  },
+  'price-tag': {
+    key: 'price-tag',
+    label: '35mm × 16mm',
+    description: 'Price tag — 80 labels per sheet',
+    width_mm: 35,
+    height_mm: 16,
+    cols: 5,
+    rows: 16,
+    gap_mm: 3,
+    margin_mm: 7,
+    perSheet: 80,
+  },
+  'small-square': {
+    key: 'small-square',
+    label: '25mm × 25mm',
+    description: 'Small square — 77 labels per sheet',
+    width_mm: 25,
+    height_mm: 25,
+    cols: 7,
+    rows: 11,
+    gap_mm: 2,
+    margin_mm: 5,
+    perSheet: 77,
+  },
+  'large-label': {
+    key: 'large-label',
+    label: '50mm × 25mm',
+    description: 'Large label — 30 per sheet',
+    width_mm: 50,
+    height_mm: 25,
+    cols: 3,
+    rows: 10,
+    gap_mm: 5,
+    margin_mm: 10,
+    perSheet: 30,
+  },
+};
+
+/**
+ * Render a single barcode label as a high-DPI PNG data URL.
+ * Uses 3× supersampling for crisp print output (~288 DPI equivalent).
+ */
+async function renderBarcodeLabel(
+  barcode: string,
+  productName: string,
+  barWidth: number,
+  barHeight: number,
+  fontSize: number,
+): Promise<string> {
+  const JsBarcode = (await import('jsbarcode')).default;
+  const scale = 3;
+
+  const barcodeCanvas = document.createElement('canvas');
+  JsBarcode(barcodeCanvas, barcode, {
+    width: barWidth * scale,
+    height: barHeight * scale,
+    format: 'CODE128',
+    displayValue: true,
+    fontSize: fontSize * scale,
+    margin: 2 * scale,
+    textMargin: 2 * scale,
+  });
+
+  const padding = 4 * scale;
+  const textSpace = (fontSize + 4) * scale;
+  const finalCanvas = document.createElement('canvas');
+  const ctx = finalCanvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+
+  finalCanvas.width = barcodeCanvas.width + padding * 2;
+  finalCanvas.height = barcodeCanvas.height + textSpace + padding * 2;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+  ctx.drawImage(barcodeCanvas, padding, padding);
+
+  ctx.fillStyle = '#000000';
+  ctx.font = `bold ${fontSize * scale}px Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+
+  let displayName = productName;
+  const maxChars = Math.floor(finalCanvas.width / (fontSize * scale * 0.55));
+  if (displayName.length > maxChars) {
+    displayName = displayName.substring(0, maxChars - 1) + '…';
+  }
+
+  ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
+
+  return finalCanvas.toDataURL('image/png');
+}
+
+/**
+ * Bulk print barcodes on A4 label sheets with a single print dialog.
+ *
+ * Renders all barcodes at 3× DPI for print clarity, lays them out in a
+ * CSS grid matching the selected label size, and opens one print dialog.
+ *
+ * @param products - Array of { barcode, name } to print
+ * @param sizeKey - Label size key ('price-tag' | 'small-square' | 'large-label')
+ */
+export async function bulkPrintBarcodes(
+  products: Array<{ barcode: string; name: string }>,
+  sizeKey: LabelSizeKey = 'costume-label',
+): Promise<void> {
+  if (products.length === 0) return;
+
+  const size = LABEL_SIZES[sizeKey];
+  const perSheet = size.perSheet;
+
+  const renderParams: Record<LabelSizeKey, { barWidth: number; barHeight: number; fontSize: number }> = {
+    'costume-label': { barWidth: 1, barHeight: 34, fontSize: 8 },
+    'price-tag': { barWidth: 1, barHeight: 28, fontSize: 7 },
+    'small-square': { barWidth: 1, barHeight: 38, fontSize: 7 },
+    'large-label': { barWidth: 2, barHeight: 48, fontSize: 9 },
+  };
+  const rp = renderParams[sizeKey];
+
+  const dataUrls: string[] = [];
+  for (const product of products) {
+    try {
+      const url = await renderBarcodeLabel(product.barcode, product.name, rp.barWidth, rp.barHeight, rp.fontSize);
+      dataUrls.push(url);
+    } catch (err) {
+      console.error(`Failed to generate barcode for ${product.barcode}:`, err);
+    }
+  }
+
+  if (dataUrls.length === 0) {
+    throw new Error('No barcodes could be generated');
+  }
+
+  const sheets: string[] = [];
+  for (let i = 0; i < dataUrls.length; i += perSheet) {
+    const chunk = dataUrls.slice(i, i + perSheet);
+    const cells = chunk
+      .map((url) => `<div class="label"><img src="${url}" alt="barcode" /></div>`)
+      .join('');
+    sheets.push(`<div class="sheet">${cells}</div>`);
+  }
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Bulk Barcode Print — ${dataUrls.length} labels (${size.label})</title>
+<style>
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: #e0e0e0;
+    font-family: Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    padding: ${size.margin_mm}mm;
+    display: grid;
+    grid-template-columns: repeat(${size.cols}, 1fr);
+    grid-template-rows: repeat(${size.rows}, 1fr);
+    gap: ${size.gap_mm}mm;
+    background: white;
+    page-break-after: always;
+    break-after: page;
+  }
+  .sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .label {
+    width: ${size.width_mm}mm;
+    height: ${size.height_mm}mm;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .label img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+  @media print {
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+${sheets.join('')}
+<script>
+  window.onload = function() {
+    window.focus();
+    window.print();
+    setTimeout(function() {
+      var f = window.frameElement;
+      if (f) f.parentNode.removeChild(f);
+    }, 1000);
+  };
+</script>
+</body>
+</html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+  if (!iframeDoc) throw new Error('Could not get iframe document');
+
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+}
