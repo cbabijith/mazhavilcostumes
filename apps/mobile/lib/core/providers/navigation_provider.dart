@@ -5,7 +5,10 @@ class NavigationTabNotifier extends Notifier<int> {
   @override
   int build() => 0;
 
-  void setTab(int index) {
+  void setTab(int index, {bool clearOrdersFilters = true}) {
+    if (index == 1 && clearOrdersFilters) {
+      ref.read(ordersProvider.notifier).clearFilters();
+    }
     state = index;
   }
 }
@@ -47,7 +50,7 @@ void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
 
   // Apply filters to orders notifier
   ref.read(ordersProvider.notifier).setFilters(
-    status: statusList != null && statusList.length == 1 ? statusList.first : statusList,
+    status: statusList != null && statusList.isNotEmpty ? statusList.first : null,
     excludeStatus: excludeStatusList != null && excludeStatusList.length == 1 ? excludeStatusList.first : excludeStatusList,
     paymentStatus: paymentStatusList != null && paymentStatusList.length == 1 ? paymentStatusList.first : paymentStatusList,
     dateFilter: dateFilter,
@@ -57,6 +60,6 @@ void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
     hasStockConflict: hasStockConflict ? true : null,
   );
 
-  // Switch tab to Orders view (index 1)
-  ref.read(navigationTabProvider.notifier).setTab(1);
+  // Switch tab to Orders view (index 1) without clearing filters
+  ref.read(navigationTabProvider.notifier).setTab(1, clearOrdersFilters: false);
 }

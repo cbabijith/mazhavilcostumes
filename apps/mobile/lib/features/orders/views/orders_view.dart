@@ -39,7 +39,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - Responsive.h(AppSizes.spacingXXXLarge)) {
+        _scrollController.position.maxScrollExtent - 200) {
       ref.read(ordersProvider.notifier).loadMore();
     }
   }
@@ -49,6 +49,11 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
     _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
+
+    final currentSearch = ref.read(ordersProvider.notifier).currentSearch;
+    if (currentSearch.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.text = '';
+    }
 
     return Container(
       color: AppColors.background,
@@ -69,9 +74,21 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                       child: ListView.separated(
                         controller: _scrollController,
                         padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
-                        itemCount: paginated.orders.length,
+                        itemCount: paginated.orders.length + (paginated.hasNext ? 1 : 0),
                         separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        itemBuilder: (context, i) => _buildOrderCard(paginated.orders[i]),
+                        itemBuilder: (context, i) {
+                          if (i == paginated.orders.length) {
+                            return Padding(
+                              padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            );
+                          }
+                          return _buildOrderCard(paginated.orders[i]);
+                        },
                       ),
                     );
                   },

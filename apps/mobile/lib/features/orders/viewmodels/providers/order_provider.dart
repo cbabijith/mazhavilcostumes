@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
+import '../../../branches/viewmodels/providers/branch_provider.dart';
 
 // Repository provider
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
@@ -28,10 +29,12 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   String get currentDateFilter => _currentDateFilter;
   String? get currentDateFrom => _currentDateFrom;
   String? get currentDateTo => _currentDateTo;
+  String get currentSearch => _currentSearch;
 
   @override
   Future<PaginatedOrders> build() async {
     ref.keepAlive();
+    _currentBranchId = ref.watch(effectiveBranchIdProvider);
     _currentPage = 1;
     final repo = ref.watch(orderRepositoryProvider);
     return repo.getOrders(
@@ -184,6 +187,38 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
         excludeStatus: _excludeStatus,
         paymentStatus: _paymentStatus,
         hasStockConflict: _hasStockConflict,
+      );
+    });
+  }
+
+  Future<void> clearFilters() async {
+    _currentSearch = '';
+    _currentStatus = null;
+    _currentBranchId = null;
+    _currentDateFilter = 'ALL';
+    _currentDateFrom = null;
+    _currentDateTo = null;
+    _excludeStatus = null;
+    _dateField = null;
+    _paymentStatus = null;
+    _hasStockConflict = null;
+    _currentPage = 1;
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final repo = ref.read(orderRepositoryProvider);
+      return repo.getOrders(
+        page: _currentPage,
+        limit: 15,
+        query: _currentSearch,
+        status: _currentStatus,
+        branchId: _currentBranchId,
+        dateFilter: null,
+        dateField: null,
+        dateFrom: null,
+        dateTo: null,
+        excludeStatus: null,
+        paymentStatus: null,
+        hasStockConflict: null,
       );
     });
   }
