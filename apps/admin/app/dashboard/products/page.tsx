@@ -349,7 +349,7 @@ function ProductsContent() {
       if (printMode === 'single') {
         await bulkPrintBarcodesSingleSheet(
           list.map((p) => ({ barcode: p.barcode!, name: p.name })),
-          { labelWidth_mm: 50, labelHeight_mm: 60 },
+          { labelWidth_mm: 32, labelHeight_mm: 20 },
         );
         showSuccess("Print Ready", `Sending ${list.length} barcodes to print (Single Sheet mode)`);
       } else {
