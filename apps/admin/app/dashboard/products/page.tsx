@@ -51,7 +51,9 @@ import {
   downloadBarcode,
   downloadMultipleBarcodes,
   printBarcode,
+  printBarcodeSingleSheet,
   bulkPrintBarcodes,
+  bulkPrintBarcodesSingleSheet,
   LABEL_SIZES,
   type LabelSizeKey,
 } from "@/lib/barcode";
@@ -155,6 +157,7 @@ function ProductsContent() {
   const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
   const [printingBarcodes, setPrintingBarcodes] = useState(false);
   const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
+  const [printMode, setPrintMode] = useState<'a4' | 'single'>('a4');
 
   const handleExportCatalog = async () => {
     setExporting(true);
@@ -343,11 +346,19 @@ function ProductsContent() {
     }
     setPrintingBarcodes(true);
     try {
-      await bulkPrintBarcodes(
-        list.map((p) => ({ barcode: p.barcode!, name: p.name })),
-        selectedLabelSize,
-      );
-      showSuccess("Print Ready", `Sending ${list.length} barcodes to print (${LABEL_SIZES[selectedLabelSize].label})`);
+      if (printMode === 'single') {
+        await bulkPrintBarcodesSingleSheet(
+          list.map((p) => ({ barcode: p.barcode!, name: p.name })),
+          { labelWidth_mm: 50, labelHeight_mm: 60 },
+        );
+        showSuccess("Print Ready", `Sending ${list.length} barcodes to print (Single Sheet mode)`);
+      } else {
+        await bulkPrintBarcodes(
+          list.map((p) => ({ barcode: p.barcode!, name: p.name })),
+          selectedLabelSize,
+        );
+        showSuccess("Print Ready", `Sending ${list.length} barcodes to print (${LABEL_SIZES[selectedLabelSize].label})`);
+      }
       setShowPrintModal(false);
     } catch {
       showError("Print Error", "Failed to generate barcode sheets for printing");
@@ -836,63 +847,95 @@ function ProductsContent() {
                     <div className="text-xs font-medium text-slate-500">Products</div>
                   </div>
                   <div>
-                    <div className="text-2xl font-bold text-slate-900">{sheets}</div>
-                    <div className="text-xs font-medium text-slate-500">Sheets</div>
+                    <div className="text-2xl font-bold text-slate-900">{printMode === 'single' ? totalLabels : sheets}</div>
+                    <div className="text-xs font-medium text-slate-500">{printMode === 'single' ? 'Sheets' : 'Sheets'}</div>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label size</div>
-                    <div className="mt-1 text-lg font-bold text-slate-900">{selectedSize.label}</div>
-                    <div className="mt-0.5 text-sm text-slate-500">Best for costume labels</div>
-                  </div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Print Mode</div>
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowLabelSizeOptions(!showLabelSizeOptions)}
+                    onClick={() => setPrintMode('a4')}
                     disabled={printingBarcodes}
-                    className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
+                      printMode === 'a4' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
+                    }`}
                   >
-                    Change
+                    <div className="font-semibold">A4 Sheet</div>
+                    <div className={`text-xs ${printMode === 'a4' ? 'text-slate-300' : 'text-slate-500'}`}>Multiple labels per sheet</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintMode('single')}
+                    disabled={printingBarcodes}
+                    className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
+                      printMode === 'single' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
+                    }`}
+                  >
+                    <div className="font-semibold">Single Sheet</div>
+                    <div className={`text-xs ${printMode === 'single' ? 'text-slate-300' : 'text-slate-500'}`}>One barcode per sheet (Roller)</div>
                   </button>
                 </div>
               </div>
 
-              {showLabelSizeOptions && (
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
-                  {(Object.keys(LABEL_SIZES) as LabelSizeKey[]).map((key) => {
-                    const size = LABEL_SIZES[key];
-                    const isSelected = selectedLabelSize === key;
-                    return (
+              {printMode === 'a4' && (
+                <>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label size</div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">{selectedSize.label}</div>
+                        <div className="mt-0.5 text-sm text-slate-500">Best for costume labels</div>
+                      </div>
                       <button
-                        key={key}
                         type="button"
-                        onClick={() => {
-                          setSelectedLabelSize(key);
-                          setShowLabelSizeOptions(false);
-                        }}
+                        onClick={() => setShowLabelSizeOptions(!showLabelSizeOptions)}
                         disabled={printingBarcodes}
-                        className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
-                          isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
-                        }`}
+                        className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <div className="font-semibold">{size.label}</div>
-                            <div className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{size.perSheet} labels per sheet</div>
-                          </div>
-                          {key === 'costume-label' && (
-                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
-                              Best
-                            </span>
-                          )}
-                        </div>
+                        Change
                       </button>
-                    );
-                  })}
-                </div>
+                    </div>
+                  </div>
+
+                  {showLabelSizeOptions && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
+                      {(Object.keys(LABEL_SIZES) as LabelSizeKey[]).map((key) => {
+                        const size = LABEL_SIZES[key];
+                        const isSelected = selectedLabelSize === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              setSelectedLabelSize(key);
+                              setShowLabelSizeOptions(false);
+                            }}
+                            disabled={printingBarcodes}
+                            className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
+                              isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <div className="font-semibold">{size.label}</div>
+                                <div className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{size.perSheet} labels per sheet</div>
+                              </div>
+                              {key === 'costume-label' && (
+                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
+                                  Best
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="flex gap-3 pt-2">
