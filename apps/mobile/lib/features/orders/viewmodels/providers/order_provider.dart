@@ -82,6 +82,9 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _paymentStatus = null;
     _dateField = null;
     _hasStockConflict = null;
+    _currentDateFilter = 'ALL';
+    _currentDateFrom = null;
+    _currentDateTo = null;
     _currentPage = 1;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {

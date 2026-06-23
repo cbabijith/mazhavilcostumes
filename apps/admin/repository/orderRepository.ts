@@ -277,7 +277,7 @@ export class OrderRepository extends BaseRepository {
 
     const limit = params?.limit || 20;
     const offset = params?.offset || 0;
-    const total = count || 0;
+    const total = count !== null && count !== undefined ? count : this.parsePgrstRangeCount(error);
     const totalPages = Math.ceil(total / limit);
     const page = Math.floor(offset / limit) + 1;
 
@@ -1349,7 +1349,7 @@ export class OrderRepository extends BaseRepository {
   }[]>> {
     const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 
-    let query = this.client
+    const query = this.client
       .from('order_items')
       .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)')
       .eq('product_id', productId)

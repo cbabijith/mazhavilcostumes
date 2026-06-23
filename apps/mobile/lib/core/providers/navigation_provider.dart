@@ -19,7 +19,7 @@ final navigationTabProvider = NotifierProvider<NavigationTabNotifier, int>(
 
 /// Helper to navigate to the Orders view and apply search/status/date filters
 /// based on a query parameter URL (e.g. from dashboard cards).
-void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
+Future<void> navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) async {
   final uri = Uri.parse(filterUrl);
   final params = uri.queryParametersAll;
 
@@ -48,8 +48,21 @@ void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
       params['has_stock_conflict']!.isNotEmpty &&
       params['has_stock_conflict']!.first == 'true';
 
+  final ordersNotifier = ref.read(ordersProvider.notifier);
+  final ordersFuture = ref.read(ordersProvider.future);
+
+  // Await the initial provider build before switching tab to avoid unmount issues
+  try {
+    await ordersFuture;
+  } catch (_) {
+    // Ignore errors from initial build
+  }
+
+  // Switch tab to Orders view (index 1) without clearing filters
+  ref.read(navigationTabProvider.notifier).setTab(1, clearOrdersFilters: false);
+
   // Apply filters to orders notifier
-  ref.read(ordersProvider.notifier).setFilters(
+  ordersNotifier.setFilters(
     status: statusList != null && statusList.isNotEmpty ? statusList.first : null,
     excludeStatus: excludeStatusList != null && excludeStatusList.length == 1 ? excludeStatusList.first : excludeStatusList,
     paymentStatus: paymentStatusList != null && paymentStatusList.length == 1 ? paymentStatusList.first : paymentStatusList,
@@ -59,7 +72,4 @@ void navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) {
     dateTo: dateTo,
     hasStockConflict: hasStockConflict ? true : null,
   );
-
-  // Switch tab to Orders view (index 1) without clearing filters
-  ref.read(navigationTabProvider.notifier).setTab(1, clearOrdersFilters: false);
 }
