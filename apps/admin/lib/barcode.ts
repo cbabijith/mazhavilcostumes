@@ -308,6 +308,255 @@ export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
 };
 
 /**
+ * Generate barcode and open print dialog (single sheet for roller printer)
+ * Each barcode prints on its own page with custom dimensions matching the label size.
+ */
+export async function printBarcodeSingleSheet(
+  barcode: string,
+  productName: string,
+  options?: { width?: number; height?: number; labelWidth_mm?: number; labelHeight_mm?: number; }
+): Promise<void> {
+  try {
+    const JsBarcode = (await import('jsbarcode')).default;
+    const barcodeCanvas = document.createElement('canvas');
+    JsBarcode(barcodeCanvas, barcode, {
+      width: options?.width || 3,
+      height: options?.height || 70,
+      format: 'CODE128',
+      displayValue: true,
+      fontSize: 14,
+      margin: 10,
+    });
+
+    const finalCanvas = document.createElement('canvas');
+    const ctx = finalCanvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+
+    const padding = 20;
+    const textSpace = 30;
+
+    finalCanvas.width = barcodeCanvas.width + (padding * 2);
+    finalCanvas.height = barcodeCanvas.height + textSpace + (padding * 2);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+    ctx.drawImage(barcodeCanvas, padding, padding);
+
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 14px Arial, sans-serif';
+    ctx.textAlign = 'center';
+
+    let displayName = productName;
+    if (displayName.length > 40) {
+      displayName = displayName.substring(0, 37) + '...';
+    }
+
+    ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
+
+    const dataUrl = finalCanvas.toDataURL('image/png');
+
+    // Custom page size for roller printer (default 50mm x 60mm)
+    const labelWidth_mm = options?.labelWidth_mm || 50;
+    const labelHeight_mm = options?.labelHeight_mm || 60;
+
+    // Create an iframe to print the image with custom page size
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) throw new Error('Could not get iframe document');
+
+    iframeDoc.write(`
+      <html>
+        <head>
+          <title>Print Barcode - ${barcode}</title>
+          <style>
+            @page {
+              margin: 0;
+              size: ${labelWidth_mm}mm ${labelHeight_mm}mm;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              width: ${labelWidth_mm}mm;
+              height: ${labelHeight_mm}mm;
+              background-color: white;
+            }
+            img {
+              width: 100%;
+              height: auto;
+              display: block;
+              object-fit: contain;
+              image-rendering: -webkit-optimize-contrast;
+              image-rendering: crisp-edges;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" />
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+              setTimeout(function() {
+                window.parent.document.body.removeChild(window.frameElement);
+              }, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+  } catch (error) {
+    console.error('Error printing barcode:', error);
+    throw new Error('Failed to print barcode');
+  }
+}
+
+/**
+ * Bulk print barcodes as single sheets (one barcode per page for roller printer)
+ */
+export async function bulkPrintBarcodesSingleSheet(
+  products: Array<{ barcode: string; name: string }>,
+  options?: { width?: number; height?: number; labelWidth_mm?: number; labelHeight_mm?: number; }
+): Promise<void> {
+  if (products.length === 0) return;
+
+  const labelWidth_mm = options?.labelWidth_mm || 50;
+  const labelHeight_mm = options?.labelHeight_mm || 60;
+
+  const JsBarcode = (await import('jsbarcode')).default;
+  const dataUrls: string[] = [];
+
+  for (const product of products) {
+    try {
+      const barcodeCanvas = document.createElement('canvas');
+      JsBarcode(barcodeCanvas, product.barcode, {
+        width: options?.width || 3,
+        height: options?.height || 70,
+        format: 'CODE128',
+        displayValue: true,
+        fontSize: 14,
+        margin: 10,
+      });
+
+      const finalCanvas = document.createElement('canvas');
+      const ctx = finalCanvas.getContext('2d');
+      if (!ctx) throw new Error('Could not get canvas context');
+
+      const padding = 20;
+      const textSpace = 30;
+
+      finalCanvas.width = barcodeCanvas.width + (padding * 2);
+      finalCanvas.height = barcodeCanvas.height + textSpace + (padding * 2);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+      ctx.drawImage(barcodeCanvas, padding, padding);
+
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+
+      let displayName = product.name;
+      if (displayName.length > 40) {
+        displayName = displayName.substring(0, 37) + '...';
+      }
+
+      ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
+
+      dataUrls.push(finalCanvas.toDataURL('image/png'));
+    } catch (err) {
+      console.error(`Failed to generate barcode for ${product.barcode}:`, err);
+    }
+  }
+
+  if (dataUrls.length === 0) {
+    throw new Error('No barcodes could be generated');
+  }
+
+  const images = dataUrls.map(url => `<div class="label"><img src="${url}" alt="barcode" /></div>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Bulk Barcode Print — Single Sheet (${dataUrls.length} labels)</title>
+<style>
+  @page {
+    margin: 0;
+    size: ${labelWidth_mm}mm ${labelHeight_mm}mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+    font-family: Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .label {
+    width: ${labelWidth_mm}mm;
+    height: ${labelHeight_mm}mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    page-break-after: always;
+    break-after: page;
+  }
+  .label img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+</style>
+</head>
+<body>
+${images}
+<script>
+  window.onload = function() {
+    window.focus();
+    window.print();
+    setTimeout(function() {
+      var f = window.frameElement;
+      if (f) f.parentNode.removeChild(f);
+    }, 1000);
+  };
+</script>
+</body>
+</html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+  if (!iframeDoc) throw new Error('Could not get iframe document');
+
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+}
+
+/**
  * Render a single barcode label as a high-DPI PNG data URL.
  * Uses 3× supersampling for crisp print output (~288 DPI equivalent).
  */

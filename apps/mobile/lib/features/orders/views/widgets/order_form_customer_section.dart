@@ -154,19 +154,14 @@ extension _OrderFormCustomerSection on _OrderFormViewState {
                   onChanged: (value) {
                     _update(() {
                       _searchQuery = value;
-                      _showCustomerDropdown = value.isNotEmpty;
+                      _showCustomerDropdown = true;
                     });
                     // Trigger hybrid search
-                    if (value.isNotEmpty) {
-                      ref.read(customerSearchProvider.notifier).search(value);
-                    } else {
-                      ref.read(customerSearchProvider.notifier).clear();
-                    }
+                    ref.read(customerSearchProvider.notifier).search(value);
                   },
                   onTap: () {
-                    if (_phoneSearchController.text.isNotEmpty) {
-                      _update(() => _showCustomerDropdown = true);
-                    }
+                    _update(() => _showCustomerDropdown = true);
+                    ref.read(customerSearchProvider.notifier).search(_phoneSearchController.text);
                   },
                 ),
               ),

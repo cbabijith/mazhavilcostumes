@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../../core/supabase/api_client.dart';
 import '../domain/operational_card.dart';
 import '../domain/analytics_metrics.dart';
+import '../domain/transaction_detail.dart';
 
 class DashboardProduct {
   final String id;
@@ -222,6 +223,42 @@ class DashboardRepository {
     } catch (e) {
       debugPrint('[DashboardRepository] Error fetching analytics metrics: $e');
       throw Exception('Failed to load analytics metrics: $e');
+    }
+  }
+
+  Future<List<TransactionDetail>> getTransactionReport({
+    required String fromDate,
+    required String toDate,
+    String? branchId,
+    CancelToken? cancelToken,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'fromDate': fromDate,
+        'toDate': toDate,
+      };
+      if (branchId != null && branchId.isNotEmpty) {
+        queryParams['branchId'] = branchId;
+      }
+
+      debugPrint('[DashboardRepository] Fetching transactions from /reports/revenue with params: $queryParams');
+      final response = await _api.get(
+        '/reports/revenue',
+        queryParameters: queryParams,
+        cancelToken: cancelToken,
+      );
+
+      final responseData = response.data;
+      final dataMap = responseData['data'] as Map<String, dynamic>? ?? {};
+      final detailsList = dataMap['details'] as List<dynamic>? ?? [];
+
+      debugPrint('[DashboardRepository] Parsed ${detailsList.length} transactions from report.');
+      return detailsList
+          .map((item) => TransactionDetail.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('[DashboardRepository] Error fetching transaction report: $e');
+      throw Exception('Failed to load transaction report: $e');
     }
   }
 }

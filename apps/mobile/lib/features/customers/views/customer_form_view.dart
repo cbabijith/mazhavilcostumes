@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/responsive.dart';
+import '../../../core/constants/app_constants.dart';
 import '../models/customer.dart';
 import '../viewmodels/providers/customer_provider.dart';
 
@@ -16,6 +18,7 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _altPhoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
   final _gstinController = TextEditingController();
@@ -28,6 +31,7 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
     if (widget.customer != null) {
       _nameController.text = widget.customer!.name;
       _phoneController.text = widget.customer!.phone;
+      _altPhoneController.text = widget.customer!.altPhone ?? '';
       _emailController.text = widget.customer!.email ?? '';
       _addressController.text = widget.customer!.address ?? '';
       _gstinController.text = widget.customer!.gstin ?? '';
@@ -40,6 +44,7 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _altPhoneController.dispose();
     _emailController.dispose();
     _addressController.dispose();
     _gstinController.dispose();
@@ -53,6 +58,7 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
     final body = {
       'name': _nameController.text.trim(),
       'phone': _phoneController.text.trim(),
+      'alt_phone': _altPhoneController.text.trim().isEmpty ? null : _altPhoneController.text.trim(),
       'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
       'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
       'gstin': _gstinController.text.trim().isEmpty ? null : _gstinController.text.trim(),
@@ -81,8 +87,38 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
     }
   }
 
+  Widget _buildInputLabel(String label, {bool isRequired = false}) {
+    return RichText(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          fontSize: Responsive.sp(AppSizes.fontMedium),
+          color: Colors.grey[700],
+          fontWeight: FontWeight.w500,
+        ),
+        children: [
+          if (isRequired)
+            const TextSpan(
+              text: ' *',
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold),
+            )
+          else
+            TextSpan(
+              text: ' (Optional)',
+              style: TextStyle(
+                fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                color: Colors.grey[500],
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    Responsive.init(context);
     final isEditing = widget.customer != null;
 
     return Scaffold(
@@ -98,9 +134,9 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
             children: [
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('Name', isRequired: true),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -112,9 +148,9 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('Phone', isRequired: true),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
@@ -126,36 +162,56 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
               ),
               const SizedBox(height: 16),
               TextFormField(
+                controller: _altPhoneController,
+                decoration: InputDecoration(
+                  label: _buildInputLabel('Alternate Phone', isRequired: false),
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value != null && value.trim().isNotEmpty) {
+                    if (value.trim().length < 10) {
+                      return 'Alternate phone must be at least 10 characters';
+                    }
+                    if (value.trim().length > 20) {
+                      return 'Alternate phone must be at most 20 characters';
+                    }
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('Email', isRequired: false),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Address',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('Address', isRequired: false),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _gstinController,
-                decoration: const InputDecoration(
-                  labelText: 'GSTIN',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('GSTIN', isRequired: false),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<IdType>(
                 initialValue: _selectedIdType,
-                decoration: const InputDecoration(
-                  labelText: 'ID Type',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('ID Type', isRequired: false),
+                  border: const OutlineInputBorder(),
                 ),
                 items: IdType.values.map((type) {
                   return DropdownMenuItem(
@@ -172,9 +228,9 @@ class _CustomerFormViewState extends ConsumerState<CustomerFormView> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _idNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'ID Number',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  label: _buildInputLabel('ID Number', isRequired: false),
+                  border: const OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 24),
