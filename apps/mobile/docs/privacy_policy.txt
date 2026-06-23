@@ -1,0 +1,43 @@
+Privacy Policy for Mazhavil Dance Costumes
+
+Effective Date: June 14, 2026
+
+At Mazhavil Dance Costumes, we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application (the "App").
+
+Please read this privacy policy carefully. If you do not agree with the terms of this privacy policy, please do not access the application.
+
+1. Information We Collect
+To provide our rental services, we may collect the following types of information:
+- Personal Information: Name, email address, phone number, and billing/rental details provided when registering an account or placing an order.
+- Camera Data: Access to the camera to allow staff and administrators to take photos of costumes or scan QR/bar codes for order inventory tracking.
+- Storage Data: Access to your device’s external storage to allow you to upload images of costume products or rental receipts.
+
+2. How We Use Your Information
+We use the information we collect to:
+- Manage rental bookings, orders, and customer accounts.
+- Facilitate costume cataloging and QR code/scanner inventory checks.
+- Process and verify rental returns.
+- Communicate with you regarding updates, invoices, or customer support.
+
+3. Permissions We Request
+To function properly, the App requests the following permissions on your device:
+- Camera Permission: Used to capture images of costumes and scan QR/bar codes.
+- Storage Permission (Read/Write): Used to browse and select existing photos on the device to upload to the system.
+- Internet Access: Used to synchronize inventory, retrieve customer data, and process orders securely via our servers.
+
+4. Data Protection and Security
+We value your trust in providing us with your information. We implement commercially acceptable security measures to protect your personal data from unauthorized access, alteration, disclosure, or destruction. However, please remember that no method of transmission over the internet, or method of electronic storage, is 100% secure.
+
+5. Third-Party Service Providers
+We may employ third-party service providers (such as Supabase for database management and Cloudflare for media storage) to host our backend system. These third parties have access to your Personal Information only to perform these tasks on our behalf and are obligated not to disclose or use it for any other purpose.
+
+6. Children's Privacy
+Our services do not address anyone under the age of 13. We do not knowingly collect personally identifiable information from children under 13. If we discover that a child under 13 has provided us with personal information, we immediately delete this from our servers.
+
+7. Changes to This Privacy Policy
+We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Effective Date" at the top of this policy.
+
+8. Contact Us
+If you have any questions or suggestions about our Privacy Policy, do not hesitate to contact us:
+- Email: support@mazhavilcostumes.com
+- Location: Kottayam, Kerala, India

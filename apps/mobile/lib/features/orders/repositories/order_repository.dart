@@ -37,11 +37,15 @@ class OrderRepository {
     int limit = 25,
     String? customerId,
     String? branchId,
-    String? status,
+    dynamic status,
     String? query,
     String? dateFilter,
+    String? dateField,
     String? dateFrom,
     String? dateTo,
+    dynamic excludeStatus,
+    dynamic paymentStatus,
+    bool? hasStockConflict,
     CancelToken? cancelToken,
   }) async {
     try {
@@ -53,18 +57,30 @@ class OrderRepository {
       if (branchId != null && branchId.isNotEmpty) {
         queryParams['branch_id'] = branchId;
       }
-      if (status != null && status.isNotEmpty) {
-        if (status == 'stock_conflict') {
+      if (status != null) {
+        if (status is String && status == 'stock_conflict') {
           queryParams['has_stock_conflict'] = 'true';
         } else {
           queryParams['status'] = status;
         }
+      }
+      if (excludeStatus != null) {
+        queryParams['exclude_status'] = excludeStatus;
+      }
+      if (paymentStatus != null) {
+        queryParams['payment_status'] = paymentStatus;
+      }
+      if (hasStockConflict != null) {
+        queryParams['has_stock_conflict'] = hasStockConflict.toString();
       }
       if (query != null && query.isNotEmpty) {
         queryParams['query'] = query;
       }
       if (dateFilter != null && dateFilter.isNotEmpty) {
         queryParams['date_filter'] = dateFilter;
+      }
+      if (dateField != null && dateField.isNotEmpty) {
+        queryParams['date_field'] = dateField;
       }
       if (dateFrom != null && dateFrom.isNotEmpty) {
         queryParams['date_from'] = dateFrom;
@@ -203,7 +219,7 @@ class OrderRepository {
     CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _api.post(
+      final response = await _api.patch(
         '/orders/$orderId/return',
         data: {
           'items': items,
@@ -236,7 +252,7 @@ class OrderRepository {
           'amount': amount,
           'payment_mode': paymentMode,
           'notes': notes,
-          if (paymentType != null) 'payment_type': paymentType,
+          'payment_type': paymentType ?? 'final',
         },
         cancelToken: cancelToken,
       );

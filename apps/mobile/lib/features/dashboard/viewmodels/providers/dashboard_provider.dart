@@ -4,6 +4,7 @@ import '../../../branches/viewmodels/providers/branch_provider.dart';
 import '../../repositories/dashboard_repository.dart';
 import '../../domain/operational_card.dart';
 import '../../domain/analytics_metrics.dart';
+import '../../domain/transaction_detail.dart';
 
 // Repository provider
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
@@ -203,4 +204,39 @@ final inventoryRoiProvider = FutureProvider<List<TopPerformer>>((ref) async {
     debugPrint('[DashboardProvider] Inventory ROI error: $e');
     rethrow;
   }
+});
+
+/// Unique parameters for transaction details report provider
+class TransactionReportParam {
+  final String fromDate;
+  final String toDate;
+  final String? branchId;
+
+  const TransactionReportParam({
+    required this.fromDate,
+    required this.toDate,
+    this.branchId,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransactionReportParam &&
+          runtimeType == other.runtimeType &&
+          fromDate == other.fromDate &&
+          toDate == other.toDate &&
+          branchId == other.branchId;
+
+  @override
+  int get hashCode => fromDate.hashCode ^ toDate.hashCode ^ branchId.hashCode;
+}
+
+/// Fetches transaction detail records from the repository
+final transactionReportProvider = FutureProvider.family<List<TransactionDetail>, TransactionReportParam>((ref, param) async {
+  final repo = ref.read(dashboardRepositoryProvider);
+  return repo.getTransactionReport(
+    fromDate: param.fromDate,
+    toDate: param.toDate,
+    branchId: param.branchId,
+  );
 });

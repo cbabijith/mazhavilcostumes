@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
@@ -90,11 +89,25 @@ class _SplashViewState extends ConsumerState<SplashView> with SingleTickerProvid
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  SvgPicture.asset(
-                    'assets/images/logo_paris.svg',
-                    width: Responsive.w(AppSizes.spacingMassive),
-                    height: Responsive.w(AppSizes.spacingMassive),
-                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                  Container(
+                    width: Responsive.w(120),
+                    height: Responsive.w(120),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 10,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/mazhavil.png',
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
                   Text(

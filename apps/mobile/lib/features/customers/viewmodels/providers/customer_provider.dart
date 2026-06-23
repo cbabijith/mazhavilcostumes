@@ -1,7 +1,42 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:equatable/equatable.dart';
+
 import '../../models/customer.dart';
 import '../../repositories/customer_repository.dart';
+
+// Parameter class with value equality to prevent constant provider recreation in Riverpod
+class CustomersParams extends Equatable {
+  final int page;
+  final int limit;
+  final String? query;
+  final String? phone;
+  final String sortBy;
+  final String sortOrder;
+  final bool lightweight;
+
+  const CustomersParams({
+    this.page = 1,
+    this.limit = 20,
+    this.query,
+    this.phone,
+    this.sortBy = 'created_at',
+    this.sortOrder = 'desc',
+    this.lightweight = false,
+  });
+
+  @override
+  List<Object?> get props => [
+        page,
+        limit,
+        query,
+        phone,
+        sortBy,
+        sortOrder,
+        lightweight,
+      ];
+}
 
 // Repository provider
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
@@ -9,27 +44,33 @@ final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
 });
 
 // Customers list provider with keepAlive for caching
-final customersProvider = FutureProvider.autoDispose.family<PaginatedCustomers, Map<String, dynamic>>((ref, params) async {
-  final repository = ref.watch(customerRepositoryProvider);
-  return repository.getCustomers(
-    page: params['page'] ?? 1,
-    limit: params['limit'] ?? 20,
-    query: params['query'],
-    phone: params['phone'],
-    sortBy: params['sortBy'] ?? 'created_at',
-    sortOrder: params['sortOrder'] ?? 'desc',
-    lightweight: params['lightweight'] ?? false,
-  );
-}, name: 'customersProvider');
+final customersProvider = FutureProvider.autoDispose
+    .family<PaginatedCustomers, CustomersParams>((ref, params) async {
+      final repository = ref.watch(customerRepositoryProvider);
+      return repository.getCustomers(
+        page: params.page,
+        limit: params.limit,
+        query: params.query,
+        phone: params.phone,
+        sortBy: params.sortBy,
+        sortOrder: params.sortOrder,
+        lightweight: params.lightweight,
+      );
+    }, name: 'customersProvider');
 
 // Keep the provider alive for 5 minutes to enable hybrid search
 final customersCacheProvider = Provider.autoDispose((ref) {
   ref.keepAlive();
-  return ref.watch(customersProvider({'page': 1, 'limit': 100, 'lightweight': true}));
+  return ref.watch(
+    customersProvider(const CustomersParams(page: 1, limit: 1000, lightweight: true)),
+  );
 }, name: 'customersCacheProvider');
 
 // Single customer provider
-final customerProvider = FutureProvider.family.autoDispose<Customer, String>((ref, id) async {
+final customerProvider = FutureProvider.family.autoDispose<Customer, String>((
+  ref,
+  id,
+) async {
   final repository = ref.watch(customerRepositoryProvider);
   return repository.getCustomerById(id);
 }, name: 'customerProvider');
@@ -79,7 +120,7 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
 
     // Dynamically update search list if the initial cache finishes loading
     ref.listen(customersCacheProvider, (previous, next) {
-      if (next.hasValue && state.query.isNotEmpty) {
+      if (next.hasValue) {
         search(state.query);
       }
     });
@@ -91,13 +132,13 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   List<Customer> _searchLocal(String query) {
     final cache = ref.read(customersCacheProvider);
     final cachedCustomers = cache.value?.customers ?? [];
-    
+
     if (query.isEmpty) return cachedCustomers;
-    
+
     final lowerQuery = query.toLowerCase();
     return cachedCustomers.where((customer) {
       return customer.name.toLowerCase().contains(lowerQuery) ||
-             customer.phone.contains(query);
+          customer.phone.contains(query);
     }).toList();
   }
 
@@ -105,23 +146,29 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   void search(String query) {
     // Cancel any pending remote search
     _debounceTimer?.cancel();
-    
+
     // Step 1: Instant local search (0ms)
     final localResults = _searchLocal(query);
+
+    // Keep previous results if local search returned empty to prevent visual flicker/lag
+    final displayResults = localResults.isNotEmpty
+        ? localResults
+        : state.results;
+
     state = state.copyWith(
       query: query,
-      results: localResults,
+      results: displayResults,
       isLoading: false,
       error: null,
     );
-    
-    // Step 2: Debounced remote search (300ms)
+
+    // Step 2: Debounced remote search (150ms)
     if (query.isNotEmpty) {
       state = state.copyWith(
         isSearchingRemote: true,
         isLoading: localResults.isEmpty,
       );
-      _debounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      _debounceTimer = Timer(const Duration(milliseconds: 150), () async {
         try {
           final repository = ref.read(customerRepositoryProvider);
           final remoteResults = await repository.getCustomers(
@@ -129,17 +176,17 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
             limit: 20,
             lightweight: true,
           );
-          
+
           // Merge local and remote results, deduplicating by ID
           final mergedResults = [...localResults];
           final existingIds = mergedResults.map((c) => c.id).toSet();
-          
+
           for (final customer in remoteResults.customers) {
             if (!existingIds.contains(customer.id)) {
               mergedResults.add(customer);
             }
           }
-          
+
           state = state.copyWith(
             results: mergedResults,
             isSearchingRemote: false,
@@ -155,6 +202,7 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
       });
     } else {
       state = state.copyWith(
+        results: localResults,
         isSearchingRemote: false,
         isLoading: false,
       );
@@ -167,7 +215,11 @@ class CustomerSearchNotifier extends Notifier<CustomerSearchState> {
   }
 }
 
-final customerSearchProvider = NotifierProvider.autoDispose<CustomerSearchNotifier, CustomerSearchState>(CustomerSearchNotifier.new, name: 'customerSearchProvider');
+final customerSearchProvider =
+    NotifierProvider.autoDispose<CustomerSearchNotifier, CustomerSearchState>(
+      CustomerSearchNotifier.new,
+      name: 'customerSearchProvider',
+    );
 
 // Customer operations provider - simple function-based approach
 class CustomerOperations {
