@@ -308,6 +308,178 @@ export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
 };
 
 /**
+ * Generate barcode and open print dialog (single sheet for roller printer).
+ * Optimized for TSC TTP-244 Pro (203 DPI) with high-DPI rendering, 13mm barcode
+ * height, bold 10pt font, and minimal margins.
+ */
+export async function printBarcodeSingleSheet(
+  barcode: string,
+  productName: string,
+  options?: { labelWidth_mm?: number; labelHeight_mm?: number; }
+): Promise<void> {
+  try {
+    const labelWidth_mm = options?.labelWidth_mm || 50;
+    const labelHeight_mm = options?.labelHeight_mm || 60;
+
+    const dataUrl = await renderBarcodeLabelForPrinter(barcode, productName, labelWidth_mm, labelHeight_mm);
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) throw new Error('Could not get iframe document');
+
+    iframeDoc.write(`
+      <html>
+        <head>
+          <title>Print Barcode - ${barcode}</title>
+          <style>
+            @page {
+              margin: 0;
+              size: ${labelWidth_mm}mm ${labelHeight_mm}mm;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background-color: white;
+            }
+            img {
+              width: ${labelWidth_mm}mm;
+              height: ${labelHeight_mm}mm;
+              display: block;
+              image-rendering: -webkit-optimize-contrast;
+              image-rendering: crisp-edges;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" />
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+              setTimeout(function() {
+                window.parent.document.body.removeChild(window.frameElement);
+              }, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+  } catch (error) {
+    console.error('Error printing barcode:', error);
+    throw new Error('Failed to print barcode');
+  }
+}
+
+/**
+ * Bulk print barcodes as single sheets (one barcode per page for roller printer).
+ * Optimized for TSC TTP-244 Pro (203 DPI) with high-DPI rendering.
+ */
+export async function bulkPrintBarcodesSingleSheet(
+  products: Array<{ barcode: string; name: string }>,
+  options?: { labelWidth_mm?: number; labelHeight_mm?: number; }
+): Promise<void> {
+  if (products.length === 0) return;
+
+  const labelWidth_mm = options?.labelWidth_mm || 50;
+  const labelHeight_mm = options?.labelHeight_mm || 60;
+
+  const dataUrls: string[] = [];
+
+  for (const product of products) {
+    try {
+      const url = await renderBarcodeLabelForPrinter(product.barcode, product.name, labelWidth_mm, labelHeight_mm);
+      dataUrls.push(url);
+    } catch (err) {
+      console.error(`Failed to generate barcode for ${product.barcode}:`, err);
+    }
+  }
+
+  if (dataUrls.length === 0) {
+    throw new Error('No barcodes could be generated');
+  }
+
+  const images = dataUrls.map(url => `<div class="label"><img src="${url}" alt="barcode" /></div>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Bulk Barcode Print — Single Sheet (${dataUrls.length} labels)</title>
+<style>
+  @page {
+    margin: 0;
+    size: ${labelWidth_mm}mm ${labelHeight_mm}mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+    font-family: Arial, sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .label {
+    width: ${labelWidth_mm}mm;
+    height: ${labelHeight_mm}mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .label:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .label img {
+    width: ${labelWidth_mm}mm;
+    height: ${labelHeight_mm}mm;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+</style>
+</head>
+<body>
+${images}
+<script>
+  window.onload = function() {
+    window.focus();
+    window.print();
+    setTimeout(function() {
+      var f = window.frameElement;
+      if (f) f.parentNode.removeChild(f);
+    }, 1000);
+  };
+</script>
+</body>
+</html>`;
+
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+
+  const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+  if (!iframeDoc) throw new Error('Could not get iframe document');
+
+  iframeDoc.open();
+  iframeDoc.write(html);
+  iframeDoc.close();
+}
+
+/**
  * Render a single barcode label as a high-DPI PNG data URL.
  * Uses 3× supersampling for crisp print output (~288 DPI equivalent).
  */
@@ -357,6 +529,117 @@ async function renderBarcodeLabel(
   }
 
   ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
+
+  return finalCanvas.toDataURL('image/png');
+}
+
+/**
+ * Render a barcode label optimized for thermal printers (e.g., TSC TTP-244 Pro, 203 DPI).
+ * Uses 3× supersampling for crisp output, with proper barcode height (13mm),
+ * bold 10pt font, minimal margins, and centered layout.
+ *
+ * Layout (top to bottom):
+ *   Product Name (bold, 10pt, centered)
+ *   Barcode bars (13mm height, Code 128, centered)
+ *   Barcode value (bold, 10pt, centered)
+ */
+async function renderBarcodeLabelForPrinter(
+  barcode: string,
+  productName: string,
+  labelWidth_mm: number,
+  labelHeight_mm: number,
+): Promise<string> {
+  const JsBarcode = (await import('jsbarcode')).default;
+
+  // TSC TTP-244 Pro = 203 DPI. 3× supersampling → effective ~609 DPI for crisp rendering.
+  const DPI = 203;
+  const scale = 3;
+  const pxPerMm = DPI / 25.4;
+
+  // Barcode: 9mm height (fits within 20mm label with margins and text)
+  const barcodeHeight_mm = 9;
+  const barWidth = 1.5;
+
+  // Font: 11pt bold (1pt = 0.3528mm → ~3.88mm) - fits better
+  const fontPt = 11;
+  const fontSize_mm = fontPt * 0.3528;
+
+  // Small margin: 1mm - prevents cut-off while keeping minimal
+  const margin_mm = 1;
+
+  // Calculate pixel values with supersampling
+  const barcodeHeightPx = Math.round(barcodeHeight_mm * pxPerMm) * scale;
+  const fontSizePx = Math.round(fontSize_mm * pxPerMm) * scale;
+  const marginPx = Math.round(margin_mm * pxPerMm) * scale;
+  const gapPx = Math.round(0.2 * pxPerMm) * scale;
+
+  // Generate barcode bars only (we draw the value text ourselves for better font control)
+  const barcodeCanvas = document.createElement('canvas');
+  JsBarcode(barcodeCanvas, barcode, {
+    width: barWidth * scale,
+    height: barcodeHeightPx,
+    format: 'CODE128',
+    displayValue: false,
+    margin: 0,
+  });
+
+  // Add left/right padding to barcode canvas for side margins
+  const sidePaddingPx = Math.round(1.5 * pxPerMm) * scale; // 1.5mm side padding
+  const paddedBarcodeCanvas = document.createElement('canvas');
+  const paddedCtx = paddedBarcodeCanvas.getContext('2d');
+  if (!paddedCtx) throw new Error('Could not get canvas context');
+  
+  paddedBarcodeCanvas.width = barcodeCanvas.width + sidePaddingPx * 2;
+  paddedBarcodeCanvas.height = barcodeCanvas.height;
+  
+  paddedCtx.fillStyle = '#ffffff';
+  paddedCtx.fillRect(0, 0, paddedBarcodeCanvas.width, paddedBarcodeCanvas.height);
+  paddedCtx.drawImage(barcodeCanvas, sidePaddingPx, 0);
+
+  // Final canvas at exact label resolution (no browser scaling needed)
+  const labelWidthPx = Math.round(labelWidth_mm * pxPerMm) * scale;
+  const labelHeightPx = Math.round(labelHeight_mm * pxPerMm) * scale;
+
+  const finalCanvas = document.createElement('canvas');
+  const ctx = finalCanvas.getContext('2d');
+  if (!ctx) throw new Error('Could not get canvas context');
+
+  finalCanvas.width = labelWidthPx;
+  finalCanvas.height = labelHeightPx;
+
+  // White background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
+
+  // Simple top positioning - no centering to fill the label
+  const startY = marginPx;
+
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'center';
+
+  // 1. Product name (bold, centered, at top)
+  ctx.font = `bold ${fontSizePx}px Arial, sans-serif`;
+  ctx.textBaseline = 'top';
+
+  let displayName = productName;
+  const maxChars = Math.floor(labelWidthPx / (fontSizePx * 0.55));
+  if (displayName.length > maxChars) {
+    displayName = displayName.substring(0, maxChars - 1) + '…';
+  }
+
+  let currentY = startY;
+  ctx.fillText(displayName, finalCanvas.width / 2, currentY);
+  currentY += fontSizePx + gapPx;
+
+  // 2. Barcode bars (centered horizontally)
+  const barcodeX = Math.max(0, (finalCanvas.width - paddedBarcodeCanvas.width) / 2);
+  ctx.drawImage(paddedBarcodeCanvas, barcodeX, currentY);
+  currentY += paddedBarcodeCanvas.height + gapPx;
+
+  // 3. Barcode value (bold, centered, below bars)
+  ctx.font = `bold ${fontSizePx}px Arial, sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(barcode, finalCanvas.width / 2, currentY);
 
   return finalCanvas.toDataURL('image/png');
 }
