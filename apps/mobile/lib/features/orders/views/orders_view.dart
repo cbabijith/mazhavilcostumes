@@ -39,7 +39,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >=
-        _scrollController.position.maxScrollExtent - Responsive.h(AppSizes.spacingXXXLarge)) {
+        _scrollController.position.maxScrollExtent - 200) {
       ref.read(ordersProvider.notifier).loadMore();
     }
   }
@@ -49,6 +49,11 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
     _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
+
+    final currentSearch = ref.read(ordersProvider.notifier).currentSearch;
+    if (currentSearch.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.text = '';
+    }
 
     return Container(
       color: AppColors.background,
@@ -63,16 +68,51 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                 child: ordersAsync.when(
                   data: (paginated) {
                     if (paginated.orders.isEmpty) return _buildEmptyState();
-                    return RefreshIndicator(
-                      color: AppColors.primary,
-                      onRefresh: () async => ref.invalidate(ordersProvider),
-                      child: ListView.separated(
-                        controller: _scrollController,
-                        padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
-                        itemCount: paginated.orders.length,
-                        separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                        itemBuilder: (context, i) => _buildOrderCard(paginated.orders[i]),
-                      ),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: Responsive.only(
+                            left: AppSizes.screenPaddingSmall,
+                            right: AppSizes.screenPaddingSmall,
+                            top: AppSizes.spacingTiny,
+                            bottom: AppSizes.spacingTiny,
+                          ),
+                          child: Text(
+                            'Total Records: ${paginated.total}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: RefreshIndicator(
+                            color: AppColors.primary,
+                            onRefresh: () async => ref.invalidate(ordersProvider),
+                            child: ListView.separated(
+                              controller: _scrollController,
+                              padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
+                              itemCount: paginated.orders.length + (paginated.hasNext ? 1 : 0),
+                              separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                              itemBuilder: (context, i) {
+                                if (i == paginated.orders.length) {
+                                  return Padding(
+                                    padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                  );
+                                }
+                                return _buildOrderCard(paginated.orders[i]);
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
                     );
                   },
                   loading: () => _buildShimmerList(),
@@ -613,10 +653,15 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                           Text(customerName,
                               style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium), fontWeight: FontWeight.w700, color: AppColors.primary),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
-                          Row(
+                          Wrap(
+                            spacing: Responsive.w(AppSizes.spacingSmall),
+                            runSpacing: Responsive.h(2),
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Text(
-                                'ID: ${order.id.substring(0, 8).toUpperCase()}',
+                                order.invoiceNumber != null
+                                    ? 'Invoice: ${order.invoiceNumber}'
+                                    : 'ID: ${order.id.substring(0, 8).toUpperCase()}',
                                 style: TextStyle(
                                   fontSize: Responsive.sp(AppSizes.fontTiny),
                                   fontFamily: 'monospace',
@@ -624,7 +669,6 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                                   color: Colors.grey[500],
                                 ),
                               ),
-                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                               Text(
                                 '• Booked: ${_fmtDate(order.createdAt)}',
                                 style: TextStyle(

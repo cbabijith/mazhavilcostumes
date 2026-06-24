@@ -194,31 +194,32 @@ export class DashboardService {
   }
 
   private getISTDateContext() {
-    // 1. Get current time in IST
     const now = new Date();
-    // Use Intl to get the current date string in IST
-    const istDateStr = new Intl.DateTimeFormat('en-CA', {
+    
+    // Format dates directly using Asia/Kolkata timezone to avoid local server timezone offset bugs
+    const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).format(now); // "YYYY-MM-DD"
+    });
 
-    // 2. Create the Start and End of that date in IST
-    // 00:00:00 IST is 18:30:00 UTC of previous day
-    const todayStart = new Date(`${istDateStr}T00:00:00+05:30`).toISOString();
-    const todayEnd = new Date(`${istDateStr}T23:59:59+05:30`).toISOString();
+    const todayStr = formatter.format(now);
+    const todayStart = new Date(`${todayStr}T00:00:00+05:30`).toISOString();
+    const todayEnd = new Date(`${todayStr}T23:59:59+05:30`).toISOString();
 
-    const istNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const next5Days = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
 
     return {
-      now: istNow,
+      now,
       todayStart,
       todayEnd,
-      todayStr: istDateStr,
-      yesterdayStr: format(subDays(istNow, 1), 'yyyy-MM-dd'),
-      tomorrowStr: format(addDays(istNow, 1), 'yyyy-MM-dd'),
-      next5DaysStr: format(addDays(istNow, 5), 'yyyy-MM-dd'),
+      todayStr,
+      yesterdayStr: formatter.format(yesterday),
+      tomorrowStr: formatter.format(tomorrow),
+      next5DaysStr: formatter.format(next5Days),
     };
   }
 
