@@ -22,7 +22,6 @@ const branchKeys = {
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
-    cache: 'no-store',
     ...options,
   });
   if (!res.ok) {
@@ -39,9 +38,9 @@ export function useBranches() {
       const response = await apiFetch<ApiSuccessResponse<BranchWithStaffCount[]>>('/api/branches');
       return response.data;
     },
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   return {
@@ -58,9 +57,9 @@ export function useSimpleBranches() {
       const response = await apiFetch<ApiSuccessResponse<Branch[]>>('/api/branches?simple=true');
       return response.data;
     },
-    staleTime: 0,
+    staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 
@@ -79,9 +78,9 @@ export function useBranch(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 0,
-    gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: true,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   return {

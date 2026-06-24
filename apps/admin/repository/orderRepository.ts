@@ -67,9 +67,19 @@ export class OrderRepository extends BaseRepository {
     let query = this.client
       .from(this.tableName)
       .select(`
-        *,
+        id, store_id, customer_id, branch_id, status, start_date, end_date,
+        event_date, total_amount, subtotal, gst_amount, advance_amount,
+        advance_collected, advance_payment_method, advance_collected_at,
+        amount_paid, payment_status, has_priority_cleaning, has_stock_conflict,
+        conflict_details, notes, delivery_method, delivery_address, pickup_address,
+        late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
+        cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
+        items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
+          condition_rating, damage_description, damage_charges, damaged_quantity,
+          is_returned, returned_quantity, base_amount, gst_amount,
+          product:product_id(id, name, images)
+        ),
         branch:branch_id(id, name)
       `, { count: 'exact' });
 
@@ -286,9 +296,19 @@ export class OrderRepository extends BaseRepository {
     const response = await this.client
       .from(this.tableName)
       .select(`
-        *,
+        id, store_id, customer_id, branch_id, status, start_date, end_date,
+        event_date, total_amount, subtotal, gst_amount, advance_amount,
+        advance_collected, advance_payment_method, advance_collected_at,
+        amount_paid, payment_status, has_priority_cleaning, has_stock_conflict,
+        conflict_details, notes, delivery_method, delivery_address, pickup_address,
+        late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
+        cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
+        items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
+          condition_rating, damage_description, damage_charges, damaged_quantity,
+          is_returned, returned_quantity, base_amount, gst_amount,
+          product:product_id(id, name, images, category:category_id(has_buffer))
+        ),
         branch:branch_id(id, name)
       `)
       .eq('branch_id', branchId)
@@ -297,7 +317,7 @@ export class OrderRepository extends BaseRepository {
       .gte('end_date', startDate)
       .order('start_date', { ascending: true });
 
-    return this.handleResponse<OrderWithRelations[]>(response);
+    return this.handleResponse<OrderWithRelations[]>(response as any);
   }
 
   /**
@@ -842,13 +862,17 @@ export class OrderRepository extends BaseRepository {
       .select(`
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(*, product:product_id(id, name, images, category:category_id(has_buffer))),
+        items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
+          condition_rating, damage_description, damage_charges, damaged_quantity,
+          is_returned, returned_quantity, base_amount, gst_amount,
+          product:product_id(id, name, images, category:category_id(has_buffer))
+        ),
         branch:branch_id(id, name)
       `)
       .eq('id', id)
       .single();
 
-    return this.handleResponse<OrderWithRelations>(response);
+    return this.handleResponse<OrderWithRelations>(response as any);
   }
 
   /**
