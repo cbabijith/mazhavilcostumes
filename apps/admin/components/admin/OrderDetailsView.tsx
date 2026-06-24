@@ -116,7 +116,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   useEffect(() => {
     if (order && Object.keys(returnItems).length === 0 && isReturnable) {
       const initial: any = {};
-      order.items.forEach(item => {
+      order.items?.forEach(item => {
         // Pre-fill from existing data if it exists (for incremental save recovery)
         let status: any = null;
         if (item.condition_rating === 'damaged') status = 'damaged';
@@ -210,7 +210,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       if (!product) return;
 
       // Find matching item in the order
-      const matchingItem = order.items.find(item => {
+      const matchingItem = order.items?.find(item => {
         const itemProduct = (item as any).product;
         return itemProduct?.id === product.id || item.product_id === product.id;
       });
@@ -278,7 +278,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       const updated = { ...prev, [itemId]: { ...prev[itemId], [field]: value } };
       // Auto-set damaged_quantity to full quantity when status changes to damaged
       if (field === 'status' && value === 'damaged') {
-        const item = order?.items.find(i => i.id === itemId);
+        const item = order?.items?.find(i => i.id === itemId);
         if (item && !updated[itemId].damaged_quantity) {
           updated[itemId].damaged_quantity = item.quantity;
         }
@@ -400,7 +400,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     const returnPayload = {
       order_id: order.id,
       notes: `Late Fee: ${lateFee}, Discount: ${discount}`,
-      items: order.items.map(item => {
+      items: order.items?.map(item => {
         const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "" };
         const isDamaged = rItem.status === 'damaged';
         const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
@@ -415,7 +415,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           damaged_quantity: damagedQty,
           // The good quantity is implicitly: item.quantity - damagedQty
         };
-      }),
+      }) || [],
       late_fee: lateFee,
       discount: discount,
     };
@@ -427,10 +427,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (!order) return;
 
     // Bulletproof validation check across all order items
-    const unmarked = order.items.filter(item => {
+    const unmarked = order.items?.filter(item => {
       const rItem = returnItems[item.id];
       return !rItem || rItem.status === null;
-    });
+    }) || [];
 
     if (unmarked.length > 0) {
       showError("Incomplete Checkup", "Please mark the condition of all items before settling.");
@@ -489,7 +489,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const statusDisplay = getStatusDisplay(order.status, order.end_date);
   const rentalDurationDays = Math.max(1, Math.ceil((new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1);
-  const totalItemQuantity = order.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const totalItemQuantity = order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
   const paymentStatusLabel = order.payment_status === PaymentStatus.PAID ? 'Paid' : order.payment_status === PaymentStatus.PARTIAL ? 'Partial Payment' : order.payment_status;
 
   return (
@@ -788,7 +788,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
 
             <div className="divide-y divide-slate-100">
-              {order.items.map((item) => {
+              {order.items?.map((item) => {
                 const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: "" };
                 const isExcellent = rItem.status === 'excellent';
                 const isDamaged = rItem.status === 'damaged';
@@ -914,7 +914,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           <div className="w-full sm:w-32 space-y-2">
                             <label className="text-xs font-bold text-transparent select-none uppercase tracking-widest">Save</label>
                             {(() => {
-                              const dbItem = order.items.find(i => i.id === item.id);
+                              const dbItem = order.items?.find(i => i.id === item.id);
                               if (!dbItem) return null;
 
                               const dbStatus = dbItem.condition_rating === 'damaged' ? 'damaged' : (dbItem.condition_rating === 'excellent' ? 'excellent' : null);
@@ -1007,7 +1007,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </div>
 
             {/* Damage Assessment Panel — for flagged/returned orders with damage */}
-            {(order.status === OrderStatus.FLAGGED || order.items.some(i => i.condition_rating === 'damaged')) && !isReturnable && (
+            {(order.status === OrderStatus.FLAGGED || order.items?.some(i => i.condition_rating === 'damaged')) && !isReturnable && (
               <div className="p-6 border-t border-slate-200">
                 <DamageAssessmentPanel order={order} />
               </div>
@@ -1184,13 +1184,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
             {(() => {
               // Calculate breakdown from items (more accurate than order summary fields)
-              const rawSubtotal = order.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
-              const afterItemDiscountTotal = order.items.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0);
+              const rawSubtotal = order.items?.reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0;
+              const afterItemDiscountTotal = order.items?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) || 0;
               const itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
 
               // Base amount excluding GST is the sum of all item base_amounts
-              const totalBaseExclGst = order.items.reduce((sum, item) => sum + (item.base_amount || 0), 0);
-              const totalGst = order.items.reduce((sum, item) => sum + (item.gst_amount || 0), 0);
+              const totalBaseExclGst = order.items?.reduce((sum, item) => sum + (item.base_amount || 0), 0) || 0;
+              const totalGst = order.items?.reduce((sum, item) => sum + (item.gst_amount || 0), 0) || 0;
 
               return (
                 <div className="space-y-4">
@@ -1210,7 +1210,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         <span>- {formatCurrency(itemDiscountsTotal)}</span>
                       </div>
                       <div className="pl-4 space-y-1">
-                        {order.items.map((item) => {
+                        {order.items?.map((item) => {
                           const itemRaw = item.subtotal || 0;
                           const itemAfter = (item.base_amount || 0) + (item.gst_amount || 0);
                           const itemDisc = itemRaw - itemAfter;
@@ -1291,9 +1291,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         <span className="uppercase text-[10px] tracking-wider">Damage Charges</span>
                         <span>+ {formatCurrency(displayDamageCharges)}</span>
                       </div>
-                      {isReturnable && order.items.some(item => (returnItems[item.id]?.damage_fee || 0) > 0) && (
+                      {isReturnable && order.items?.some(item => (returnItems[item.id]?.damage_fee || 0) > 0) && (
                         <div className="pl-4 space-y-0.5">
-                          {order.items.map((item) => {
+                          {order.items?.map((item) => {
                             const fee = returnItems[item.id]?.damage_fee || 0;
                             if (fee <= 0) return null;
                             return (
@@ -2008,7 +2008,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="space-y-2">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-              {order.items.map((item) => {
+              {order.items?.map((item) => {
                 const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
                 const product = (item as any).product;
                 return (

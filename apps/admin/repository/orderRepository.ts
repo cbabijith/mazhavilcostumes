@@ -75,11 +75,6 @@ export class OrderRepository extends BaseRepository {
         late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
         cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
         customer:customer_id(id, name, phone, alt_phone, email),
-        items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
-          condition_rating, damage_description, damage_charges, damaged_quantity,
-          is_returned, returned_quantity, base_amount, gst_amount,
-          product:product_id(id, name, images)
-        ),
         branch:branch_id(id, name)
       `, { count: 'exact' });
 
@@ -264,6 +259,26 @@ export class OrderRepository extends BaseRepository {
         error: result.error,
         success: false,
       };
+    }
+
+    // Batch-fetch item counts for all returned orders (single query, no joins)
+    if (result.data.length > 0) {
+      const orderIds = result.data.map(o => o.id);
+      const { data: itemCounts } = await this.client
+        .from('order_items')
+        .select('order_id')
+        .in('order_id', orderIds);
+
+      const countMap = new Map<string, number>();
+      if (itemCounts) {
+        for (const row of itemCounts) {
+          countMap.set(row.order_id, (countMap.get(row.order_id) || 0) + 1);
+        }
+      }
+      result.data = result.data.map(o => ({
+        ...o,
+        item_count: countMap.get(o.id) || 0,
+      }));
     }
 
     const limit = params?.limit || 20;
@@ -873,6 +888,24 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     return this.handleResponse<OrderWithRelations>(response as any);
+  }
+
+  /**
+   * Get order items with product details for a single order.
+   * Used by the on-demand items endpoint (OrderItemsPanel).
+   */
+  async getOrderItems(orderId: string): Promise<RepositoryResult<any[]>> {
+    const response = await this.client
+      .from('order_items')
+      .select(`
+        id, product_id, quantity, price_per_day, discount, discount_type,
+        condition_rating, damage_description, damage_charges, damaged_quantity,
+        is_returned, returned_quantity, base_amount, gst_amount,
+        product:product_id(id, name, images)
+      `)
+      .eq('order_id', orderId);
+
+    return this.handleResponse<any[]>(response as any);
   }
 
   /**

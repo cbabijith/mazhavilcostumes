@@ -62,7 +62,7 @@ function OrderRowInner({
   onViewItems,
 }: OrderRowProps) {
   const router = useRouter();
-  const itemCount = order.items?.length || 0;
+  const itemCount = order.item_count ?? order.items?.length ?? 0;
 
   const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
     const target = e.target as HTMLElement;

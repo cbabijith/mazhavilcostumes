@@ -150,7 +150,7 @@ export class InvoiceService {
     history: any[] = [],
   ): TallyInvoiceProps {
     // Build line items
-    const items: InvoiceItem[] = order.items.map((item, idx) => {
+    const items: InvoiceItem[] = (order.items || []).map((item, idx) => {
       const quantity = item.quantity || 0;
       const rate = item.price_per_day || 0;
       const lineTotal = rate * quantity;
@@ -211,7 +211,7 @@ export class InvoiceService {
     const initialLateFee = Math.max(0, (Number(order.late_fee) || 0) - additionalLateFee);
 
     // Build damage charges breakdown
-    const damageChargesBreakdown = order.items
+    const damageChargesBreakdown = (order.items || [])
       .filter((item) => (item.damage_charges || 0) > 0)
       .map((item) => ({
         productName: this.getItemProductName(item),

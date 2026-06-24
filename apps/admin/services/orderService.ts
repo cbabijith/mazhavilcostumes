@@ -1022,7 +1022,7 @@ export class OrderService {
           const damagedItems = returnData.items
             .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
             .map(item => {
-              const orderItem = returnedOrderData.items.find(i => i.id === item.item_id);
+              const orderItem = returnedOrderData.items?.find(i => i.id === item.item_id);
               return {
                 order_item_id: item.item_id,
                 product_id: orderItem?.product_id || '',
