@@ -974,12 +974,24 @@ export class OrderRepository extends BaseRepository {
     const endYY = String(fiscalStartYear + 1).slice(-2);
     const fiscalSuffix = `${startYY}${endYY}`;
 
-    const { count: existingCount } = await this.client
+    // Get the maximum invoice number for the current fiscal year to avoid duplicates
+    const { data: maxInvoiceData } = await this.client
       .from(this.tableName)
-      .select('id', { count: 'exact', head: true })
-      .like('invoice_number', `MAZ-${fiscalSuffix}-%`);
+      .select('invoice_number')
+      .like('invoice_number', `MAZ-${fiscalSuffix}-%`)
+      .order('invoice_number', { ascending: false })
+      .limit(1)
+      .single();
 
-    const seqNum = (existingCount || 0) + 1;
+    let seqNum = 1;
+    if (maxInvoiceData?.invoice_number) {
+      // Extract the sequence number from the invoice number (e.g., MAZ-2627-0042 -> 42)
+      const parts = maxInvoiceData.invoice_number.split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq)) {
+        seqNum = lastSeq + 1;
+      }
+    }
     const invoiceNumber = `MAZ-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
 
     // Create order first
