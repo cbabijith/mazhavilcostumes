@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const todayStart = new Date(`${istDateStr}T00:00:00+05:30`).toISOString();
     const todayEnd = new Date(`${istDateStr}T23:59:59+05:30`).toISOString();
-    const yesterdayStr = format(addDays(now, 1), 'yyyy-MM-dd');
+    const yesterdayStr = format(addDays(now, -1), 'yyyy-MM-dd');
     const tomorrowStr = format(addDays(now, 1), 'yyyy-MM-dd');
     const next5DaysStr = format(addDays(now, 5), 'yyyy-MM-dd');
 

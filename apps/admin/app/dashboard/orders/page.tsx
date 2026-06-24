@@ -67,8 +67,9 @@ function OrdersContent() {
   const page = parseInt(searchParams.get("page") || "1", 10);
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
+  const statusParams = searchParams.getAll("status");
   const statusFilter =
-    (searchParams.get("status") || "ALL") as OrderStatus | "ALL" | "stock_conflict";
+    (statusParams[0] || "ALL") as OrderStatus | "ALL" | "stock_conflict";
   const dateFilter = searchParams.get("date_filter") || "ALL";
   const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
   const dateFrom = searchParams.get("date_from") || "";
@@ -112,7 +113,7 @@ function OrdersContent() {
     limit: pageSize,
     page,
     branch_id: selectedBranchId || undefined,
-    status: (statusFilter === "ALL" || statusFilter === "stock_conflict") ? undefined : statusFilter,
+    status: (statusFilter === "ALL" || statusFilter === "stock_conflict") ? undefined : (statusParams.length > 1 ? statusParams as OrderStatus[] : statusFilter),
     exclude_status: excludeStatusFilter.length > 0 ? excludeStatusFilter : undefined,
     payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter : undefined,
     date_filter:
