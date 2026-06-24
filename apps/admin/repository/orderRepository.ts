@@ -378,15 +378,36 @@ export class OrderRepository extends BaseRepository {
     branchId?: string,
     excludeOrderId?: string,
   ): Promise<RepositoryResult<{ available: number; availableWithPriority: number; total: number; peakReserved: number; overlappingOrders: any[]; priorityCleaningNeeded: boolean; priorityCleaningInfo: any[] }>> {
-    // Get product total quantity, name, and category buffer setting
-    const productResponse = await this.client
-      .from('products')
-      .select('quantity, name, category:category_id(has_buffer)')
-      .eq('id', productId)
-      .single();
+    const DAY_MS = 86400000;
+    const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
+    const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
+
+    // Date range filter boundaries (including 2 days of buffer padding on each end to be safe)
+    const searchStart = new Date(reqStart - 2 * DAY_MS).toISOString().split('T')[0];
+    const searchEnd = new Date(reqEnd + 2 * DAY_MS).toISOString().split('T')[0];
+
+    // Run product lookup and overlapping orders query in parallel
+    const [productResponse, ordersResponse] = await Promise.all([
+      this.client
+        .from('products')
+        .select('quantity, name, category:category_id(has_buffer)')
+        .eq('id', productId)
+        .single(),
+      this.client
+        .from('order_items')
+        .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
+        .eq('product_id', productId)
+        .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+        .gte('orders.end_date', searchStart)
+        .lte('orders.start_date', searchEnd),
+    ]);
 
     if (productResponse.error) {
       return this.handleResponse<any>(productResponse);
+    }
+
+    if (ordersResponse.error) {
+      return this.handleResponse<any>(ordersResponse);
     }
 
     const totalQuantity = productResponse.data?.quantity || 0;
@@ -399,27 +420,6 @@ export class OrderRepository extends BaseRepository {
     
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
-
-    const DAY_MS = 86400000;
-    const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
-    const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
-
-    // Date range filter boundaries (including 2 days of buffer padding on each end to be safe)
-    const searchStart = new Date(reqStart - 2 * DAY_MS).toISOString().split('T')[0];
-    const searchEnd = new Date(reqEnd + 2 * DAY_MS).toISOString().split('T')[0];
-
-    // Fetch only overlapping active order items for this product with their order date ranges
-    const ordersResponse = await this.client
-      .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
-      .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
-      .gte('orders.end_date', searchStart)
-      .lte('orders.start_date', searchEnd);
-
-    if (ordersResponse.error) {
-      return this.handleResponse<any>(ordersResponse);
-    }
 
     // Collect bookings into categories
     type BookingInfo = { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string };
