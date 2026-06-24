@@ -438,13 +438,6 @@ class _MainLayoutState extends State<MainLayout> {
       data: (branches) {
         final activeBranches = branches.where((branch) => branch.isActive).toList();
         
-        // Auto-select first branch if none selected
-        if (selectedBranchId == null && activeBranches.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            ref.read(selectedBranchIdProvider.notifier).select(activeBranches.first.id);
-          });
-        }
-        
         Branch? selectedBranch;
         for (final branch in activeBranches) {
           if (branch.id == selectedBranchId) {

@@ -111,13 +111,22 @@ export abstract class BaseRepository {
   }
 
   /**
-   * Handle Supabase response and convert to RepositoryResult
+   * Handle Supabase response and convert to RepositoryResult.
+   * Gracefully handles PostgREST code PGRST103 (Requested range not satisfiable)
+   * as success with empty list, which is standard for out-of-range pagination.
    */
   protected handleResponse<T>(response: {
     data: T | null;
     error: PostgrestError | null;
   }): RepositoryResult<T> {
     if (response.error) {
+      if (response.error.code === 'PGRST103') {
+        return {
+          data: [] as unknown as T,
+          error: null,
+          success: true,
+        };
+      }
       return {
         data: null,
         error: response.error,
@@ -130,6 +139,21 @@ export abstract class BaseRepository {
       error: null,
       success: true,
     };
+  }
+
+  /**
+   * Parse total count from PGRST103 error details if available.
+   * Details format: "An offset of 15 was requested, but there are only 1 rows."
+   */
+  protected parsePgrstRangeCount(error: PostgrestError | null): number {
+    if (!error || error.code !== 'PGRST103' || !error.details) {
+      return 0;
+    }
+    const match = String(error.details).match(/there are only (\d+) rows/i);
+    if (match) {
+      return parseInt(match[1], 10);
+    }
+    return 0;
   }
 
   /**

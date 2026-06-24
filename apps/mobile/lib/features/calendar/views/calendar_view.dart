@@ -902,7 +902,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
         ? order.customer!.name.substring(0, 1).toUpperCase()
         : '?';
 
-    final shortId = order.id.length >= 8 ? order.id.substring(0, 8).toUpperCase() : order.id;
+    final displayId = order.invoiceNumber ?? (order.id.length >= 8 ? order.id.substring(0, 8).toUpperCase() : order.id);
     final startLabel = DateFormat('MMM d').format(_parseDateString(order.startDate));
     final endLabel = DateFormat('MMM d, yyyy').format(_parseDateString(order.endDate));
     final itemCount = order.items?.length ?? 0;
@@ -974,7 +974,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                       SizedBox(height: Responsive.h(4)),
                       // ID
                       Text(
-                        'ID: $shortId',
+                        order.invoiceNumber != null ? 'Invoice: $displayId' : 'ID: $displayId',
                         style: TextStyle(
                           fontSize: Responsive.sp(10),
                           color: AppColors.secondaryText,

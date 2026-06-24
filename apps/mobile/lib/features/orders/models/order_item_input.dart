@@ -6,12 +6,14 @@ class OrderItemInput {
   String productName = '';
   int quantity = 1;
   double pricePerDay = 0.0;
+  double originalPricePerDay = 0.0;
   double gstPercentage = 0.0;
   bool isAvailable = true;
   bool isChecking = false;
   String? availableStockInfo;
   CancelToken? cancelToken;
   late final TextEditingController quantityController;
+  late final TextEditingController priceController;
 
   // Parity with website
   double discount = 0.0;
@@ -27,6 +29,7 @@ class OrderItemInput {
     this.productName = '',
     this.quantity = 1,
     this.pricePerDay = 0.0,
+    this.originalPricePerDay = 0.0,
     this.gstPercentage = 0.0,
     this.isAvailable = true,
     this.discount = 0.0,
@@ -39,9 +42,15 @@ class OrderItemInput {
     this.cancelToken,
   }) {
     quantityController = TextEditingController(text: quantity.toString());
+    priceController = TextEditingController(
+      text: pricePerDay % 1 == 0
+          ? pricePerDay.toStringAsFixed(0)
+          : pricePerDay.toStringAsFixed(2),
+    );
   }
 
   void dispose() {
     quantityController.dispose();
+    priceController.dispose();
   }
 }

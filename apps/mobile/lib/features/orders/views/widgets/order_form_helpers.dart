@@ -73,6 +73,7 @@ extension _OrderFormHelpers on _OrderFormViewState {
           productName: product.name,
           quantity: 1,
           pricePerDay: product.pricePerDay,
+          originalPricePerDay: product.pricePerDay,
           gstPercentage: product.gstPercentage,
           available: available,
           availableWithPriority: availableWithPriority,
@@ -152,6 +153,7 @@ extension _OrderFormHelpers on _OrderFormViewState {
                     productName: product.name,
                     quantity: 1,
                     pricePerDay: product.pricePerDay,
+                    originalPricePerDay: product.pricePerDay,
                     gstPercentage: product.gstPercentage,
                   ),
                 );

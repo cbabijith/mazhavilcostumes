@@ -7,6 +7,7 @@ import 'auth_service.dart';
 /// ensuring the mobile app acts as a thin client with no direct database access.
 class ApiClient {
   late final Dio _dio;
+  Dio get dio => _dio;
   static ApiClient? _instance;
   static final _auth = authService;
   
@@ -34,6 +35,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      listFormat: ListFormat.multi,
     ));
 
     // Add auth interceptor
@@ -51,6 +53,7 @@ class ApiClient {
             print('[ApiClient] No auth token available for ${options.path}');
           }
         }
+        print('[ApiClient] Request: ${options.method} ${options.baseUrl}${options.path} params: ${options.queryParameters}');
         return handler.next(options);
       },
       onError: (error, handler) async {
