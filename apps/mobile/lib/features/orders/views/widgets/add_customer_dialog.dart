@@ -111,172 +111,174 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
     Responsive.init(context);
     return Dialog(
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Responsive.r(14)),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
       ),
-      child: Padding(
-        padding: Responsive.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Add New Customer',
-              style: TextStyle(
-                fontSize: Responsive.sp(18),
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: Responsive.all(AppSizes.spacingXLarge),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Add New Customer',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontXLarge),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary,
+                ),
               ),
-            ),
-            SizedBox(height: Responsive.h(20)),
-            Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      label: _buildInputLabel('Phone Number', isRequired: true),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+              SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
+              Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                      decoration: InputDecoration(
+                        label: _buildInputLabel('Phone Number', isRequired: true),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        contentPadding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingMedium,
+                        ),
                       ),
-                      contentPadding: Responsive.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Phone number is required';
-                      }
-                      if (value.trim().length < 10) {
-                        return 'Enter a valid phone number';
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: Responsive.h(12)),
-                  TextFormField(
-                    controller: _altPhoneController,
-                    keyboardType: TextInputType.phone,
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      label: _buildInputLabel('Alternate Phone', isRequired: false),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
-                      ),
-                      contentPadding: Responsive.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value != null && value.trim().isNotEmpty) {
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Phone number is required';
+                        }
                         if (value.trim().length < 10) {
-                          return 'Alternate phone must be at least 10 characters';
+                          return 'Enter a valid phone number';
                         }
-                        if (value.trim().length > 20) {
-                          return 'Alternate phone must be at most 20 characters';
-                        }
-                      }
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: Responsive.h(12)),
-                  TextFormField(
-                    controller: _nameController,
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      label: _buildInputLabel('Name', isRequired: true),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    TextFormField(
+                      controller: _altPhoneController,
+                      keyboardType: TextInputType.phone,
+                      style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                      decoration: InputDecoration(
+                        label: _buildInputLabel('Alternate Phone', isRequired: false),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        contentPadding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingMedium,
+                        ),
                       ),
-                      contentPadding: Responsive.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
+                      validator: (value) {
+                        if (value != null && value.trim().isNotEmpty) {
+                          if (value.trim().length < 10) {
+                            return 'Alternate phone must be at least 10 characters';
+                          }
+                          if (value.trim().length > 20) {
+                            return 'Alternate phone must be at most 20 characters';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    TextFormField(
+                      controller: _nameController,
+                      style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                      decoration: InputDecoration(
+                        label: _buildInputLabel('Name', isRequired: true),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        contentPadding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingMedium,
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Name is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    TextFormField(
+                      controller: _addressController,
+                      style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+                      decoration: InputDecoration(
+                        label: _buildInputLabel('Address', isRequired: false),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        contentPadding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingMedium,
+                        ),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: Responsive.h(AppSizes.spacingXLarge)),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium - 1)),
                       ),
                     ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Name is required';
-                      }
-                      return null;
-                    },
                   ),
-                  SizedBox(height: Responsive.h(12)),
-                  TextFormField(
-                    controller: _addressController,
-                    style: TextStyle(fontSize: Responsive.sp(14)),
-                    decoration: InputDecoration(
-                      label: _buildInputLabel('Address', isRequired: false),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
+                  SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                        padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
                       ),
-                      contentPadding: Responsive.symmetric(
-                        horizontal: 14,
-                        vertical: 12,
-                      ),
+                      onPressed: _isLoading ? null : _submit,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Save & Select',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium - 1),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
-                    maxLines: 2,
                   ),
                 ],
               ),
-            ),
-            SizedBox(height: Responsive.h(20)),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.primary),
-                      foregroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
-                      ),
-                      padding: Responsive.symmetric(vertical: 12),
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(fontSize: Responsive.sp(13)),
-                    ),
-                  ),
-                ),
-                SizedBox(width: Responsive.w(12)),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(8)),
-                      ),
-                      padding: Responsive.symmetric(vertical: 12),
-                    ),
-                    onPressed: _isLoading ? null : _submit,
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            'Save & Select',
-                            style: TextStyle(
-                              fontSize: Responsive.sp(13),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
