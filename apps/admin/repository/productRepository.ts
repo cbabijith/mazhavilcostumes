@@ -169,7 +169,7 @@ export class ProductRepository extends BaseRepository {
       console.error('Failed to calculate total stock:', e);
     }
 
-    const total = count || 0;
+    const total = count !== null && count !== undefined ? count : this.parsePgrstRangeCount(error);
     const totalPages = Math.ceil(total / limit);
 
     const searchResult: ProductSearchResult = {

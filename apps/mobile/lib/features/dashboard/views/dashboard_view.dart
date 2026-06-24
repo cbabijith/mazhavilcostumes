@@ -108,6 +108,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                         bottom: padding + bottomPadding + screenWidth * 0.02,
                                       ),
                                       child: operationalAsync.when(
+                                        skipLoadingOnReload: true,
                                         data: (metrics) => _buildDashboardContent(metrics, screenWidth),
                                         loading: () => _buildLoadingState(screenWidth),
                                         error: (error, stack) => _buildErrorState(error, stack, screenWidth),
@@ -142,6 +143,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                             bottom: padding + bottomPadding + screenWidth * 0.02,
                                           ),
                                           child: operationalAsync.when(
+                                            skipLoadingOnReload: true,
                                             data: (metrics) => _buildDashboardContent(metrics, screenWidth),
                                             loading: () => _buildLoadingState(screenWidth),
                                             error: (error, stack) => _buildErrorState(error, stack, screenWidth),

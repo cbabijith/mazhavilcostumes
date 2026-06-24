@@ -6,6 +6,7 @@ class TransactionDetail {
   final String paymentMode;
   final double amount;
   final String status;
+  final String? invoiceNumber;
 
   TransactionDetail({
     required this.date,
@@ -15,6 +16,7 @@ class TransactionDetail {
     required this.paymentMode,
     required this.amount,
     required this.status,
+    this.invoiceNumber,
   });
 
   factory TransactionDetail.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class TransactionDetail {
       paymentMode: json['payment_mode'] as String? ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       status: json['status'] as String? ?? '',
+      invoiceNumber: json['invoice_number'] as String?,
     );
   }
 }

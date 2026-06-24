@@ -66,7 +66,7 @@ export class CustomerRepository extends BaseRepository {
       };
     }
 
-    const total = count || 0;
+    const total = count !== null && count !== undefined ? count : this.parsePgrstRangeCount(error);
     const totalPages = Math.ceil(total / limit);
 
     const searchResult: CustomerSearchResult = {

@@ -294,6 +294,7 @@ extension _OrderFormSubmit on _OrderFormViewState {
               'product_id': item.productId,
               'quantity': item.quantity,
               'price_per_day': item.pricePerDay,
+              'original_price_per_day': item.originalPricePerDay,
               'discount': item.discount,
               'discount_type': item.discountType,
             },

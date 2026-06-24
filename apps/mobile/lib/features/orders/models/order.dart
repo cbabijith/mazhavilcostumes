@@ -1,5 +1,21 @@
 import 'package:equatable/equatable.dart';
 
+String _safeParseId(dynamic value) {
+  if (value == null) return '';
+  if (value is Map) {
+    return value['id']?.toString() ?? '';
+  }
+  return value.toString();
+}
+
+String? _safeParseNullableId(dynamic value) {
+  if (value == null) return null;
+  if (value is Map) {
+    return value['id']?.toString();
+  }
+  return value.toString();
+}
+
 // Order domain models for the Mazhavil Costumes mobile app.
 //
 // Mirrors the Next.js Order domain types and enums, ensuring exact mapping
@@ -109,13 +125,13 @@ class ProductInfo extends Equatable {
     };
   }
 }
-
 class OrderItem extends Equatable {
   final String id;
   final String orderId;
   final String productId;
   final int quantity;
   final double pricePerDay;
+  final double? originalPricePerDay;
   final double totalPrice;
   final double subtotal;
   final double discount;
@@ -139,6 +155,7 @@ class OrderItem extends Equatable {
     required this.productId,
     required this.quantity,
     required this.pricePerDay,
+    this.originalPricePerDay,
     required this.totalPrice,
     required this.subtotal,
     this.discount = 0.0,
@@ -164,6 +181,7 @@ class OrderItem extends Equatable {
         productId,
         quantity,
         pricePerDay,
+        originalPricePerDay,
         totalPrice,
         subtotal,
         discount,
@@ -184,28 +202,29 @@ class OrderItem extends Equatable {
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
-      id: json['id'] as String? ?? '',
-      orderId: json['order_id'] as String? ?? '',
-      productId: json['product_id'] as String? ?? '',
+      id: json['id']?.toString() ?? '',
+      orderId: _safeParseId(json['order_id']),
+      productId: _safeParseId(json['product_id']),
       quantity: json['quantity'] as int? ?? 0,
       pricePerDay: (json['price_per_day'] as num?)?.toDouble() ?? 0.0,
+      originalPricePerDay: (json['original_price_per_day'] as num?)?.toDouble(),
       totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0.0,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
-      discountType: json['discount_type'] as String? ?? 'flat',
+      discountType: json['discount_type']?.toString() ?? 'flat',
       gstPercentage: (json['gst_percentage'] as num?)?.toDouble() ?? 0.0,
       baseAmount: (json['base_amount'] as num?)?.toDouble() ?? 0.0,
       gstAmount: (json['gst_amount'] as num?)?.toDouble() ?? 0.0,
       conditionRating: json['condition_rating'] != null
-          ? _parseConditionRating(json['condition_rating'] as String)
+          ? _parseConditionRating(json['condition_rating'].toString())
           : null,
-      damageDescription: json['damage_description'] as String?,
+      damageDescription: json['damage_description']?.toString(),
       damageCharges: (json['damage_charges'] as num?)?.toDouble(),
       damagedQuantity: json['damaged_quantity'] as int?,
       isReturned: json['is_returned'] as bool?,
-      returnedAt: json['returned_at'] as String?,
+      returnedAt: json['returned_at']?.toString(),
       returnedQuantity: json['returned_quantity'] as int?,
-      createdAt: json['created_at'] as String? ?? '',
+      createdAt: json['created_at']?.toString() ?? '',
       product: json['product'] != null && json['product'] is Map
           ? ProductInfo.fromJson(Map<String, dynamic>.from(json['product']))
           : null,
@@ -249,6 +268,7 @@ class OrderItem extends Equatable {
       'product_id': productId,
       'quantity': quantity,
       'price_per_day': pricePerDay,
+      'original_price_per_day': originalPricePerDay,
       'total_price': totalPrice,
       'subtotal': subtotal,
       'discount': discount,
@@ -301,6 +321,7 @@ class Order extends Equatable {
   final String? cancelledBy;
   final String? cancelledAt;
   final bool isLate;
+  final String? invoiceNumber;
   final String createdAt;
   final String? updatedAt;
   final CustomerInfo? customer;
@@ -343,6 +364,7 @@ class Order extends Equatable {
     this.cancelledBy,
     this.cancelledAt,
     this.isLate = false,
+    this.invoiceNumber,
     required this.createdAt,
     this.updatedAt,
     this.customer,
@@ -384,6 +406,7 @@ class Order extends Equatable {
         cancelledBy,
         cancelledAt,
         isLate,
+        invoiceNumber,
         createdAt,
         updatedAt,
         customer,
@@ -393,14 +416,14 @@ class Order extends Equatable {
 
   factory Order.fromJson(Map<String, dynamic> json) {
     return Order(
-      id: json['id'] as String? ?? '',
-      storeId: json['store_id'] as String? ?? '',
-      customerId: json['customer_id'] as String? ?? '',
-      branchId: json['branch_id'] as String? ?? '',
-      status: _parseOrderStatus(json['status'] as String? ?? 'pending'),
-      startDate: json['start_date'] as String? ?? '',
-      endDate: json['end_date'] as String? ?? '',
-      eventDate: json['event_date'] as String? ?? '',
+      id: json['id']?.toString() ?? '',
+      storeId: json['store_id']?.toString() ?? '',
+      customerId: _safeParseId(json['customer_id']),
+      branchId: _safeParseId(json['branch_id']),
+      status: _parseOrderStatus(json['status']?.toString() ?? 'pending'),
+      startDate: json['start_date']?.toString() ?? '',
+      endDate: json['end_date']?.toString() ?? '',
+      eventDate: json['event_date']?.toString() ?? '',
       totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       gstAmount: (json['gst_amount'] as num?)?.toDouble() ?? 0.0,
@@ -411,33 +434,34 @@ class Order extends Equatable {
           json['deposit_collected'] as bool? ??
           false,
       advancePaymentMethod: json['advance_payment_method'] != null
-          ? _parsePaymentMethod(json['advance_payment_method'] as String)
+          ? _parsePaymentMethod(json['advance_payment_method'].toString())
           : json['deposit_payment_method'] != null
-              ? _parsePaymentMethod(json['deposit_payment_method'] as String)
+              ? _parsePaymentMethod(json['deposit_payment_method'].toString())
               : null,
-      advanceCollectedAt: json['advance_collected_at'] as String? ??
-          json['deposit_collected_at'] as String?,
+      advanceCollectedAt: json['advance_collected_at']?.toString() ??
+          json['deposit_collected_at']?.toString(),
       amountPaid: (json['amount_paid'] as num?)?.toDouble() ?? 0.0,
-      paymentStatus: _parsePaymentStatus(json['payment_status'] as String? ?? 'pending'),
+      paymentStatus: _parsePaymentStatus(json['payment_status']?.toString() ?? 'pending'),
       hasPriorityCleaning: json['has_priority_cleaning'] as bool? ?? false,
       hasStockConflict: json['has_stock_conflict'] as bool? ?? false,
       conflictDetails: json['conflict_details'] as List<dynamic>?,
-      notes: json['notes'] as String?,
+      notes: json['notes']?.toString(),
       deliveryMethod: json['delivery_method'] != null
-          ? _parseDeliveryMethod(json['delivery_method'] as String)
+          ? _parseDeliveryMethod(json['delivery_method'].toString())
           : null,
-      deliveryAddress: json['delivery_address'] as String?,
-      pickupAddress: json['pickup_address'] as String?,
+      deliveryAddress: json['delivery_address']?.toString(),
+      pickupAddress: json['pickup_address']?.toString(),
       lateFee: (json['late_fee'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
-      discountType: json['discount_type'] as String? ?? 'flat',
+      discountType: json['discount_type']?.toString() ?? 'flat',
       damageChargesTotal: (json['damage_charges_total'] as num?)?.toDouble() ?? 0.0,
-      cancellationReason: json['cancellation_reason'] as String?,
-      cancelledBy: json['cancelled_by'] as String?,
-      cancelledAt: json['cancelled_at'] as String?,
+      cancellationReason: json['cancellation_reason']?.toString(),
+      cancelledBy: _safeParseNullableId(json['cancelled_by']),
+      cancelledAt: json['cancelled_at']?.toString(),
       isLate: json['is_late'] as bool? ?? false,
-      createdAt: json['created_at'] as String? ?? '',
-      updatedAt: json['updated_at'] as String?,
+      invoiceNumber: json['invoice_number']?.toString(),
+      createdAt: json['created_at']?.toString() ?? '',
+      updatedAt: json['updated_at']?.toString(),
       customer: json['customer'] != null
           ? (json['customer'] is List
               ? (json['customer'].isNotEmpty
@@ -562,6 +586,7 @@ class Order extends Equatable {
       'cancelled_by': cancelledBy,
       'cancelled_at': cancelledAt,
       'is_late': isLate,
+      'invoice_number': invoiceNumber,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'customer': customer?.toJson(),
@@ -593,12 +618,12 @@ class CustomerInfo extends Equatable {
 
   factory CustomerInfo.fromJson(Map<String, dynamic> json) {
     return CustomerInfo(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      phone: json['phone'] as String? ?? '',
-      altPhone: json['alt_phone'] as String?,
-      email: json['email'] as String?,
-      address: json['address'] as String?,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      altPhone: json['alt_phone']?.toString(),
+      email: json['email']?.toString(),
+      address: json['address']?.toString(),
     );
   }
 
@@ -628,8 +653,8 @@ class BranchInfo extends Equatable {
 
   factory BranchInfo.fromJson(Map<String, dynamic> json) {
     return BranchInfo(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? '',
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
     );
   }
 

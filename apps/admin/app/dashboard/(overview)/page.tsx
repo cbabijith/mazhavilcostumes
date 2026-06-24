@@ -355,8 +355,8 @@ async function AnalyticsSection({
           <Card className="border-0 shadow-sm bg-white overflow-hidden hover:ring-2 hover:ring-indigo-500/20 transition-all cursor-pointer">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
-                <CardTitle className="text-base font-bold">Booking Sales</CardTitle>
-                <CardDescription>Total value of orders booked</CardDescription>
+                <CardTitle className="text-base font-bold">Rental Revenue</CardTitle>
+                <CardDescription>Total value of rental bookings</CardDescription>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-black text-indigo-600 tabular-nums">

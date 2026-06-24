@@ -53,7 +53,7 @@ export function RevenueView({
   const router = useRouter();
   const summaryColumns = [
     { header: "Period", key: "period" },
-    { header: "Booking Sales", key: "booking_sales", format: "currency" as const },
+    { header: "Rental Revenue", key: "booking_sales", format: "currency" as const },
     { header: "Amount Collection", key: "amount_collection", format: "currency" as const },
     { header: "Revenue Due", key: "revenue_due", format: "currency" as const },
     { header: "Net Revenue", key: "net_revenue", format: "currency" as const },
@@ -223,11 +223,11 @@ export function RevenueView({
             >
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-1">
-                  <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest">Total Booking Sales</p>
+                  <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest">Total Rental Revenue</p>
                   <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_booking_sales)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of business won</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of rental bookings</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-600">
@@ -379,7 +379,7 @@ export function RevenueView({
                       formatter={(value: any) => formatCurrency(Number(value || 0))} 
                     />
                     <Legend verticalAlign="top" align="right" iconType="circle" />
-                    <Bar dataKey="booking_sales" name="Sales (Orders)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="booking_sales" name="Rental Revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="amount_collection" name="Amount (Payments)" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
