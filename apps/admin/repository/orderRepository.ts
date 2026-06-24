@@ -67,15 +67,12 @@ export class OrderRepository extends BaseRepository {
     let query = this.client
       .from(this.tableName)
       .select(`
-        id, store_id, customer_id, branch_id, status, start_date, end_date,
-        event_date, total_amount, subtotal, gst_amount, advance_amount,
-        advance_collected, advance_payment_method, advance_collected_at,
-        amount_paid, payment_status, has_priority_cleaning, has_stock_conflict,
-        conflict_details, notes, delivery_method, delivery_address, pickup_address,
-        late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
-        cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
-        customer:customer_id(id, name, phone, alt_phone, email),
-        branch:branch_id(id, name)
+        id, status, start_date, end_date,
+        total_amount, amount_paid, payment_status,
+        has_priority_cleaning, has_stock_conflict,
+        is_late, invoice_number, created_at,
+        customer:customer_id(name, phone),
+        branch:branch_id(name)
       `, { count: 'exact' });
 
     // Handle server-side sorting
