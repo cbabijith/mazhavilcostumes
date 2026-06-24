@@ -12,11 +12,13 @@
 "use client";
 
 import React from "react";
-import { X, Package, Calendar, User } from "lucide-react";
+import { X, Package, Calendar, User, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/shared-utils";
-import { type OrderWithRelations } from "@/domain";
+import { type OrderWithRelations, type OrderItem } from "@/domain";
+import type { ApiSuccessResponse } from "@/lib/apiResponse";
 
 interface OrderItemsPanelProps {
   order: OrderWithRelations | null;
@@ -26,11 +28,20 @@ interface OrderItemsPanelProps {
 function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
   if (!order) return null;
 
-  const getImageUrl = (product: any) => {
-    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) return null;
-    const img = product.images[0];
-    return typeof img === "string" ? img : img?.url || null;
-  };
+  // Fetch items on-demand only when panel is open
+  const { data: items, isLoading } = useQuery({
+    queryKey: ['orders', order.id, 'items'],
+    queryFn: async () => {
+      const res = await fetch(`/api/orders/${order.id}/items`);
+      if (!res.ok) throw new Error('Failed to fetch items');
+      const json = await res.json() as ApiSuccessResponse<OrderItem[]>;
+      return json.data;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
+  const itemCount = order.item_count ?? items?.length ?? order.items?.length ?? 0;
 
   return (
     <>
@@ -76,10 +87,17 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
 
         {/* Items List */}
         <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-slate-300 animate-spin" />
+            </div>
+          ) : (
           <div className="divide-y divide-slate-100">
-            {order.items?.map((item, index) => {
+            {(items || order.items)?.map((item, index) => {
               const product = (item as any).product;
-              const imgUrl = getImageUrl(product);
+              const imgUrl = product?.images?.length > 0
+                ? (typeof product.images[0] === "string" ? product.images[0] : product.images[0]?.url)
+                : null;
               return (
                 <div key={item.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors">
                   {/* Thumbnail */}
@@ -141,13 +159,14 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/80">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-              {order.items?.length || 0} items total
+              {itemCount} items total
             </span>
             <span className="text-lg font-black text-slate-900">
               {formatCurrency(order.total_amount)}

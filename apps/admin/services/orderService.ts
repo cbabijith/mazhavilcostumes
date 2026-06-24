@@ -217,16 +217,30 @@ export class OrderService {
   }
 
   /**
-   * Get all orders
+   * Get all orders (lightweight list query — no items, minimal fields)
    */
   async getAllOrders(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
     return await orderRepository.findAll(params);
   }
 
   /**
-   * Get order by ID
+   * Alias for getAllOrders — explicit list query
+   */
+  async getOrdersList(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {
+    return await orderRepository.findAll(params);
+  }
+
+  /**
+   * Get order by ID (full data with items, products, category)
    */
   async getOrderById(id: string): Promise<RepositoryResult<OrderWithRelations>> {
+    return await orderRepository.findById(id);
+  }
+
+  /**
+   * Alias for getOrderById — explicit detail query
+   */
+  async getOrderDetail(id: string): Promise<RepositoryResult<OrderWithRelations>> {
     return await orderRepository.findById(id);
   }
 
@@ -1022,7 +1036,7 @@ export class OrderService {
           const damagedItems = returnData.items
             .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
             .map(item => {
-              const orderItem = returnedOrderData.items.find(i => i.id === item.item_id);
+              const orderItem = returnedOrderData.items?.find(i => i.id === item.item_id);
               return {
                 order_item_id: item.item_id,
                 product_id: orderItem?.product_id || '',

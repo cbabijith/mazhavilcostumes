@@ -101,9 +101,23 @@ export class ProductRepository extends BaseRepository {
       selectQuery = (selectQuery as any).lte('price_per_day', max_price);
     }
 
-    // Execute consolidated query (gets both data and total exact count in a single trip)
-    const response = await selectQuery;
-    const { data, count, error } = response as any;
+    // Execute main query and stock sum RPC in parallel
+    const [mainResponse, stockResponse] = await Promise.all([
+      selectQuery,
+      this.client.rpc('get_total_stock', {
+        p_query: query || null,
+        p_category_id: category_id || null,
+        p_store_id: store_id || null,
+        p_branch_id: branch_id || null,
+        p_is_active: status !== undefined ? (status === 'active') : null,
+        p_is_featured: is_featured ?? null,
+        p_min_price: min_price ?? null,
+        p_max_price: max_price ?? null,
+        p_in_stock: in_stock ?? null,
+      }),
+    ]);
+
+    const { data, count, error } = mainResponse as any;
     const result = this.handleResponse<ProductWithRelations[]>({ data, error });
 
     if (!result.success || !result.data) {
@@ -114,60 +128,7 @@ export class ProductRepository extends BaseRepository {
       };
     }
 
-    // Calculate total stock matching the exact same filters
-    let totalStock = 0;
-    try {
-      let sumQuery = this.client.from(this.tableName).select('quantity');
-      
-      if (query) {
-        const normalizedQuery = query.trim().replace(/\s+/g, '-');
-        if (normalizedQuery !== query) {
-          sumQuery = sumQuery.or(
-            `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%,` +
-            `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
-          );
-        } else {
-          sumQuery = sumQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
-        }
-      }
-      
-      sumQuery = sumQuery.is('deleted_at', null);
-      
-      if (branch_id) {
-        sumQuery = sumQuery.or(`branch_id.eq.${branch_id},branch_id.is.null`);
-      }
-      
-      if (min_price !== undefined) {
-        sumQuery = sumQuery.gte('price_per_day', min_price);
-      }
-      
-      if (max_price !== undefined) {
-        sumQuery = sumQuery.lte('price_per_day', max_price);
-      }
-
-      if (category_id) {
-        sumQuery = sumQuery.eq('category_id', category_id);
-      }
-
-      if (store_id) {
-        sumQuery = sumQuery.eq('store_id', store_id);
-      }
-
-      if (status !== undefined) {
-        sumQuery = sumQuery.eq('is_active', status === 'active');
-      }
-
-      if (is_featured !== undefined) {
-        sumQuery = sumQuery.eq('is_featured', is_featured);
-      }
-      
-      const { data: stockData } = await sumQuery;
-      if (stockData) {
-        totalStock = stockData.reduce((acc: number, curr: any) => acc + (curr.quantity || 0), 0);
-      }
-    } catch (e) {
-      console.error('Failed to calculate total stock:', e);
-    }
+    const totalStock = (stockResponse.data as number) || 0;
 
     const total = count !== null && count !== undefined ? count : this.parsePgrstRangeCount(error);
     const totalPages = Math.ceil(total / limit);
