@@ -638,6 +638,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     super.build(context); // Required for AutomaticKeepAliveClientMixin
     Responsive.init(context);
 
+    final isEditable = ![
+      OrderStatus.cancelled,
+      OrderStatus.completed,
+      OrderStatus.returned,
+      OrderStatus.ongoing,
+      OrderStatus.inUse,
+    ].contains(_currentOrder.status);
+
     return Scaffold(
       backgroundColor: AppColors.scaffoldBackground,
       appBar: AppBar(
@@ -653,16 +661,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         actions: [
-          IconButton(
-            icon: Icon(Icons.edit_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
-                .then((_) {
-                  // Selective invalidation - only invalidate list, keep detail cache
-                  ref.invalidate(ordersProvider);
-                  _refreshOrder();
-                }),
-          ),
+          if (isEditable)
+            IconButton(
+              icon: Icon(Icons.edit_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
+                  .then((_) {
+                    // Selective invalidation - only invalidate list, keep detail cache
+                    ref.invalidate(ordersProvider);
+                    _refreshOrder();
+                  }),
+            ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
             onPressed: _refreshOrder,
