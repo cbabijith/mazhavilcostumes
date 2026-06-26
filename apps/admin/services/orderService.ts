@@ -19,11 +19,12 @@ import {
   ConditionRating,
   OrderSearchResult
 } from '@/domain/types/order';
-import { orderRepository, cleaningRepository } from '@/repository';
+import { orderRepository, cleaningRepository, paymentRepository } from '@/repository';
 import { settingsService } from './settingsService';
 import { damageAssessmentService } from './damageAssessmentService';
 import { dashboardService } from './dashboardService';
 import { CleaningPriority, CleaningStatus, DamageDecision } from '@/domain';
+import { PaymentType, PaymentMode } from '@/domain/types/payment';
 
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
 const BUFFER_DAYS = 1;
@@ -214,6 +215,7 @@ export class OrderService {
     this.currentUserId = userId;
     this.currentBranchId = branchId;
     orderRepository.setUserContext(userId, branchId);
+    paymentRepository.setUserContext(userId, branchId);
   }
 
   /**
@@ -431,6 +433,22 @@ export class OrderService {
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);
+      }
+    }
+
+    // Create advance payment record through PaymentRepository (correct audit fields)
+    // This is awaited — not background — so payment failures are visible, not silently swallowed.
+    if (result.success && result.data && data.advance_collected && data.advance_amount && data.advance_amount > 0) {
+      const paymentResult = await paymentRepository.create({
+        order_id: result.data.id,
+        payment_type: PaymentType.ADVANCE,
+        amount: data.advance_amount,
+        payment_mode: (data.advance_payment_method as PaymentMode) || PaymentMode.CASH,
+        notes: 'Advance payment collected at order creation',
+      });
+
+      if (!paymentResult.success) {
+        console.error('[OrderService.createOrder] Failed to create advance payment record:', paymentResult.error);
       }
     }
 
