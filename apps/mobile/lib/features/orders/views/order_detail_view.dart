@@ -618,6 +618,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     setState(() => _isLoading = true);
     try {
       final updated = await ref.read(orderRepositoryProvider).getOrderById(_currentOrder.id);
+      ref.invalidate(orderPaymentsProvider(_currentOrder.id));
       setState(() {
         _currentOrder = updated;
         _initializeReturnItems();
@@ -2016,6 +2017,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
   Widget _buildPaymentsCard() {
     final paymentsAsync = ref.watch(orderPaymentsProvider(_currentOrder.id));
+    print('[OrderDetailView] _buildPaymentsCard. Order ID: ${_currentOrder.id}, status: ${_currentOrder.status}');
+    print('[OrderDetailView] Order advance Collected: ${_currentOrder.advanceCollected}, advanceAmount: ${_currentOrder.advanceAmount}, amountPaid: ${_currentOrder.amountPaid}');
 
     return Container(
       decoration: BoxDecoration(
@@ -2063,16 +2066,77 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ),
           const Divider(height: 1, color: AppColors.border),
           paymentsAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
-            ),
-            error: (err, _) => Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text('Error loading payments: $err', style: const TextStyle(color: AppColors.error)),
-            ),
+            loading: () {
+              print('[OrderDetailView] paymentsAsync: LOADING...');
+              return const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+              );
+            },
+            error: (err, stack) {
+              print('[OrderDetailView] paymentsAsync: ERROR: $err');
+              print(stack);
+              return Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text('Error loading payments: $err', style: const TextStyle(color: AppColors.error)),
+              );
+            },
             data: (transactions) {
-              if (transactions.isEmpty) {
+              print('[OrderDetailView] paymentsAsync: DATA loaded. DB count: ${transactions.length}');
+              
+              final displayedTransactions = List<PaymentTransaction>.from(transactions);
+              
+              // Calculate sum of payments from the database
+              final dbPaymentsSum = transactions.fold<double>(0.0, (sum, tx) => sum + tx.amount);
+              double missingAmount = _currentOrder.amountPaid - dbPaymentsSum;
+              print('[OrderDetailView] dbPaymentsSum: $dbPaymentsSum, currentOrder.amountPaid: ${_currentOrder.amountPaid}, missingAmount: $missingAmount');
+              
+              if (missingAmount > 0.01) {
+                // Determine if we need to synthesize an advance payment
+                final hasAdvanceInDb = transactions.any((tx) => tx.paymentType.toLowerCase() == 'advance');
+                final shouldSynthesizeAdvance = !hasAdvanceInDb && _currentOrder.advanceCollected && _currentOrder.advanceAmount > 0.01;
+                
+                if (shouldSynthesizeAdvance) {
+                  final advanceVirtualAmount = missingAmount < _currentOrder.advanceAmount 
+                      ? missingAmount 
+                      : _currentOrder.advanceAmount;
+                      
+                  print('[OrderDetailView] Synthesizing virtual advance transaction of ₹$advanceVirtualAmount');
+                  displayedTransactions.add(PaymentTransaction(
+                    id: 'virtual-advance',
+                    orderId: _currentOrder.id,
+                    paymentType: 'advance',
+                    amount: advanceVirtualAmount,
+                    paymentMode: _currentOrder.advancePaymentMethod?.toJsonValue() ?? 'cash',
+                    paymentDate: _currentOrder.advanceCollectedAt ?? _currentOrder.createdAt,
+                    notes: 'Advance payment (Inferred from order details)',
+                    createdBy: null,
+                    createdByName: 'System',
+                  ));
+                  
+                  missingAmount -= advanceVirtualAmount;
+                }
+                
+                // If there's still a missing amount, synthesize a final/partial payment
+                if (missingAmount > 0.01) {
+                  print('[OrderDetailView] Synthesizing virtual final transaction of ₹$missingAmount');
+                  displayedTransactions.add(PaymentTransaction(
+                    id: 'virtual-payment',
+                    orderId: _currentOrder.id,
+                    paymentType: 'final',
+                    amount: missingAmount,
+                    paymentMode: 'cash',
+                    paymentDate: _currentOrder.createdAt,
+                    notes: 'Payment (Inferred from order amount paid)',
+                    createdBy: null,
+                    createdByName: 'System',
+                  ));
+                }
+              }
+
+              print('[OrderDetailView] Total displayed transactions: ${displayedTransactions.length}');
+
+              if (displayedTransactions.isEmpty) {
                 return Padding(
                   padding: Responsive.all(AppSizes.spacingMedium),
                   child: Text(
@@ -2085,10 +2149,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               return ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: transactions.length,
+                itemCount: displayedTransactions.length,
                 separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
                 itemBuilder: (context, index) {
-                  final tx = transactions[index];
+                  final tx = displayedTransactions[index];
                   final txTypeColor = _getTransactionTypeColor(tx.paymentType);
                   return Padding(
                     padding: Responsive.all(AppSizes.spacingMedium),
@@ -2803,16 +2867,31 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
-                          await ref.read(orderOperationsProvider).updatePayment(
-                            paymentId: tx.id,
-                            paymentMode: paymentMode,
-                            notes: notesController.text.trim(),
-                          );
+                          if (tx.id.startsWith('virtual-')) {
+                            // Convert the virtual transaction into a real recorded payment in the database
+                            await ref.read(orderOperationsProvider).collectPayment(
+                              orderId: _currentOrder.id,
+                              amount: tx.amount,
+                              paymentMode: paymentMode,
+                              paymentType: tx.paymentType,
+                              notes: notesController.text.trim(),
+                            );
+                          } else {
+                            await ref.read(orderOperationsProvider).updatePayment(
+                              paymentId: tx.id,
+                              paymentMode: paymentMode,
+                              notes: notesController.text.trim(),
+                            );
+                          }
                           await _refreshOrder();
                           ref.invalidate(orderPaymentsProvider(_currentOrder.id));
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Transaction updated successfully')),
+                              SnackBar(
+                                content: Text(tx.id.startsWith('virtual-')
+                                    ? 'Payment record created successfully'
+                                    : 'Transaction updated successfully'),
+                              ),
                             );
                           }
                         } catch (e) {
