@@ -163,9 +163,12 @@ export function useCreateOrder() {
   const mutation = useMutation({
     mutationFn: (data: CreateOrderDTO) =>
       apiFetch<ApiSuccessResponse<OrderWithRelations>>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: orderKeys.all });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
+      if (data?.data?.id) {
+        await queryClient.invalidateQueries({ queryKey: ['payments', 'order', data.data.id] });
+      }
       showSuccess('Order created successfully');
     },
     onError: (error) => showError('Failed to create order', error.message),

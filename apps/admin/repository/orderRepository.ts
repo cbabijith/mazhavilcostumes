@@ -1124,36 +1124,19 @@ export class OrderRepository extends BaseRepository {
     // (transitions to ongoing/in_use) via the order details page.
 
     // Background non-critical inserts
+    // NOTE: Advance payment records are created by OrderService via PaymentRepository,
+    // not here — OrderRepository must not write to the payments table directly.
     (async () => {
-      const promises: any[] = [];
-
-      // Create advance payment record if advance was collected
-      if (data.advance_collected && data.advance_amount && data.advance_amount > 0) {
-        promises.push(this.client
-          .from('payments')
-          .insert({
-            order_id: order.id,
-            payment_type: 'advance',
-            amount: data.advance_amount,
-            payment_mode: data.advance_payment_method || 'cash',
-            notes: 'Advance payment collected at order creation',
-            payment_date: new Date().toISOString(),
-            ...this.getCreateAuditFields(),
-          }));
-      }
-
       // Create initial status history
-      promises.push(this.client
+      await this.client
         .from(this.orderStatusHistoryTable)
         .insert({
           order_id: order.id,
           status: initialStatus,
           changed_by: null,
-        }));
-
-      await Promise.all(promises);
+        });
     })().catch(err => {
-      console.error('[OrderRepository.create] Background inserts failed:', err);
+      console.error('[OrderRepository.create] Background status history insert failed:', err);
     });
 
     // Skip findById re-fetch, construct response from existing data
