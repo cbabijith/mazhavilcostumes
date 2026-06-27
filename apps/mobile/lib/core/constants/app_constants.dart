@@ -12,6 +12,8 @@ class AppColors {
   static const Color success = Color(0xFF10B981); // Green
   static const Color warning = Color(0xFFF59E0B); // Amber
   static const Color info = Color(0xFF3B82F6); // Blue
+  static const Color shimmerBase = Color(0xFFE0E0E0); // Grey 300
+  static const Color shimmerHighlight = Color(0xFFF5F5F5); // Grey 100
 }
 
 class AppStrings {
@@ -83,6 +85,7 @@ class AppStrings {
   static const String amount = 'AMOUNT';
   static const String noItemsFound = 'No items found in this order';
   static const String loadingItems = 'Loading order items...';
+  static const String failedToLoadCalendar = 'Failed to load calendar';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility
