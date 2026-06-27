@@ -141,6 +141,7 @@ export function useUpdatePayment() {
       }
       if (result?.order_id) {
         queryUtils.invalidateOrderPayments(result.order_id);
+        queryUtils.invalidateOrder(result.order_id);
       }
       showSuccess('Payment updated successfully');
     },

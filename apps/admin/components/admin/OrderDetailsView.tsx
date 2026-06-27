@@ -113,8 +113,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.PARTIAL;
   const isFinalized = order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
 
+  // Signature to detect when order items actually change (not just order refetch)
+  const itemsSignature = order?.items?.map(i => `${i.id}:${i.condition_rating}:${i.is_returned}`).join('|') || '';
+
   useEffect(() => {
-    if (order && Object.keys(returnItems).length === 0 && isReturnable) {
+    if (order && isReturnable) {
       const initial: any = {};
       order.items?.forEach(item => {
         // Pre-fill from existing data if it exists (for incremental save recovery)
@@ -131,7 +134,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       });
       setReturnItems(initial);
     }
-  }, [order, isReturnable]);
+  }, [itemsSignature, isReturnable]);
 
   // Projected amount due including pending return fees (live preview)
   const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);

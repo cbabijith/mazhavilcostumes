@@ -100,6 +100,11 @@ export const queryKeys = {
   // Order queries
   orders: ['orders'] as const,
   order: (id: string) => ['orders', id] as const,
+  orderLists: () => ['orders', 'list'] as const,
+  orderList: (params?: unknown) => ['orders', 'list', params] as const,
+  orderDetails: () => ['orders', 'detail'] as const,
+  orderDetail: (id: string) => ['orders', 'detail', id] as const,
+  orderHistory: (id: string) => ['orders', 'detail', id, 'history'] as const,
   
   // Customer queries
   customers: ['customers'] as const,
@@ -189,7 +194,7 @@ export const queryUtils = {
   invalidateOrder: (id: string) => {
     return Promise.all([
       queryClient.invalidateQueries({
-        queryKey: queryKeys.order(id),
+        queryKey: queryKeys.orderDetail(id),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.orders,

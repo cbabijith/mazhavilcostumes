@@ -10,19 +10,10 @@
  */
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { OrderWithRelations, CreateOrderDTO, UpdateOrderDTO, OrderSearchParams, ReturnOrderDTO, OrderStatusHistory } from '@/domain/types/order';
+import { Order, OrderWithRelations, CreateOrderDTO, UpdateOrderDTO, OrderSearchParams, ReturnOrderDTO, OrderStatusHistory } from '@/domain/types/order';
 import { useAppStore } from '@/stores';
 import type { ApiSuccessResponse, PaginationMeta } from '@/lib/apiResponse';
-
-// Query keys
-const orderKeys = {
-  all: ['orders'] as const,
-  lists: () => [...orderKeys.all, 'list'] as const,
-  list: (params?: OrderSearchParams) => [...orderKeys.lists(), params] as const,
-  details: () => [...orderKeys.all, 'detail'] as const,
-  detail: (id: string) => [...orderKeys.details(), id] as const,
-  history: (id: string) => [...orderKeys.details(), id, 'history'] as const,
-};
+import { queryKeys } from '@/lib/query-client';
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -61,7 +52,7 @@ interface PaginatedResponse<T> {
  */
 export function useOrders(params?: OrderSearchParams & { page?: number; limit?: number }) {
   return useQuery<PaginatedResponse<OrderWithRelations>>({
-    queryKey: orderKeys.list(params),
+    queryKey: queryKeys.orderList(params),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params?.customer_id) searchParams.append('customer_id', params.customer_id);
@@ -128,7 +119,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
  */
 export function useOrder(id: string) {
   return useQuery<{ success: boolean; data?: OrderWithRelations; error?: any }>({
-    queryKey: orderKeys.detail(id),
+    queryKey: queryKeys.orderDetail(id),
     queryFn: async () => {
       const res = await apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${id}`);
       return { success: true, data: res.data };
@@ -143,7 +134,7 @@ export function useOrder(id: string) {
  */
 export function useOrderStatusHistory(id: string, enabled: boolean = true) {
   return useQuery<{ success: boolean; data?: OrderStatusHistory[]; error?: any }>({
-    queryKey: orderKeys.history(id),
+    queryKey: queryKeys.orderHistory(id),
     queryFn: async () => {
       const res = await apiFetch<ApiSuccessResponse<OrderStatusHistory[]>>(`/api/orders/${id}/history`);
       return { success: true, data: res.data };
@@ -164,7 +155,7 @@ export function useCreateOrder() {
     mutationFn: (data: CreateOrderDTO) =>
       apiFetch<ApiSuccessResponse<OrderWithRelations>>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: async (data) => {
-      await queryClient.invalidateQueries({ queryKey: orderKeys.all });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orders });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       if (data?.data?.id) {
         await queryClient.invalidateQueries({ queryKey: ['payments', 'order', data.data.id] });
@@ -190,33 +181,28 @@ export function useUpdateOrder() {
 
   const mutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateOrderDTO }) => 
-      apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     onMutate: async ({ id, data }) => {
-      await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
 
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() });
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
 
-      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() }, (old) => {
+      // Exclude items from spread — UpdateOrderDTO.items has a different shape than OrderItem[]
+      const { items: _items, ...scalarData } = data;
+      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() }, (old) => {
         if (!old?.data) return old;
         return {
           ...old,
-          data: old.data.map((o) => o.id === id ? { ...o, ...data } as OrderWithRelations : o),
+          data: old.data.map((o) => o.id === id ? { ...o, ...scalarData } as OrderWithRelations : o),
         };
       });
 
       return { previousLists };
     },
-    onSuccess: async (res, variables) => {
-      if (res.data) {
-        queryClient.setQueryData(orderKeys.detail(variables.id), { success: true, data: res.data });
-      }
-      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() }, (old) => {
-        if (!old?.data) return old;
-        return {
-          ...old,
-          data: old.data.map((o) => o.id === variables.id ? { ...o, ...res.data } as OrderWithRelations : o),
-        };
-      });
+    onSuccess: async (_res, variables) => {
+      // Invalidate detail cache to trigger findById refetch with full relations
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderDetail(variables.id) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderLists() });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order updated successfully');
     },
@@ -247,17 +233,17 @@ export function useDeleteOrder() {
   const mutation = useMutation({
     mutationFn: (id: string) => apiFetch<ApiSuccessResponse<null>>(`/api/orders/${id}`, { method: 'DELETE' }),
     onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
       
-      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() }, (old) => {
+      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() }, (old) => {
         if (!old?.data) return old;
         return { ...old, data: old.data.filter((o) => o.id !== id), total: (old.total ?? 0) - 1 };
       });
       return { previousLists };
     },
     onSuccess: async (_data, id) => {
-      queryClient.removeQueries({ queryKey: orderKeys.detail(id) });
+      queryClient.removeQueries({ queryKey: queryKeys.orderDetail(id) });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order deleted successfully');
     },
@@ -287,23 +273,16 @@ export function useProcessOrderReturn() {
 
   const mutation = useMutation({
     mutationFn: ({ orderId, returnData }: { orderId: string; returnData: ReturnOrderDTO }) => 
-      apiFetch<ApiSuccessResponse<OrderWithRelations>>(`/api/orders/${orderId}/return`, { method: 'PATCH', body: JSON.stringify(returnData) }),
+      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${orderId}/return`, { method: 'PATCH', body: JSON.stringify(returnData) }),
     onMutate: async ({ orderId }) => {
-      await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() });
+      await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
       return { previousLists };
     },
-    onSuccess: async (res, variables) => {
-      if (res.data) {
-        queryClient.setQueryData(orderKeys.detail(variables.orderId), { success: true, data: res.data });
-        queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: orderKeys.lists() }, (old) => {
-          if (!old?.data) return old;
-          return {
-            ...old,
-            data: old.data.map((o) => o.id === variables.orderId ? { ...o, ...res.data } as OrderWithRelations : o),
-          };
-        });
-      }
+    onSuccess: async (_res, variables) => {
+      // Invalidate detail cache to trigger findById refetch with full relations
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderDetail(variables.orderId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderLists() });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       showSuccess('Order return processed successfully');
     },
@@ -337,9 +316,9 @@ export function useUpdateOrderItemDamage() {
     onSuccess: async (data) => {
       // Invalidate the specific order detail and lists
       if (data.order_id) {
-        await queryClient.invalidateQueries({ queryKey: orderKeys.detail(data.order_id) });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.orderDetail(data.order_id) });
       }
-      await queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderLists() });
       showSuccess('Item damage saved successfully');
     },
     onError: (error) => {

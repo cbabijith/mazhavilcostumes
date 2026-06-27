@@ -516,7 +516,7 @@ export class OrderService {
   /**
    * Update an existing order
    */
-  async updateOrder(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+  async updateOrder(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<Order>> {
     const totalStart = performance.now();
     console.log(`[OrderService.updateOrder] Starting order update flow for ID: ${id}...`);
 
@@ -895,7 +895,7 @@ export class OrderService {
   /**
    * Process order return with condition assessment
    */
-  async processOrderReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+  async processOrderReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
     // Check if order exists
     const existingOrder = await orderRepository.findById(orderId);
     if (!existingOrder.success || !existingOrder.data) {
@@ -981,6 +981,10 @@ export class OrderService {
       // records appear within ~2s via background processing.
       const returnedOrderData = result.data;
       (async () => {
+        // Fetch order items for background processing (returnedOrderData is a bare Order without joins)
+        const itemsResult = await orderRepository.getOrderItems(orderId);
+        const orderItems = itemsResult.data || [];
+
         // 1. Auto-complete check (returned + paid → completed)
         await this.checkAndAutoComplete(orderId).catch(err =>
           console.error('[OrderService.processOrderReturn] Background auto-complete failed:', err)
@@ -989,7 +993,7 @@ export class OrderService {
         // 2. Transition cleaning records: scheduled → in_progress
         try {
           const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
-          for (const item of returnedOrderData.items || []) {
+          for (const item of orderItems) {
             if (!item.product_id) continue;
             productReturnMap.set(item.product_id, {
               quantity: item.quantity,
@@ -1054,7 +1058,7 @@ export class OrderService {
           const damagedItems = returnData.items
             .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
             .map(item => {
-              const orderItem = returnedOrderData.items?.find(i => i.id === item.item_id);
+              const orderItem = orderItems.find((i: any) => i.id === item.item_id);
               return {
                 order_item_id: item.item_id,
                 product_id: orderItem?.product_id || '',
