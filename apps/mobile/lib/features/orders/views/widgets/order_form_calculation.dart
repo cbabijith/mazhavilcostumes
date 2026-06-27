@@ -73,11 +73,33 @@ extension _OrderFormCalculation on _OrderFormViewState {
   }
 
   Future<void> _selectDate(TextEditingController controller) async {
+    final existingDate = _parseDisplayDate(controller.text);
+    final initialDate = existingDate ?? DateTime.now();
+
+    DateTime firstDate;
+    if (controller == _endDateController && _startDateController.text.isNotEmpty) {
+      final startDate = _parseDisplayDate(_startDateController.text);
+      if (startDate != null) {
+        firstDate = startDate;
+      } else {
+        firstDate = DateTime.now().subtract(const Duration(days: 365 * 2));
+      }
+    } else {
+      firstDate = DateTime.now().subtract(const Duration(days: 365 * 2));
+    }
+
+    // Ensure firstDate <= initialDate to prevent assertion error in case existing date is in past
+    if (firstDate.isAfter(initialDate)) {
+      firstDate = initialDate;
+    }
+
+    final DateTime lastDate = DateTime.now().add(const Duration(days: 365 * 2));
+
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
