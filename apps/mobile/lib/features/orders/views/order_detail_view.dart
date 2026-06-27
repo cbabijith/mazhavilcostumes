@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../products/views/qr_scanner_dialog.dart';
@@ -1828,22 +1829,68 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           const Divider(height: 1, color: AppColors.border),
           if (_isLoadingDetails && items.isEmpty)
             Padding(
-              padding: Responsive.all(AppSizes.spacingLarge),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
-                  ),
-                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                  Text(
-                    AppStrings.loadingItems,
-                    style: TextStyle(
-                      fontSize: Responsive.sp(AppSizes.fontSmall),
-                      color: AppColors.secondaryText,
+              padding: Responsive.all(AppSizes.spacingMedium),
+              child: Shimmer.fromColors(
+                baseColor: AppColors.shimmerBase,
+                highlightColor: AppColors.shimmerHighlight,
+                child: Column(
+                  children: List.generate(2, (index) => Padding(
+                    padding: Responsive.only(
+                      bottom: index == 1 ? 0.0 : AppSizes.spacingMedium,
                     ),
-                  ),
-                ],
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: Responsive.w(AppSizes.iconHuge),
+                          height: Responsive.w(AppSizes.iconHuge),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: double.infinity,
+                                height: Responsive.h(AppSizes.fontMedium),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
+                                ),
+                              ),
+                              SizedBox(height: Responsive.h(AppSizes.spacingSmall - 2)),
+                              Row(
+                                children: [
+                                  Container(
+                                    width: Responsive.w(AppSizes.spacingXXXLarge),
+                                    height: Responsive.h(AppSizes.fontSmall),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
+                                    ),
+                                  ),
+                                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                  Container(
+                                    width: Responsive.w(AppSizes.iconHuge + AppSizes.spacingSmall),
+                                    height: Responsive.h(AppSizes.fontSmall),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                ),
               ),
             )
           else if (items.isEmpty)
@@ -2314,6 +2361,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   }
 
   Widget _buildFinancialReceiptCard() {
+    String formatCancelledAt(String isoString) {
+      try {
+        final date = DateTime.parse(isoString);
+        return DateFormat('dd MMM, yyyy h:mm a').format(date);
+      } catch (_) {
+        return isoString;
+      }
+    }
+
     final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
     final isPaid = balanceDue <= 0;
     final items = _currentOrder.items ?? [];
@@ -2471,38 +2527,187 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 if (_currentOrder.lateFee > 0)
                   _buildReceiptRow('Late Fee', '₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
                 SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                _buildReceiptRow('Total Amount', '₹${_currentOrder.totalAmount.toStringAsFixed(2)}', isBold: true),
-                _buildReceiptRow('Advance/Deposit', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
-                _buildReceiptRow('Amount Paid', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.success),
-                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                Container(
-                  padding: Responsive.all(AppSizes.spacingMedium),
-                  decoration: BoxDecoration(
-                    color: isPaid ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Balance Due',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontMedium),
-                          fontWeight: FontWeight.bold,
-                          color: isPaid ? AppColors.success : AppColors.error,
-                        ),
+                if (_currentOrder.status == OrderStatus.cancelled) ...[
+                  if (_currentOrder.advanceAmount > 0.01)
+                    _buildReceiptRow('Original Advance', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  if (_currentOrder.amountPaid == 0) ...[
+                    // Case A: Fully refunded
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.08),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
                       ),
-                      Text(
-                        '₹${balanceDue.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontLarge),
-                          fontWeight: FontWeight.bold,
-                          color: isPaid ? AppColors.success : AppColors.error,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Advance Refunded',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                          Text(
+                            '-₹${_currentOrder.advanceAmount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    _buildReceiptRow('No Balance Due', '₹0.00', valueColor: AppColors.secondaryText),
+                  ] else if (_currentOrder.paymentStatus == PaymentStatus.refundWaived) ...[
+                    // Case B: Refund waived — money kept
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Money Kept (No Refund)',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          Text(
+                            '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    _buildReceiptRow('No Balance Due', '₹0.00', valueColor: AppColors.secondaryText),
+                  ] else ...[
+                    // Case C: Money still held — pending refund
+                    Container(
+                      padding: Responsive.all(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.08),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Amount Held',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                          Text(
+                            '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.warning,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    _buildReceiptRow('Refundable', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.warning, isBold: true),
+                  ],
+                  if (_currentOrder.cancellationReason != null && _currentOrder.cancellationReason!.trim().isNotEmpty) ...[
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    Container(
+                      width: double.infinity,
+                      padding: Responsive.all(AppSizes.spacingMedium),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.05),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.15), width: AppSizes.spacingTiny / 4),
+                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Cancellation Reason',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.error,
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                          Text(
+                            _currentOrder.cancellationReason!,
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              color: AppColors.error,
+                            ),
+                          ),
+                          if (_currentOrder.cancelledAt != null) ...[
+                            SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                            Text(
+                              'Cancelled on ${formatCancelledAt(_currentOrder.cancelledAt!)}',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontTiny),
+                                color: AppColors.error.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  _buildReceiptRow('Total Amount', '₹${_currentOrder.totalAmount.toStringAsFixed(2)}', isBold: true),
+                  _buildReceiptRow('Advance/Deposit', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
+                  _buildReceiptRow('Amount Paid', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.success),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  Container(
+                    padding: Responsive.all(AppSizes.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: isPaid ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Balance Due',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontMedium),
+                            fontWeight: FontWeight.bold,
+                            color: isPaid ? AppColors.success : AppColors.error,
+                          ),
+                        ),
+                        Text(
+                          '₹${balanceDue.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontLarge),
+                            fontWeight: FontWeight.bold,
+                            color: isPaid ? AppColors.success : AppColors.error,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
