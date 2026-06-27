@@ -261,10 +261,14 @@ export class OrderRepository extends BaseRepository {
     // Batch-fetch item counts for all returned orders (single query, no joins)
     if (result.data.length > 0) {
       const orderIds = result.data.map(o => o.id);
-      const { data: itemCounts } = await this.client
+      const { data: itemCounts, error: countError } = await this.client
         .from('order_items')
         .select('order_id')
         .in('order_id', orderIds);
+
+      if (countError) {
+        console.error('[OrderRepository.findAll] Batch item count query failed:', countError);
+      }
 
       const countMap = new Map<string, number>();
       if (itemCounts) {
@@ -1157,7 +1161,7 @@ export class OrderRepository extends BaseRepository {
   /**
    * Update an existing order
    */
-  async update(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+  async update(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<Order>> {
     // Fetch existing order to check status transitions
     const oldOrderResponse = await this.client
       .from(this.tableName)
@@ -1309,12 +1313,12 @@ export class OrderRepository extends BaseRepository {
     const result = this.handleResponse<Order>(response);
     
     if (!result.success || !result.data) {
-      return result as RepositoryResult<OrderWithRelations>;
+      return result;
     }
 
-    // Skip findById re-fetch — the client invalidates queries on success
-    // which triggers a fresh fetch via useOrder. Saves 1 DB round-trip.
-    return result as RepositoryResult<OrderWithRelations>;
+    // Returns bare Order (no joins). Hooks invalidate the detail cache
+    // to trigger a fresh findById refetch with full relations.
+    return result;
   }
 
   /**
@@ -1659,7 +1663,7 @@ export class OrderRepository extends BaseRepository {
   /**
    * Process order return with condition assessment
    */
-  async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<OrderWithRelations>> {
+  async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
     // Determine final status based on return condition
     let newStatus = 'returned';
 
@@ -1821,7 +1825,7 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     if (orderResponse.error) {
-      return this.handleResponse<OrderWithRelations>(orderResponse);
+      return this.handleResponse<Order>(orderResponse);
     }
 
     // Add to status history
@@ -1834,9 +1838,9 @@ export class OrderRepository extends BaseRepository {
         changed_by: null,
       });
 
-    // Skip findById re-fetch — the client invalidates queries on success
-    // which triggers a fresh fetch via useOrder. Saves 1 DB round-trip.
-    return this.handleResponse<OrderWithRelations>(orderResponse);
+    // Returns bare Order (no joins). Hooks invalidate the detail cache
+    // to trigger a fresh findById refetch with full relations.
+    return this.handleResponse<Order>(orderResponse);
   }
 
   /**
@@ -1923,9 +1927,9 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     const result = this.handleResponse<Order>(response);
-    
+
     if (!result.success || !result.data) {
-      return result as RepositoryResult<OrderWithRelations>;
+      return { data: null, error: result.error, success: false } as RepositoryResult<OrderWithRelations>;
     }
 
     return this.findById(orderId);
