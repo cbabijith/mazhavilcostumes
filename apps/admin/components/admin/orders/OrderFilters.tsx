@@ -119,7 +119,7 @@ function OrderFiltersInner({
               <button
                 key={chip.value}
                 onClick={() => onStatusChange(chip.value)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                   statusFilter === chip.value
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
@@ -142,7 +142,7 @@ function OrderFiltersInner({
             {conflictCount > 0 && (
               <button
                 onClick={() => onStatusChange('stock_conflict')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                   statusFilter === 'stock_conflict'
                     ? "bg-red-600 text-white border-red-600 shadow-sm"
                     : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
@@ -165,7 +165,7 @@ function OrderFiltersInner({
             {/* Priority Cleaning chip */}
             <button
               onClick={() => onStatusChange('priority_cleaning')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                 statusFilter === 'priority_cleaning'
                   ? "bg-amber-500 text-white border-amber-500"
                   : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50 hover:border-amber-300"
