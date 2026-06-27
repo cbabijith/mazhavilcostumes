@@ -29,6 +29,7 @@ class OrderDetailView extends ConsumerStatefulWidget {
 class _OrderDetailViewState extends ConsumerState<OrderDetailView> with AutomaticKeepAliveClientMixin {
   late Order _currentOrder;
   bool _isLoading = false;
+  bool _isLoadingDetails = false;
   
   final Map<String, Map<String, dynamic>> _localReturnItems = {};
   final Map<String, TextEditingController> _notesControllers = {};
@@ -45,6 +46,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     
     // Auto-open dialogs based on flags
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshOrder(showLoading: false);
       if (widget.autoOpenReturn) {
         _openReturnDialog();
       } else if (widget.autoOpenPayment) {
@@ -614,19 +616,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-  Future<void> _refreshOrder() async {
-    setState(() => _isLoading = true);
+  Future<void> _refreshOrder({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() => _isLoading = true);
+    } else {
+      setState(() => _isLoadingDetails = true);
+    }
     try {
       final updated = await ref.read(orderRepositoryProvider).getOrderById(_currentOrder.id);
       ref.invalidate(orderPaymentsProvider(_currentOrder.id));
-      setState(() {
-        _currentOrder = updated;
-        _initializeReturnItems();
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
       if (mounted) {
+        setState(() {
+          _currentOrder = updated;
+          _initializeReturnItems();
+          _isLoading = false;
+          _isLoadingDetails = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isLoadingDetails = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to refresh order: $e')),
         );
@@ -1814,13 +1826,47 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: items.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
-            itemBuilder: (context, index) {
-              final item = items[index];
+          if (_isLoadingDetails && items.isEmpty)
+            Padding(
+              padding: Responsive.all(AppSizes.spacingLarge),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  Text(
+                    AppStrings.loadingItems,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (items.isEmpty)
+            Padding(
+              padding: Responsive.all(AppSizes.spacingLarge),
+              child: Center(
+                child: Text(
+                  AppStrings.noItemsFound,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: items.length,
+              separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
+              itemBuilder: (context, index) {
+                final item = items[index];
               final isReturnable = _currentOrder.status == OrderStatus.ongoing ||
                   _currentOrder.status == OrderStatus.inUse ||
                   _currentOrder.status == OrderStatus.delivered ||
