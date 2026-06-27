@@ -898,14 +898,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               width: double.infinity,
               padding: Responsive.all(AppSizes.spacingMedium),
               decoration: BoxDecoration(
-                color: Colors.red[50],
-                border: Border.all(color: Colors.red[200]!, width: 1),
+                color: Colors.white.withValues(alpha: 0.15),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.0),
                 borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
+                  Icon(Icons.warning_amber_rounded, color: Colors.white, size: Responsive.icon(AppSizes.iconSmall + 2)),
                   SizedBox(width: Responsive.w(8)),
                   Expanded(
                     child: Column(
@@ -914,7 +914,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         Text(
                           'Rental Period Expired',
                           style: TextStyle(
-                            color: Colors.red[900],
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: Responsive.sp(AppSizes.fontSmall + 1),
                           ),
@@ -923,7 +923,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         Text(
                           'The return date for this scheduled order has already passed. You cannot start this rental. Please cancel this order and create a fresh one.',
                           style: TextStyle(
-                            color: Colors.red[800],
+                            color: Colors.white.withValues(alpha: 0.9),
                             fontSize: Responsive.sp(AppSizes.fontTiny + 1),
                             height: 1.3,
                           ),
@@ -939,17 +939,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _openCancelDialog,
-                icon: Icon(Icons.cancel_outlined, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
-                label: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'Cancel Order',
-                    style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
-                  ),
+                icon: Icon(Icons.cancel_outlined, color: Colors.white, size: Responsive.icon(AppSizes.iconSmall)),
+                label: Text(
+                  'Cancel Order',
+                  style: TextStyle(color: Colors.white, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.error, width: AppSizes.spacingTiny * 0.375),
-                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                  side: const BorderSide(color: Colors.white, width: 1.5),
+                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall + 2),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
                 ),
               ),
@@ -959,119 +956,157 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       );
     }
 
-    final actions = <Widget>[];
+    final status = _currentOrder.status;
+    final isFinalized = status == OrderStatus.completed || status == OrderStatus.cancelled || status == OrderStatus.returned;
+    if (isFinalized) return const SizedBox.shrink();
 
-    // Status transition action buttons
-    if (_currentOrder.status == OrderStatus.confirmed || _currentOrder.status == OrderStatus.scheduled) {
-      actions.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.primary,
-              elevation: 0,
-              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
-            ),
-            onPressed: _startRentalWithCheck,
-            icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                AppStrings.startRental,
-                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+    final bool showStartRental = status == OrderStatus.confirmed || status == OrderStatus.scheduled;
+    final bool showProcessReturn = status == OrderStatus.ongoing || status == OrderStatus.delivered || status == OrderStatus.inUse || status == OrderStatus.partial;
+    final bool showCollectPayment = _currentOrder.paymentStatus != PaymentStatus.paid;
+    final bool showCancel = status != OrderStatus.cancelled && status != OrderStatus.completed;
+
+    Widget buildStartRentalButton({required bool isExpanded}) {
+      final btn = ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: AppColors.primary,
+          elevation: 0,
+          padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+        onPressed: _startRentalWithCheck,
+        icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        label: Text(
+          AppStrings.startRental,
+          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
         ),
       );
+      return isExpanded ? Expanded(child: btn) : btn;
     }
 
-    if (_currentOrder.status == OrderStatus.ongoing || _currentOrder.status == OrderStatus.delivered || _currentOrder.status == OrderStatus.inUse) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
-      actions.add(
-        Expanded(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
-            ),
-            onPressed: _openReturnDialog,
-            icon: Icon(Icons.assignment_turned_in_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                'Process Return',
-                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+    Widget buildProcessReturnButton({required bool isExpanded}) {
+      final btn = ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.warning,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+        onPressed: _openReturnDialog,
+        icon: Icon(Icons.assignment_turned_in_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        label: Text(
+          'Process Return',
+          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
         ),
       );
+      return isExpanded ? Expanded(child: btn) : btn;
     }
 
-    // Payment collection button
-    if (_currentOrder.paymentStatus != PaymentStatus.paid) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
-      actions.add(
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.white, width: AppSizes.spacingTiny * 0.375),
-              foregroundColor: Colors.white,
-              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
-            ),
-            onPressed: _openPaymentDialog,
-            icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                'Collect Payment',
-                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+    Widget buildCollectPaymentButton({required bool isExpanded}) {
+      final btn = OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.white, width: 1.5),
+          foregroundColor: Colors.white,
+          padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+        onPressed: _openPaymentDialog,
+        icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        label: Text(
+          'Collect Payment',
+          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
         ),
       );
+      return isExpanded ? Expanded(child: btn) : btn;
     }
 
-    // Cancel order button
-    if (_currentOrder.status != OrderStatus.cancelled && _currentOrder.status != OrderStatus.completed) {
-      if (actions.isNotEmpty) actions.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
-      actions.add(
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: BorderSide(color: Colors.white.withValues(alpha: 0.45), width: AppSizes.spacingTiny / 4),
-              foregroundColor: Colors.red[100],
-              padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
-            ),
-            onPressed: _openCancelDialog,
-            icon: Icon(Icons.cancel_outlined, size: Responsive.icon(AppSizes.iconSmall), color: Colors.red[100]),
-            label: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                'Cancel',
-                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontTiny + 1), fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
+    Widget buildCancelButton({required bool isExpanded}) {
+      final btn = OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.0),
+          foregroundColor: Colors.red[100],
+          padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+        ),
+        onPressed: _openCancelDialog,
+        icon: Icon(Icons.cancel_outlined, size: Responsive.icon(AppSizes.iconSmall), color: Colors.red[100]),
+        label: Text(
+          'Cancel',
+          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
         ),
       );
+      return isExpanded ? Expanded(child: btn) : btn;
     }
 
-    if (actions.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    // Determine layout based on counts
+    final activeActions = <String>[];
+    if (showStartRental) activeActions.add('start');
+    if (showProcessReturn) activeActions.add('return');
+    if (showCollectPayment) activeActions.add('payment');
+    if (showCancel) activeActions.add('cancel');
+
+    if (activeActions.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: Responsive.only(top: AppSizes.spacingMedium),
-      child: Row(children: actions),
+      child: Builder(
+        builder: (context) {
+          if (activeActions.length == 3) {
+            // Stack primary action on top, secondary actions side by side below
+            final primaryType = showStartRental ? 'start' : 'return';
+            return Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: primaryType == 'start'
+                      ? buildStartRentalButton(isExpanded: false)
+                      : buildProcessReturnButton(isExpanded: false),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Row(
+                  children: [
+                    buildCancelButton(isExpanded: true),
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    buildCollectPaymentButton(isExpanded: true),
+                  ],
+                ),
+              ],
+            );
+          } else if (activeActions.length == 2) {
+            // Show side by side
+            final List<Widget> rowChildren = [];
+            if (showCancel) {
+              rowChildren.add(buildCancelButton(isExpanded: true));
+            }
+            if (showCollectPayment) {
+              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              rowChildren.add(buildCollectPaymentButton(isExpanded: true));
+            }
+            if (showStartRental) {
+              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              rowChildren.add(buildStartRentalButton(isExpanded: true));
+            }
+            if (showProcessReturn) {
+              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              rowChildren.add(buildProcessReturnButton(isExpanded: true));
+            }
+            return Row(children: rowChildren);
+          } else {
+            // Single action - full width
+            return SizedBox(
+              width: double.infinity,
+              child: showStartRental
+                  ? buildStartRentalButton(isExpanded: false)
+                  : showProcessReturn
+                      ? buildProcessReturnButton(isExpanded: false)
+                      : showCollectPayment
+                          ? buildCollectPaymentButton(isExpanded: false)
+                          : buildCancelButton(isExpanded: false),
+            );
+          }
+        },
+      ),
     );
   }
 
