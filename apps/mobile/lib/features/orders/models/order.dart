@@ -208,7 +208,9 @@ class OrderItem extends Equatable {
       quantity: json['quantity'] as int? ?? 0,
       pricePerDay: (json['price_per_day'] as num?)?.toDouble() ?? 0.0,
       originalPricePerDay: (json['original_price_per_day'] as num?)?.toDouble(),
-      totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0.0,
+      totalPrice: (json['total_price'] as num?)?.toDouble() ??
+          (((json['base_amount'] as num?)?.toDouble() ?? 0.0) +
+           ((json['gst_amount'] as num?)?.toDouble() ?? 0.0)),
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
       discountType: json['discount_type']?.toString() ?? 'flat',
