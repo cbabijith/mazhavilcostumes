@@ -267,8 +267,13 @@ extension _OrderFormSubmit on _OrderFormViewState {
     final Map<String, dynamic> body = {
       'customer_id': _selectedCustomerId,
       'branch_id': _selectedBranchId,
-      'rental_start_date': _toIsoDate(_startDateController.text),
-      'rental_end_date': _toIsoDate(_endDateController.text),
+      if (widget.order != null) ...{
+        'start_date': _toIsoDate(_startDateController.text),
+        'end_date': _toIsoDate(_endDateController.text),
+      } else ...{
+        'rental_start_date': _toIsoDate(_startDateController.text),
+        'rental_end_date': _toIsoDate(_endDateController.text),
+      },
       'event_date': _toIsoDate(_startDateController.text),
       if (_selectedDeliveryMethod != null)
         'delivery_method': _selectedDeliveryMethod!.name,
