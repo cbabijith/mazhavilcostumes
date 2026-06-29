@@ -43,7 +43,10 @@ export default function Footer({ store, categories: initialCategories }: FooterP
         .select("*")
         .eq("store_id", storeId)
         .eq("is_active", true)
-        .order("sort_order", { ascending: true });
+        .is("parent_id", null)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
       if (data) {
         setCategories(data);
       }

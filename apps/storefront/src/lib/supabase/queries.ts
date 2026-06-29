@@ -188,7 +188,10 @@ export async function getCategories(storeId: string): Promise<Category[]> {
     .select('*')
     .eq('store_id', storeId)
     .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+    .is('parent_id', null)
+    .is('deleted_at', null)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
 
   if (error) {
     console.error('Error fetching categories:', error);
@@ -286,9 +289,9 @@ export async function getBanners(): Promise<Banner[]> {
 }
 
 /**
- * Get active hero banners sorted by position (1-10)
+ * Get active hero banners for a store, sorted by position (1-10)
  */
-export async function getHeroBanners(): Promise<Banner[]> {
+export async function getHeroBanners(storeId: string): Promise<Banner[]> {
   const supabase = createClient();
   const now = new Date().toISOString();
 
@@ -297,6 +300,7 @@ export async function getHeroBanners(): Promise<Banner[]> {
     .select('*')
     .eq('is_active', true)
     .eq('banner_type', 'hero')
+    .or(`store_id.is.null,store_id.eq.${storeId}`)
     .or('start_date.is.null,start_date.lte.' + now)
     .or('end_date.is.null,end_date.gte.' + now)
     .order('position', { ascending: true });
@@ -310,9 +314,9 @@ export async function getHeroBanners(): Promise<Banner[]> {
 }
 
 /**
- * Get active editorial banner (max 1)
+ * Get active editorial banner for a store (max 1)
  */
-export async function getEditorialBanners(): Promise<Banner[]> {
+export async function getEditorialBanners(storeId: string): Promise<Banner[]> {
   const supabase = createClient();
   const now = new Date().toISOString();
 
@@ -321,6 +325,7 @@ export async function getEditorialBanners(): Promise<Banner[]> {
     .select('*')
     .eq('is_active', true)
     .eq('banner_type', 'editorial')
+    .or(`store_id.is.null,store_id.eq.${storeId}`)
     .or('start_date.is.null,start_date.lte.' + now)
     .or('end_date.is.null,end_date.gte.' + now)
     .order('priority', { ascending: false })
@@ -335,9 +340,9 @@ export async function getEditorialBanners(): Promise<Banner[]> {
 }
 
 /**
- * Get active split banners sorted by position (left first, then right)
+ * Get active split banners for a store, sorted by position (left first, then right)
  */
-export async function getSplitBanners(): Promise<Banner[]> {
+export async function getSplitBanners(storeId: string): Promise<Banner[]> {
   const supabase = createClient();
   const now = new Date().toISOString();
 
@@ -346,6 +351,7 @@ export async function getSplitBanners(): Promise<Banner[]> {
     .select('*')
     .eq('is_active', true)
     .eq('banner_type', 'split')
+    .or(`store_id.is.null,store_id.eq.${storeId}`)
     .or('start_date.is.null,start_date.lte.' + now)
     .or('end_date.is.null,end_date.gte.' + now)
     .order('position', { ascending: true });

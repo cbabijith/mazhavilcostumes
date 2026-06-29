@@ -4,8 +4,7 @@ import Footer from "@/components/home/Footer";
 import ProductDetails from "@/components/product/ProductDetails";
 import RelatedProducts from "@/components/product/RelatedProducts";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getRelatedProducts } from "@/lib/supabase/queries";
-import { getCachedProductById, getCachedCategories } from "@/lib/supabase/cached-queries";
+import { getCachedProductById, getCachedCategories, getCachedRelatedProducts } from "@/lib/supabase/cached-queries";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,7 +37,7 @@ export default async function ProductPage({ params }: PageProps) {
   // Fetch categories and related products in parallel (eliminating waterfalls)
   const [categories, related] = await Promise.all([
     store ? getCachedCategories(store.id) : Promise.resolve([]),
-    store ? getRelatedProducts(store.id, product.category_id || '', product.id, 8) : Promise.resolve([]),
+    store ? getCachedRelatedProducts(store.id, product.category_id || '', product.id, 8) : Promise.resolve([]),
   ]);
 
   return (

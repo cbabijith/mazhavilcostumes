@@ -127,7 +127,7 @@ export default function Header({ store, categories }: HeaderProps) {
                   Mazhavil Dance Costumes
                 </span>
                 <span 
-                  className="text-[7px] min-[380px]:text-[9px] sm:text-[11px] md:text-[12px] tracking-[0.2em] min-[380px]:tracking-[0.4em] sm:tracking-[0.6em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold font-sans block italic whitespace-nowrap"
+                  className="text-[6px] min-[380px]:text-[8px] sm:text-[10px] md:text-[11px] tracking-[0.05em] min-[380px]:tracking-[0.1em] sm:tracking-[0.15em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold font-sans block whitespace-nowrap"
                 >
                   Karamana | Trivandrum
                 </span>

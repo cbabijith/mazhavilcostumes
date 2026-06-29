@@ -9,7 +9,7 @@ export const getCachedCategories = (storeId: string) => {
     async (id: string) => rawQueries.getCategories(id),
     [`store_categories_${storeId}`],
     {
-      revalidate: 3600, // 1 hour
+      revalidate: 60, // 1 minute — category order changes should propagate quickly
       tags: ['categories', `categories_${storeId}`],
     }
   );
@@ -17,40 +17,49 @@ export const getCachedCategories = (storeId: string) => {
 };
 
 /**
- * Get cached hero banners
+ * Get cached hero banners for a store
  */
-export const getCachedHeroBanners = unstable_cache(
-  async () => rawQueries.getHeroBanners(),
-  ['hero_banners'],
-  {
-    revalidate: 3600, // 1 hour
-    tags: ['banners', 'hero_banners'],
-  }
-);
+export const getCachedHeroBanners = (storeId: string) => {
+  const cachedFn = unstable_cache(
+    async (sid: string) => rawQueries.getHeroBanners(sid),
+    [`hero_banners_${storeId}`],
+    {
+      revalidate: 60, // 1 minute — banner changes from admin should reflect quickly
+      tags: ['banners', 'hero_banners', `hero_banners_${storeId}`],
+    }
+  );
+  return cachedFn(storeId);
+};
 
 /**
- * Get cached editorial banners
+ * Get cached editorial banners for a store
  */
-export const getCachedEditorialBanners = unstable_cache(
-  async () => rawQueries.getEditorialBanners(),
-  ['editorial_banners'],
-  {
-    revalidate: 3600, // 1 hour
-    tags: ['banners', 'editorial_banners'],
-  }
-);
+export const getCachedEditorialBanners = (storeId: string) => {
+  const cachedFn = unstable_cache(
+    async (sid: string) => rawQueries.getEditorialBanners(sid),
+    [`editorial_banners_${storeId}`],
+    {
+      revalidate: 60, // 1 minute — banner changes from admin should reflect quickly
+      tags: ['banners', 'editorial_banners', `editorial_banners_${storeId}`],
+    }
+  );
+  return cachedFn(storeId);
+};
 
 /**
- * Get cached split banners
+ * Get cached split banners for a store
  */
-export const getCachedSplitBanners = unstable_cache(
-  async () => rawQueries.getSplitBanners(),
-  ['split_banners'],
-  {
-    revalidate: 3600, // 1 hour
-    tags: ['banners', 'split_banners'],
-  }
-);
+export const getCachedSplitBanners = (storeId: string) => {
+  const cachedFn = unstable_cache(
+    async (sid: string) => rawQueries.getSplitBanners(sid),
+    [`split_banners_${storeId}`],
+    {
+      revalidate: 60, // 1 minute — banner changes from admin should reflect quickly
+      tags: ['banners', 'split_banners', `split_banners_${storeId}`],
+    }
+  );
+  return cachedFn(storeId);
+};
 
 /**
  * Get cached single product by ID
@@ -78,4 +87,83 @@ export const getCachedGalleryItems = unstable_cache(
     tags: ['gallery'],
   }
 );
+
+/**
+ * Get cached new arrivals for a store
+ */
+export const getCachedNewArrivals = (storeId: string, limit = 10) => {
+  const cachedFn = unstable_cache(
+    async (id: string, lim: number) => rawQueries.getNewArrivals(id, lim),
+    [`new_arrivals_${storeId}_${limit}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: ['products', `new_arrivals_${storeId}`],
+    }
+  );
+  return cachedFn(storeId, limit);
+};
+
+/**
+ * Get cached featured products for a store
+ */
+export const getCachedFeaturedProducts = (storeId: string, limit = 8) => {
+  const cachedFn = unstable_cache(
+    async (id: string, lim: number) => rawQueries.getFeaturedProducts(id, lim),
+    [`featured_products_${storeId}_${limit}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: ['products', `featured_products_${storeId}`],
+    }
+  );
+  return cachedFn(storeId, limit);
+};
+
+/**
+ * Get cached related products
+ */
+export const getCachedRelatedProducts = (
+  storeId: string,
+  categoryId: string,
+  excludeId: string,
+  limit = 8
+) => {
+  const cachedFn = unstable_cache(
+    async (sid: string, cid: string, eid: string, lim: number) =>
+      rawQueries.getRelatedProducts(sid, cid, eid, lim),
+    [`related_products_${storeId}_${categoryId}_${excludeId}_${limit}`],
+    {
+      revalidate: 300, // 5 minutes
+      tags: ['products', `related_products_${storeId}`],
+    }
+  );
+  return cachedFn(storeId, categoryId, excludeId, limit);
+};
+
+/**
+ * Get cached products with pagination and filters
+ */
+export const getCachedProducts = (
+  storeId: string,
+  options: {
+    categoryId?: string;
+    limit?: number;
+    offset?: number;
+    featured?: boolean;
+    search?: string;
+  } = {}
+) => {
+  const optsKey = JSON.stringify(options);
+  const cachedFn = unstable_cache(
+    async (sid: string, opts: string) => {
+      const parsed = JSON.parse(opts) as typeof options;
+      return rawQueries.getProducts(sid, parsed);
+    },
+    [`products_${storeId}_${optsKey}`],
+    {
+      revalidate: 60, // 1 minute — product lists change with pagination/filters
+      tags: ['products', `products_${storeId}`],
+    }
+  );
+  return cachedFn(storeId, optsKey);
+};
 
