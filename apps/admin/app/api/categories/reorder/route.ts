@@ -24,15 +24,24 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Update each category's sort_order
-    const updates = items.map((item) =>
-      supabase
-        .from('categories')
-        .update({ sort_order: item.sort_order })
-        .eq('id', item.id)
+    // Update each category's sort_order and check results
+    const results = await Promise.all(
+      items.map((item) =>
+        supabase
+          .from('categories')
+          .update({ sort_order: item.sort_order })
+          .eq('id', item.id)
+      )
     );
 
-    await Promise.all(updates);
+    const failures = results.filter((r) => r.error);
+    if (failures.length > 0) {
+      console.error('Reorder partial failure:', failures);
+      return NextResponse.json(
+        { error: `Failed to update ${failures.length} of ${items.length} categories`, details: failures[0].error },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

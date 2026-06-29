@@ -2,8 +2,7 @@ import { Suspense } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getProducts } from "@/lib/supabase/queries";
-import { getCachedCategories } from "@/lib/supabase/cached-queries";
+import { getCachedCategories, getCachedProducts } from "@/lib/supabase/cached-queries";
 import CollectionsClient from "./CollectionsClient";
 
 interface CollectionsPageProps {
@@ -31,7 +30,7 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
   // Fetch data in parallel
   const [categories, productsData] = await Promise.all([
     getCachedCategories(store.id),
-    getProducts(store.id, {
+    getCachedProducts(store.id, {
       categoryId,
       search: searchQuery,
       featured: isFeatured,
