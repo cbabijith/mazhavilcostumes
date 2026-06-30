@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Heart, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ShoppingBag, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Store, Category } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
 import { useRouter, usePathname } from "next/navigation";
@@ -17,7 +17,6 @@ interface HeaderProps {
 export default function Header({ store, categories }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [cartCount, setCartCount] = useState(0);
-  const [wishlistCount, setWishlistCount] = useState(0);
   const [showCategoryBar, setShowCategoryBar] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -75,24 +74,19 @@ export default function Header({ store, categories }: HeaderProps) {
 
     const loadCounts = () => {
       const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
-      const wish = JSON.parse(localStorage.getItem("paris_wishlist") || "[]");
       setCartCount(cart.length);
-      setWishlistCount(wish.length);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     loadCounts();
 
     const handleCartUpdate = (e: any) => setCartCount(e.detail);
-    const handleWishUpdate = (e: any) => setWishlistCount(e.detail);
 
     window.addEventListener("paris_cart_updated", handleCartUpdate);
-    window.addEventListener("paris_wishlist_updated", handleWishUpdate);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("paris_cart_updated", handleCartUpdate);
-      window.removeEventListener("paris_wishlist_updated", handleWishUpdate);
     };
   }, [isHomePage]);
 
@@ -207,18 +201,6 @@ export default function Header({ store, categories }: HeaderProps) {
               </div>
 
               <div className="flex items-center gap-1 hidden sm:flex">
-                <Link
-                  href="/wishlist"
-                  className="hidden sm:flex p-2.5 text-body hover:text-rosegold transition-all hover:bg-rosegold/5 rounded-full relative"
-                  aria-label="Wishlist"
-                >
-                  <Heart size={20} strokeWidth={1.5} />
-                  {wishlistCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 bg-rosegold text-white text-[9px] font-bold min-w-[14px] h-[14px] flex items-center justify-center rounded-full border border-white animate-in zoom-in duration-200">
-                      {wishlistCount}
-                    </span>
-                  )}
-                </Link>
                 <Link
                   href="/cart"
                   className="hidden sm:flex p-2.5 text-body hover:text-rosegold transition-all hover:bg-rosegold/5 rounded-full relative"
