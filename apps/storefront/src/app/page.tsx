@@ -2,9 +2,6 @@ import { Suspense } from 'react';
 import Header from "@/components/home/Header";
 import HeroCarousel from "@/components/home/HeroCarousel";
 import NewArrivals from "@/components/home/NewArrivals";
-import RecentlyViewed from "@/components/home/RecentlyViewed";
-import EditorialBanner from "@/components/home/EditorialBanner";
-import SplitPromoBanners from "@/components/home/SplitPromoBanners";
 import HowItWorks from "@/components/home/HowItWorks";
 import CustomerReviews from "@/components/home/CustomerReviews";
 import FinalCTA from "@/components/home/FinalCTA";
@@ -12,7 +9,7 @@ import Footer from "@/components/home/Footer";
 import TrustBadges from "@/components/home/TrustBadges";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { getCachedCategories, getCachedNewArrivals } from "@/lib/supabase/cached-queries";
-import { getHeroBanners, getEditorialBanners, getSplitBanners } from "@/lib/supabase/queries";
+import { getHeroBanners } from "@/lib/supabase/queries";
 
 async function getStoreData() {
   const store = await getParisBridalsStore();
@@ -36,12 +33,10 @@ export default async function Home() {
   const storeId = store.id;
 
   // Fetch data in parallel — each banner type has its own optimized query
-  const [heroBanners, editorialBanners, splitBanners, categories, newArrivals] = await Promise.all([
+  const [heroBanners, categories, newArrivals] = await Promise.all([
     getHeroBanners(storeId),
-    getEditorialBanners(storeId),
-    getSplitBanners(storeId),
     getCachedCategories(storeId),
-    getCachedNewArrivals(storeId, 10),
+    getCachedNewArrivals(storeId, 20),
   ]);
 
   return (
@@ -52,32 +47,15 @@ export default async function Home() {
       {/* 2. Hero Carousel — only if hero banners exist */}
       {heroBanners.length > 0 && <HeroCarousel banners={heroBanners} />}
 
-      {/* Recently Viewed Products */}
-      <RecentlyViewed />
-
       {/* 4. Trust Badges */}
       <TrustBadges />
       
-      {/* 5. Editorial Storytelling — only if editorial banners exist */}
-      {editorialBanners.length > 0 && (
-        <Suspense fallback={<div className="h-[700px] animate-pulse bg-silk" />}>
-          <EditorialBanner banners={editorialBanners} />
-        </Suspense>
-      )}
-      
-      {/* 6. Latest Treasures (New Arrivals) */}
+      {/* 5. Latest Treasures (New Arrivals) */}
       <Suspense fallback={<div className="h-[600px] animate-pulse bg-silk-dark/30" />}>
         <NewArrivals products={newArrivals} />
       </Suspense>
 
-      {/* 7. Split Collections — only if split banners exist */}
-      {splitBanners.length > 0 && (
-        <Suspense fallback={<div className="h-[600px] animate-pulse bg-white" />}>
-          <SplitPromoBanners banners={splitBanners} />
-        </Suspense>
-      )}
-
-      {/* 8. The Experience (How It Works) */}
+      {/* 7. The Experience (How It Works) */}
       <HowItWorks />
 
       {/* 9. Bridal Stories (Reviews) */}

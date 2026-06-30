@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
-import { buildContactMessage, buildWhatsAppUrl, DISPLAY_PHONE } from "@/lib/whatsapp";
+import { Mail, Phone, MapPin, Send, MessageCircle } from "lucide-react";
+import { buildContactMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
 
 export default function ContactPage() {
   const [store, setStore] = useState<any>(null);
@@ -29,31 +29,25 @@ export default function ContactPage() {
 
   const validateForm = () => {
     const newErrors: { name?: string; phone?: string; message?: string } = {};
-    
     if (!formData.name.trim()) {
       newErrors.name = "Name is required";
     }
-    
     const cleanPhone = formData.phone.replace(/\D/g, "");
     if (!cleanPhone) {
       newErrors.phone = "Phone number is required";
     } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       newErrors.phone = "Enter a valid 10-digit Indian mobile number";
     }
-    
     if (!formData.message.trim()) {
       newErrors.message = "Message is required";
     }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-    
     const cleanPhone = formData.phone.replace(/\D/g, "");
     const message = buildContactMessage(formData.name, cleanPhone, formData.message);
     window.open(buildWhatsAppUrl(message), "_blank");
@@ -69,143 +63,162 @@ export default function ContactPage() {
   if (!mounted) return null;
 
   return (
-    <main className="min-h-screen bg-silk">
+    <main className="min-h-screen bg-white pb-20 lg:pb-0">
       <Header store={store} />
 
-      <section className="py-12 sm:py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="section-eyebrow justify-center">Get in Touch</div>
-            <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">Contact Us</h1>
-            <p className="text-body font-light max-w-2xl mx-auto">
+      <section className="py-8 sm:py-12 md:py-16 px-4 sm:px-6 md:px-12">
+        <div className="max-w-[1000px] mx-auto">
+          {/* Header */}
+          <div className="text-center mb-8 sm:mb-10">
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-rosegold block mb-2">
+              Get in Touch
+            </span>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading mb-3">
+              Contact Us
+            </h1>
+            <p className="text-sm text-body max-w-lg mx-auto">
               Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-16">
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-[var(--border-silk)]">
-              <h2 className="font-serif text-heading text-xl mb-6">Send a Message</h2>
-              
-              <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+            {/* Form */}
+            <div className="border border-[#EAEAEA] rounded-2xl p-5 sm:p-6">
+              <h2 className="text-base font-semibold text-heading mb-5">Send a Message</h2>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-caption mb-2 block">
-                    Name *
-                  </label>
+                  <label className="text-xs font-medium text-body block mb-1.5">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
-                    className="w-full px-4 py-3 rounded-2xl border border-[var(--border-silk)] text-sm focus:outline-none focus:ring-2 focus:ring-rosegold/20 transition-all"
+                    className={cn(
+                      "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50",
+                      errors.name ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                    )}
                     placeholder="Your name"
                   />
-                  {errors.name && (
-                    <p className="text-xs text-red-500 mt-1.5">{errors.name}</p>
-                  )}
+                  {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-caption mb-2 block">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    className="w-full px-4 py-3 rounded-2xl border border-[var(--border-silk)] text-sm focus:outline-none focus:ring-2 focus:ring-rosegold/20 transition-all"
-                    placeholder="10-digit mobile number"
-                  />
-                  {errors.phone && (
-                    <p className="text-xs text-red-500 mt-1.5">{errors.phone}</p>
-                  )}
+                  <label className="text-xs font-medium text-body block mb-1.5">Phone Number *</label>
+                  <div className="flex gap-2">
+                    <div className="flex items-center justify-center px-3 bg-gray-50 border border-[#EAEAEA] rounded-lg text-sm text-heading font-medium shrink-0">
+                      +91
+                    </div>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleInputChange("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      className={cn(
+                        "flex-1 px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50",
+                        errors.phone ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                      )}
+                      placeholder="10-digit mobile number"
+                      inputMode="numeric"
+                      maxLength={10}
+                    />
+                  </div>
+                  {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
                 </div>
 
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-caption mb-2 block">
-                    Message *
-                  </label>
+                  <label className="text-xs font-medium text-body block mb-1.5">Message *</label>
                   <textarea
                     value={formData.message}
                     onChange={(e) => handleInputChange("message", e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-3 rounded-2xl border border-[var(--border-silk)] text-sm focus:outline-none focus:ring-2 focus:ring-rosegold/20 transition-all resize-none"
+                    className={cn(
+                      "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50 resize-none",
+                      errors.message ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                    )}
                     placeholder="How can we help you?"
                   />
-                  {errors.message && (
-                    <p className="text-xs text-red-500 mt-1.5">{errors.message}</p>
-                  )}
+                  {errors.message && <p className="text-xs text-red-500 mt-1">{errors.message}</p>}
                 </div>
 
-                <Button
+                <button
                   type="submit"
-                  className="w-full shimmer-btn py-4 rounded-full text-sm uppercase tracking-widest font-bold flex items-center justify-center gap-3"
+                  className="w-full py-3.5 rounded-full bg-rosegold text-white text-sm font-semibold hover:bg-rosegold-dark transition-colors flex items-center justify-center gap-2"
                 >
-                  <Send size={18} strokeWidth={1.5} />
+                  <Send size={16} strokeWidth={1.8} />
                   Send via WhatsApp
-                </Button>
+                </button>
               </form>
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-white rounded-3xl p-8 shadow-sm border border-[var(--border-silk)]">
-                <h2 className="font-serif text-heading text-xl mb-6">Contact Information</h2>
-                
-                <div className="space-y-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-rosegold/5 text-rosegold rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Phone size={18} strokeWidth={1.5} />
+            {/* Contact Info */}
+            <div className="space-y-4">
+              <div className="border border-[#EAEAEA] rounded-2xl p-5 sm:p-6">
+                <h2 className="text-base font-semibold text-heading mb-5">Contact Information</h2>
+
+                <div className="space-y-5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-rosegold/5 text-rosegold rounded-lg flex items-center justify-center shrink-0">
+                      <Phone size={16} strokeWidth={1.8} />
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Mob / Whatsapp</p>
-                      <div className="flex flex-col gap-1">
-                        <a href="tel:9446961765" className="text-heading font-medium hover:text-rosegold transition-colors">
+                    <div className="min-w-0">
+                      <p className="text-xs text-body mb-1">Mob / Whatsapp</p>
+                      <div className="flex flex-col gap-0.5">
+                        <a href="tel:9446961765" className="text-sm font-medium text-heading hover:text-rosegold transition-colors">
                           +91 94469 61765
                         </a>
-                        <a href="tel:9447961765" className="text-heading font-medium hover:text-rosegold transition-colors">
+                        <a href="tel:9447961765" className="text-sm font-medium text-heading hover:text-rosegold transition-colors">
                           +91 94479 61765
                         </a>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 bg-rosegold/5 text-rosegold rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Mail size={18} strokeWidth={1.5} />
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-rosegold/5 text-rosegold rounded-lg flex items-center justify-center shrink-0">
+                      <Mail size={16} strokeWidth={1.8} />
                     </div>
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Email</p>
-                      <a href="mailto:mazhavildancecostumes@gmail.com" className="text-heading font-medium hover:text-rosegold transition-colors">
+                    <div className="min-w-0">
+                      <p className="text-xs text-body mb-1">Email</p>
+                      <a href="mailto:mazhavildancecostumes@gmail.com" className="text-sm font-medium text-heading hover:text-rosegold transition-colors break-all">
                         mazhavildancecostumes@gmail.com
                       </a>
                     </div>
                   </div>
 
-                  {store?.address && (
-                    <div className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-rosegold/5 text-rosegold rounded-xl flex items-center justify-center flex-shrink-0">
-                        <MapPin size={18} strokeWidth={1.5} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-caption mb-1">Address</p>
-                        <p className="text-body text-sm leading-relaxed">{store.address}</p>
-                      </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 bg-rosegold/5 text-rosegold rounded-lg flex items-center justify-center shrink-0">
+                      <MapPin size={16} strokeWidth={1.8} />
                     </div>
-                  )}
+                    <div className="min-w-0">
+                      <p className="text-xs text-body mb-1">Address</p>
+                      <a
+                        href="https://www.google.com/maps/search/?api=1&query=8.481222,76.965056"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-heading leading-relaxed hover:text-rosegold transition-colors"
+                      >
+                        Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002
+                      </a>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-rosegold/5 rounded-3xl p-8 text-center">
-                <h3 className="font-serif text-heading text-lg mb-3">Quick Response</h3>
-                <p className="text-body text-sm mb-4">
+              {/* Quick Response */}
+              <div className="bg-rosegold/5 border border-rosegold/10 rounded-2xl p-5 sm:p-6 text-center">
+                <div className="w-10 h-10 bg-rosegold/10 text-rosegold rounded-full flex items-center justify-center mx-auto mb-3">
+                  <MessageCircle size={18} strokeWidth={1.8} />
+                </div>
+                <h3 className="text-sm font-semibold text-heading mb-2">Quick Response</h3>
+                <p className="text-xs text-body mb-4 max-w-xs mx-auto">
                   For fastest response, reach out to us directly on WhatsApp.
                 </p>
                 <a
                   href={buildWhatsAppUrl("Hi, I have a question.")}
                   target="_blank"
                   rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-rosegold text-white text-sm font-semibold hover:bg-rosegold-dark transition-colors"
                 >
-                  <Button className="shimmer-btn px-6 py-3 rounded-full text-xs uppercase tracking-widest font-bold">
-                    Chat on WhatsApp
-                  </Button>
+                  Chat on WhatsApp
                 </a>
               </div>
             </div>

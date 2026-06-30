@@ -1,36 +1,38 @@
 "use client";
 
-import { useTransition, useEffect, useState } from "react";
+import { useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { 
-  Search, 
-  ChevronLeft, 
-  ChevronRight, 
-  ChevronsLeft,
-  ChevronsRight,
-  Loader2 
-} from "lucide-react";
-import { Product, Category, getProductImageUrls } from "@/lib/supabase/queries";
+import { ChevronLeft, ChevronRight, Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { Product, Category } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import ProductCard from "@/components/product/ProductCard";
 
 interface CollectionsClientProps {
   initialProducts: Product[];
   categories: Category[];
   initialCategoryId?: string;
   initialSearchQuery?: string;
+  initialSort?: string;
   total: number;
   currentPage: number;
   itemsPerPage: number;
 }
+
+const SORT_OPTIONS = [
+  { value: "newest", label: "Newest First" },
+  { value: "price_low", label: "Price: Low to High" },
+  { value: "price_high", label: "Price: High to Low" },
+  { value: "name_asc", label: "Name: A to Z" },
+  { value: "name_desc", label: "Name: Z to A" },
+];
 
 export default function CollectionsClient({
   initialProducts,
   categories,
   initialCategoryId,
   initialSearchQuery,
+  initialSort,
   total,
   currentPage,
   itemsPerPage,
@@ -41,8 +43,32 @@ export default function CollectionsClient({
   const totalPages = Math.ceil(total / itemsPerPage);
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, total);
+  const currentSort = initialSort || "newest";
 
-  // Helper to construct pagination URLs
+  const updateParams = (updates: Record<string, string | undefined>) => {
+    startTransition(() => {
+      const params = new URLSearchParams(window.location.search);
+      Object.entries(updates).forEach(([key, value]) => {
+        if (value === undefined || value === "") {
+          params.delete(key);
+        } else {
+          params.set(key, value);
+        }
+      });
+      // Reset to page 1 when filters/sort change
+      if (!updates.page) params.set("page", "1");
+      router.push(`/collections?${params.toString()}`);
+    });
+  };
+
+  const handleSortChange = (value: string) => {
+    updateParams({ sort: value === "newest" ? undefined : value });
+  };
+
+  const handleCategoryChange = (categoryId: string | undefined) => {
+    updateParams({ category_id: categoryId, page: "1" });
+  };
+
   const getPageLink = (page: number) => {
     if (typeof window === "undefined") return `/collections?page=${page}`;
     const params = new URLSearchParams(window.location.search);
@@ -50,7 +76,6 @@ export default function CollectionsClient({
     return `/collections?${params.toString()}`;
   };
 
-  // Prefetch adjacent pages to make loading instantaneous on low networks
   useEffect(() => {
     if (currentPage < totalPages) {
       router.prefetch(getPageLink(currentPage + 1));
@@ -62,7 +87,6 @@ export default function CollectionsClient({
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;
-    
     startTransition(() => {
       const params = new URLSearchParams(window.location.search);
       params.set("page", page.toString());
@@ -70,88 +94,120 @@ export default function CollectionsClient({
     });
   };
 
-  const [pageGroupStart, setPageGroupStart] = useState(() => {
-    return Math.floor((currentPage - 1) / 6) * 6 + 1;
-  });
-
-  useEffect(() => {
-    const groupStart = Math.floor((currentPage - 1) / 6) * 6 + 1;
-    setPageGroupStart(groupStart);
-  }, [currentPage]);
-
-  // Generate 6 page numbers starting from pageGroupStart
   const getPageNumbers = () => {
     const pages: number[] = [];
-    const end = Math.min(pageGroupStart + 5, totalPages);
-    for (let i = pageGroupStart; i <= end; i++) {
-      pages.push(i);
-    }
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, start + 4);
+    for (let i = start; i <= end; i++) pages.push(i);
     return pages;
   };
 
-  const pageNumbers = getPageNumbers();
-
   return (
-    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      {/* Page Heading */}
-      <div className="mb-6 sm:mb-8 text-center lg:text-left">
-        <div className="section-eyebrow justify-center lg:justify-start">Our Treasures</div>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif text-heading mb-4 leading-tight">
-          {initialSearchQuery ? (
-            <>Results for <em className="italic text-rosegold">&quot;{initialSearchQuery}&quot;</em></>
-          ) : (
-            <>Explore our <em className="italic text-rosegold">Masterpieces</em></>
-          )}
+    <div className="max-w-[1200px] mx-auto px-4 sm:px-6 md:px-12 py-8 sm:py-10 md:py-12">
+      {/* Header */}
+      <div className="text-center mb-6 sm:mb-8">
+        <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold text-rosegold">
+          Our Treasures
+        </span>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading mt-2">
+          {initialSearchQuery ? `Results for "${initialSearchQuery}"` : "Explore our Masterpieces"}
         </h1>
-        <p className="text-body max-w-2xl font-light text-sm sm:text-base">
-          Browse Kerala&apos;s most exquisite bridal costumes collection. Hand-selected pieces for your most precious moments.
+        <p className="text-sm text-body mt-2 max-w-lg mx-auto">
+          Browse Kerala's most exquisite bridal costumes collection. Hand-selected pieces for your most precious moments.
         </p>
       </div>
 
-      {/* Stats Summary Line */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8 pb-4 border-b border-[var(--border-silk)]">
-        <div className="text-xs sm:text-sm text-muted-foreground font-sans tracking-wide">
+      {/* Category Filter Pills */}
+      {categories.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-2 mb-4">
+          <button
+            onClick={() => handleCategoryChange(undefined)}
+            className={cn(
+              "shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border",
+              !initialCategoryId
+                ? "bg-rosegold border-rosegold text-white"
+                : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+            )}
+          >
+            All
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => handleCategoryChange(cat.id)}
+              className={cn(
+                "shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border",
+                initialCategoryId === cat.id
+                  ? "bg-rosegold border-rosegold text-white"
+                  : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+              )}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Stats + Sort */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5 sm:mb-6 pb-3 border-b border-[#EAEAEA]">
+        <p className="text-xs sm:text-sm text-body">
           {total > 0 ? (
             <>
               Showing <span className="font-semibold text-heading">{startItem}–{endItem}</span> of{" "}
-              <span className="font-semibold text-heading">{total.toLocaleString("en-IN")}</span> treasures
+              <span className="font-semibold text-heading">{total.toLocaleString("en-IN")}</span> items
             </>
           ) : (
-            "No treasures available"
+            "No items available"
           )}
+        </p>
+
+        {/* Sort Dropdown */}
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={14} className="text-body" />
+          <select
+            value={currentSort}
+            onChange={(e) => handleSortChange(e.target.value)}
+            className="text-xs sm:text-sm font-medium text-heading bg-transparent border border-[#EAEAEA] rounded-lg px-3 py-2 focus:outline-none focus:border-rosegold transition-colors cursor-pointer"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      {/* Product Grid & Loader overlay */}
-      <div className="relative min-h-[400px]">
+      {/* Product Grid */}
+      <div className="relative min-h-[300px]">
         {isPending && (
-          <div className="absolute inset-0 bg-silk/45 backdrop-blur-[1px] z-20 flex items-start justify-center pt-24 transition-opacity duration-300">
-            <div className="bg-white/95 backdrop-blur-md p-4 rounded-full shadow-2xl border border-[var(--border-silk)] flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-rosegold" />
-            </div>
+          <div className="absolute inset-0 bg-white/60 z-20 flex items-start justify-center pt-32">
+            <Loader2 className="w-6 h-6 animate-spin text-rosegold" />
           </div>
         )}
 
         <div className={cn(
-          "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6 transition-opacity duration-500",
-          isPending ? "opacity-50 pointer-events-none" : "opacity-100"
+          "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 transition-opacity duration-300",
+          isPending ? "opacity-40" : "opacity-100"
         )}>
           {initialProducts.length > 0 ? (
             initialProducts.map((product) => (
-              <CollectionProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                badge={product.is_featured ? { text: "Featured" } : undefined}
+              />
             ))
           ) : (
-            <div className="col-span-full py-32 text-center bg-white rounded-[3rem] border border-dashed border-[var(--border-silk)]">
-              <div className="w-16 h-16 bg-silk rounded-full flex items-center justify-center mx-auto mb-6 text-rosegold/30">
-                <Search size={32} />
-              </div>
-              <h3 className="text-2xl font-serif text-heading mb-2">No Treasures Found</h3>
-              <p className="text-muted-foreground text-sm max-w-sm mx-auto">
-                We couldn&apos;t find any pieces matching your request. Try adjusting your search keywords.
+            <div className="col-span-full py-20 text-center">
+              <Search size={32} className="text-body/30 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-heading mb-2">No items found</h3>
+              <p className="text-sm text-body mb-6 max-w-sm mx-auto">
+                We couldn't find any pieces matching your request.
               </p>
               <Link
                 href="/collections"
-                className="inline-block mt-8 px-8 py-3 bg-rosegold text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-lg shadow-rosegold/20"
+                className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-rosegold text-white text-sm font-semibold hover:bg-rosegold-dark transition-colors"
               >
                 View All Collections
               </Link>
@@ -160,133 +216,44 @@ export default function CollectionsClient({
         </div>
       </div>
 
-      {/* Pagination Bar */}
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div className="mt-12 sm:mt-16 flex flex-col items-center justify-center gap-4 border-t border-[var(--border-silk)] pt-8">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* First Page */}
-            <button
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1 || isPending}
-              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="First page"
-            >
-              <ChevronsLeft size={16} />
-            </button>
+        <div className="mt-8 sm:mt-10 flex items-center justify-center gap-2">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1 || isPending}
+            className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            aria-label="Previous page"
+          >
+            <ChevronLeft size={16} />
+          </button>
 
-            {/* Previous Set of 6 Pages */}
+          {getPageNumbers().map((pageNum) => (
             <button
-              onClick={() => setPageGroupStart(prev => Math.max(prev - 6, 1))}
-              disabled={pageGroupStart === 1 || isPending}
-              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="Previous set of pages"
+              key={`page-${pageNum}`}
+              onClick={() => handlePageChange(pageNum)}
+              disabled={isPending}
+              className={cn(
+                "w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors border",
+                currentPage === pageNum
+                  ? "bg-rosegold border-rosegold text-white"
+                  : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+              )}
             >
-              <ChevronLeft size={16} />
+              {pageNum}
             </button>
+          ))}
 
-            {/* Page Numbers */}
-            {pageNumbers.map((pageNum) => (
-              <button
-                key={`page-${pageNum}`}
-                onClick={() => handlePageChange(pageNum)}
-                disabled={isPending}
-                className={cn(
-                  "size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full text-xs font-bold font-sans transition-all duration-300 border",
-                  currentPage === pageNum
-                    ? "bg-rosegold border-rosegold text-white shadow-md shadow-rosegold/20 cursor-default"
-                    : "bg-white border-[var(--border-silk)] text-body hover:border-rosegold hover:text-rosegold"
-                )}
-              >
-                {pageNum}
-              </button>
-            ))}
-
-            {/* Next Set of 6 Pages */}
-            <button
-              onClick={() => setPageGroupStart(prev => Math.min(prev + 6, totalPages))}
-              disabled={pageGroupStart + 6 > totalPages || isPending}
-              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="Next set of pages"
-            >
-              <ChevronRight size={16} />
-            </button>
-
-            {/* Last Page */}
-            <button
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages || isPending}
-              className="size-9 sm:size-10 cursor-pointer flex items-center justify-center rounded-full border border-[var(--border-silk)] bg-white text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-all duration-300"
-              aria-label="Last page"
-            >
-              <ChevronsRight size={16} />
-            </button>
-          </div>
-          
-          <div className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-widest font-sans font-medium">
-            Page {currentPage} of {totalPages}
-          </div>
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages || isPending}
+            className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            aria-label="Next page"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * Individual product card for collections grid.
- * Uses Next.js optimized `<Image>` component for maximum performance.
- */
-function CollectionProductCard({ product }: { product: Product }) {
-  const imageUrls = getProductImageUrls(product.images);
-  const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
-
-  return (
-    <Link
-      href={`/product/${product.id}`}
-      className="group block"
-    >
-      {/* Image Container */}
-      <div className="relative aspect-[3/4] overflow-hidden rounded-xl sm:rounded-2xl lg:rounded-3xl bg-silk-dark">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={product.name}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            quality={70}
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-4xl opacity-10">👗</div>
-        )}
-
-        {/* Overlay Tags */}
-        <div className="absolute top-2.5 sm:top-3 left-2.5 sm:left-3 flex flex-col gap-1.5 z-10">
-          {product.is_featured && (
-            <Badge className="bg-white/90 backdrop-blur-sm text-rosegold text-[8px] sm:text-[9px] uppercase tracking-widest px-2 py-0.5 border-none shadow-sm font-semibold">
-              Masterpiece
-            </Badge>
-          )}
-        </div>
-
-        {/* Quick View Button (Desktop) */}
-        <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 hidden sm:flex items-end p-3 lg:p-4 z-10">
-          <div className="w-full py-2.5 bg-white/90 backdrop-blur-md text-rosegold text-[10px] font-bold uppercase tracking-widest text-center rounded-xl lg:rounded-2xl shadow-xl transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-            View Details
-          </div>
-        </div>
-      </div>
-
-      {/* Product Info */}
-      <div className="mt-2.5 sm:mt-4 text-center sm:text-left px-0.5">
-        <h3 className="text-[13px] sm:text-sm lg:text-base font-sans text-heading mb-1 sm:mb-1.5 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
-          {product.name}
-        </h3>
-        <div className="flex justify-center sm:justify-start">
-          <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-muted-foreground font-medium">
-            Sanitized
-          </span>
-        </div>
-      </div>
-    </Link>
   );
 }

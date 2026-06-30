@@ -4,13 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChevronRight, Heart, Share2, ShieldCheck, Sparkles, Truck, ShoppingBag } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck } from "lucide-react";
 import WhatsAppOrderModal from "./WhatsAppOrderModal";
-import { buildOrderMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
-import { cn } from "@/lib/utils";
 import { getProductImageUrls } from "@/lib/supabase/queries";
+import { cn } from "@/lib/utils";
 
 interface ProductDetailsProps {
   product: {
@@ -19,7 +16,6 @@ interface ProductDetailsProps {
     description: string | null;
     price_per_day: number;
     security_deposit: number;
-    // Stored as JSONB in DB
     images: any[];
     category?: { id: string; name: string; slug: string } | null;
     available_quantity: number;
@@ -30,9 +26,7 @@ interface ProductDetailsProps {
 export default function ProductDetails({ product }: ProductDetailsProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
-
   const [isInCart, setIsInCart] = useState(false);
-  const [addedToWishlist, setAddedToWishlist] = useState(false);
   const router = useRouter();
 
   const images = getProductImageUrls(product.images);
@@ -43,31 +37,11 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     setIsInCart(cart.some((item: any) => item.id === product.id));
   }, [product.id]);
 
-  useEffect(() => {
-    if (!product.id) return;
-    try {
-      const recentlyViewed = JSON.parse(localStorage.getItem("recently_viewed") || "[]");
-      const filtered = recentlyViewed.filter((item: any) => item.id !== product.id);
-      const updated = [
-        {
-          id: product.id,
-          name: product.name,
-          images: product.images,
-        },
-        ...filtered,
-      ].slice(0, 6);
-      localStorage.setItem("recently_viewed", JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to update recently viewed products history", e);
-    }
-  }, [product.id, product.name, product.images]);
-
   const handleCartAction = () => {
     if (isInCart) {
       router.push("/cart");
       return;
     }
-
     const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
     const exists = cart.some((item: any) => item.id === product.id);
     if (!exists) {
@@ -75,7 +49,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         id: product.id,
         name: product.name,
         price_per_day: product.price_per_day,
-        images: images,
+        images: product.images,
       };
       const newCart = [...cart, newItem];
       localStorage.setItem("paris_cart", JSON.stringify(newCart));
@@ -84,37 +58,15 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
     }
   };
 
-  const addToWishlist = () => {
-    const wishlist = JSON.parse(localStorage.getItem("paris_wishlist") || "[]");
-    const exists = wishlist.some((item: any) => item.id === product.id);
-    if (!exists) {
-      const newItem = {
-        id: product.id,
-        name: product.name,
-        price_per_day: product.price_per_day,
-        images: images,
-      };
-      const newWish = [...wishlist, newItem];
-      localStorage.setItem("paris_wishlist", JSON.stringify(newWish));
-      window.dispatchEvent(new CustomEvent("paris_wishlist_updated", { detail: newWish.length }));
-    }
-    setAddedToWishlist(true);
-    setTimeout(() => setAddedToWishlist(false), 2000);
-  };
-
   return (
     <>
-      <section className="pt-6 sm:pt-10 md:pt-14 pb-10 sm:pb-16 md:pb-20 bg-silk">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+      <section className="pt-6 sm:pt-8 md:pt-10 pb-10 sm:pb-14">
+        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 md:px-12">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-1.5 text-xs text-caption mb-5 sm:mb-8 overflow-x-auto hide-scrollbar">
-            <Link href="/" className="hover:text-rosegold transition-colors whitespace-nowrap">
-              Home
-            </Link>
+          <nav className="flex items-center gap-1.5 text-xs text-body mb-5 sm:mb-6 overflow-x-auto hide-scrollbar">
+            <Link href="/" className="hover:text-rosegold transition-colors whitespace-nowrap">Home</Link>
             <ChevronRight size={12} />
-            <Link href="/collections" className="hover:text-rosegold transition-colors whitespace-nowrap">
-              Collections
-            </Link>
+            <Link href="/collections" className="hover:text-rosegold transition-colors whitespace-nowrap">Collections</Link>
             {product.category && (
               <>
                 <ChevronRight size={12} />
@@ -130,41 +82,33 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
             <span className="text-heading font-medium line-clamp-1">{product.name}</span>
           </nav>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-10 lg:gap-16">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
             {/* Image Gallery */}
-            <div className="flex flex-col gap-3 sm:gap-4">
-              <div className="relative aspect-square rounded-2xl sm:rounded-3xl overflow-hidden bg-white border border-[var(--border-silk)] shadow-silk group">
+            <div className="flex flex-col gap-3">
+              <div className="relative aspect-square rounded-2xl overflow-hidden bg-gray-50 border border-[#EAEAEA]">
                 {mainImage ? (
                   <Image
                     src={mainImage}
                     alt={product.name}
                     fill
                     priority
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-rosegold/5 text-7xl opacity-30">
-                    👗
-                  </div>
+                  <div className="w-full h-full flex items-center justify-center bg-rosegold/5 text-6xl opacity-20">👗</div>
                 )}
-
-
-
               </div>
 
-              {/* Thumbnails */}
               {images.length > 1 && (
-                <div className="flex gap-2 sm:gap-3 overflow-x-auto hide-scrollbar pb-1">
+                <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-1">
                   {images.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setActiveImage(idx)}
                       className={cn(
-                        "relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-all duration-300",
-                        activeImage === idx
-                          ? "border-rosegold"
-                          : "border-transparent hover:border-rosegold/40"
+                        "relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-colors",
+                        activeImage === idx ? "border-rosegold" : "border-[#EAEAEA] hover:border-rosegold/40"
                       )}
                       aria-label={`View image ${idx + 1}`}
                     >
@@ -184,34 +128,41 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
             {/* Product Info */}
             <div className="flex flex-col">
               {product.category && (
-                <span className="section-eyebrow mb-3">
+                <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-rosegold mb-2">
                   {product.category.name}
                 </span>
               )}
 
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-sans text-heading tracking-tight leading-[1.1] mb-6">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading leading-tight mb-3">
                 {product.name}
               </h1>
 
+              <div className="flex items-baseline gap-2 mb-4">
+                <span className="text-xl sm:text-2xl font-bold text-heading">
+                  ₹{product.price_per_day.toLocaleString("en-IN")}
+                </span>
+                <span className="text-sm text-body">/day</span>
+              </div>
+
               {product.description && (
-                <p className="text-sm sm:text-base text-body leading-relaxed mb-6 sm:mb-8 font-light">
+                <p className="text-sm text-body leading-relaxed mb-6">
                   {product.description}
                 </p>
               )}
 
               {/* Features */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6 sm:mb-8">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
                 {[
-                  { icon: ShieldCheck, label: "Certified Authentic" },
-                  { icon: Sparkles, label: "Sanitized & Ready" },
+                  { icon: ShieldCheck, label: "Certified" },
+                  { icon: Sparkles, label: "Sanitized" },
                   { icon: Truck, label: "Safe Delivery" },
                 ].map(({ icon: Icon, label }) => (
                   <div
                     key={label}
-                    className="flex flex-col items-center text-center gap-1.5 p-3 sm:p-4 rounded-2xl bg-white border border-[var(--border-silk)]"
+                    className="flex flex-col items-center text-center gap-1.5 p-3 rounded-xl bg-gray-50 border border-[#EAEAEA]"
                   >
-                    <Icon className="text-rosegold" size={18} strokeWidth={1.5} />
-                    <span className="text-[10px] sm:text-[11px] uppercase tracking-wider text-body font-medium leading-tight">
+                    <Icon className="text-rosegold" size={16} strokeWidth={1.8} />
+                    <span className="text-[10px] sm:text-[11px] font-medium text-body leading-tight">
                       {label}
                     </span>
                   </div>
@@ -220,52 +171,38 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
 
               {/* CTAs */}
               <div className="flex flex-col gap-3">
-                <Button
+                <button
                   onClick={() => setModalOpen(true)}
-                  className="shimmer-btn hidden lg:inline-flex w-full py-6 rounded-full text-xs uppercase tracking-[0.2em] font-bold border-none shadow-xl"
+                  className="hidden lg:flex w-full py-3.5 rounded-full bg-rosegold text-white text-sm font-semibold hover:bg-rosegold-dark transition-colors items-center justify-center gap-2"
                 >
-                  Book for your Event
-                </Button>
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant={isInCart ? "default" : "outline"}
-                    onClick={handleCartAction}
-                    className={cn(
-                      "py-6 rounded-full text-[10px] uppercase tracking-[0.1em] font-bold transition-all",
-                      isInCart
-                        ? "bg-heading text-white border-none hover:bg-heading/90"
-                        : "border-heading text-heading hover:bg-heading/5"
-                    )}
-                  >
-                    <ShoppingBag size={14} className="mr-2" />
-                    {isInCart ? "Go to Cart" : "Add to Cart"}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={addToWishlist}
-                    className={cn(
-                      "py-6 rounded-full text-[10px] uppercase tracking-[0.1em] font-bold border-rosegold text-rosegold hover:bg-rosegold/5 transition-all",
-                      addedToWishlist && "bg-rosegold text-white border-none"
-                    )}
-                  >
-                    <Heart size={14} className={cn("mr-2", addedToWishlist && "fill-white")} />
-                    {addedToWishlist ? "Saved" : "Wishlist"}
-                  </Button>
-                </div>
+                  <ShoppingBag size={16} strokeWidth={1.8} />
+                  Reserve Now
+                </button>
+
+                <button
+                  onClick={handleCartAction}
+                  className={cn(
+                    "w-full py-3.5 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-2 border",
+                    isInCart
+                      ? "bg-heading text-white border-heading"
+                      : "bg-white text-heading border-heading hover:bg-heading/5"
+                  )}
+                >
+                  <ShoppingBag size={16} strokeWidth={1.8} />
+                  {isInCart ? "Go to Cart" : "Add to Cart"}
+                </button>
               </div>
 
-              {/* Trust note */}
-              <div className="mt-6 pt-6 border-t border-[var(--border-silk)] space-y-2">
-                <p className="text-xs text-caption uppercase tracking-widest">
-                  ✓ Order confirmation on WhatsApp
+              {/* Trust notes */}
+              <div className="mt-6 pt-5 border-t border-[#EAEAEA] space-y-2">
+                <p className="text-xs text-body flex items-center gap-2">
+                  <span className="text-rosegold">✓</span> Order confirmation on WhatsApp
                 </p>
-                <p className="text-xs text-caption uppercase tracking-widest">
-                  ✓ Free fittings & styling
+                <p className="text-xs text-body flex items-center gap-2">
+                  <span className="text-rosegold">✓</span> Free fittings & styling
                 </p>
-                <p className="text-xs text-caption uppercase tracking-widest">
-                  ✓ Trusted by 500+ dancers
+                <p className="text-xs text-body flex items-center gap-2">
+                  <span className="text-rosegold">✓</span> Trusted by 500+ dancers
                 </p>
               </div>
             </div>
@@ -273,19 +210,18 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         </div>
       </section>
 
-      {/* Sticky mobile order bar (visible only on product pages, mobile only) */}
-      <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-[var(--border-silk)] shadow-[0_-4px_24px_rgba(183,110,121,0.08)]">
+      {/* Mobile sticky bar */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-[#EAEAEA]">
         <div className="px-4 py-3">
-          <Button
+          <button
             onClick={() => setModalOpen(true)}
-            className="shimmer-btn w-full py-3 rounded-full text-xs font-semibold tracking-[0.15em] text-white uppercase"
+            className="w-full py-3.5 rounded-full bg-rosegold text-white text-sm font-semibold hover:bg-rosegold-dark transition-colors"
           >
-            Book for Event
-          </Button>
+            Reserve Now
+          </button>
         </div>
       </div>
 
-      {/* Modal */}
       <WhatsAppOrderModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
