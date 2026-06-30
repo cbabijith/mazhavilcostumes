@@ -7,8 +7,9 @@ import Image from "next/image";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { getProductImageUrls } from "@/lib/supabase/queries";
 import { Trash2, ShoppingBag, Calendar, Minus, Plus } from "lucide-react";
-import { buildWishlistMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
+import { buildCartOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 interface CartItem {
   id: string;
@@ -25,6 +26,9 @@ export default function CartPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
 
   useEffect(() => {
     async function loadStore() {
@@ -70,6 +74,19 @@ export default function CartPage() {
       setError("Please select rental start and end dates");
       return;
     }
+    if (!customerName.trim() || customerName.trim().length < 2) {
+      setError("Please enter your name");
+      return;
+    }
+    const cleanPhone = customerPhone.replace(/\D/g, "");
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setError("Enter a valid 10-digit mobile number");
+      return;
+    }
+    if (!customerAddress.trim() || customerAddress.trim().length < 5) {
+      setError("Please enter your delivery address");
+      return;
+    }
     setError("");
 
     const items = cartItems.map((item) => {
@@ -89,7 +106,12 @@ export default function CartPage() {
         totalRent,
       };
     });
-    const message = buildWishlistMessage(items);
+    const message = buildCartOrderMessage({
+      items,
+      customerName: customerName.trim(),
+      customerPhone: cleanPhone,
+      customerAddress: customerAddress.trim(),
+    });
     window.open(buildWhatsAppUrl(message), "_blank");
   };
 
@@ -245,6 +267,51 @@ export default function CartPage() {
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           className="w-full px-3 py-2.5 bg-gray-50 border border-[#EAEAEA] rounded-xl text-sm focus:outline-none focus:border-rosegold transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Customer Details */}
+                    <div className="border-t border-[#EAEAEA] pt-4 space-y-3">
+                      <span className="text-xs uppercase font-bold tracking-[0.15em] text-rosegold block">Your Details</span>
+
+                      <div>
+                        <label className="text-xs font-medium text-body block mb-1.5">Name *</label>
+                        <input
+                          type="text"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-white border border-[#EAEAEA] rounded-lg text-sm focus:outline-none focus:border-rosegold transition-colors placeholder:text-body/50"
+                          placeholder="Your full name"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-body block mb-1.5">Phone Number *</label>
+                        <div className="flex gap-2">
+                          <div className="flex items-center justify-center px-3 bg-gray-50 border border-[#EAEAEA] rounded-lg text-sm text-heading font-medium shrink-0">
+                            +91
+                          </div>
+                          <input
+                            type="tel"
+                            value={customerPhone}
+                            onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                            className="flex-1 px-3 py-2.5 bg-white border border-[#EAEAEA] rounded-lg text-sm focus:outline-none focus:border-rosegold transition-colors placeholder:text-body/50"
+                            placeholder="10-digit mobile number"
+                            inputMode="numeric"
+                            maxLength={10}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-body block mb-1.5">Delivery Address *</label>
+                        <textarea
+                          value={customerAddress}
+                          onChange={(e) => setCustomerAddress(e.target.value)}
+                          rows={2}
+                          className="w-full px-3 py-2.5 bg-white border border-[#EAEAEA] rounded-lg text-sm focus:outline-none focus:border-rosegold transition-colors placeholder:text-body/50 resize-none"
+                          placeholder="Full address with pincode"
                         />
                       </div>
                     </div>
