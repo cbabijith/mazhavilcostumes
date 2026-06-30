@@ -202,20 +202,30 @@ export async function getCategories(storeId: string): Promise<Category[]> {
 }
 
 /**
+ * Filter out products that have no valid images.
+ * Uses getProductImageUrls() to safely extract URLs from JSONB.
+ */
+function filterProductsWithImages(products: Product[]): Product[] {
+  return products.filter(p => getProductImageUrls(p.images).length > 0);
+}
+
+/**
  * Get featured products for a store
  */
 export async function getFeaturedProducts(storeId: string, limit = 8): Promise<Product[]> {
   const supabase = createClient();
   
-  // First try to get featured products
+  // First try to get featured products — over-fetch to compensate for JS-level edge case filtering
   let { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('store_id', storeId)
     .eq('is_active', true)
     .eq('is_featured', true)
+    .not('images', 'is', null)
+    .not('images', 'eq', '[]')
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2);
 
   if (error) {
     console.error('Error fetching featured products:', error);
@@ -228,8 +238,10 @@ export async function getFeaturedProducts(storeId: string, limit = 8): Promise<P
       .select('*')
       .eq('store_id', storeId)
       .eq('is_active', true)
+      .not('images', 'is', null)
+      .not('images', 'eq', '[]')
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .limit(limit * 2);
     
     data = result.data;
     error = result.error;
@@ -240,7 +252,7 @@ export async function getFeaturedProducts(storeId: string, limit = 8): Promise<P
     return [];
   }
 
-  return data || [];
+  return filterProductsWithImages(data || []).slice(0, limit);
 }
 
 /**
@@ -253,15 +265,17 @@ export async function getNewArrivals(storeId: string, limit = 10): Promise<Produ
     .select('*')
     .eq('store_id', storeId)
     .eq('is_active', true)
+    .not('images', 'is', null)
+    .not('images', 'eq', '[]')
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2);
 
   if (error) {
     console.error('Error fetching new arrivals:', error);
     return [];
   }
 
-  return data || [];
+  return filterProductsWithImages(data || []).slice(0, limit);
 }
 
 /**
@@ -400,7 +414,9 @@ export async function getRelatedProducts(
     .select('*')
     .eq('store_id', storeId)
     .eq('is_active', true)
-    .neq('id', excludeId);
+    .neq('id', excludeId)
+    .not('images', 'is', null)
+    .not('images', 'eq', '[]');
 
   if (categoryId) {
     query = query.eq('category_id', categoryId);
@@ -408,7 +424,7 @@ export async function getRelatedProducts(
 
   const { data, error } = await query
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(limit * 2);
 
   if (error) {
     console.error('Error fetching related products:', error);
@@ -423,12 +439,14 @@ export async function getRelatedProducts(
       .eq('store_id', storeId)
       .eq('is_active', true)
       .neq('id', excludeId)
+      .not('images', 'is', null)
+      .not('images', 'eq', '[]')
       .order('created_at', { ascending: false })
-      .limit(limit);
-    return fallback || [];
+      .limit(limit * 2);
+    return filterProductsWithImages(fallback || []).slice(0, limit);
   }
 
-  return data;
+  return filterProductsWithImages(data).slice(0, limit);
 }
 
 /**
@@ -442,6 +460,7 @@ export async function getProducts(
     offset?: number;
     featured?: boolean;
     search?: string;
+    sort?: string;
   } = {}
 ): Promise<{ products: Product[]; total: number }> {
   const supabase = createClient();
@@ -449,7 +468,9 @@ export async function getProducts(
     .from("products")
     .select("*", { count: "exact" })
     .eq("store_id", storeId)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .not('images', 'is', null)
+    .not('images', 'eq', '[]');
 
   if (options.categoryId) {
     query = query.eq("category_id", options.categoryId);
@@ -463,7 +484,23 @@ export async function getProducts(
     query = query.ilike("name", `%${options.search}%`);
   }
 
-  query = query.order('created_at', { ascending: false });
+  // Sorting
+  switch (options.sort) {
+    case 'price_low':
+      query = query.order('price_per_day', { ascending: true });
+      break;
+    case 'price_high':
+      query = query.order('price_per_day', { ascending: false });
+      break;
+    case 'name_asc':
+      query = query.order('name', { ascending: true });
+      break;
+    case 'name_desc':
+      query = query.order('name', { ascending: false });
+      break;
+    default:
+      query = query.order('created_at', { ascending: false });
+  }
 
   if (options.limit) {
     query = query.limit(options.limit);
@@ -480,7 +517,9 @@ export async function getProducts(
     return { products: [], total: 0 };
   }
 
-  return { products: data || [], total: count || 0 };
+  // DB-level filter handles null/empty images; JS filter catches edge cases like [{url: ""}]
+  const filtered = filterProductsWithImages(data || []);
+  return { products: filtered, total: count || 0 };
 }
 
 /**

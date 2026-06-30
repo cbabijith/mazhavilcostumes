@@ -150,6 +150,7 @@ export const getCachedProducts = (
     offset?: number;
     featured?: boolean;
     search?: string;
+    sort?: string;
   } = {}
 ) => {
   const optsKey = JSON.stringify(options);

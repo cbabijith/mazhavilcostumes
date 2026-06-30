@@ -1,38 +1,68 @@
-import { howItWorksSteps } from "@/data/homepage";
+import { Search, Calendar, MessageCircle } from "lucide-react";
+
+const steps = [
+  {
+    icon: Search,
+    title: "Browse",
+    desc: "Explore our collection of premium costumes.",
+  },
+  {
+    icon: Calendar,
+    title: "Pick Dates",
+    desc: "Select the date for your special event.",
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp Order",
+    desc: "Continue your order through WhatsApp with selected date and product.",
+  },
+];
 
 export default function HowItWorks() {
   return (
-    <section className="bg-white py-6 sm:py-8 md:py-12 px-6 md:px-12 relative overflow-hidden">
-      {/* Decorative silk waves in background */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-[0.03] pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[200%] h-[200%] border-[40px] border-white rounded-full animate-[silkWave_20s_linear_infinite]" />
-      </div>
-
-      <div className="max-w-[1600px] mx-auto relative z-10">
-        <div className="text-center mb-6 sm:mb-8 md:mb-10 animate-fadeInUp">
-          <span className="section-eyebrow justify-center after:content-[''] after:w-8 after:h-px after:bg-rosegold-light">Our Process</span>
-          <h2 className="section-title">How it <em>Works</em></h2>
-          <p className="text-caption text-sm font-light tracking-widest uppercase mt-3">Simple steps to elegance</p>
+    <section className="bg-white py-8 sm:py-10 md:py-14 px-4 sm:px-6 md:px-12">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="text-center mb-6 sm:mb-8 md:mb-10">
+          <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold text-rosegold">
+            Our Process
+          </span>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-heading mt-2">
+            How it Works
+          </h2>
+          <p className="text-xs sm:text-sm text-body mt-2">Simple steps to elegance</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 px-4 relative stagger-children">
-          {/* Connecting line for desktop */}
-          <div className="hidden md:block absolute top-[36px] md:top-[44px] left-[15%] right-[15%] h-px bg-border-silk" />
-
-          {howItWorksSteps.map((step, index) => (
-            <div key={index} className="flex flex-col items-center text-center relative z-10 group">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full border border-border-silk flex items-center justify-center mb-6 sm:mb-8 md:mb-10 bg-white group-hover:border-rosegold transition-all duration-700 shadow-2xl">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-full border border-rosegold/10 bg-rosegold/5 flex items-center justify-center font-serif text-xl sm:text-2xl text-rosegold group-hover:scale-110 group-hover:bg-rosegold group-hover:text-white transition-all duration-500 shadow-inner">
-                  0{index + 1}
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 md:gap-8">
+          {steps.map((step, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-4 sm:flex-col sm:items-center sm:text-center sm:gap-3 md:gap-4 flex-1"
+            >
+              <div className="relative shrink-0">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-18 md:h-18 rounded-2xl bg-rosegold/10 flex items-center justify-center">
+                  <step.icon
+                    className="text-rosegold"
+                    size={22}
+                    strokeWidth={1.8}
+                  />
                 </div>
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-rosegold text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center">
+                  {index + 1}
+                </span>
               </div>
-              <h3 className="text-sm sm:text-base md:text-xl font-serif text-heading mb-3 sm:mb-4 tracking-wide group-hover:text-rosegold transition-colors duration-500">{step.title}</h3>
-              <p className="text-[11px] sm:text-[12px] md:text-[13px] text-body font-light leading-relaxed max-w-[200px] group-hover:text-heading transition-colors duration-500">
-                {step.desc}
-              </p>
-              
-              {/* Shine effect on indicator */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 bg-rosegold/5 rounded-full blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+
+              <div className="sm:mt-2">
+                <h3 className="text-sm sm:text-base md:text-lg font-semibold text-heading leading-tight">
+                  {step.title}
+                </h3>
+                <p className="text-[11px] sm:text-[12px] md:text-[13px] text-body leading-relaxed mt-1 sm:mt-1.5 max-w-[200px] sm:mx-auto">
+                  {step.desc}
+                </p>
+              </div>
+
+              {index < steps.length - 1 && (
+                <div className="hidden sm:block w-8 md:w-12 h-px bg-border-silk sm:absolute sm:top-8 md:top-9" style={{ left: `calc(${(index + 1) * 33.33}% - 16px)` }} />
+              )}
             </div>
           ))}
         </div>

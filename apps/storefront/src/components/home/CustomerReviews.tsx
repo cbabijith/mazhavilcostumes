@@ -1,83 +1,52 @@
 import { reviews } from "@/data/homepage";
-import { Star } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Star, Quote } from "lucide-react";
 
 export default function CustomerReviews() {
   return (
-    <section className="bg-silk py-6 sm:py-8 md:py-12 relative overflow-hidden">
-      {/* Decorative rose petals/silk background elements */}
-      <div className="absolute -top-12 -left-12 w-48 h-48 bg-rosegold/5 rounded-full blur-3xl" />
-      <div className="absolute -bottom-12 -right-12 w-64 h-64 bg-rosegold/5 rounded-full blur-3xl" />
-
-      <div className="max-w-[1600px] mx-auto relative z-10">
-        <div className="text-center mb-4 sm:mb-6 md:mb-8 animate-fadeInUp px-6 md:px-12">
-          <span className="section-eyebrow justify-center after:content-[''] after:w-8 after:h-px after:bg-rosegold-light">Testimonials</span>
-          <h2 className="section-title">Customer <em>Feedback</em></h2>
-          <p className="text-caption text-xs tracking-widest uppercase mt-3">Real stories from stage performances</p>
+    <section className="bg-white py-8 sm:py-10 md:py-14 px-4 sm:px-6 md:px-12">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="text-center mb-6 sm:mb-8 md:mb-10">
+          <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold text-rosegold">
+            Testimonials
+          </span>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-heading mt-2">
+            Customer Feedback
+          </h2>
+          <p className="text-xs sm:text-sm text-body mt-2">Real stories from stage performances</p>
         </div>
 
-        {/* Mobile: horizontal snap carousel */}
-        <div className="md:hidden px-6 overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-          <div className="flex gap-4 pb-4 w-max">
-            {reviews.map((review) => (
-              <div key={review.id} className="snap-center shrink-0 w-[78vw] max-w-[320px]">
-                <Card className="relative bg-white/80 backdrop-blur-md border-[var(--border-silk)] shadow-silk p-5 sm:p-7 flex flex-col items-center text-center rounded-[2rem] h-full">
-                  <CardContent className="p-0 flex flex-col items-center h-full w-full">
-                    <div className="flex gap-1.5 mb-4 sm:mb-5">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          size={13}
-                          className={i < review.rating ? "fill-amber-400 text-amber-400" : "text-border-silk"}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-sm sm:text-base font-serif italic leading-relaxed text-heading mb-4 sm:mb-6">
-                      "{review.text}"
-                    </p>
-                    <div className="mt-auto pt-4 sm:pt-5 border-t border-silk-dark w-full">
-                      <h4 className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-heading mb-1">
-                        {review.name}
-                      </h4>
-                      <p className="text-[10px] text-rosegold font-bold uppercase tracking-[0.25em]">
-                        {review.occasion}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Desktop: 3-col grid */}
-        <div className="hidden md:grid md:grid-cols-3 gap-10 px-6 md:px-12 stagger-children">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5 md:gap-6">
           {reviews.map((review) => (
-            <Card key={review.id} className="relative bg-white/80 backdrop-blur-md border-[var(--border-silk)] shadow-silk p-10 flex flex-col items-center text-center group hover:-translate-y-2 transition-all duration-700 hover:shadow-2xl hover:shadow-rosegold/10 rounded-[2rem]">
-              <CardContent className="p-0 flex flex-col items-center h-full">
-                <div className="flex gap-1.5 mb-8">
+            <div
+              key={review.id}
+              className="flex flex-col rounded-2xl border border-[#EAEAEA] bg-white p-5 sm:p-6"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex gap-0.5">
                   {[...Array(5)].map((_, i) => (
                     <Star
                       key={i}
                       size={14}
-                      className={i < review.rating ? "fill-amber-400 text-amber-400" : "text-border-silk"}
+                      className={i < review.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}
                     />
                   ))}
                 </div>
-                <p className="text-[17px] font-serif italic leading-relaxed text-heading mb-10 group-hover:text-rosegold transition-colors duration-500">
-                  "{review.text}"
+                <Quote size={18} className="text-rosegold/20 shrink-0" />
+              </div>
+
+              <p className="text-[13px] sm:text-sm text-body leading-relaxed flex-1">
+                {review.text}
+              </p>
+
+              <div className="mt-4 pt-4 border-t border-[#EAEAEA]">
+                <h4 className="text-sm font-semibold text-heading">
+                  {review.name}
+                </h4>
+                <p className="text-[11px] text-rosegold font-medium mt-0.5">
+                  {review.occasion}
                 </p>
-                <div className="mt-auto pt-8 border-t border-silk w-full">
-                  <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-heading mb-2">
-                    {review.name}
-                  </h4>
-                  <p className="text-[10px] text-rosegold font-bold uppercase tracking-[0.3em]">
-                    {review.occasion}
-                  </p>
-                </div>
-              </CardContent>
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none rounded-[2rem]" />
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       </div>

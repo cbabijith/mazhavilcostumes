@@ -5,6 +5,7 @@ import ProductDetails from "@/components/product/ProductDetails";
 import RelatedProducts from "@/components/product/RelatedProducts";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { getCachedProductById, getCachedCategories, getCachedRelatedProducts } from "@/lib/supabase/cached-queries";
+import { getProductImageUrls } from "@/lib/supabase/queries";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -34,6 +35,10 @@ export default async function ProductPage({ params }: PageProps) {
     notFound();
   }
 
+  if (getProductImageUrls(product.images).length === 0) {
+    notFound();
+  }
+
   // Fetch categories and related products in parallel (eliminating waterfalls)
   const [categories, related] = await Promise.all([
     store ? getCachedCategories(store.id) : Promise.resolve([]),
@@ -41,7 +46,7 @@ export default async function ProductPage({ params }: PageProps) {
   ]);
 
   return (
-    <main className="min-h-screen bg-silk selection:bg-rosegold/20 selection:text-rosegold-dark pb-[72px] lg:pb-0">
+    <main className="min-h-screen bg-white selection:bg-rosegold/20 selection:text-rosegold-dark pb-[72px] lg:pb-0">
       <Header store={store} categories={categories} />
 
       <ProductDetails
