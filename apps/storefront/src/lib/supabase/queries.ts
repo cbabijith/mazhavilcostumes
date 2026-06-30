@@ -533,7 +533,8 @@ export async function getGalleryItems(): Promise<GalleryItem[]> {
     .select('*')
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error) {
     console.error('Error fetching gallery items:', error);

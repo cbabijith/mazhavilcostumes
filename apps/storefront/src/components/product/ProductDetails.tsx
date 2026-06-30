@@ -117,6 +117,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                         alt={`${product.name} ${idx + 1}`}
                         fill
                         sizes="80px"
+                        loading="lazy"
                         className="w-full h-full object-cover"
                       />
                     </button>
