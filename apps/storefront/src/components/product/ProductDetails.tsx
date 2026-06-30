@@ -133,16 +133,9 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                 </span>
               )}
 
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading leading-tight mb-3">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading leading-tight mb-4">
                 {product.name}
               </h1>
-
-              <div className="flex items-baseline gap-2 mb-4">
-                <span className="text-xl sm:text-2xl font-bold text-heading">
-                  ₹{product.price_per_day.toLocaleString("en-IN")}
-                </span>
-                <span className="text-sm text-body">/day</span>
-              </div>
 
               {product.description && (
                 <p className="text-sm text-body leading-relaxed mb-6">

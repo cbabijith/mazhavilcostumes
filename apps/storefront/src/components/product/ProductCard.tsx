@@ -75,15 +75,12 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
         )}
       </div>
 
-      {/* Product Info — left-aligned with price and add-to-cart */}
+      {/* Product Info — name and add-to-cart */}
       <div className="mt-2 sm:mt-2.5 px-0.5">
         <h3 className="text-[13px] sm:text-sm md:text-base font-sans text-heading mb-0.5 sm:mb-1 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
           {product.name}
         </h3>
-        <div className="flex items-center justify-between">
-          <span className="text-[13px] sm:text-sm md:text-base font-semibold text-heading">
-            ₹{product.price_per_day.toLocaleString("en-IN")}
-          </span>
+        <div className="flex items-center justify-end">
           <button
             onClick={handleAddToCart}
             aria-label="Add to cart"
