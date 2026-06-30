@@ -204,10 +204,7 @@ export default function CartPage() {
                             </button>
                           </div>
 
-                          <div className="mt-2 flex items-center justify-between">
-                            <span className="text-sm font-medium text-rosegold">
-                              ₹{item.price_per_day.toLocaleString("en-IN")} <span className="text-xs text-body">/day</span>
-                            </span>
+                          <div className="mt-2 flex items-center justify-end">
 
                             {/* Quantity Controls */}
                             <div className="flex items-center gap-2">
