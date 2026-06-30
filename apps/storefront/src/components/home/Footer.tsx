@@ -126,7 +126,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
                   rel="noopener noreferrer"
                   className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 leading-relaxed block max-w-[240px]"
                 >
-                  Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002
+                  Karamana Main Road, near QRS, Karamana, Thiruvananthapuram, Kerala 695002
                 </a>
               </li>
               <li>

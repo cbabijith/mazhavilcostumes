@@ -156,6 +156,7 @@ export default function Header({ store, categories }: HeaderProps) {
                   alt="Mazhavil Dance Costumes"
                   width={180}
                   height={60}
+                  unoptimized
                   className="w-auto object-contain transition-all duration-500 h-12 sm:h-14 md:h-16"
                 />
               </div>

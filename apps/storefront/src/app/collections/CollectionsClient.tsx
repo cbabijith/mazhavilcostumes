@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useEffect } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Loader2, Search, SlidersHorizontal } from "lucide-react";
@@ -75,15 +75,6 @@ export default function CollectionsClient({
     params.set("page", page.toString());
     return `/collections?${params.toString()}`;
   };
-
-  useEffect(() => {
-    if (currentPage < totalPages) {
-      router.prefetch(getPageLink(currentPage + 1));
-    }
-    if (currentPage > 1) {
-      router.prefetch(getPageLink(currentPage - 1));
-    }
-  }, [currentPage, totalPages, router]);
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return;

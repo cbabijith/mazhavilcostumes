@@ -196,7 +196,7 @@ export default function ContactPage() {
                         rel="noopener noreferrer"
                         className="text-sm text-heading leading-relaxed hover:text-rosegold transition-colors"
                       >
-                        Karamana Main Road, near QRS, Prem Nagar, Karamana, Thiruvananthapuram, Kerala 695002
+                        Karamana Main Road, near QRS, Karamana, Thiruvananthapuram, Kerala 695002
                       </a>
                     </div>
                   </div>
