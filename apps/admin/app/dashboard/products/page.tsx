@@ -624,7 +624,7 @@ function ProductsContent() {
                         <Link href={`/dashboard/products/${product.id}`} className="flex items-center gap-3">
                           {primaryImage ? (
                             <div className="relative w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0">
-                              <Image src={primaryImage} alt={product.name} fill className="object-cover" />
+                              <Image src={primaryImage} alt={product.name} fill sizes="48px" className="object-cover" />
                             </div>
                           ) : (
                             <div className="w-12 h-12 rounded-lg border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center shrink-0">
