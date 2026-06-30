@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    unoptimized: true,
     formats: ['image/webp'],
     minimumCacheTTL: 86400,
     deviceSizes: [640, 750, 1080, 1920],
