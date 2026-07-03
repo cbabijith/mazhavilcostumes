@@ -1,10 +1,16 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/supabase/api_client.dart';
 import '../../products/views/qr_scanner_dialog.dart';
 import '../../products/viewmodels/providers/product_provider.dart';
 import '../models/order.dart';
@@ -686,6 +692,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     _refreshOrder();
                   }),
             ),
+          IconButton(
+            icon: Icon(Icons.share_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
+            onPressed: _showShareBottomSheet,
+          ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
             onPressed: _refreshOrder,
@@ -3647,6 +3657,295 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       return dateStr;
     }
   }
+
+  void _showShareBottomSheet() {
+    final customerName = _currentOrder.customer?.name ?? 'Customer';
+    final customerPhone = _currentOrder.customer?.phone ?? '';
+    final orderIdShort = _currentOrder.id.length > 8 ? _currentOrder.id.substring(0, 8) : _currentOrder.id;
+    final startDate = _formatDate(_currentOrder.startDate);
+    final endDate = _formatDate(_currentOrder.endDate);
+
+    String message = '';
+    switch (_currentOrder.status) {
+      case OrderStatus.pending:
+      case OrderStatus.confirmed:
+      case OrderStatus.scheduled:
+        message = 'Hi $customerName, this is regarding your upcoming order #$orderIdShort scheduled for $startDate. Please confirm your availability.';
+        break;
+      case OrderStatus.ongoing:
+      case OrderStatus.inUse:
+        message = 'Hi $customerName, your order #$orderIdShort is currently active. Please remember to return by $endDate.';
+        break;
+      case OrderStatus.partial:
+        message = 'Hi $customerName, your order #$orderIdShort has partial returns pending. Please complete the return process.';
+        break;
+      case OrderStatus.delivered:
+        message = 'Hi $customerName, your order #$orderIdShort has been delivered. Enjoy your event! Please return by $endDate.';
+        break;
+      case OrderStatus.returned:
+        message = 'Hi $customerName, thank you for returning your order #$orderIdShort. We hope you had a great experience!';
+        break;
+      case OrderStatus.completed:
+        message = 'Hi $customerName, your order #$orderIdShort has been completed. Thank you for choosing Mazhavil Dance Costumes!';
+        break;
+      case OrderStatus.cancelled:
+        message = 'Hi $customerName, your order #$orderIdShort has been cancelled. Contact us if you need assistance.';
+        break;
+      case OrderStatus.flagged:
+        message = 'Hi $customerName, there is an issue with your order #$orderIdShort. Please contact us immediately.';
+        break;
+    }
+
+    final apiBaseUrl = apiClient.dio.options.baseUrl;
+    final finalInvoiceUrl = '$apiBaseUrl/orders/${_currentOrder.id}/invoice?type=final';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusXXLarge)),
+        ),
+      ),
+      builder: (modalContext) {
+        return Padding(
+          padding: Responsive.all(AppSizes.screenPaddingSmall),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Share Invoice & Status',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontLarge),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: Responsive.icon(AppSizes.iconMedium),
+                      color: AppColors.secondaryText,
+                    ),
+                    onPressed: () => Navigator.pop(modalContext),
+                  ),
+                ],
+              ),
+              const Divider(color: AppColors.border),
+              SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+              _buildShareOptionItem(
+                context: modalContext,
+                icon: Icons.picture_as_pdf_rounded,
+                iconColor: AppColors.primary,
+                title: 'Share Invoice (PDF)',
+                subtitle: 'Download and share PDF invoice',
+                onTap: () {
+                  Navigator.pop(modalContext);
+                  _downloadAndShareInvoice(type: 'final');
+                },
+              ),
+              _buildShareOptionItem(
+                context: modalContext,
+                icon: Icons.message_rounded,
+                iconColor: const Color(0xFF25D366), // WhatsApp Green
+                title: 'WhatsApp Customer',
+                subtitle: 'Send order status update to customer',
+                onTap: () async {
+                  Navigator.pop(modalContext);
+                  if (customerPhone.isEmpty) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Customer phone number is empty')),
+                      );
+                    }
+                    return;
+                  }
+                  
+                  String formattedPhone = customerPhone.replaceAll(RegExp(r'\D'), '');
+                  if (formattedPhone.length == 10) {
+                    formattedPhone = '91$formattedPhone';
+                  }
+                  
+                  final whatsappUrl = Uri.parse('https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}');
+                  try {
+                    await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    try {
+                      await launchUrl(whatsappUrl, mode: LaunchMode.platformDefault);
+                    } catch (e2) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Could not launch WhatsApp: $e2')),
+                        );
+                      }
+                    }
+                  }
+                },
+              ),
+              _buildShareOptionItem(
+                context: modalContext,
+                icon: Icons.copy_rounded,
+                iconColor: AppColors.secondaryText,
+                title: 'Copy Invoice URL',
+                subtitle: 'Copy link to clipboard',
+                onTap: () async {
+                  Navigator.pop(modalContext);
+                  await Clipboard.setData(ClipboardData(text: finalInvoiceUrl));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Invoice URL copied to clipboard')),
+                    );
+                  }
+                },
+              ),
+              SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _downloadAndShareInvoice({required String type, String? shareText}) async {
+    // Show a loading indicator dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return Center(
+          child: Card(
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+            ),
+            child: Padding(
+              padding: Responsive.all(AppSizes.screenPaddingSmall),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: AppColors.primary),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  Text(
+                    'Generating Invoice PDF...',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final response = await apiClient.dio.get<List<int>>(
+        '/orders/${_currentOrder.id}/invoice',
+        queryParameters: {'type': type},
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      if (response.data != null) {
+        final tempDir = await getTemporaryDirectory();
+        final fileName = 'Invoice_${_currentOrder.id.substring(0, 8).toUpperCase()}_$type.pdf';
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsBytes(response.data!);
+
+        final xFile = XFile(file.path);
+        await Share.shareXFiles(
+          [xFile],
+          text: shareText ?? 'Invoice ($type) for order #${_currentOrder.id.substring(0, 8).toUpperCase()}',
+        );
+      } else {
+        throw Exception('No data received from server');
+      }
+    } catch (e) {
+      // Close loading dialog if it's still open
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to share invoice: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildShareOptionItem({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+      child: Padding(
+        padding: Responsive.symmetric(
+          horizontal: AppSizes.spacingSmall,
+          vertical: AppSizes.spacingMedium,
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: Responsive.icon(AppSizes.iconMedium),
+                color: iconColor,
+              ),
+            ),
+            SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: Responsive.icon(AppSizes.iconMedium),
+              color: AppColors.secondaryText.withValues(alpha: 0.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 }
 
 class _StepItem {
