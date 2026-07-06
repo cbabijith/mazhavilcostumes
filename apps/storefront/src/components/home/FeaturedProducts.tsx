@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Product } from '@/lib/supabase/queries';
+import { Product, getProductImageUrls } from '@/lib/supabase/queries';
 import ProductCard from '@/components/product/ProductCard';
 
 interface FeaturedProductsProps {
@@ -7,7 +7,12 @@ interface FeaturedProductsProps {
 }
 
 export default function FeaturedProducts({ products }: FeaturedProductsProps) {
-  if (!products || products.length === 0) return null;
+  // Ensure we only show products that have valid images
+  const productsWithImages = (products || []).filter(
+    (product) => getProductImageUrls(product.images).length > 0
+  );
+
+  if (productsWithImages.length === 0) return null;
 
   return (
     <section className="py-6 sm:py-8 md:py-12 px-4 sm:px-6 md:px-12 bg-white">
@@ -29,7 +34,7 @@ export default function FeaturedProducts({ products }: FeaturedProductsProps) {
         
         {/* Mobile: 2 cols, Tablet: 3 cols, Desktop: 4 cols — images fill smoothly */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 stagger-children">
-          {products.map((product) => (
+          {productsWithImages.map((product) => (
             <ProductCard
               key={product.id}
               product={product}
