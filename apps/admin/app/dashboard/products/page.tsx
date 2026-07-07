@@ -163,7 +163,7 @@ function ProductsContent() {
     setExporting(true);
     showSuccess("Export Started", "Fetching products to generate catalog...");
     try {
-      let allProducts: any[] = [];
+      const allProducts: any[] = [];
       let pageNum = 1;
       let hasMore = true;
       const limit = 100;
@@ -635,9 +635,11 @@ function ProductsContent() {
                             <p className="font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
                               {product.name}
                             </p>
-                            <p className="text-xs text-slate-400 font-mono mt-0.5">
-                              {product.sku || product.slug}
-                            </p>
+                            {product.description && (
+                              <p className="text-xs text-slate-400 mt-0.5">
+                                {product.description}
+                              </p>
+                            )}
                           </div>
                         </Link>
                       </td>

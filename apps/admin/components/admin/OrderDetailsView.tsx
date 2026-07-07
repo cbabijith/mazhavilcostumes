@@ -23,7 +23,8 @@ import {
   useOrderPayments,
   useLookupProductByBarcode,
   useUpdateOrderItemDamage,
-  useUpdatePayment
+  useUpdatePayment,
+  useDeletePayment
 } from "@/hooks";
 import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
@@ -45,6 +46,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { updateOrder, isLoading: isUpdating } = useUpdateOrder();
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
   const { updatePayment, isPending: isUpdatingPayment } = useUpdatePayment();
+  const { deletePayment, isLoading: isDeletingPayment } = useDeletePayment();
   const showSuccess = useAppSelectors.showSuccess();
   const showError = useAppSelectors.showError();
   const { lookupByBarcode } = useLookupProductByBarcode();
@@ -55,6 +57,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [paymentEditForm, setPaymentEditForm] = useState({
     paymentMode: PaymentMode.CASH,
+    amount: "0",
     notes: ""
   });
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
@@ -315,19 +318,44 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     setEditingPayment(payment);
     setPaymentEditForm({
       paymentMode: payment.payment_mode,
+      amount: payment.amount.toString(),
       notes: payment.notes || ""
     });
     setIsPaymentEditModalOpen(true);
   };
 
+  const handleDeletePayment = async () => {
+    if (!editingPayment) return;
+    if (!confirm("Are you sure you want to delete this payment record? This action will update the order's financial balance and status, and cannot be undone.")) return;
+
+    try {
+      deletePayment(editingPayment.id, {
+        onSuccess: () => {
+          setIsPaymentEditModalOpen(false);
+          setEditingPayment(null);
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      showError("Error", "Failed to delete payment.");
+    }
+  };
+
   const handleSavePaymentEdit = async () => {
     if (!editingPayment) return;
+
+    const amountVal = parseFloat(paymentEditForm.amount) || 0;
+    if (amountVal <= 0) {
+      showError("Validation Error", "Amount must be greater than 0. If you want to undo/delete this payment, please click the 'Delete Payment' button.");
+      return;
+    }
 
     try {
       updatePayment(
         {
           id: editingPayment.id,
           data: {
+            amount: amountVal,
             payment_mode: paymentEditForm.paymentMode,
             notes: paymentEditForm.notes
           }
@@ -341,7 +369,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       );
     } catch (e) {
       console.error(e);
-      showError("Error", "Failed to update payment mode.");
+      showError("Error", "Failed to update payment.");
     }
   };
 
@@ -1603,15 +1631,26 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       <Modal
         open={isPaymentEditModalOpen}
         onClose={() => setIsPaymentEditModalOpen(false)}
-        title="Edit Payment Mode"
+        title="Edit Payment"
       >
         <div className="p-6 space-y-6">
           {editingPayment && (
             <>
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Amount</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(editingPayment.amount)}</p>
-                <p className="text-xs text-slate-500 mt-1">{editingPayment.payment_type}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Type</p>
+                <p className="text-sm font-bold text-slate-700 capitalize">{editingPayment.payment_type}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Original Amount: {formatCurrency(editingPayment.amount)}</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Amount (₹)</Label>
+                <Input
+                  type="number"
+                  value={paymentEditForm.amount}
+                  onChange={(e) => setPaymentEditForm({ ...paymentEditForm, amount: e.target.value })}
+                  className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
+                  placeholder="0"
+                />
               </div>
 
               <div className="space-y-3">
@@ -1651,11 +1690,22 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 />
               </div>
 
-              <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-                <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-                <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
-                  {isUpdatingPayment ? "Saving..." : "Save Changes"}
+              <div className="pt-6 flex flex-col sm:flex-row justify-between gap-4 border-t border-slate-100">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={handleDeletePayment}
+                  disabled={isDeletingPayment || isUpdatingPayment}
+                  className="h-12 px-4 rounded-xl font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 w-full sm:w-auto"
+                >
+                  Delete Payment
                 </Button>
+                <div className="flex gap-3 w-full sm:w-auto justify-end">
+                  <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50 flex-1 sm:flex-initial">Cancel</Button>
+                  <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment || isDeletingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md flex-1 sm:flex-initial">
+                    {isUpdatingPayment ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             </>
           )}
