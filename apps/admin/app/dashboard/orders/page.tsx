@@ -68,10 +68,29 @@ function OrdersContent() {
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
   const statusParams = searchParams.getAll("status");
-  const statusFilter =
-    (statusParams[0] || "ALL") as OrderStatus | "ALL" | "stock_conflict";
-  const dateFilter = searchParams.get("date_filter") || "ALL";
   const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
+  
+  const rawStatusFilter =
+    (statusParams[0] || "ALL") as OrderStatus | "ALL" | "stock_conflict" | "priority_cleaning";
+
+  // Map UI tab highlight for dashboard click-throughs
+  const statusFilter = useMemo(() => {
+    if (rawStatusFilter === "ALL") {
+      if (dateField === "end_date") {
+        return OrderStatus.ONGOING;
+      }
+      if (dateField === "start_date") {
+        return OrderStatus.SCHEDULED;
+      }
+    } else if ((rawStatusFilter as string) === "damaged") {
+      return OrderStatus.FLAGGED;
+    } else if ((rawStatusFilter as string) === "action_needed") {
+      return OrderStatus.PENDING;
+    }
+    return rawStatusFilter;
+  }, [rawStatusFilter, dateField]);
+
+  const dateFilter = searchParams.get("date_filter") || "ALL";
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
   const paymentStatusFilter = searchParams.getAll("payment_status");
@@ -113,7 +132,7 @@ function OrdersContent() {
     limit: pageSize,
     page,
     branch_id: selectedBranchId || undefined,
-    status: (statusFilter === "ALL" || statusFilter === "stock_conflict") ? undefined : (statusParams.length > 1 ? statusParams as OrderStatus[] : statusFilter),
+    status: (rawStatusFilter === "ALL" || rawStatusFilter === "stock_conflict") ? undefined : (statusParams.length > 1 ? statusParams as OrderStatus[] : rawStatusFilter as OrderStatus),
     exclude_status: excludeStatusFilter.length > 0 ? excludeStatusFilter : undefined,
     payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter : undefined,
     date_filter:
@@ -124,7 +143,7 @@ function OrdersContent() {
     date_from: dateFilter === "custom" && dateFrom ? dateFrom : undefined,
     date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
     has_damage_charges: searchParams.get("has_damage_charges") === "true" || undefined,
-    has_stock_conflict: statusFilter === "stock_conflict" ? true : undefined,
+    has_stock_conflict: rawStatusFilter === "stock_conflict" ? true : undefined,
     sort_by: sortBy,
     sort_order: sortOrder,
   });

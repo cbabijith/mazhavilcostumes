@@ -63,6 +63,7 @@ export interface CreatePaymentDTO {
 
 // Update Payment DTO
 export interface UpdatePaymentDTO {
+  amount?: number;
   payment_mode?: PaymentMode;
   transaction_id?: string;
   notes?: string;

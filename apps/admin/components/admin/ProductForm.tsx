@@ -42,9 +42,9 @@ function emptyFormData() {
     category_id: "",
     subcategory_id: "",
     subvariant_id: "",
-    price_per_day: 0,
-    purchase_price: 0,
-    quantity: 0,
+    price_per_day: "" as number | string,
+    purchase_price: "" as number | string,
+    quantity: "" as number | string,
     is_active: true,
   };
 }
@@ -98,9 +98,9 @@ export default function ProductForm({
           category_id: product.category_id ?? "",
           subcategory_id: product.subcategory_id ?? "",
           subvariant_id: product.subvariant_id ?? "",
-          price_per_day: product.price_per_day ?? 0,
-          purchase_price: (product as any).purchase_price ?? 0,
-          quantity: (product as any).quantity ?? (product as any).total_quantity ?? 0,
+          price_per_day: product.price_per_day !== undefined && product.price_per_day !== null ? product.price_per_day : ("" as number | string),
+          purchase_price: (product as any).purchase_price !== undefined && (product as any).purchase_price !== null ? (product as any).purchase_price : ("" as number | string),
+          quantity: (product as any).quantity !== undefined && (product as any).quantity !== null ? ((product as any).quantity ?? (product as any).total_quantity ?? "") : ("" as number | string),
           is_active: product.is_active ?? true,
         }
       : emptyFormData()
@@ -229,13 +229,22 @@ export default function ProductForm({
           return;
         }
 
-        if (!formData.price_per_day || formData.price_per_day <= 0) {
+        const parsedPricePerDay = parseFloat(String(formData.price_per_day));
+        const pricePerDay = isNaN(parsedPricePerDay) ? 0 : parsedPricePerDay;
+
+        const parsedPurchasePrice = parseFloat(String(formData.purchase_price));
+        const purchasePrice = isNaN(parsedPurchasePrice) ? 0 : parsedPurchasePrice;
+
+        const parsedQuantity = parseInt(String(formData.quantity), 10);
+        const quantity = isNaN(parsedQuantity) ? 0 : parsedQuantity;
+
+        if (pricePerDay <= 0) {
           showError("Rent amount is required and must be greater than 0");
           setLoading(false);
           return;
         }
 
-        if (!formData.quantity || formData.quantity <= 0) {
+        if (quantity <= 0) {
           showError("Stock quantity is required and must be greater than 0");
           setLoading(false);
           return;
@@ -263,13 +272,13 @@ export default function ProductForm({
           category_id: formData.category_id || undefined,
           subcategory_id: formData.subcategory_id || undefined,
           subvariant_id: formData.subvariant_id || undefined,
-          purchase_price: formData.purchase_price || 0,
+          purchase_price: purchasePrice,
           is_featured: false,
           track_inventory: true,
           low_stock_threshold: 0,
-          price_per_day: formData.price_per_day,
-          quantity: formData.quantity,
-          available_quantity: formData.quantity,
+          price_per_day: pricePerDay,
+          quantity: quantity,
+          available_quantity: quantity,
           is_active: formData.is_active,
           sku: formData.sku || undefined,
           barcode: formData.barcode || undefined,
@@ -421,10 +430,9 @@ export default function ProductForm({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      price_per_day: parseFloat(e.target.value) || 0,
+                      price_per_day: e.target.value,
                     })
                   }
-                  onFocus={clearZeroOnFocus}
                   required
                   placeholder="0"
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
@@ -450,10 +458,9 @@ export default function ProductForm({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      purchase_price: parseFloat(e.target.value) || 0,
+                      purchase_price: e.target.value,
                     })
                   }
-                  onFocus={clearZeroOnFocus}
                   placeholder="0"
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
                 />
@@ -537,10 +544,9 @@ export default function ProductForm({
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    quantity: parseInt(e.target.value) || 0,
+                    quantity: e.target.value,
                   })
                 }
-                onFocus={clearZeroOnFocus}
                 required
                 placeholder="0"
                 className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
