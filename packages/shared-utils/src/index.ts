@@ -166,3 +166,25 @@ export function throttle<T extends (...args: any[]) => any>(
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Shared branding configuration
+ */
+export const BRAND_CONFIG = {
+  get name() {
+    return process.env.NEXT_PUBLIC_APP_NAME || "Paris Bridals";
+  },
+  get shortName() {
+    return process.env.NEXT_PUBLIC_APP_NAME || "Paris Bridals";
+  },
+  get email() {
+    return process.env.NEXT_PUBLIC_APP_EMAIL || "parisbridals2@gmail.com";
+  },
+  get slug() {
+    return process.env.NEXT_PUBLIC_APP_SLUG || "paris-bridals";
+  },
+  get defaultLogo() {
+    return process.env.NEXT_PUBLIC_APP_LOGO || "/logo.svg";
+  }
+};
+

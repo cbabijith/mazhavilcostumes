@@ -7,6 +7,7 @@ import { getParisBridalsStore } from "@/lib/actions/store";
 import { Mail, Phone, MapPin, Send, MessageCircle } from "lucide-react";
 import { buildContactMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 import { cn } from "@/lib/utils";
+import { BRAND_CONFIG } from "shared-utils";
 
 export default function ContactPage() {
   const [store, setStore] = useState<any>(null);
@@ -178,8 +179,8 @@ export default function ContactPage() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs text-body mb-1">Email</p>
-                      <a href="mailto:mazhavildancecostumes@gmail.com" className="text-sm font-medium text-heading hover:text-rosegold transition-colors break-all">
-                        mazhavildancecostumes@gmail.com
+                      <a href={`mailto:${BRAND_CONFIG.email}`} className="text-sm font-medium text-heading hover:text-rosegold transition-colors break-all">
+                        {BRAND_CONFIG.email}
                       </a>
                     </div>
                   </div>

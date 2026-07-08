@@ -1,4 +1,6 @@
 // Shared WhatsApp ordering config for Mazhavil Dance Costumes
+import { BRAND_CONFIG } from "shared-utils";
+
 export const WHATSAPP_NUMBER = "919446961765";
 export const DISPLAY_PHONE = "+91 94469 61765 / +91 94479 61765";
 
@@ -49,7 +51,7 @@ export function buildOrderMessage(o: OrderDetails): string {
   });
 
   const lines = [
-    "Hello Mazhavil Dance Costumes! 👋",
+    `Hello ${BRAND_CONFIG.name}! 👋`,
     "",
     "*New Rental Enquiry*",
     "",
@@ -106,7 +108,7 @@ export function buildCartOrderMessage(details: CartOrderDetails): string {
   });
 
   const lines = [
-    "Hello Mazhavil Dance Costumes! 👋",
+    `Hello ${BRAND_CONFIG.name}! 👋`,
     "",
     "*New Rental Enquiry*",
     "",
@@ -124,7 +126,7 @@ export function buildCartOrderMessage(details: CartOrderDetails): string {
     }
     lines.push(`📅 *Enquiry Date:* ${today}`);
   } else {
-    lines.push(`� *Items:* ${details.items.length} products`);
+    lines.push(` *Items:* ${details.items.length} products`);
     lines.push("");
     details.items.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.name}`);
@@ -152,7 +154,7 @@ export function buildCartOrderMessage(details: CartOrderDetails): string {
 // Contact message builder
 export function buildContactMessage(name: string, phone: string, message: string): string {
   const lines = [
-    "Hello Mazhavil Dance Costumes! 👋",
+    `Hello ${BRAND_CONFIG.name}! 👋`,
     "",
     "*New Enquiry*",
     "",

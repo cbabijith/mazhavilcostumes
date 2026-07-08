@@ -6,6 +6,7 @@ import RelatedProducts from "@/components/product/RelatedProducts";
 import { getParisBridalsStore } from "@/lib/actions/store";
 import { getCachedProductById, getCachedCategories, getCachedRelatedProducts } from "@/lib/supabase/cached-queries";
 import { getProductImageUrls } from "@/lib/supabase/queries";
+import { BRAND_CONFIG } from "shared-utils";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -14,12 +15,12 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   const product = await getCachedProductById(id);
-  if (!product) return { title: "Product — Mazhavil Dance Costumes" };
+  if (!product) return { title: `Product — ${BRAND_CONFIG.name}` };
   return {
-    title: `${product.name} — Mazhavil Dance Costumes`,
+    title: `${product.name} — ${BRAND_CONFIG.name}`,
     description:
       product.description ||
-      `Rent ${product.name} from Mazhavil Dance Costumes. Premium classical and traditional dance costumes.`,
+      `Rent ${product.name} from ${BRAND_CONFIG.name}. Premium classical and traditional dance costumes.`,
   };
 }
 

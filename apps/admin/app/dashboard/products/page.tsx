@@ -47,6 +47,7 @@ import {
 } from "@/hooks";
 import { useProductStore, useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
+import { BRAND_CONFIG } from 'shared-utils';
 import {
   downloadBarcode,
   downloadMultipleBarcodes,
@@ -206,7 +207,7 @@ function ProductsContent() {
         p.quantity || 0
       ]);
 
-      const titleRow = ['Mazhavil Dance Costumes Catalog', '', '', '', '', '', ''];
+      const titleRow = [`${BRAND_CONFIG.name} Catalog`, '', '', '', '', '', ''];
       const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
 
       const sheetData = [titleRow, headerRow, ...dataRows];

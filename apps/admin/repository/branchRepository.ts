@@ -13,6 +13,11 @@ export class BranchRepository extends BaseRepository {
   private readonly tableName = 'branches';
 
   async findAll(storeId: string): Promise<RepositoryResult<Branch[]>> {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!storeId || !uuidPattern.test(storeId)) {
+      return { data: [], error: null, success: true };
+    }
+
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
@@ -24,6 +29,11 @@ export class BranchRepository extends BaseRepository {
   }
 
   async findAllWithStaffCount(storeId: string): Promise<RepositoryResult<BranchWithStaffCount[]>> {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!storeId || !uuidPattern.test(storeId)) {
+      return { data: [], error: null, success: true };
+    }
+
     // Use count query instead of embed to avoid ambiguous relationship error
     const { data: branches, error } = await this.client
       .from(this.tableName)

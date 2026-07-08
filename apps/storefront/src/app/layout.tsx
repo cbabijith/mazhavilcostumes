@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { BRAND_CONFIG } from "shared-utils";
 
 const cormorant = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -18,19 +19,19 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes — Premium Costumes Rental",
+  title: `${BRAND_CONFIG.name} — Premium Costumes Rental`,
   description:
     "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
   keywords: [
     "bridal costumes rental",
     "wedding costumes",
     "Kerala costumes rental",
-    "Mazhavil Dance Costumes",
+    BRAND_CONFIG.name,
     "premium costumes",
   ],
   icons: {
-    icon: "/logo_mazhavil.jpeg",
-    apple: "/logo_mazhavil.jpeg",
+    icon: BRAND_CONFIG.defaultLogo,
+    apple: BRAND_CONFIG.defaultLogo,
   },
 };
 

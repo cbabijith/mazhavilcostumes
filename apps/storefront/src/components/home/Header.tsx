@@ -8,6 +8,7 @@ import { Store, Category } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
 import { useRouter, usePathname } from "next/navigation";
 import ActionSearchBar from "@/components/ui/action-search-bar";
+import { BRAND_CONFIG } from "shared-utils";
 
 interface HeaderProps {
   store: Store | null;
@@ -92,8 +93,8 @@ export default function Header({ store, categories }: HeaderProps) {
 
   const compactCategories = false;
 
-  const storeName = store?.name || "Mazhavil Dance Costumes";
-  const logoUrl = store?.logo_url || "/logo_mazhavil.jpeg";
+  const storeName = store?.name || BRAND_CONFIG.name;
+  const logoUrl = store?.logo_url || BRAND_CONFIG.defaultLogo;
 
   const displayCategories = categories || [];
 
@@ -153,7 +154,7 @@ export default function Header({ store, categories }: HeaderProps) {
               <div className="relative overflow-hidden rounded-full">
                 <Image
                   src={logoUrl}
-                  alt="Mazhavil Dance Costumes"
+                  alt={BRAND_CONFIG.name}
                   width={180}
                   height={60}
                   unoptimized
@@ -162,7 +163,7 @@ export default function Header({ store, categories }: HeaderProps) {
               </div>
               <div className="flex flex-col text-left justify-center">
                 <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-lg lg:text-xl font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
-                  Mazhavil Dance Costumes
+                  {BRAND_CONFIG.name}
                 </span>
                 <span 
                   className="text-[6px] min-[380px]:text-[8px] sm:text-[10px] md:text-[11px] tracking-[0.05em] min-[380px]:tracking-[0.1em] sm:tracking-[0.15em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold block whitespace-nowrap"

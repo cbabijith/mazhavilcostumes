@@ -12,6 +12,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { OrderWithRelations } from '@/domain/types/order';
 import { orderRepository } from '@/repository';
 import { createAdminClient } from '@/lib/supabase/server';
+import { BRAND_CONFIG } from 'shared-utils';
 import { settingsService } from './settingsService';
 import { paymentService } from './paymentService';
 import { orderService } from './orderService';
@@ -229,7 +230,7 @@ export class InvoiceService {
     }));
 
     return {
-      companyName: order.store?.name || 'Mazhavil Dance Costumes',
+      companyName: order.store?.name || BRAND_CONFIG.name,
       companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
       companyPhone: order.store?.phone || '9446961765, 9447961765',
       companyEmail: order.store?.email,

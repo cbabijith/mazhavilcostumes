@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BRAND_CONFIG } from "shared-utils";
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes Admin",
-  description: "Admin dashboard for Mazhavil Dance Costumes costumes rental system",
+  title: `${BRAND_CONFIG.name} Admin`,
+  description: `Admin dashboard for ${BRAND_CONFIG.name} costumes rental system`,
   icons: {
-    icon: "/logo.jpeg",
-    apple: "/logo.jpeg",
+    icon: BRAND_CONFIG.defaultLogo,
+    apple: BRAND_CONFIG.defaultLogo,
   },
 };
 

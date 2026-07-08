@@ -1,8 +1,9 @@
 import { Metadata } from "next";
 import OrderDetailsView from "@/components/admin/OrderDetailsView";
+import { BRAND_CONFIG } from "shared-utils";
 
 export const metadata: Metadata = {
-  title: "Order Details | Mazhavil Dance Costumes",
+  title: `Order Details | ${BRAND_CONFIG.name}`,
   description: "View and process returns for order",
 };
 

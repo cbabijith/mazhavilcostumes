@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Instagram, Facebook, Twitter, Phone } from "lucide-react";
 import { Store, Category } from "@/lib/supabase/queries";
+import { BRAND_CONFIG } from "shared-utils";
 
 interface FooterProps {
   store: Store | null;
@@ -40,8 +41,8 @@ export default function Footer({ store, categories: initialCategories }: FooterP
     loadCategories();
   }, [store?.id, initialCategories]);
 
-  const storeName = store?.name || "Mazhavil Dance Costumes";
-  const storeEmail = "mazhavildancecostumes@gmail.com";
+  const storeName = store?.name || BRAND_CONFIG.name;
+  const storeEmail = BRAND_CONFIG.email;
 
   return (
     <footer className="bg-[#1a1a1a] text-white pb-28 lg:pb-0">
@@ -52,7 +53,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
           <div className="lg:col-span-1">
             <Link href="/" className="block mb-4">
               <span className="text-lg sm:text-xl font-bold tracking-wide uppercase text-rosegold block">
-                Mazhavil Dance Costumes
+                {BRAND_CONFIG.name}
               </span>
               <span className="text-[10px] sm:text-[11px] tracking-[0.3em] text-white/40 uppercase block mt-1.5">
                 Karamana | Trivandrum
