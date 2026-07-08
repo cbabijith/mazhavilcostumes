@@ -293,6 +293,22 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
     final hasInvalidPrice = _items.any((item) => item.pricePerDay < item.originalPricePerDay);
 
+    final totalQuantity = _items.fold<int>(0, (sum, item) => sum + item.quantity);
+
+    // Calculate total item discount
+    double itemDiscountTotal = 0.0;
+    final pricingMultiplier = (_rentalDays - 2) > 1 ? (_rentalDays - 2) : 1;
+    for (final item in _items) {
+      final double lineTotal =
+          item.quantity * item.pricePerDay * pricingMultiplier;
+      final double itemDisc = item.discountType == 'percent'
+          ? lineTotal * (item.discount / 100)
+          : item.discount * item.quantity;
+      final double effectiveDisc = itemDisc < lineTotal ? itemDisc : lineTotal;
+      itemDiscountTotal += effectiveDisc;
+    }
+    final netTotal = _subtotal - itemDiscountTotal;
+
     return SafeArea(
       child: Container(
         padding: Responsive.all(AppSizes.spacingMedium),
@@ -315,27 +331,63 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${_items.length} ${_items.length == 1 ? 'item' : 'items'} added',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                    color: Colors.grey[600],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: Responsive.w(AppSizes.spacingTiny),
+                    runSpacing: Responsive.h(2),
+                    children: [
+                      Text(
+                        'Qty: $totalQuantity',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      Text(
+                        '(${_items.length} ${_items.length == 1 ? 'item' : 'items'})',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                      Text(
+                        'Sub: ₹${_subtotal.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                SizedBox(height: Responsive.h(2)),
-                Text(
-                  'Subtotal: ₹${_subtotal.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: Responsive.sp(AppSizes.fontMedium),
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
+                  if (itemDiscountTotal > 0) ...[
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      'Discount: -₹${itemDiscountTotal.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: Responsive.h(4)),
+                  Text(
+                    'Total: ₹${netTotal.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
