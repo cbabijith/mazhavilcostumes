@@ -367,35 +367,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   ],
                 ),
 
-                // ── Edit Button ──
-                if (canManage) ...[
-                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                  SizedBox(
-                    width: double.infinity,
-                    height: Responsive.h(AppSizes.buttonMedium),
-                    child: OutlinedButton.icon(
-                      onPressed: () => _navigateToEdit(),
-                      icon: Icon(Icons.edit_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-                      label: Text(
-                        'Edit Category Details',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontMedium),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(
-                          color: AppColors.primary.withValues(alpha: 0.5),
-                          width: AppSizes.spacingTiny / 2,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+
 
                 // ── Children Section ──
                 if (levelLabel != 'Variant') ...[
