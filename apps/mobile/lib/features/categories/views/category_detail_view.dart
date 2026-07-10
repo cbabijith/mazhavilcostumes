@@ -72,21 +72,22 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
     );
   }
 
-  void _navigateToEdit() {
-    Navigator.of(context).push(
+  void _navigateToEdit() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => CategoryFormView(category: _category)),
-    ).then((_) {
-      // Refresh the list when coming back
-      ref.invalidate(categoriesProvider);
-      // Try to get updated data from the refreshed list
-      final allAsync = ref.read(categoriesProvider);
-      allAsync.whenData((all) {
-        final updated = all.where((c) => c.id == _category.id).firstOrNull;
-        if (updated != null && mounted) {
-          setState(() => _category = updated);
-        }
-      });
-    });
+    );
+    if (!mounted) return;
+
+    try {
+      await ref.read(categoriesProvider.notifier).refresh();
+      final all = ref.read(categoriesProvider).value ?? [];
+      final updated = all.where((c) => c.id == _category.id).firstOrNull;
+      if (updated != null && mounted) {
+        setState(() => _category = updated);
+      }
+    } catch (e) {
+      debugPrint('Error refreshing category after edit: $e');
+    }
   }
 
   Widget _buildCoverBanner() {

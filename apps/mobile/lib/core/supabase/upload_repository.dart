@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Shared upload repository for uploading files directly to Supabase Storage.
 class UploadRepository {
-  final _supabase = Supabase.instance.client;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   /// Upload a file directly to Supabase Storage.
   /// [file] — the local file to upload.

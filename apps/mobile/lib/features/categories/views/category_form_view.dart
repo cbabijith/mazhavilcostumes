@@ -221,9 +221,9 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
       final body = <String, dynamic>{
         'name': _nameController.text.trim(),
         'slug': _slugController.text.trim(),
-        if (_descriptionController.text.trim().isNotEmpty) 'description': _descriptionController.text.trim(),
-        if (finalImageUrl != null) 'image_url': finalImageUrl, // ignore: use_null_aware_elements
-        if (_parentId != null) 'parent_id': _parentId, // ignore: use_null_aware_elements
+        'description': _descriptionController.text.trim(),
+        'image_url': finalImageUrl,
+        'parent_id': _parentId,
         'sort_order': int.tryParse(_sortOrderController.text) ?? 0,
         'is_active': _isActive,
         'is_global': _isGlobal,
