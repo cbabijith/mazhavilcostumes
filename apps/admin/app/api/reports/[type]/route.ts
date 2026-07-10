@@ -52,6 +52,7 @@ export async function GET(
       page: sp.get('page') ? parseInt(sp.get('page')!) : undefined,
       status: sp.get('status') ? sp.get('status')!.split(',') : undefined,
       payment_mode: sp.get('payment_mode') || undefined,
+      branch_id: sp.get('branch_id') || undefined,
     };
 
     const staffId = sp.get('staffId');
@@ -70,7 +71,7 @@ export async function GET(
         case 'roi': data = await reportService.getROI(filters); break;
         case 'dead-stock': data = await reportService.getDeadStock(filters); break;
         case 'sales-by-staff': data = await reportService.getSalesByStaff(filters); break;
-        case 'inventory-revenue': data = await reportService.getInventoryRevenue(); break;
+        case 'inventory-revenue': data = await reportService.getInventoryRevenue(filters); break;
         case 'enquiry-log': data = await reportService.getEnquiries(filters); break;
         case 'gst-filing': data = await reportService.getGSTFilingReport(filters); break;
         case 'todays-revenue': {

@@ -70,6 +70,7 @@ export const ClientCreateProductSchema = z.object({
     quantity: z.number().int().min(0),
     id: z.string().optional(),
   })).optional(),
+  branch_id: z.string().optional().nullable(),
 });
 
 // ─── Server-Side Full Schema ────────────────────────────────────────
@@ -108,6 +109,7 @@ export const UpdateProductSchema = z.object({
     quantity: z.number().int().min(0),
     id: z.string().optional(),
   })).optional(),
+  branch_id: z.string().optional().nullable(),
   removed_inventory_ids: z.array(z.string()).optional(),
 }).refine((data) => {
   if (data.quantity !== undefined && data.available_quantity !== undefined) {

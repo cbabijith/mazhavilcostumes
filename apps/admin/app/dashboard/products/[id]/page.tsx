@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/admin/Modal";
 import ProductAvailabilityCalendar from "@/components/admin/ProductAvailabilityCalendar";
 import { useProduct, useDeleteProduct } from "@/hooks";
-import { useProductStore, useAppStore } from "@/stores";
+import { useProductStore, useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
 import { downloadBarcode, printBarcode } from "@/lib/barcode";
 import Image from "next/image";
@@ -70,7 +70,9 @@ export default function ProductDetailPage() {
   const productId = params.id as string;
   const { product, isLoading } = useProduct(productId);
   const deleteProduct = useDeleteProduct();
-  const { showSuccess, user } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const user = useAppSelectors.user();
+  const selectedBranchId = useAppSelectors.selectedBranchId();
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
   const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
 
@@ -178,9 +180,17 @@ export default function ProductDetailPage() {
     );
   }
 
+  const selectedBranchInv = selectedBranchId 
+    ? branchInventory.find(inv => inv.branch_id === selectedBranchId)
+    : null;
+
   const primaryImage = product.images?.find((img) => img.is_primary)?.url || product.images?.[0]?.url;
-  const totalQty = product.quantity || 0;
-  const availQty = product.available_quantity || 0;
+  const totalQty = selectedBranchId 
+    ? (selectedBranchInv ? selectedBranchInv.quantity : 0)
+    : (product.quantity || 0);
+  const availQty = selectedBranchId 
+    ? (selectedBranchInv ? selectedBranchInv.available_quantity : 0)
+    : (product.available_quantity || 0);
 
   return (
     <div className="space-y-6 pb-12">
@@ -282,7 +292,9 @@ export default function ProductDetailPage() {
         <StatCard
           label="Available Inventory"
           value={isLoadingAnalytics ? null : `${availQty} / ${totalQty}`}
-          subtext={availQty === 0 ? "Out of stock" : "Ready for rent"}
+          subtext={selectedBranchId 
+            ? (availQty === 0 ? "Out of stock at this branch" : "Ready for rent at this branch") 
+            : (availQty === 0 ? "Out of stock globally" : "Ready for rent")}
           alert={availQty === 0}
         />
       </div>

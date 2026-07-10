@@ -20,7 +20,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 
 interface CleaningQueueProps {
-  branchId: string;
+  branchId: string | null;
 }
 
 export function CleaningQueue({ branchId }: CleaningQueueProps) {
@@ -58,29 +58,6 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
     } else {
       updateParams({ sort_by: field, sort_order: "asc" });
     }
-  };
-
-  const SortHeader = ({ field, label }: { field: string; label: string }) => {
-    const isActive = sortBy === field;
-    return (
-      <TableHead 
-        className="text-[11px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors group"
-        onClick={() => toggleSort(field)}
-      >
-        <div className="flex items-center gap-1">
-          {label}
-          {isActive ? (
-            sortOrder === "asc" ? (
-              <ArrowUp className="w-3 h-3 text-blue-600" />
-            ) : (
-              <ArrowDown className="w-3 h-3 text-blue-600" />
-            )
-          ) : (
-            <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400" />
-          )}
-        </div>
-      </TableHead>
-    );
   };
 
   const activeItems = useMemo(() => {
@@ -150,11 +127,11 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
           <Table>
             <TableHeader className="bg-slate-50/50">
               <TableRow>
-                <SortHeader field="product_name" label="Product" />
-                <SortHeader field="quantity" label="Qty" />
-                <SortHeader field="status" label="Status" />
-                <SortHeader field="expected_return_date" label="Return / Time" />
-                <SortHeader field="priority" label="Urgency" />
+                <SortHeader field="product_name" label="Product" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHeader field="quantity" label="Qty" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHeader field="status" label="Status" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHeader field="expected_return_date" label="Return / Time" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
+                <SortHeader field="priority" label="Urgency" sortBy={sortBy} sortOrder={sortOrder} onSort={toggleSort} />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -274,5 +251,36 @@ export function CleaningQueue({ branchId }: CleaningQueueProps) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface SortHeaderProps {
+  field: string;
+  label: string;
+  sortBy: string;
+  sortOrder: string;
+  onSort: (field: string) => void;
+}
+
+function SortHeader({ field, label, sortBy, sortOrder, onSort }: SortHeaderProps) {
+  const isActive = sortBy === field;
+  return (
+    <TableHead 
+      className="text-[11px] font-bold uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors group"
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {isActive ? (
+          sortOrder === "asc" ? (
+            <ArrowUp className="w-3 h-3 text-blue-600" />
+          ) : (
+            <ArrowDown className="w-3 h-3 text-blue-600" />
+          )
+        ) : (
+          <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-400" />
+        )}
+      </div>
+    </TableHead>
   );
 }

@@ -164,6 +164,20 @@ export interface ProductWithRelations extends Product {
     id: string;
     name: string;
   };
+  product_inventory?: Array<{
+    id: string;
+    product_id: string;
+    branch_id: string;
+    quantity: number;
+    available_quantity: number;
+    low_stock_threshold: number;
+    created_at: string;
+    updated_at: string;
+    branches?: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 // Product Inventory Info

@@ -85,15 +85,6 @@ const DEFAULT_CONFIG = {
 };
 
 function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_at }: OrderStatusBadgeProps) {
-  // If order is late, show Late badge instead of status badge
-  if (is_late) {
-    return (
-      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
-        Late
-      </Badge>
-    );
-  }
-
   // Check if scheduled/pending/confirmed order has expired (return date passed)
   const isExpired = React.useMemo(() => {
     if (!end_date || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
@@ -114,6 +105,15 @@ function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_
     
     return endMidnight < todayMidnight;
   }, [status, end_date, start_date, created_at]);
+
+  // If order is late, show Late badge instead of status badge
+  if (is_late) {
+    return (
+      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+        Late
+      </Badge>
+    );
+  }
 
   if (isExpired) {
     return (

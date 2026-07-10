@@ -15,10 +15,10 @@ import type {
 
 const availabilityKeys = {
   all: ['availability'] as const,
-  calendar: (productId: string, start: string, end: string) =>
-    [...availabilityKeys.all, 'calendar', productId, start, end] as const,
-  check: (items: any[], start: string, end: string) =>
-    [...availabilityKeys.all, 'check', JSON.stringify(items), start, end] as const,
+  calendar: (productId: string, start: string, end: string, branchId?: string) =>
+    [...availabilityKeys.all, 'calendar', productId, start, end, branchId] as const,
+  check: (items: any[], start: string, end: string, branchId?: string, excludeOrderId?: string) =>
+    [...availabilityKeys.all, 'check', JSON.stringify(items), start, end, branchId, excludeOrderId] as const,
 };
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -41,14 +41,16 @@ export function useProductAvailabilityCalendar(
   productId: string,
   startDate: string,
   endDate: string,
+  branchId?: string,
   enabled: boolean = true,
 ) {
   return useQuery<{ success: boolean; data: AvailabilityCalendarResponse }>({
-    queryKey: availabilityKeys.calendar(productId, startDate, endDate),
+    queryKey: availabilityKeys.calendar(productId, startDate, endDate, branchId),
     queryFn: async () => {
-      return apiFetch(
-        `/api/products/${productId}/availability?start=${startDate}&end=${endDate}`
-      );
+      const url = `/api/products/${productId}/availability?start=${startDate}&end=${endDate}${
+        branchId ? `&branchId=${branchId}` : ''
+      }`;
+      return apiFetch(url);
     },
     enabled: enabled && !!productId && !!startDate && !!endDate,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -69,7 +71,7 @@ export function useCheckOrderAvailability(
   enabled: boolean = true,
 ) {
   return useQuery<{ success: boolean; data: BatchAvailabilityResponse }>({
-    queryKey: availabilityKeys.check(items, startDate, endDate),
+    queryKey: availabilityKeys.check(items, startDate, endDate, branchId, excludeOrderId),
     queryFn: async () => {
       return apiFetch('/api/orders/check-availability', {
         method: 'POST',

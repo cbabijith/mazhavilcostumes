@@ -181,7 +181,7 @@ export class DashboardService {
   // Admin metrics: 30 second cache (expensive analytics queries)
   // Daily report: 30 second cache (cash reconciliation stats)
   private lastMetrics: Record<string, { data: DashboardMetrics; timestamp: number }> = {};
-  private lastDailyReport: { data: DailyReportStats; timestamp: number } | null = null;
+  private lastDailyReport: Record<string, { data: DailyReportStats; timestamp: number }> = {};
 
   /**
    * Clears all in-memory dashboard metric caches.
@@ -190,7 +190,7 @@ export class DashboardService {
   public clearCache(): void {
     console.log('[DashboardService] Cache invalidated due to data mutations');
     this.lastMetrics = {};
-    this.lastDailyReport = null;
+    this.lastDailyReport = {};
   }
 
   private getISTDateContext() {
@@ -669,15 +669,75 @@ export class DashboardService {
    * Daily Report — admin-only today's cash reconciliation stats.
    * Returns 8 metrics for the "Today's Report" panel.
    */
-  async getDailyReport(): Promise<DailyReportStats> {
+  async getDailyReport(branchId?: string | null): Promise<DailyReportStats> {
     const nowMs = Date.now();
-    if (this.lastDailyReport && (nowMs - this.lastDailyReport.timestamp < 30000)) {
+    const cacheKey = branchId || 'global';
+    if (this.lastDailyReport[cacheKey] && (nowMs - this.lastDailyReport[cacheKey].timestamp < 30000)) {
       console.log('[DashboardService] Returning cached daily report');
-      return this.lastDailyReport.data;
+      return this.lastDailyReport[cacheKey].data;
     }
 
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr: todayDateStr } = this.getISTDateContext();
+
+    // 1. Today's Bookings — count of orders created today
+    let bookingsQuery = supabase
+      .from('orders')
+      .select('id, total_amount, customer:customer_id(name)')
+      .gte('created_at', todayStart)
+      .lte('created_at', todayEnd)
+      .neq('status', 'cancelled');
+    if (branchId) bookingsQuery = bookingsQuery.eq('branch_id', branchId);
+
+    // 2. Today's Delivery TOTAL
+    let deliveryQuery = supabase
+      .from('orders')
+      .select('id, status, customer:customer_id(name)')
+      .eq('start_date', todayDateStr)
+      .neq('status', 'cancelled');
+    if (branchId) deliveryQuery = deliveryQuery.eq('branch_id', branchId);
+
+    // 3. Today's Return TOTAL
+    let returnQuery = supabase
+      .from('orders')
+      .select('id, status, customer:customer_id(name)')
+      .eq('end_date', todayDateStr)
+      .neq('status', 'cancelled');
+    if (branchId) returnQuery = returnQuery.eq('branch_id', branchId);
+
+    // 4. Today's Payments & Refunds
+    let paymentsQuery = supabase
+      .from('payments')
+      .select('amount, payment_date, payment_mode, payment_type, orders!inner(id, branch_id, customer:customer_id(name))')
+      .gte('payment_date', todayStart)
+      .lte('payment_date', todayEnd);
+    if (branchId) paymentsQuery = paymentsQuery.eq('orders.branch_id', branchId);
+
+    // 5. Damaged Orders (Today only)
+    let damagedQuery = supabase
+      .from('order_status_history')
+      .select('id, orders!inner(branch_id)', { count: 'exact', head: true })
+      .eq('status', 'flagged')
+      .gte('created_at', todayStart)
+      .lte('created_at', todayEnd);
+    if (branchId) damagedQuery = damagedQuery.eq('orders.branch_id', branchId);
+
+    // 6. Today's Accrued Damage charges & Late fees
+    let chargesQuery = supabase
+      .from('orders')
+      .select('damage_charges_total, late_fee')
+      .gte('updated_at', todayStart)
+      .lte('updated_at', todayEnd)
+      .or('damage_charges_total.gt.0,late_fee.gt.0');
+    if (branchId) chargesQuery = chargesQuery.eq('branch_id', branchId);
+
+    // 7. Revenue Due (all outstanding balance across history, to remind daily)
+    let revenueDueQuery = supabase
+      .from('orders')
+      .select('total_amount, amount_paid')
+      .in('status', ['returned', 'partial', 'flagged'])
+      .neq('payment_status', 'paid');
+    if (branchId) revenueDueQuery = revenueDueQuery.eq('branch_id', branchId);
 
     const [
       bookingsRes,
@@ -688,57 +748,13 @@ export class DashboardService {
       chargesRes,
       revenueDueRes,
     ] = await Promise.all([
-      // 1. Today's Bookings — count of orders created today
-      supabase
-        .from('orders')
-        .select('id, total_amount, customer:customer_id(name)')
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd)
-        .neq('status', 'cancelled'),
-
-      // 2. Today's Delivery TOTAL
-      supabase
-        .from('orders')
-        .select('id, status, customer:customer_id(name)')
-        .eq('start_date', todayDateStr)
-        .neq('status', 'cancelled'),
-
-      // 3. Today's Return TOTAL
-      supabase
-        .from('orders')
-        .select('id, status, customer:customer_id(name)')
-        .eq('end_date', todayDateStr)
-        .neq('status', 'cancelled'),
-
-      // 4. Today's Payments & Refunds
-      supabase
-        .from('payments')
-        .select('amount, payment_date, payment_mode, payment_type, orders(id, customer:customer_id(name))')
-        .gte('payment_date', todayStart)
-        .lte('payment_date', todayEnd),
-
-      // 5. Damaged Orders (Today only)
-      supabase
-        .from('order_status_history')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'flagged')
-        .gte('created_at', todayStart)
-        .lte('created_at', todayEnd),
-
-      // 6. Today's Accrued Damage charges & Late fees
-      supabase
-        .from('orders')
-        .select('damage_charges_total, late_fee')
-        .gte('updated_at', todayStart)
-        .lte('updated_at', todayEnd)
-        .or('damage_charges_total.gt.0,late_fee.gt.0'),
-
-      // 7. Revenue Due (all outstanding balance across history, to remind daily)
-      supabase
-        .from('orders')
-        .select('total_amount, amount_paid')
-        .in('status', ['returned', 'partial', 'flagged'])
-        .neq('payment_status', 'paid'),
+      bookingsQuery,
+      deliveryQuery,
+      returnQuery,
+      paymentsQuery,
+      damagedQuery,
+      chargesQuery,
+      revenueDueQuery,
     ]);
 
     const bookingList = (bookingsRes.data || []) as any[];
@@ -844,7 +860,7 @@ export class DashboardService {
       }
     };
 
-    this.lastDailyReport = {
+    this.lastDailyReport[cacheKey] = {
       data: result,
       timestamp: nowMs,
     };

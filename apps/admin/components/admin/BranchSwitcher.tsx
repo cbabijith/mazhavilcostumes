@@ -30,15 +30,26 @@ export default function BranchSwitcher() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const canSwitch = can("switch_branches");
+  const userBranch = user?.branch_id ? branches.find((b: BranchWithStaffCount) => b.id === user.branch_id) : null;
+  const canSwitch = can("switch_branches") && (!user?.branch_id || userBranch?.is_main === true);
 
-  // Auto-select based on user home branch only if nothing is selected yet
+  // Auto-select based on cookie, user home branch, or default branch
   useEffect(() => {
-    if (branches.length === 0 || selectedBranchId !== null) return;
+    if (branches.length === 0) return;
     
-    // For Staff, we MUST force their branch
-    if (!canSwitch && user?.branch_id) {
-      setSelectedBranchId(user.branch_id);
+    // Try to get from cookie first
+    const match = document.cookie.match(/(?:^|; )selected_branch_id=([^;]*)/);
+    const cookieBranchId = match ? match[1] : null;
+    
+    if (cookieBranchId) {
+      if (cookieBranchId === 'all') {
+        if (selectedBranchId !== null) setSelectedBranchId(null);
+      } else if (branches.some(b => b.id === cookieBranchId)) {
+        if (selectedBranchId !== cookieBranchId) setSelectedBranchId(cookieBranchId);
+      }
+    } else if (!canSwitch && user?.branch_id) {
+      // For Staff/Sub-branch users, we MUST force their branch
+      if (selectedBranchId !== user.branch_id) setSelectedBranchId(user.branch_id);
     }
   }, [branches, selectedBranchId, setSelectedBranchId, canSwitch, user]);
 
@@ -49,19 +60,23 @@ export default function BranchSwitcher() {
     setSelectedBranchId(id);
     setOpen(false);
 
+    // Save to cookie for server components
+    const cookieValue = id || 'all';
+    document.cookie = `selected_branch_id=${cookieValue}; path=/; max-age=31536000; SameSite=Lax`;
+
     // Sync with URL for server-side pages (like Dashboard)
     const params = new URLSearchParams(searchParams.toString());
     if (id) {
       params.set("branch_id", id);
     } else {
-      params.delete("branch_id");
+      params.set("branch_id", "all");
     }
     
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Staff can't switch — show locked indicator
-  if (isStaff) {
+  // If user cannot switch — show locked indicator
+  if (!canSwitch) {
     return (
       <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-sm">
         <Lock className="w-3.5 h-3.5 text-slate-400" />

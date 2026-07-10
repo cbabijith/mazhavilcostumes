@@ -17,6 +17,7 @@ import { ChevronLeft, ChevronRight, Calendar, Users, Package, Loader2, X } from 
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isSameDay, isToday, addDays } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useProductAvailabilityCalendar } from "@/hooks";
+import { useAppStore } from "@/stores";
 import type { DayAvailability } from "@/domain/types/order";
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export default function ProductAvailabilityCalendar({ productId }: Props) {
+  const selectedBranchId = useAppStore((s) => s.selectedBranchId);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<DayAvailability | null>(null);
 
@@ -35,6 +37,7 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
     productId,
     rangeStart,
     rangeEnd,
+    selectedBranchId || undefined,
     true
   );
 

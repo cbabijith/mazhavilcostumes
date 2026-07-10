@@ -150,11 +150,22 @@ export class ProductService {
       }
     }
 
-    // Handle "all branches" for admin/super admin
+    // Handle "all branches" / global product for admin/super admin
     let branchId = data.branch_id;
-    if ((userRole === 'admin' || userRole === 'super_admin') && data.branch_id === 'all') {
-      // For "all branches", set branch_id to null (product is not tied to a specific branch)
+    const isGlobal = (userRole === 'admin' || userRole === 'super_admin') && (data.branch_id === 'all' || !data.branch_id);
+    if (isGlobal) {
+      // For global products, branch_id in products table is null
       branchId = undefined;
+    }
+
+    // Force branch restriction for sub-branch users
+    if (this.currentBranchId) {
+      const { branchRepository } = await import('@/repository');
+      const branchRes = await branchRepository.findById(this.currentBranchId);
+      const isUserBranchMain = branchRes.success && branchRes.data ? branchRes.data.is_main : false;
+      if (!isUserBranchMain) {
+        branchId = this.currentBranchId;
+      }
     }
 
     // Extract branch_inventory from data before passing to repository
@@ -168,39 +179,55 @@ export class ProductService {
       return createResult;
     }
 
-    // If admin/super admin selected "all branches", create inventory entries for all branches
-    if ((userRole === 'admin' || userRole === 'super_admin') && data.branch_id === 'all') {
-      const { branchRepository } = await import('@/repository');
-      const branchesResult = await branchRepository.findAllWithStaffCount(this.currentStoreId || '');
-      
-      if (branchesResult.success && branchesResult.data) {
-        const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
-        
-        const inventoryPayload = branchesResult.data.map(branch => ({
+    // Initialize inventory records
+    const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
+    const { branchRepository } = await import('@/repository');
+    const branchesResult = await branchRepository.findAllWithStaffCount(this.currentStoreId || '');
+    const allBranches = (branchesResult.success && branchesResult.data) ? branchesResult.data : [];
+
+    if (isGlobal) {
+      if (allBranches.length > 0) {
+        const inventoryPayload = allBranches.map(branch => ({
           product_id: createResult.data!.id,
           branch_id: branch.id,
           quantity: data.quantity || 0,
           available_quantity: data.quantity || 0,
           low_stock_threshold: data.low_stock_threshold ?? 5,
         }));
-        
-        if (inventoryPayload.length > 0) {
-          await adminClient.from('product_inventory').insert(inventoryPayload);
-        }
+        await adminClient.from('product_inventory').insert(inventoryPayload);
       }
-    } else if (branch_inventory && branch_inventory.length > 0) {
-      // Handle bulk insert of specific branch inventory from frontend payload
-      const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
-      
-      const inventoryPayload = branch_inventory.map(inv => ({
-        product_id: createResult.data!.id,
-        branch_id: inv.branch_id,
-        quantity: inv.quantity || 0,
-        available_quantity: inv.quantity || 0,
-        low_stock_threshold: data.low_stock_threshold ?? 5,
-      }));
-      
-      await adminClient.from('product_inventory').insert(inventoryPayload);
+    } else {
+      // Non-global product: ensure ALL branches have a product_inventory record.
+      // The owning branch (either branch_inventory or branchId) gets its stock, and other branches get 0.
+      if (allBranches.length > 0) {
+        const inventoryPayload = allBranches.map(branch => {
+          let qty = 0;
+          if (branch_inventory && branch_inventory.length > 0) {
+            const match = branch_inventory.find(inv => inv.branch_id === branch.id);
+            qty = match ? (match.quantity || 0) : 0;
+          } else if (branchId && branch.id === branchId) {
+            qty = data.quantity || 0;
+          }
+
+          return {
+            product_id: createResult.data!.id,
+            branch_id: branch.id,
+            quantity: qty,
+            available_quantity: qty,
+            low_stock_threshold: data.low_stock_threshold ?? 5,
+          };
+        });
+
+        await adminClient.from('product_inventory').insert(inventoryPayload);
+      } else if (branchId) {
+        await adminClient.from('product_inventory').insert([{
+          product_id: createResult.data!.id,
+          branch_id: branchId,
+          quantity: data.quantity || 0,
+          available_quantity: data.quantity || 0,
+          low_stock_threshold: data.low_stock_threshold ?? 5,
+        }]);
+      }
     }
 
     // Return product with relations
@@ -222,6 +249,27 @@ export class ProductService {
         } as any,
         success: false,
       };
+    }
+
+    // Check branch ownership lock for sub-branch users
+    if (this.currentBranchId) {
+      const { branchRepository } = await import('@/repository');
+      const branchRes = await branchRepository.findById(this.currentBranchId);
+      const isUserBranchMain = branchRes.success && branchRes.data ? branchRes.data.is_main : false;
+
+      if (!isUserBranchMain) {
+        // Sub-branch user: can only edit products belonging to their branch
+        if (existingProduct.data.branch_id !== this.currentBranchId) {
+          return {
+            data: null,
+            error: {
+              message: 'Unauthorized: You can only edit products belonging to your sub-branch.',
+              code: 'UNAUTHORIZED'
+            } as any,
+            success: false,
+          };
+        }
+      }
     }
 
     // Validate input data
@@ -345,6 +393,36 @@ export class ProductService {
    * Delete a product with safety checks
    */
   async deleteProduct(id: string): Promise<RepositoryResult<void>> {
+    // Check if product exists
+    const existingProduct = await productRepository.findById(id);
+    if (!existingProduct.success || !existingProduct.data) {
+      return {
+        success: false,
+        error: existingProduct.error,
+        data: null,
+      };
+    }
+
+    // Check branch ownership lock for sub-branch users
+    if (this.currentBranchId) {
+      const { branchRepository } = await import('@/repository');
+      const branchRes = await branchRepository.findById(this.currentBranchId);
+      const isUserBranchMain = branchRes.success && branchRes.data ? branchRes.data.is_main : false;
+
+      if (!isUserBranchMain) {
+        if (existingProduct.data.branch_id !== this.currentBranchId) {
+          return {
+            data: null,
+            error: {
+              message: 'Unauthorized: You can only delete products belonging to your sub-branch.',
+              code: 'UNAUTHORIZED'
+            } as any,
+            success: false,
+          };
+        }
+      }
+    }
+
     // Check if product can be deleted
     const canDeleteResult = await productRepository.canDelete(id);
     

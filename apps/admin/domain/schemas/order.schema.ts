@@ -32,6 +32,9 @@ export const CreateOrderSchema = z.object({
   advance_collected: z.boolean().optional(),
   advance_payment_method: z.nativeEnum(PaymentMethod).optional(),
   priority_cleaning_confirmed: z.boolean().optional().default(false),
+  security_deposit: z.number().nonnegative().optional(),
+  deposit_collected: z.boolean().optional(),
+  deposit_payment_method: z.nativeEnum(PaymentMethod).optional(),
 }).refine((data) => {
   const start = new Date(data.rental_start_date);
   const end = new Date(data.rental_end_date);
@@ -65,6 +68,12 @@ export const UpdateOrderSchema = z.object({
   cancellation_reason: z.string().max(2000).optional(),
   cancelled_at: z.string().datetime().optional(),
   backfill_note: z.string().max(2000).optional(),
+  security_deposit: z.number().nonnegative().optional(),
+  deposit_collected: z.boolean().optional(),
+  deposit_payment_method: z.nativeEnum(PaymentMethod).optional(),
+  deposit_collected_at: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional().nullable(),
+  deposit_returned: z.boolean().optional(),
+  deposit_returned_at: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional().nullable(),
 
   items: z.array(orderItemSchema).optional(),
 }).refine((data) => {

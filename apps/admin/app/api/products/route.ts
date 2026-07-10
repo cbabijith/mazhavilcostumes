@@ -118,6 +118,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const clientInput = ClientCreateProductSchema.parse(body);
 
+    // Enforce user branch lock for manager/staff
+    let branchId = clientInput.branch_id || undefined;
+    if (authUser.role !== 'admin' && authUser.role !== 'super_admin') {
+      branchId = authUser.branch_id || undefined;
+    }
+
     // ── Step 3: Merge server context into validated data ─────────────
     // The server forcefully injects store_id from the auth cookie.
     // Even if a malicious client tried to send store_id, it's ignored
@@ -125,6 +131,7 @@ export async function POST(request: NextRequest) {
     const productData: CreateProductDTO = {
       ...clientInput,
       store_id: authUser.store_id,
+      branch_id: branchId,
       category_id: clientInput.category_id || undefined,
       subcategory_id: clientInput.subcategory_id || undefined,
       subvariant_id: clientInput.subvariant_id || undefined,

@@ -30,11 +30,14 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function useCleaningQueue(branchId: string, params?: { status?: CleaningStatus; sort_by?: string; sort_order?: string }) {
+export function useCleaningQueue(branchId: string | null, params?: { status?: CleaningStatus; sort_by?: string; sort_order?: string }) {
   return useQuery({
-    queryKey: [...cleaningKeys.queue(branchId), params],
+    queryKey: [...cleaningKeys.queue(branchId || 'all'), params],
     queryFn: async () => {
-      const searchParams = new URLSearchParams({ branch_id: branchId });
+      const searchParams = new URLSearchParams();
+      if (branchId) {
+        searchParams.append('branch_id', branchId);
+      }
       if (params?.status) searchParams.append('status', params.status);
       if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
       if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
@@ -43,7 +46,6 @@ export function useCleaningQueue(branchId: string, params?: { status?: CleaningS
       const res = await apiFetch<{ success: boolean; data: CleaningRecord[] }>(url);
       return res.data;
     },
-    enabled: !!branchId,
   });
 }
 

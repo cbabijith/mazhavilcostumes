@@ -68,7 +68,7 @@ export default function CategoryForm({
     parent_id: (category?.parent_id ?? defaultParentId ?? null) as string | null,
     store_id: user?.store_id || null,
     gst_percentage: category?.gst_percentage ?? 5,
-    has_buffer: category?.has_buffer ?? true,
+    has_buffer: category?.has_buffer ?? false,
   });
 
   const generateSlug = (name: string): string =>

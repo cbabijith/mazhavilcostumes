@@ -26,20 +26,22 @@ interface OrderItemsPanelProps {
 }
 
 function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
-  if (!order) return null;
-
   // Fetch items on-demand only when panel is open
   const { data: items, isLoading } = useQuery({
-    queryKey: ['orders', order.id, 'items'],
+    queryKey: ['orders', order?.id, 'items'],
     queryFn: async () => {
+      if (!order) return [];
       const res = await fetch(`/api/orders/${order.id}/items`);
       if (!res.ok) throw new Error('Failed to fetch items');
       const json = await res.json() as ApiSuccessResponse<OrderItem[]>;
       return json.data;
     },
+    enabled: !!order,
     staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
+
+  if (!order) return null;
 
   const itemCount = order.item_count ?? items?.length ?? order.items?.length ?? 0;
 

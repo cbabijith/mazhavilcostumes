@@ -13,6 +13,7 @@
  */
 
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 
 // Force dynamic rendering to bypass Next.js static caching
 // This ensures dashboard shows real-time data after order creation
@@ -150,7 +151,20 @@ export default async function DashboardPage(props: {
   // Parameters passed to Suspense child components
   const catPeriod = (searchParams.cat_period as any) || 'month';
   const roiLimit = searchParams.roi_limit ? parseInt(searchParams.roi_limit) : 3;
-  const selectedBranchId = (searchParams.branch_id as string) || '7671abeb-4b79-47a4-966b-384c1c26b950';
+  
+  // Resolve branch ID context using URL searchParams, cookie fallback, or user's default branch
+  const cookieStore = await cookies();
+  const cookieBranchId = cookieStore.get('selected_branch_id')?.value;
+  const activeBranchParam = searchParams.branch_id || cookieBranchId || authUser?.branch_id;
+  
+  let selectedBranchId: string | undefined = undefined;
+  if (activeBranchParam && activeBranchParam !== 'all') {
+    selectedBranchId = activeBranchParam;
+  } else if (!activeBranchParam) {
+    // If absolutely no branch context, default to the main branch for consistency
+    selectedBranchId = '7671abeb-4b79-47a4-966b-384c1c26b950';
+  }
+  
   const storeId = searchParams.store_id as string | undefined;
 
   return (
@@ -205,7 +219,7 @@ export default async function DashboardPage(props: {
 }
 
 // ─── Sub-Component: Operational Section ───────────────────────────────────────
-async function OperationalSection({ selectedBranchId }: { selectedBranchId: string }) {
+async function OperationalSection({ selectedBranchId }: { selectedBranchId: string | undefined }) {
   const operational = await dashboardService.getOperationalMetrics(selectedBranchId);
 
   return (
@@ -289,7 +303,7 @@ interface AnalyticsSectionProps {
   endDate: Date;
   prevStartDate: Date;
   prevEndDate: Date;
-  selectedBranchId: string;
+  selectedBranchId: string | undefined;
   storeId?: string;
   catPeriod: 'month' | 'year' | 'all';
   roiLimit: number;

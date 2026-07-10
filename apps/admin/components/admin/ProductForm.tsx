@@ -19,16 +19,17 @@ import { Input } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Switch } from "@/components/ui/switch";
 import { type Category } from "@/domain/types/category";
-import { type Product } from "@/domain/types/product";
+import { type Product, type ProductWithRelations } from "@/domain/types/product";
 import { useAppStore, useAppSelectors } from "@/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
 import { useCategories } from "@/hooks/useCategories";
+import { useBranches } from "@/hooks/useBranches";
 
 const MAX_IMAGES = 5;
 
 interface ProductFormProps {
-  product?: Product;
+  product?: ProductWithRelations;
 }
 
 /* ── Helper: default empty form state ──────────────────────────────── */
@@ -57,10 +58,71 @@ export default function ProductForm({
   const showError = useAppSelectors.showError();
   const showSuccess = useAppSelectors.showSuccess();
   const user = useAppSelectors.user();
+  const selectedBranchId = useAppSelectors.selectedBranchId();
   const queryClient = useQueryClient();
   const { createProduct } = useCreateProduct();
   const { updateProduct } = useUpdateProduct();
   const { categories, isLoading: isCategoriesLoading } = useCategories();
+  const { branches, isLoading: isBranchesLoading } = useBranches();
+  const [branchStocks, setBranchStocks] = useState<Record<string, number>>({});
+  const [globalStock, setGlobalStock] = useState<string | number>("");
+
+  // Find the active branch context (selected in switcher or user's assigned branch)
+  const activeBranchId = selectedBranchId || user?.branch_id;
+  const activeBranch = activeBranchId ? branches.find((b) => b.id === activeBranchId) : null;
+  // Can manage all branch stock if they are a global admin or assigned to the main branch AND have not selected a sub-branch
+  const isMainBranchContext = !activeBranchId || activeBranch?.is_main === true;
+
+  // Handle global stock changes and propagate to all branches
+  const handleGlobalStockChange = (val: string) => {
+    const qty = val === "" ? "" : parseInt(val, 10);
+    const numericQty = isNaN(qty as any) ? 0 : (qty as number);
+    
+    setGlobalStock(val === "" ? "" : numericQty);
+    
+    const updated: Record<string, number> = {};
+    branches.forEach((b) => {
+      updated[b.id] = numericQty;
+    });
+    setBranchStocks(updated);
+  };
+
+  // Populate branch stocks on load/change
+  useEffect(() => {
+    if (branches.length === 0) return;
+
+    if (isEdit && product) {
+      const stocks: Record<string, number> = {};
+      let allEqual = true;
+      let firstVal: number | null = null;
+
+      branches.forEach((b) => {
+        const inv = product.product_inventory?.find((i: any) => i.branch_id === b.id);
+        const qty = inv ? inv.quantity : 0;
+        stocks[b.id] = qty;
+
+        if (firstVal === null) {
+          firstVal = qty;
+        } else if (qty !== firstVal) {
+          allEqual = false;
+        }
+      });
+      setBranchStocks(stocks);
+
+      if (allEqual && firstVal !== null) {
+        setGlobalStock(firstVal);
+      } else {
+        setGlobalStock("");
+      }
+    } else {
+      const stocks: Record<string, number> = {};
+      branches.forEach((b) => {
+        stocks[b.id] = 0;
+      });
+      setBranchStocks(stocks);
+      setGlobalStock(0);
+    }
+  }, [branches, product, isEdit]);
 
   // ── RBAC Guard: only admin/super_admin can edit products ────────
   useEffect(() => {
@@ -69,9 +131,17 @@ export default function ProductForm({
     }
   }, [isEdit, user?.role, product?.id, router]);
 
+  // ── Branch Context Guard: sub-branch users can only edit their own products ────────
+  useEffect(() => {
+    if (isEdit && !isMainBranchContext && product && product.branch_id !== activeBranchId) {
+      showError("You are not authorized to edit products belonging to other branches.");
+      router.push(`/dashboard/products/${product.id}`);
+    }
+  }, [isEdit, isMainBranchContext, product, activeBranchId, router, showError]);
+
   // ── Async-Resilience Guard ──────────────────────────────────────
   // Block submission until all async dependencies are resolved.
-  const isFormReady = !isCategoriesLoading;
+  const isFormReady = !isCategoriesLoading && !isBranchesLoading;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -229,14 +299,47 @@ export default function ProductForm({
           return;
         }
 
+        if (!formData.slug.trim()) {
+          showError("URL Slug is required");
+          setLoading(false);
+          return;
+        }
+
+        if (!/^[a-z0-9-]+$/.test(formData.slug)) {
+          showError("URL Slug must contain only lowercase letters, numbers, and hyphens (e.g., bridal-necklace-set)");
+          setLoading(false);
+          return;
+        }
+
+        if (!formData.sku || !formData.sku.trim()) {
+          showError("SKU is required");
+          setLoading(false);
+          return;
+        }
+
+        if (!formData.barcode || !formData.barcode.trim()) {
+          showError("Barcode is required");
+          setLoading(false);
+          return;
+        }
+
         const parsedPricePerDay = parseFloat(String(formData.price_per_day));
         const pricePerDay = isNaN(parsedPricePerDay) ? 0 : parsedPricePerDay;
 
         const parsedPurchasePrice = parseFloat(String(formData.purchase_price));
         const purchasePrice = isNaN(parsedPurchasePrice) ? 0 : parsedPurchasePrice;
 
-        const parsedQuantity = parseInt(String(formData.quantity), 10);
-        const quantity = isNaN(parsedQuantity) ? 0 : parsedQuantity;
+        const otherBranchesQty = isMainBranchContext 
+          ? 0 
+          : (product?.product_inventory || [])
+              .filter((inv: any) => inv.branch_id !== activeBranchId)
+              .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
+
+        const subBranchQty = activeBranchId ? (branchStocks[activeBranchId] || 0) : 0;
+        
+        const totalQuantity = isMainBranchContext 
+          ? Object.values(branchStocks).reduce((sum, qty) => sum + (qty || 0), 0)
+          : otherBranchesQty + subBranchQty;
 
         if (pricePerDay <= 0) {
           showError("Rent amount is required and must be greater than 0");
@@ -244,7 +347,7 @@ export default function ProductForm({
           return;
         }
 
-        if (quantity <= 0) {
+        if (totalQuantity <= 0) {
           showError("Stock quantity is required and must be greater than 0");
           setLoading(false);
           return;
@@ -263,12 +366,29 @@ export default function ProductForm({
           sort_order: index,
         }));
 
+        const branchInventoryPayload = isMainBranchContext
+          ? Object.entries(branchStocks).map(([branchId, qty]) => {
+              const inv = product?.product_inventory?.find((i: any) => i.branch_id === branchId);
+              return {
+                branch_id: branchId,
+                quantity: qty || 0,
+                id: inv?.id,
+              };
+            })
+          : branches.map((branch) => {
+              const inv = product?.product_inventory?.find((i: any) => i.branch_id === branch.id);
+              const qty = branch.id === activeBranchId ? subBranchQty : (isEdit ? (inv?.quantity || 0) : 0);
+              return {
+                branch_id: branch.id,
+                quantity: qty,
+                id: inv?.id,
+              };
+            });
+
         const basePayload = {
           name: formData.name,
           slug: formData.slug || generateSlug(formData.name),
           images,
-          // NOTE: store_id is deliberately ABSENT here.
-          // The server injects it from the auth cookie (Zero-Trust).
           category_id: formData.category_id || undefined,
           subcategory_id: formData.subcategory_id || undefined,
           subvariant_id: formData.subvariant_id || undefined,
@@ -277,12 +397,14 @@ export default function ProductForm({
           track_inventory: true,
           low_stock_threshold: 0,
           price_per_day: pricePerDay,
-          quantity: quantity,
-          available_quantity: quantity,
+          quantity: totalQuantity,
+          available_quantity: totalQuantity,
           is_active: formData.is_active,
           sku: formData.sku || undefined,
           barcode: formData.barcode || undefined,
           description: formData.description || undefined,
+          branch_id: isMainBranchContext ? undefined : activeBranchId,
+          branch_inventory: branchInventoryPayload,
         };
 
         if (isEdit && product) {
@@ -294,6 +416,8 @@ export default function ProductForm({
         if (continueAdding && !isEdit) {
           // Reset form for next product
           setFormData(emptyFormData());
+          setBranchStocks(Object.keys(branchStocks).reduce((acc, key) => ({ ...acc, [key]: 0 }), {}));
+          setGlobalStock(0);
           setImageUrls([]);
           setSlugManuallyEdited(false);
           window.scrollTo({ top: 0, behavior: "smooth" });
@@ -315,6 +439,18 @@ export default function ProductForm({
       imageUrls,
       isEdit,
       product,
+      selectedBranchId,
+      branchStocks,
+      isMainBranchContext,
+      user,
+      barcodeError,
+      createProduct,
+      updateProduct,
+      router,
+      showError,
+      globalStock,
+      activeBranchId,
+      branches,
     ]
   );
 
@@ -531,29 +667,125 @@ export default function ProductForm({
               )}
             </div>
 
-            {/* Stock Quantity — single global field */}
-            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+            {/* Stock Quantity Section */}
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
               <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
                 <Package className="w-4 h-4 text-slate-400" />
                 Stock Quantity <span className="text-red-500">*</span>
               </h3>
-              <Input
-                type="number"
-                min={0}
-                value={formData.quantity}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    quantity: e.target.value,
-                  })
-                }
-                required
-                placeholder="0"
-                className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
-              />
-              <p className="text-xs text-slate-400">
-                Common stock across all branches
-              </p>
+
+              {isMainBranchContext ? (
+                <div className="space-y-4">
+                  {/* Global Stock Distributor */}
+                  <div className="space-y-1.5">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={globalStock}
+                      onChange={(e) => handleGlobalStockChange(e.target.value)}
+                      onFocus={() => {
+                        if (globalStock === 0) setGlobalStock("");
+                      }}
+                      onBlur={() => {
+                        if (globalStock === "") setGlobalStock(0);
+                      }}
+                      placeholder="0"
+                      className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
+                    />
+                    <p className="text-xs text-slate-400 text-center">
+                      Type stock here to apply to all branches below, or edit branch stock individually.
+                    </p>
+                  </div>
+
+                  <div className="border border-slate-100 rounded-lg divide-y divide-slate-100 mt-2">
+                    {branches.map((branch) => (
+                      <div key={branch.id} className="flex items-center justify-between p-3 hover:bg-slate-50/50 transition-colors">
+                        <div className="space-y-0.5">
+                          <span className="text-sm font-medium text-slate-700">{branch.name}</span>
+                          {branch.is_main && (
+                            <span className="ml-2 text-[9px] font-bold uppercase text-violet-500 bg-violet-50 px-1 py-0.5 rounded">
+                              Main
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-28">
+                          <Input
+                            type="number"
+                            min={0}
+                            value={branchStocks[branch.id] ?? ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const qty = val === "" ? "" : parseInt(val, 10);
+                              setBranchStocks((prev) => ({
+                                ...prev,
+                                [branch.id]: isNaN(qty as any) ? 0 : (qty as number),
+                              }));
+                            }}
+                            onFocus={() => {
+                              if (branchStocks[branch.id] === 0) {
+                                setBranchStocks((prev) => ({
+                                  ...prev,
+                                  [branch.id]: "" as any,
+                                }));
+                              }
+                            }}
+                            onBlur={() => {
+                              if (branchStocks[branch.id] === ("" as any)) {
+                                setBranchStocks((prev) => ({
+                                  ...prev,
+                                  [branch.id]: 0,
+                                }));
+                              }
+                            }}
+                            className="h-9 text-right font-semibold border-slate-200 focus:border-slate-900"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={activeBranchId ? (branchStocks[activeBranchId] ?? "") : ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const qty = val === "" ? "" : parseInt(val, 10);
+                      if (activeBranchId) {
+                        setBranchStocks((prev) => ({
+                          ...prev,
+                          [activeBranchId]: isNaN(qty as any) ? 0 : (qty as number),
+                        }));
+                      }
+                    }}
+                    onFocus={() => {
+                      if (activeBranchId && branchStocks[activeBranchId] === 0) {
+                        setBranchStocks((prev) => ({
+                          ...prev,
+                          [activeBranchId]: "" as any,
+                        }));
+                      }
+                    }}
+                    onBlur={() => {
+                      if (activeBranchId && branchStocks[activeBranchId] === ("" as any)) {
+                        setBranchStocks((prev) => ({
+                          ...prev,
+                          [activeBranchId]: 0,
+                        }));
+                      }
+                    }}
+                    required
+                    placeholder="0"
+                    className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
+                  />
+                  <p className="text-xs text-slate-400">
+                    Stock quantity for the active branch ({activeBranch?.name || ''})
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -586,8 +818,8 @@ export default function ProductForm({
               Identifiers
             </h3>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                SKU
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                SKU <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-1.5">
                 <Input
@@ -611,8 +843,8 @@ export default function ProductForm({
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Barcode
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                Barcode <span className="text-red-500">*</span>
               </label>
               <div className="flex gap-1.5">
                 <Input
@@ -648,8 +880,8 @@ export default function ProductForm({
             </div>
             {/* URL Slug (collapsed, auto-generated) */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                URL Slug
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                URL Slug <span className="text-red-500">*</span>
               </label>
               <Input
                 value={formData.slug}

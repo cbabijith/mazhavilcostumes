@@ -119,14 +119,35 @@ export class PaymentService {
         };
       }
       const order = orderResult.data;
-      // Total refundable = amount already paid
-      const totalRefundable = order.amount_paid || 0;
-      if (data.amount > totalRefundable) {
-        return {
-          data: null,
-          error: { message: `Refund amount (${data.amount}) exceeds total refundable (${totalRefundable})`, code: 'VALIDATION_ERROR' } as any,
-          success: false,
-        };
+      const isDepositRefund = data.notes && /deposit|security/i.test(data.notes);
+
+      if (isDepositRefund) {
+        // Fetch all payments to see how much deposit has been refunded already
+        const paymentsResult = await paymentRepository.findByOrderId(data.order_id);
+        const existingRefundedDeposit = paymentsResult.success && paymentsResult.data
+          ? paymentsResult.data
+              .filter(p => p.payment_type === PaymentType.REFUND && p.notes && /deposit|security/i.test(p.notes))
+              .reduce((sum, p) => sum + p.amount, 0)
+          : 0;
+
+        const totalRefundable = (order.security_deposit || 0) - existingRefundedDeposit;
+        if (data.amount > totalRefundable) {
+          return {
+            data: null,
+            error: { message: `Refund amount (${data.amount}) exceeds remaining security deposit refundable (${totalRefundable})`, code: 'VALIDATION_ERROR' } as any,
+            success: false,
+          };
+        }
+      } else {
+        // Regular rental payment refund
+        const totalRefundable = order.amount_paid || 0;
+        if (data.amount > totalRefundable) {
+          return {
+            data: null,
+            error: { message: `Refund amount (${data.amount}) exceeds total refundable (${totalRefundable})`, code: 'VALIDATION_ERROR' } as any,
+            success: false,
+          };
+        }
       }
     }
 
@@ -142,19 +163,22 @@ export class PaymentService {
       }
     }
 
-    // After successfully creating a refund, atomically update the order's state
+    // After successfully creating a refund, atomically update the order's state (except for deposit refunds)
     if (result.success && result.data && data.payment_type === PaymentType.REFUND) {
-      const { orderRepository } = await import('@/repository');
-      const orderResult = await orderRepository.findById(data.order_id);
-      if (orderResult.success && orderResult.data) {
-        const order = orderResult.data;
-        // Update amount_paid for refund
-        const newAmountPaid = Math.max(0, (order.amount_paid || 0) - data.amount);
-        const newPaymentStatus = newAmountPaid >= order.total_amount ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
-        await orderRepository.update(data.order_id, {
-          amount_paid: newAmountPaid,
-          payment_status: newPaymentStatus,
-        } as any);
+      const isDepositRefund = data.notes && /deposit|security/i.test(data.notes);
+      if (!isDepositRefund) {
+        const { orderRepository } = await import('@/repository');
+        const orderResult = await orderRepository.findById(data.order_id);
+        if (orderResult.success && orderResult.data) {
+          const order = orderResult.data;
+          // Update amount_paid for refund
+          const newAmountPaid = Math.max(0, (order.amount_paid || 0) - data.amount);
+          const newPaymentStatus = newAmountPaid >= order.total_amount ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+          await orderRepository.update(data.order_id, {
+            amount_paid: newAmountPaid,
+            payment_status: newPaymentStatus,
+          } as any);
+        }
       }
     }
 
@@ -273,7 +297,16 @@ export class PaymentService {
     if (paymentsResult.success && paymentsResult.data && orderResult.success && orderResult.data) {
       const order = orderResult.data;
       const newAmountPaid = paymentsResult.data.reduce((sum, p) => {
+        // Exclude security deposits
+        if (p.payment_type === PaymentType.DEPOSIT) {
+          return sum;
+        }
+        // Exclude security deposit refunds (by notes content)
         if (p.payment_type === PaymentType.REFUND) {
+          const isDepositRefund = p.notes && /deposit|security/i.test(p.notes);
+          if (isDepositRefund) {
+            return sum;
+          }
           return sum - p.amount;
         }
         return sum + p.amount;

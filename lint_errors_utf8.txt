@@ -1,0 +1,295 @@
+﻿
+> admin@0.1.0 lint D:\personal\mazhavilcostumes\apps\admin
+> eslint
+
+
+D:\personal\mazhavilcostumes\apps\admin\app\api\auth\me\route.ts
+  20:9  error  'name' is never reassigned. Use 'const' instead  prefer-const
+
+D:\personal\mazhavilcostumes\apps\admin\app\api\products\import\route.ts
+  23:7  error  'namePart' is never reassigned. Use 'const' instead  prefer-const
+  24:7  error  'skuPart' is never reassigned. Use 'const' instead   prefer-const
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\OrderForm.tsx
+  1132:47  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx
+  153:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:153:18
+  151 |             <TableHeader className="bg-slate-50/50">
+  152 |               <TableRow>
+> 153 |                 <SortHeader field="product_name" label="Product" />
+      |                  ^^^^^^^^^^ This component is created during render
+  154 |                 <SortHeader field="quantity" label="Qty" />
+  155 |                 <SortHeader field="status" label="Status" />
+  156 |                 <SortHeader field="expected_return_date" label="Return / Time" />
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:63:22
+  61 |   };
+  62 |
+> 63 |   const SortHeader = ({ field, label }: { field: string; label: string }) => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 64 |     const isActive = sortBy === field;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     );
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^ The component is created during render here
+  85 |
+  86 |   const activeItems = useMemo(() => {
+  87 |     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];              react-hooks/static-components
+  154:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:154:18
+  152 |               <TableRow>
+  153 |                 <SortHeader field="product_name" label="Product" />
+> 154 |                 <SortHeader field="quantity" label="Qty" />
+      |                  ^^^^^^^^^^ This component is created during render
+  155 |                 <SortHeader field="status" label="Status" />
+  156 |                 <SortHeader field="expected_return_date" label="Return / Time" />
+  157 |                 <SortHeader field="priority" label="Urgency" />
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:63:22
+  61 |   };
+  62 |
+> 63 |   const SortHeader = ({ field, label }: { field: string; label: string }) => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 64 |     const isActive = sortBy === field;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     );
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^ The component is created during render here
+  85 |
+  86 |   const activeItems = useMemo(() => {
+  87 |     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];   react-hooks/static-components
+  155:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:155:18
+  153 |                 <SortHeader field="product_name" label="Product" />
+  154 |                 <SortHeader field="quantity" label="Qty" />
+> 155 |                 <SortHeader field="status" label="Status" />
+      |                  ^^^^^^^^^^ This component is created during render
+  156 |                 <SortHeader field="expected_return_date" label="Return / Time" />
+  157 |                 <SortHeader field="priority" label="Urgency" />
+  158 |               </TableRow>
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:63:22
+  61 |   };
+  62 |
+> 63 |   const SortHeader = ({ field, label }: { field: string; label: string }) => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 64 |     const isActive = sortBy === field;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     );
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^ The component is created during render here
+  85 |
+  86 |   const activeItems = useMemo(() => {
+  87 |     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];  react-hooks/static-components
+  156:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:156:18
+  154 |                 <SortHeader field="quantity" label="Qty" />
+  155 |                 <SortHeader field="status" label="Status" />
+> 156 |                 <SortHeader field="expected_return_date" label="Return / Time" />
+      |                  ^^^^^^^^^^ This component is created during render
+  157 |                 <SortHeader field="priority" label="Urgency" />
+  158 |               </TableRow>
+  159 |             </TableHeader>
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:63:22
+  61 |   };
+  62 |
+> 63 |   const SortHeader = ({ field, label }: { field: string; label: string }) => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 64 |     const isActive = sortBy === field;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     );
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^ The component is created during render here
+  85 |
+  86 |   const activeItems = useMemo(() => {
+  87 |     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];                                           react-hooks/static-components
+  157:18  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:157:18
+  155 |                 <SortHeader field="status" label="Status" />
+  156 |                 <SortHeader field="expected_return_date" label="Return / Time" />
+> 157 |                 <SortHeader field="priority" label="Urgency" />
+      |                  ^^^^^^^^^^ This component is created during render
+  158 |               </TableRow>
+  159 |             </TableHeader>
+  160 |             <TableBody>
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\dashboard\CleaningQueue.tsx:63:22
+  61 |   };
+  62 |
+> 63 |   const SortHeader = ({ field, label }: { field: string; label: string }) => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 64 |     const isActive = sortBy === field;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 65 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     );
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^ The component is created during render here
+  85 |
+  86 |   const activeItems = useMemo(() => {
+  87 |     let items = queue?.filter(item => item.status !== CleaningStatus.COMPLETED) || [];                                                                               react-hooks/static-components
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\orders\OrderItemsPanel.tsx
+  32:38  error  React Hook "useQuery" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\orders\OrderStatusBadge.tsx
+  98:21  error  React Hook "React.useMemo" is called conditionally. React Hooks must be called in the exact same order in every component render  react-hooks/rules-of-hooks
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\RevenueReport.tsx
+  141:33  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `reportSummary.details`, but the source dependencies were [reportSummary?.details, detailSort]. Inferred different dependency than source.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\RevenueReport.tsx:141:33
+  139 |     });
+  140 |   };
+> 141 |   const sortedDetails = useMemo(() => {
+      |                                 ^^^^^^^
+> 142 |     if (!reportSummary?.details || !detailSort) return reportSummary?.details || [];
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 143 |     return [...reportSummary.details].sort((a: any, b: any) => {
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 150 |     });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 151 |   }, [reportSummary?.details, detailSort]);
+      | ^^^^ Could not preserve existing manual memoization
+  152 |
+  153 |   const pieData = reportSummary ? [
+  154 |     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },  react-hooks/preserve-manual-memoization
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\SalesByStaffReport.tsx
+  67:7  error  Error: Cannot access variable before it is declared
+
+`fetchHistory` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\SalesByStaffReport.tsx:67:7
+  65 |   useEffect(() => {
+  66 |     if (selectedStaff) {
+> 67 |       fetchHistory(selectedStaff.staff_id);
+     |       ^^^^^^^^^^^^ `fetchHistory` accessed before it is declared
+  68 |     }
+  69 |   }, [selectedStaff]);
+  70 |
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\SalesByStaffReport.tsx:71:3
+  69 |   }, [selectedStaff]);
+  70 |
+> 71 |   const fetchHistory = async (staffId: string) => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 72 |     setHistoryLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 73 |     try {
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 83 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 84 |   };
+     | ^^^^^ `fetchHistory` is declared here
+  85 |
+  86 |   // Calculate insights
+  87 |   const totals = data.reduce((acc, curr) => ({  react-hooks/immutability
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\TodaysRevenueView.tsx
+  132:33  error  Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `reportSummary.details`, but the source dependencies were [reportSummary?.details, detailSort]. Inferred different dependency than source.
+
+D:\personal\mazhavilcostumes\apps\admin\components\admin\reports\views\TodaysRevenueView.tsx:132:33
+  130 |   };
+  131 |   
+> 132 |   const sortedDetails = useMemo(() => {
+      |                                 ^^^^^^^
+> 133 |     if (!reportSummary?.details || !detailSort) return reportSummary?.details || [];
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 134 |     return [...reportSummary.details].sort((a: any, b: any) => {
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 141 |     });
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 142 |   }, [reportSummary?.details, detailSort]);
+      | ^^^^ Could not preserve existing manual memoization
+  143 |
+  144 |   const pieData = reportSummary ? [
+  145 |     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },  react-hooks/preserve-manual-memoization
+
+D:\personal\mazhavilcostumes\apps\admin\components\ui\file-upload.tsx
+  292:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+D:\personal\mazhavilcostumes\apps\admin\components\ui\file-upload.tsx:292:5
+  290 |     // Refs to store latest values to avoid React state closure stale references in async queue loop
+  291 |     const queueRef = useRef<QueueItem[]>([]);
+> 292 |     queueRef.current = uploadQueue;
+      |     ^^^^^^^^^^^^^^^^ Cannot update ref during render
+  293 |
+  294 |     const valueRef = useRef<string[]>(value);
+  295 |     valueRef.current = value;  react-hooks/refs
+  295:5  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+D:\personal\mazhavilcostumes\apps\admin\components\ui\file-upload.tsx:295:5
+  293 |
+  294 |     const valueRef = useRef<string[]>(value);
+> 295 |     valueRef.current = value;
+      |     ^^^^^^^^^^^^^^^^ Cannot update ref during render
+  296 |
+  297 |     // Maximum files the user can still add
+  298 |     const remainingSlots = multiple ? maxFiles - value.length : value.length === 0 ? 1 : 0;                                                 react-hooks/refs
+
+D:\personal\mazhavilcostumes\apps\admin\stores\appStore.ts
+  281:15  error  React Hook "useAppStore" is called in function "user" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"              react-hooks/rules-of-hooks
+  282:26  error  React Hook "useAppStore" is called in function "isAuthenticated" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"   react-hooks/rules-of-hooks
+  283:20  error  React Hook "useAppStore" is called in function "isLoading" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"         react-hooks/rules-of-hooks
+  284:27  error  React Hook "useAppStore" is called in function "sidebarCollapsed" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+  285:24  error  React Hook "useAppStore" is called in function "notifications" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"     react-hooks/rules-of-hooks
+  286:24  error  React Hook "useAppStore" is called in function "globalLoading" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"     react-hooks/rules-of-hooks
+  287:27  error  React Hook "useAppStore" is called in function "selectedBranchId" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+  288:18  error  React Hook "useAppStore" is called in function "storeId" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"           react-hooks/rules-of-hooks
+  289:22  error  React Hook "useAppStore" is called in function "showSuccess" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"       react-hooks/rules-of-hooks
+  290:20  error  React Hook "useAppStore" is called in function "showError" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"         react-hooks/rules-of-hooks
+
+Γ£û 26 problems (25 errors, 1 warning)
+  3 errors and 0 warnings potentially fixable with the `--fix` option.
+
+D:\personal\mazhavilcostumes\apps\admin:
+ΓÇëERR_PNPM_RECURSIVE_RUN_FIRST_FAILΓÇë admin@0.1.0 lint: `eslint`
+Exit status 1

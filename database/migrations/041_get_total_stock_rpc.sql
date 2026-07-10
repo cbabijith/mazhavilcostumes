@@ -61,10 +61,19 @@ BEGIN
   END IF;
 
   IF p_branch_id IS NOT NULL THEN
-    where_clause := where_clause || format(' AND (branch_id = %L OR branch_id IS NULL)', p_branch_id);
+    -- If branch_id is specified, we want to sum the quantity from product_inventory
+    -- for that branch, falling back to 0 if there is no record.
+    EXECUTE format('
+      SELECT COALESCE(SUM(
+        COALESCE(
+          (SELECT quantity FROM product_inventory pi WHERE pi.product_id = p.id AND pi.branch_id = %L),
+          0
+        )
+      ), 0)::INTEGER 
+      FROM products p %s', p_branch_id, where_clause) INTO result;
+  ELSE
+    EXECUTE format('SELECT COALESCE(SUM(quantity), 0)::INTEGER FROM products %s', where_clause) INTO result;
   END IF;
-
-  EXECUTE format('SELECT COALESCE(SUM(quantity), 0)::INTEGER FROM products %s', where_clause) INTO result;
 
   RETURN result;
 END;

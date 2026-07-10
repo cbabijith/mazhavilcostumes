@@ -89,9 +89,13 @@ export class ProductRepository extends BaseRepository {
     // Exclude soft-deleted
     selectQuery = (selectQuery as any).is('deleted_at', null);
     
+    // We do not filter the products table by branch_id because products are global.
+    // The branch-specific quantities are resolved branchwise via product_inventory.
+    /*
     if (branch_id) {
       selectQuery = (selectQuery as any).or(`branch_id.eq.${branch_id},branch_id.is.null`);
     }
+    */
 
     if (min_price !== undefined) {
       selectQuery = (selectQuery as any).gte('price_per_day', min_price);

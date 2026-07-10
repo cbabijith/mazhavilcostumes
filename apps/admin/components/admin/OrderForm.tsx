@@ -105,6 +105,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const [advanceAmount, setAdvanceAmount] = useState<number>(initialData?.advance_amount || 0);
   const [advancePaymentMethod, setAdvancePaymentMethod] = useState<string>(initialData?.advance_payment_method || PaymentMethod.CASH);
 
+  // Security Deposit State
+  const [securityDeposit, setSecurityDeposit] = useState<number>(initialData?.security_deposit || 0);
+  const [depositCollected, setDepositCollected] = useState<boolean>(initialData?.deposit_collected || false);
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState<string>(initialData?.deposit_payment_method || PaymentMethod.CASH);
+
   // Barcode Scanner
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
@@ -322,10 +327,16 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     console.log('Current shelf stock (available_quantity):', product.available_quantity);
     console.log('Total stock (quantity):', product.quantity);
     
-    // Use total quantity to check for absolute out-of-stock. 
+    // Use branch-specific quantity if branch is selected.
     // In rental, available_quantity < 1 just means it's currently with a customer, 
     // but it can still be booked for future dates.
-    const totalQty = product.quantity ?? product.available_quantity ?? 0;
+    const branchInv = selectedBranchId
+      ? (product as any).product_inventory?.find((inv: any) => inv.branch_id === selectedBranchId)
+      : null;
+    const totalQty = selectedBranchId
+      ? (branchInv ? branchInv.quantity : 0)
+      : (product.quantity ?? product.available_quantity ?? 0);
+
     if (totalQty < 1) {
       showError("Out of Stock", "This product has no stock assigned to this branch.");
       return;
@@ -411,6 +422,18 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     try {
       const product = await lookupByBarcode(barcode);
       if (!product) return;
+
+      const branchInv = selectedBranchId
+        ? (product as any).product_inventory?.find((inv: any) => inv.branch_id === selectedBranchId)
+        : null;
+      const totalQty = selectedBranchId
+        ? (branchInv ? branchInv.quantity : 0)
+        : (product.quantity ?? product.available_quantity ?? 0);
+
+      if (totalQty < 1) {
+        showError("Out of Stock", "This product has no stock assigned to this branch.");
+        return;
+      }
 
       // Use functional update — always reads the latest cart state
       let wasExisting = false;
@@ -521,6 +544,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       advance_amount: advanceAmount > 0 ? advanceAmount : 0,
       advance_collected: advanceAmount > 0,
       advance_payment_method: advanceAmount > 0 ? advancePaymentMethod : undefined,
+      security_deposit: securityDeposit > 0 ? securityDeposit : 0,
+      deposit_collected: securityDeposit > 0 ? depositCollected : false,
+      deposit_payment_method: (securityDeposit > 0 && depositCollected) ? depositPaymentMethod : undefined,
       subtotal: cartTotals.subtotal,
       gst_amount: cartTotals.gstAmount,
       total_amount: cartTotals.grandTotal,
@@ -891,7 +917,13 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 const imgUrl = getImageUrl(p);
                                 const sAvail = searchAvailabilityMap.get(p.id);
                                 const sMaxAvail = (sAvail as any)?.availableWithPriority ?? sAvail?.available ?? 0;
-                                const isAvail = sAvail ? sMaxAvail > 0 : p.available_quantity > 0;
+                                const branchInv = selectedBranchId
+                                  ? p.product_inventory?.find((inv: any) => inv.branch_id === selectedBranchId)
+                                  : null;
+                                const pAvailableQty = selectedBranchId
+                                  ? (branchInv ? branchInv.available_quantity : 0)
+                                  : p.available_quantity;
+                                const isAvail = sAvail ? sMaxAvail > 0 : pAvailableQty > 0;
                                 
                                 return (
                                   <li
@@ -924,8 +956,8 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                                       const hasBuffer = cat?.has_buffer ?? true;
                                                       return hasBuffer ? `0 free (${sMaxAvail} with priority cleaning)` : `0 free (Unavailable)`;
                                                     })()
-                                                )
-                                              : `${p.available_quantity} in stock`}
+                                                  )
+                                              : `${pAvailableQty} in stock`}
                                         </span>
                                       </div>
                                     </div>
@@ -1105,7 +1137,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                             type="button"
                                             onClick={() => setExpandedBookings(prev => {
                                               const next = new Set(prev);
-                                              next.has(expandKey) ? next.delete(expandKey) : next.add(expandKey);
+                                              if (next.has(expandKey)) {
+                                                next.delete(expandKey);
+                                              } else {
+                                                next.add(expandKey);
+                                              }
                                               return next;
                                             })}
                                             className="text-[9px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-colors"
@@ -1527,6 +1563,48 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-slate-100"></div>
+
+                {/* Security Deposit */}
+                <div className="space-y-3">
+                  <span className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5 text-slate-400" />
+                    Security Deposit
+                    <span className="text-xs font-normal text-slate-400">(Optional)</span>
+                  </span>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm">₹</span>
+                        <Input
+                          type="number"
+                          value={securityDeposit || ""}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setSecurityDeposit(val);
+                            setDepositCollected(val > 0);
+                          }}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          placeholder="0"
+                          className="h-10 pl-7 font-bold text-base border-slate-200 focus:border-slate-900"
+                        />
+                      </div>
+                      {securityDeposit > 0 && (
+                        <Select value={depositPaymentMethod} onValueChange={setDepositPaymentMethod}>
+                          <SelectTrigger className="h-10 w-[110px] border-slate-200 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
+                            <SelectItem value={PaymentMethod.UPI}>UPI</SelectItem>
+                            <SelectItem value={PaymentMethod.GPAY}>GPay</SelectItem>
+                            <SelectItem value={PaymentMethod.BANK_TRANSFER}>Bank</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                 </div>
               </div>
             )}

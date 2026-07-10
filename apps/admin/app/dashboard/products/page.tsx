@@ -128,11 +128,14 @@ function ProductsContent() {
     };
   }, [searchInput, urlQuery, searchParams]);
 
+  const selectedBranchId = useAppSelectors.selectedBranchId();
+
   const { products, isLoading, total, totalStock, totalPages, hasNext, hasPrev } = useProducts({
     query: debouncedQuery,
     category_id: urlCategoryId,
     limit: pageSize,
     page,
+    branch_id: selectedBranchId || undefined,
   });
 
   const deleteProduct = useDeleteProduct();
@@ -174,6 +177,9 @@ function ProductsContent() {
         if (urlCategoryId) {
           searchParams.append('category_id', urlCategoryId);
         }
+        if (selectedBranchId) {
+          searchParams.append('branch_id', selectedBranchId);
+        }
         searchParams.append('limit', String(limit));
         searchParams.append('page', String(pageNum));
         
@@ -197,15 +203,22 @@ function ProductsContent() {
       // Format data to match "Product with GST rent new.xlsx" layout:
       // Row 1: Title
       // Row 2: Headers (Code/Name | Description/SKU | Category | GST | Rent | Purchase Price | Qty)
-      const dataRows = allProducts.map(p => [
-        p.name || p.barcode || '',
-        p.sku || p.description || '',
-        p.category?.name || 'Uncategorized',
-        p.category?.gst_percentage !== undefined ? Number(p.category.gst_percentage) : 5,
-        p.price_per_day || 0,
-        p.purchase_price || 0,
-        p.quantity || 0
-      ]);
+      const dataRows = allProducts.map(p => {
+        let qty = p.quantity || 0;
+        if (selectedBranchId) {
+          const branchInv = (p as ProductWithRelations).product_inventory?.find((inv: any) => inv.branch_id === selectedBranchId);
+          qty = branchInv ? branchInv.quantity : 0;
+        }
+        return [
+          p.name || p.barcode || '',
+          p.sku || p.description || '',
+          p.category?.name || 'Uncategorized',
+          p.category?.gst_percentage !== undefined ? Number(p.category.gst_percentage) : 5,
+          p.price_per_day || 0,
+          p.purchase_price || 0,
+          qty
+        ];
+      });
 
       const titleRow = [`${BRAND_CONFIG.name} Catalog`, '', '', '', '', '', ''];
       const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
@@ -661,7 +674,15 @@ function ProductsContent() {
                         <div className="flex items-center gap-1.5">
                           <Box className="w-4 h-4 text-slate-400" />
                           <span className="text-slate-900 font-bold">
-                            {product.quantity || 0}
+                            {(() => {
+                              if (selectedBranchId) {
+                                const branchInv = (product as ProductWithRelations).product_inventory?.find(
+                                  (inv: any) => inv.branch_id === selectedBranchId
+                                );
+                                return branchInv ? branchInv.quantity : 0;
+                              }
+                              return product.quantity || 0;
+                            })()}
                           </span>
                         </div>
                       </td>

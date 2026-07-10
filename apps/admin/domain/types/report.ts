@@ -262,4 +262,5 @@ export interface ReportFilters {
   limit?: number;
   page?: number;
   payment_mode?: string;
+  branch_id?: string;
 }

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Resolve staff name for sidebar display (already fetched in getAuthUser)
-    let name = authUser.staff_id ? (authUser as any).name : '';
+    const name = authUser.staff_id ? (authUser as any).name : '';
 
     const response = apiSuccess({
       user: {

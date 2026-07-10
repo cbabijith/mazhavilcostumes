@@ -106,6 +106,12 @@ export interface Order {
   advance_collected?: boolean;
   advance_payment_method?: PaymentMethod;
   advance_collected_at?: string;
+  security_deposit: number;
+  deposit_collected?: boolean;
+  deposit_payment_method?: PaymentMethod;
+  deposit_collected_at?: string;
+  deposit_returned: boolean;
+  deposit_returned_at: string | null;
   amount_paid: number;
   payment_status: PaymentStatus;
   has_priority_cleaning?: boolean;
@@ -186,6 +192,9 @@ export interface CreateOrderDTO {
   advance_amount?: number;
   advance_collected?: boolean;
   advance_payment_method?: string;
+  security_deposit?: number;
+  deposit_collected?: boolean;
+  deposit_payment_method?: string;
   priority_cleaning_confirmed?: boolean;
 }
 
@@ -204,6 +213,11 @@ export interface UpdateOrderDTO {
   advance_amount?: number;
   advance_collected?: boolean;
   advance_payment_method?: string;
+  security_deposit?: number;
+  deposit_collected?: boolean;
+  deposit_payment_method?: string;
+  deposit_returned?: boolean;
+  deposit_returned_at?: string | null;
   late_fee?: number;
   discount?: number;
   discount_type?: 'flat' | 'percent';

@@ -7,6 +7,7 @@
  */
 import { Suspense } from "react";
 import { getPageAuthUser } from "@/lib/pageAuth";
+import { cookies } from "next/headers";
 
 export const dynamic = 'force-dynamic';
 import { CleaningQueue } from "@/components/admin/dashboard/CleaningQueue";
@@ -16,8 +17,21 @@ import { dashboardService } from "@/services/dashboardService";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
-export default async function CleaningPage() {
+export default async function CleaningPage(props: {
+  searchParams: Promise<{ [key: string]: string | undefined }>;
+}) {
+  const searchParams = await props.searchParams;
   const authUser = await getPageAuthUser();
+
+  // Resolve branch ID context using URL searchParams, cookie fallback, or user's default branch
+  const cookieStore = await cookies();
+  const cookieBranchId = cookieStore.get('selected_branch_id')?.value;
+  const activeBranchParam = searchParams.branch_id || cookieBranchId || authUser?.branch_id;
+  
+  let branchId: string | null = null;
+  if (activeBranchParam && activeBranchParam !== 'all') {
+    branchId = activeBranchParam;
+  }
 
   return (
     <div className="space-y-6 pb-10">
@@ -55,7 +69,7 @@ export default async function CleaningPage() {
             <p className="text-sm text-slate-500 font-medium">Loading cleaning queue...</p>
           </div>
         }>
-          <CleaningQueue branchId={authUser?.branch_id || ''} />
+          <CleaningQueue branchId={branchId} />
         </Suspense>
       </div>
     </div>

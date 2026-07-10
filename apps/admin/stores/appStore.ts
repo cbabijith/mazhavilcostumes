@@ -277,6 +277,7 @@ export const useAppStore = create<AppStore>()(
     }
   )
 );
+/* eslint-disable react-hooks/rules-of-hooks */
 export const useAppSelectors = {
   user: () => useAppStore((s) => s.user),
   isAuthenticated: () => useAppStore((s) => s.isAuthenticated),
@@ -289,6 +290,7 @@ export const useAppSelectors = {
   showSuccess: () => useAppStore((s) => s.showSuccess),
   showError: () => useAppStore((s) => s.showError),
 };
+/* eslint-enable react-hooks/rules-of-hooks */
 
 // Utility functions for common operations
 export const appUtils = {

@@ -59,13 +59,19 @@ export class ReportService {
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
       .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))')
       .gte('start_date', fromDate)
       .lte('start_date', toDate)
       .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
       .order('created_at', { ascending: false });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching day-wise bookings:', error);
@@ -90,13 +96,19 @@ export class ReportService {
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('orders')
       .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
       .lte('end_date', toDate)
       .gte('end_date', fromDate)
       .in('status', ['ongoing', 'in_use', 'delivered'])
       .order('end_date', { ascending: true });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
 
     return (data || []).map((o: any) => {
       const returnDate = new Date(o.end_date);
@@ -406,6 +418,7 @@ export class ReportService {
         g.total_revenue -= amount;
         g.cash_collection -= amount;
         g.gst_collected -= gstPortion;
+        totalGstCollected -= gstPortion;
         g.net_revenue -= netPortion;
         totalNetRevenue -= netPortion;
         dailyTrends[dateKey].cash -= amount;
@@ -422,6 +435,7 @@ export class ReportService {
         g.total_revenue += amount;
         g.cash_collection += amount;
         g.gst_collected += gstPortion;
+        totalGstCollected += gstPortion;
         g.net_revenue += netPortion;
         totalNetRevenue += netPortion;
 
@@ -531,7 +545,7 @@ export class ReportService {
   async getTopCostumes(filters: ReportFilters): Promise<TopCostumeRow[]> {
     const { data } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date)')
+      .select('product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date, branch_id)')
       .not('order.status', 'eq', 'cancelled');
 
     const map: Record<string, TopCostumeRow & { totalDays: number }> = {};
@@ -539,6 +553,7 @@ export class ReportService {
       if (!item.product) continue;
       const order = item.order;
       if (!order || order.status === 'cancelled') continue;
+      if (filters.branch_id && order.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!map[pid]) {
         map[pid] = { product_id: pid, product_name: item.product.name, category_name: item.product.category?.name || '', rental_count: 0, revenue: 0, avg_rental_days: 0, totalDays: 0 };
@@ -563,12 +578,18 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('orders')
       .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
       .eq('status', 'completed')
       .gte('created_at', range.start)
       .lte('created_at', range.end);
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
 
     const map: Record<string, TopCustomerRow> = {};
     for (const o of (data || []) as any[]) {
@@ -598,7 +619,7 @@ export class ReportService {
 
     const { data } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)')
+      .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status, branch_id)')
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
@@ -606,6 +627,7 @@ export class ReportService {
     const map: Record<string, RentalFrequencyRow> = {};
     for (const item of (data || []) as any[]) {
       if (!item.product || item.order?.status === 'cancelled') continue;
+      if (filters.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!map[pid]) {
         map[pid] = { product_id: pid, product_name: item.product.name, category_name: item.product.category?.name || '', rental_count: 0, last_rented: '' };
@@ -637,7 +659,7 @@ export class ReportService {
 
     const { data: items } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status, created_at)')
+      .select('product_id, quantity, subtotal, order:order_id(status, created_at, branch_id)')
       .in('product_id', products.map((p: any) => p.id))
       .gte('created_at', range.start)
       .lte('created_at', range.end)
@@ -646,6 +668,7 @@ export class ReportService {
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
     for (const item of (items || []) as any[]) {
       if (item.order?.status === 'cancelled') continue;
+      if (filters.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!revenueMap[pid]) revenueMap[pid] = { revenue: 0, count: 0 };
       revenueMap[pid].revenue += Number(item.subtotal || 0);
@@ -724,7 +747,7 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
       .select(`
         id, 
@@ -738,6 +761,12 @@ export class ReportService {
       `)
       .gte('created_at', range.start)
       .lte('created_at', range.end);
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(error.message);
 
@@ -802,7 +831,7 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
       .select(`
         id,
@@ -819,6 +848,12 @@ export class ReportService {
       .lte('created_at', range.end)
       .order('created_at', { ascending: false });
 
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw new Error(error.message);
 
     return (data || []).map((o: any) => ({
@@ -833,33 +868,50 @@ export class ReportService {
   }
 
   /** R10: Inventory + Revenue */
-  async getInventoryRevenue(): Promise<InventoryRevenueRow[]> {
+  async getInventoryRevenue(filters?: ReportFilters): Promise<InventoryRevenueRow[]> {
     const { data: products } = await supabase()
       .from('products')
-      .select('id, name, quantity, available_quantity, price_per_day, category:category_id(name)');
+      .select('id, name, quantity, available_quantity, price_per_day, branch_id, category:category_id(name), product_inventory(quantity, available_quantity, branch_id)');
 
     const { data: items } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status)')
+      .select('product_id, quantity, subtotal, order:order_id(status, branch_id)')
       .not('order.status', 'eq', 'cancelled');
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
     for (const item of (items || []) as any[]) {
       if (item.order?.status === 'cancelled') continue;
+      if (filters?.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!revenueMap[pid]) revenueMap[pid] = { revenue: 0, count: 0 };
       revenueMap[pid].revenue += Number(item.subtotal || 0);
       revenueMap[pid].count += item.quantity || 1;
     }
 
-    return (products || []).map((p: any) => {
+    let filteredProducts = products || [];
+    if (filters?.branch_id) {
+      filteredProducts = filteredProducts.filter((p: any) => {
+        if (p.branch_id === filters.branch_id) return true;
+        const inv = p.product_inventory?.find((i: any) => i.branch_id === filters.branch_id);
+        return inv && inv.quantity > 0;
+      });
+    }
+
+    return filteredProducts.map((p: any) => {
       const rev = revenueMap[p.id] || { revenue: 0, count: 0 };
+      let qty = p.quantity;
+      let availQty = p.available_quantity;
+      if (filters?.branch_id) {
+        const branchInv = p.product_inventory?.find((inv: any) => inv.branch_id === filters.branch_id);
+        qty = branchInv ? branchInv.quantity : 0;
+        availQty = branchInv ? branchInv.available_quantity : 0;
+      }
       return {
         product_id: p.id,
         product_name: p.name,
         category_name: p.category?.name || '',
-        quantity: p.quantity,
-        available_quantity: p.available_quantity,
+        quantity: qty,
+        available_quantity: availQty,
         price_per_day: Number(p.price_per_day),
         lifetime_revenue: Math.round(rev.revenue * 100) / 100,
         rental_count: rev.count,
@@ -874,12 +926,18 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('customer_enquiries')
       .select('*, logged_by_staff:staff!logged_by(name, email)')
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .order('created_at', { ascending: false });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
 
     return (data || []).map((d: any) => ({
       ...d,
@@ -931,6 +989,10 @@ export class ReportService {
       orderQuery = orderQuery.in('status', filters.status);
     }
 
+    if (filters.branch_id) {
+      orderQuery = orderQuery.eq('branch_id', filters.branch_id);
+    }
+
     const { data: allOrders } = await orderQuery;
 
     const totalOrderCount = allOrders?.length || 0;
@@ -956,6 +1018,7 @@ export class ReportService {
           created_at,
           total_amount,
           gst_amount,
+          branch_id,
           customer:customer_id (
             name
           )
@@ -972,6 +1035,7 @@ export class ReportService {
     const items = (data || []).filter((item: any) => {
       const order = item.order;
       if (!order || order.status === 'cancelled') return false;
+      if (filters.branch_id && order.branch_id !== filters.branch_id) return false;
       const orderTs = new Date(order.created_at).getTime();
       return orderTs >= fromTs && orderTs <= toTs;
     });

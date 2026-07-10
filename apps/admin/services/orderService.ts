@@ -268,8 +268,8 @@ export class OrderService {
   /**
    * Get per-day availability calendar for a product
    */
-  async getProductAvailabilityCalendar(productId: string, rangeStart: string, rangeEnd: string) {
-    return await orderRepository.getAvailabilityCalendar(productId, rangeStart, rangeEnd);
+  async getProductAvailabilityCalendar(productId: string, rangeStart: string, rangeEnd: string, branchId?: string) {
+    return await orderRepository.getAvailabilityCalendar(productId, rangeStart, rangeEnd, branchId);
   }
 
   /**
@@ -413,7 +413,7 @@ export class OrderService {
     }
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
-    let perItemGstRates: Map<string, number> = new Map();
+    const perItemGstRates: Map<string, number> = new Map();
     if (isGstEnabled && products) {
       for (const p of products) {
         const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
@@ -449,6 +449,21 @@ export class OrderService {
 
       if (!paymentResult.success) {
         console.error('[OrderService.createOrder] Failed to create advance payment record:', paymentResult.error);
+      }
+    }
+
+    // Create security deposit payment record through PaymentRepository
+    if (result.success && result.data && data.deposit_collected && data.security_deposit && data.security_deposit > 0) {
+      const depositPaymentResult = await paymentRepository.create({
+        order_id: result.data.id,
+        payment_type: PaymentType.DEPOSIT,
+        amount: data.security_deposit,
+        payment_mode: (data.deposit_payment_method as unknown as PaymentMode) || PaymentMode.CASH,
+        notes: 'Security deposit collected at order creation',
+      });
+
+      if (!depositPaymentResult.success) {
+        console.error('[OrderService.createOrder] Failed to create deposit payment record:', depositPaymentResult.error);
       }
     }
 
@@ -680,6 +695,24 @@ export class OrderService {
     const result = await orderRepository.update(id, data);
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.updateOrder] DB update duration: ${dbDuration.toFixed(2)}ms`);
+
+    // Create security deposit payment record through PaymentRepository if toggled to collected now
+    if (result.success && data.deposit_collected === true && !existingOrder.data.deposit_collected) {
+      const depositVal = data.security_deposit ?? existingOrder.data.security_deposit ?? 0;
+      if (depositVal > 0) {
+        const depositPaymentResult = await paymentRepository.create({
+          order_id: id,
+          payment_type: PaymentType.DEPOSIT,
+          amount: depositVal,
+          payment_mode: (data.deposit_payment_method as unknown as PaymentMode) || (existingOrder.data.deposit_payment_method as unknown as PaymentMode) || PaymentMode.CASH,
+          notes: 'Security deposit collected at order update',
+        });
+
+        if (!depositPaymentResult.success) {
+          console.error('[OrderService.updateOrder] Failed to create deposit payment record:', depositPaymentResult.error);
+        }
+      }
+    }
 
     // If this was a backfill return, record the explanatory note in status history
     if (result.success && data.status === OrderStatus.RETURNED && (data as any).backfill_note?.trim()) {

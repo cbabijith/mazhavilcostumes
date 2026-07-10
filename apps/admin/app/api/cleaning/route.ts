@@ -17,12 +17,9 @@ export async function GET(request: Request) {
   const sortBy = searchParams.get('sort_by') as any;
   const sortOrder = searchParams.get('sort_order') as any;
 
-  if (!branchId) {
-    return NextResponse.json({ error: 'branch_id is required' }, { status: 400 });
-  }
 
   const result = await cleaningService.getQueue({ 
-    branch_id: branchId, 
+    branch_id: (branchId && branchId !== 'all') ? branchId : undefined, 
     status: status || undefined,
     sort_by: sortBy || undefined,
     sort_order: sortOrder || undefined,

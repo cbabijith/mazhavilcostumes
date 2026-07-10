@@ -20,8 +20,8 @@ function baseSlug(str: string): string {
 }
 
 function generateSlug(name: string, sku: string): string {
-  let namePart = baseSlug(name);
-  let skuPart = baseSlug(sku);
+  const namePart = baseSlug(name);
+  const skuPart = baseSlug(sku);
   return `${namePart}-${skuPart}`;
 }
 

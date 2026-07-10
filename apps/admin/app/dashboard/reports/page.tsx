@@ -188,6 +188,7 @@ function ReportsPageContent() {
         if (filters.page) queryParams.append('page', filters.page.toString());
         if (filters.status?.length) queryParams.append('status', filters.status.join(','));
         if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
+        if (selectedBranchId) queryParams.append('branch_id', selectedBranchId);
 
         const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
         const json = await response.json();

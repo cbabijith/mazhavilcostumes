@@ -14,6 +14,7 @@ import { CreateProductDTO, UpdateProductDTO, UpdateProductSchema } from '@/domai
 import { productService } from '@/services';
 import { z } from 'zod';
 import { apiSuccess, apiRepositoryError, apiBadRequest, apiZodError, apiInternalError } from '@/lib/apiResponse';
+import { getAuthUser } from '@/lib/auth';
 
 /**
  * GET /api/products/[id]
@@ -58,6 +59,18 @@ export async function PATCH(
       return apiBadRequest('Invalid product ID');
     }
 
+    const authUser = await getAuthUser(request);
+    if (!authUser?.store_id) {
+      return apiBadRequest('Cannot determine store context. Please log out and log back in.');
+    }
+
+    // Set user context in service for audit fields and branch permission check
+    productService.setUserContext(
+      authUser.staff_id, 
+      authUser.branch_id, 
+      authUser.store_id
+    );
+
     // Validate request body
     const validatedData = UpdateProductSchema.parse(body);
 
@@ -101,6 +114,18 @@ export async function DELETE(
     if (!id || typeof id !== 'string') {
       return apiBadRequest('Invalid product ID');
     }
+
+    const authUser = await getAuthUser(request);
+    if (!authUser?.store_id) {
+      return apiBadRequest('Cannot determine store context. Please log out and log back in.');
+    }
+
+    // Set user context in service for audit fields and branch permission check
+    productService.setUserContext(
+      authUser.staff_id, 
+      authUser.branch_id, 
+      authUser.store_id
+    );
 
     const result = await productService.deleteProduct(id);
 

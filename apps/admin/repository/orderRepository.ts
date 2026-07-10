@@ -394,16 +394,29 @@ export class OrderRepository extends BaseRepository {
     const [productResponse, ordersResponse] = await Promise.all([
       this.client
         .from('products')
-        .select('quantity, name, category:category_id(has_buffer)')
+        .select(`
+          quantity, 
+          name, 
+          branch_id, 
+          category:category_id(has_buffer),
+          product_inventory(quantity, branch_id)
+        `)
         .eq('id', productId)
         .single(),
-      this.client
-        .from('order_items')
-        .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
-        .eq('product_id', productId)
-        .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
-        .gte('orders.end_date', searchStart)
-        .lte('orders.start_date', searchEnd),
+      (() => {
+        let query = this.client
+          .from('order_items')
+          .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))')
+          .eq('product_id', productId)
+          .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+          .gte('orders.end_date', searchStart)
+          .lte('orders.start_date', searchEnd);
+        
+        if (branchId) {
+          query = query.eq('orders.branch_id', branchId);
+        }
+        return query;
+      })(),
     ]);
 
     if (productResponse.error) {
@@ -414,11 +427,31 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<any>(ordersResponse);
     }
 
-    const totalQuantity = productResponse.data?.quantity || 0;
-    const productName = productResponse.data?.name || 'Unknown';
+    const dbProduct = productResponse.data as any;
+    const productBranchId = dbProduct?.branch_id;
+    let totalQuantity = 0;
+
+    if (branchId) {
+      // First, check if there is an explicit branch inventory record for this branch
+      const branchInv = dbProduct.product_inventory?.find((inv: any) => inv.branch_id === branchId);
+      if (branchInv) {
+        totalQuantity = branchInv.quantity || 0;
+      } else if (productBranchId) {
+        // Product is tied to a specific branch and has no product_inventory records
+        totalQuantity = productBranchId === branchId ? (dbProduct.quantity || 0) : 0;
+      } else {
+        // Product is global, but has no inventory record for this branch
+        totalQuantity = 0;
+      }
+    } else {
+      // No branch context provided, fall back to global product quantity
+      totalQuantity = dbProduct?.quantity || 0;
+    }
+
+    const productName = dbProduct?.name || 'Unknown';
     
     // Handle Supabase join ambiguity (could be object or array)
-    const categoryData = productResponse.data?.category;
+    const categoryData = dbProduct?.category;
     const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
     const categoryHasBuffer = category?.has_buffer ?? true;
     
@@ -745,11 +778,18 @@ export class OrderRepository extends BaseRepository {
     productId: string,
     rangeStart: string,
     rangeEnd: string,
+    branchId?: string,
   ): Promise<RepositoryResult<{ productId: string; productName: string; totalQuantity: number; days: any[] }>> {
     // Get product info and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select('quantity, name, category:category_id(has_buffer)')
+      .select(`
+        quantity, 
+        name, 
+        branch_id, 
+        category:category_id(has_buffer),
+        product_inventory(quantity, branch_id)
+      `)
       .eq('id', productId)
       .single();
 
@@ -757,22 +797,47 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<any>(productResponse);
     }
 
-    const totalQuantity = productResponse.data?.quantity || 0;
-    const productName = productResponse.data?.name || '';
+    const dbProduct = productResponse.data as any;
+    const productBranchId = dbProduct?.branch_id;
+    let totalQuantity = 0;
+
+    if (branchId) {
+      // First, check if there is an explicit branch inventory record for this branch
+      const branchInv = dbProduct.product_inventory?.find((inv: any) => inv.branch_id === branchId);
+      if (branchInv) {
+        totalQuantity = branchInv.quantity || 0;
+      } else if (productBranchId) {
+        // Product is tied to a specific branch and has no product_inventory records
+        totalQuantity = productBranchId === branchId ? (dbProduct.quantity || 0) : 0;
+      } else {
+        // Product is global, but has no inventory record for this branch
+        totalQuantity = 0;
+      }
+    } else {
+      totalQuantity = dbProduct?.quantity || 0;
+    }
+
+    const productName = dbProduct?.name || '';
     
     // Handle Supabase join ambiguity (could be object or array)
-    const categoryData = productResponse.data?.category;
+    const categoryData = dbProduct?.category;
     const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
     const categoryHasBuffer = category?.has_buffer ?? true;
     
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
-    const ordersResponse = await this.client
+    let ordersQuery = this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, customer:customer_id(name))')
+      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))')
       .eq('product_id', productId)
       .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned']);
+
+    if (branchId) {
+      ordersQuery = ordersQuery.eq('orders.branch_id', branchId);
+    }
+
+    const ordersResponse = await ordersQuery;
 
     if (ordersResponse.error) {
       return this.handleResponse<any>(ordersResponse);
@@ -1075,6 +1140,12 @@ export class OrderRepository extends BaseRepository {
         advance_collected: data.advance_collected || false,
         advance_payment_method: data.advance_payment_method || null,
         advance_collected_at: data.advance_collected ? new Date().toISOString() : null,
+        security_deposit: data.security_deposit || 0,
+        deposit_collected: data.deposit_collected || false,
+        deposit_payment_method: data.deposit_payment_method || null,
+        deposit_collected_at: data.deposit_collected ? new Date().toISOString() : null,
+        deposit_returned: false,
+        deposit_returned_at: null,
         total_amount: totalAmount,
         amount_paid: data.advance_collected && data.advance_amount ? data.advance_amount : 0,
         payment_status: data.advance_collected && data.advance_amount

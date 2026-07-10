@@ -375,7 +375,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const handleCollectPayment = async () => {
     const amountVal = parseFloat(paymentForm.amount) || 0;
-    const maxAmount = amount_due;
+    const isDeposit = paymentForm.paymentType === PaymentType.DEPOSIT;
+    const maxAmount = isDeposit ? (order?.security_deposit || 0) : amount_due;
 
     if (!order || amountVal <= 0) {
       showError("Validation Error", "Amount must be greater than 0");
@@ -394,22 +395,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           payment_type: paymentForm.paymentType,
           amount: amountVal,
           payment_mode: paymentForm.paymentMode,
-          notes: paymentForm.notes,
+          notes: paymentForm.notes || (isDeposit ? "Security Deposit Collection" : ""),
         },
         {
           onSuccess: () => {
-            const newAmountPaid = (order.amount_paid || 0) + amountVal;
-            const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
-            updateOrder({
-              id: order.id,
-              data: {
-                amount_paid: newAmountPaid,
-                payment_status: newStatus,
-              },
-            });
+            if (isDeposit) {
+              updateOrder({
+                id: order.id,
+                data: {
+                  deposit_collected: true,
+                  deposit_collected_at: new Date().toISOString(),
+                } as any,
+              });
+              showSuccess("Security Deposit Collected", "Security deposit was successfully recorded.");
+            } else {
+              const newAmountPaid = (order.amount_paid || 0) + amountVal;
+              const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+              updateOrder({
+                id: order.id,
+                data: {
+                  amount_paid: newAmountPaid,
+                  payment_status: newStatus,
+                },
+              });
+              showSuccess("Payment Recorded", "Payment was successfully processed.");
+            }
             setIsPaymentModalOpen(false);
             setPaymentForm({ amount: "0", paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
-            showSuccess("Payment Recorded", "Payment was successfully processed.");
           },
         }
       );
@@ -419,9 +431,43 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleRefundDeposit = async () => {
-    // Deposit refund is no longer applicable — security deposit has been removed.
-    // This function is kept as a stub for backwards compatibility.
-    return;
+    if (!order) return;
+    const amountVal = order.security_deposit || 0;
+    if (amountVal <= 0) return;
+
+    try {
+      createPayment(
+        {
+          order_id: order.id,
+          payment_type: PaymentType.REFUND,
+          amount: amountVal,
+          payment_mode: refundForm.paymentMode,
+          notes: refundForm.notes || "Security Deposit Refund",
+        },
+        {
+          onSuccess: () => {
+            updateOrder(
+              {
+                id: order.id,
+                data: {
+                  deposit_returned: true,
+                  deposit_returned_at: new Date().toISOString(),
+                } as any,
+              },
+              {
+                onSuccess: () => {
+                  setIsRefundModalOpen(false);
+                  setRefundForm({ paymentMode: PaymentMode.CASH, notes: "", amount: "0" });
+                  showSuccess("Deposit Refunded", `${formatCurrency(amountVal)} security deposit has been refunded.`);
+                },
+              }
+            );
+          },
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const submitReturn = () => {
@@ -1350,6 +1396,29 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <span className="text-2xl">{formatCurrency(displayGrandTotal)}</span>
                   </div>
 
+                  {order.security_deposit > 0 && (
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex justify-between text-slate-800 font-bold text-sm">
+                        <span>Security Deposit (Refundable)</span>
+                        <span className="font-extrabold">{formatCurrency(order.security_deposit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Status</span>
+                        <div className="flex items-center gap-1.5 font-bold">
+                          {order.deposit_collected ? (
+                            order.deposit_returned ? (
+                              <span className="text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">Refunded</span>
+                            ) : (
+                              <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-black">Collected</span>
+                            )
+                          ) : (
+                            <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">Pending Collection</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 7. Payments & Balance — contextual based on order status */}
                   {order.status === OrderStatus.CANCELLED ? (
                     <div className="pt-4 space-y-2.5">
@@ -1486,6 +1555,41 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </Button>
           )}
 
+          {/* Security Deposit Actions */}
+          {!isFinalized && order && order.security_deposit > 0 && !order.deposit_collected && (
+            <Button
+              onClick={() => {
+                setPaymentForm({
+                  amount: order.security_deposit.toString(),
+                  paymentMode: PaymentMode.CASH,
+                  paymentType: PaymentType.DEPOSIT,
+                  notes: "Security Deposit Collection"
+                });
+                setIsPaymentModalOpen(true);
+              }}
+              className="w-full mt-3 h-12 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Banknote className="w-4 h-4" /> Collect Security Deposit ({formatCurrency(order.security_deposit)})
+            </Button>
+          )}
+
+          {order && order.security_deposit > 0 && order.deposit_collected && !order.deposit_returned && (
+            <Button
+              onClick={() => {
+                setIsCancellationRefund(false);
+                setRefundForm({
+                  paymentMode: PaymentMode.CASH,
+                  notes: "Security Deposit Refund",
+                  amount: order.security_deposit.toString()
+                });
+                setIsRefundModalOpen(true);
+              }}
+              className="w-full mt-3 h-12 bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Banknote className="w-4 h-4" /> Refund Security Deposit ({formatCurrency(order.security_deposit)})
+            </Button>
+          )}
+
 
 
           {/* Cancellation Refund — for cancelled orders */}
@@ -1537,15 +1641,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
-                {'Remaining Due'}
+                {paymentForm.paymentType === PaymentType.DEPOSIT ? 'Security Deposit' : 'Remaining Due'}
               </p>
               <p className="text-2xl font-black text-slate-900">
-                {formatCurrency(amount_due)}
+                {paymentForm.paymentType === PaymentType.DEPOSIT ? formatCurrency(order?.security_deposit || 0) : formatCurrency(amount_due)}
               </p>
             </div>
             <div className="text-right">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Paying</p>
-              <p className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (amount_due) ? 'text-red-600' : 'text-emerald-600'}`}>
+              <p className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due) ? 'text-red-600' : 'text-emerald-600'}`}>
                 {formatCurrency(parseFloat(paymentForm.amount) || 0)}
               </p>
             </div>
@@ -1585,10 +1689,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <span>Amount (₹)</span>
               <button
                 type="button"
-                onClick={() => setPaymentForm({ ...paymentForm, amount: (amount_due).toString() })}
+                onClick={() => setPaymentForm({ ...paymentForm, amount: (paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due).toString() })}
                 className="text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full text-[10px]"
               >
-                PAY FULL AMOUNT
+                {paymentForm.paymentType === PaymentType.DEPOSIT ? 'PAY FULL DEPOSIT' : 'PAY FULL AMOUNT'}
               </button>
             </Label>
             <Input
@@ -1596,7 +1700,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               value={paymentForm.amount}
               onChange={(e) => {
                 const val = e.target.value;
-                const maxPayable = amount_due;
+                const maxPayable = paymentForm.paymentType === PaymentType.DEPOSIT ? (order?.security_deposit || 0) : amount_due;
                 if (parseFloat(val) > maxPayable) {
                   setPaymentForm({ ...paymentForm, amount: maxPayable.toString() });
                 } else {
@@ -1744,7 +1848,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 flex justify-between items-center shadow-sm">
               <div>
                 <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Refund Amount</p>
-                <p className="text-2xl font-black text-orange-900">{formatCurrency(0 || 0)}</p>
+                <p className="text-2xl font-black text-orange-900">{formatCurrency(order?.security_deposit || 0)}</p>
               </div>
             </div>
           )}
