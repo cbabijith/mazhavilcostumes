@@ -1,18 +1,20 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../core/utils/responsive.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/api_client.dart';
-import '../../products/views/qr_scanner_dialog.dart';
+import '../../../core/utils/responsive.dart';
 import '../../products/viewmodels/providers/product_provider.dart';
+import '../../products/views/qr_scanner_dialog.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
 import 'order_form_view.dart';
@@ -33,11 +35,12 @@ class OrderDetailView extends ConsumerStatefulWidget {
   ConsumerState<OrderDetailView> createState() => _OrderDetailViewState();
 }
 
-class _OrderDetailViewState extends ConsumerState<OrderDetailView> with AutomaticKeepAliveClientMixin {
+class _OrderDetailViewState extends ConsumerState<OrderDetailView>
+    with AutomaticKeepAliveClientMixin {
   late Order _currentOrder;
   bool _isLoading = false;
   bool _isLoadingDetails = false;
-  
+
   final Map<String, Map<String, dynamic>> _localReturnItems = {};
   final Map<String, TextEditingController> _notesControllers = {};
   final Map<String, TextEditingController> _feeControllers = {};
@@ -50,7 +53,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     super.initState();
     _currentOrder = widget.order;
     _initializeReturnItems();
-    
+
     // Auto-open dialogs based on flags
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshOrder(showLoading: false);
@@ -79,7 +82,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     for (final item in items) {
       String? status;
       if (item.isReturned == true) {
-        status = item.conditionRating == ConditionRating.damaged ? 'damaged' : 'good';
+        status = item.conditionRating == ConditionRating.damaged
+            ? 'damaged'
+            : 'good';
       }
       _localReturnItems[item.id] = {
         'status': status,
@@ -90,14 +95,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     }
   }
 
-  TextEditingController _getNotesController(String itemId, String initialValue) {
-    return _notesControllers.putIfAbsent(itemId, () => TextEditingController(text: initialValue));
+  TextEditingController _getNotesController(
+    String itemId,
+    String initialValue,
+  ) {
+    return _notesControllers.putIfAbsent(
+      itemId,
+      () => TextEditingController(text: initialValue),
+    );
   }
 
   TextEditingController _getFeeController(String itemId, double initialValue) {
     return _feeControllers.putIfAbsent(
       itemId,
-      () => TextEditingController(text: initialValue > 0 ? initialValue.toStringAsFixed(0) : '0'),
+      () => TextEditingController(
+        text: initialValue > 0 ? initialValue.toStringAsFixed(0) : '0',
+      ),
     );
   }
 
@@ -110,7 +123,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
@@ -127,23 +142,42 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 children: [
                   Text(
                     'Apply Financial Adjustment',
-                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(16),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                   SizedBox(height: Responsive.h(16)),
                   DropdownButtonFormField<String>(
                     initialValue: adjustmentType,
                     decoration: InputDecoration(
                       labelText: 'Adjustment Type',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'discount', child: Text('Discount (reduces total)')),
-                      DropdownMenuItem(value: 'late_fee', child: Text('Late Fee (increases total)')),
-                      DropdownMenuItem(value: 'damage_fee', child: Text('Damage Fee (increases total)')),
-                      DropdownMenuItem(value: 'extra_charge', child: Text('Extra Charge (increases total)')),
+                      DropdownMenuItem(
+                        value: 'discount',
+                        child: Text('Discount (reduces total)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'late_fee',
+                        child: Text('Late Fee (increases total)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'damage_fee',
+                        child: Text('Damage Fee (increases total)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'extra_charge',
+                        child: Text('Extra Charge (increases total)'),
+                      ),
                     ],
                     onChanged: (val) {
-                      if (val != null) setModalState(() => adjustmentType = val);
+                      if (val != null)
+                        setModalState(() => adjustmentType = val);
                     },
                   ),
                   SizedBox(height: Responsive.h(16)),
@@ -153,7 +187,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     style: TextStyle(fontSize: Responsive.sp(15)),
                     decoration: InputDecoration(
                       labelText: 'Amount (₹)',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   SizedBox(height: Responsive.h(16)),
@@ -163,7 +199,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     decoration: InputDecoration(
                       labelText: 'Reason / Notes',
                       hintText: 'E.g. Loyal customer discount',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   SizedBox(height: Responsive.h(24)),
@@ -174,82 +212,106 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: () async {
-                        final val = double.tryParse(amountController.text) ?? 0.0;
+                        final val =
+                            double.tryParse(amountController.text) ?? 0.0;
                         if (val <= 0) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter an amount greater than 0')),
+                            const SnackBar(
+                              content: Text(
+                                'Please enter an amount greater than 0',
+                              ),
+                            ),
                           );
                           return;
                         }
 
                         final isDeduction = adjustmentType == 'discount';
-                        final double updatedTotal = isDeduction 
-                            ? (_currentOrder.totalAmount - val).clamp(0.0, double.infinity) 
+                        final double updatedTotal = isDeduction
+                            ? (_currentOrder.totalAmount - val).clamp(
+                                0.0,
+                                double.infinity,
+                              )
                             : _currentOrder.totalAmount + val;
-                            
-                        final double newLateFee = adjustmentType == 'late_fee' 
-                            ? _currentOrder.lateFee + val 
-                            : _currentOrder.lateFee;
-                            
-                        final double newDiscount = adjustmentType == 'discount' 
-                            ? _currentOrder.discount + val 
-                            : _currentOrder.discount;
-                            
-                        final double newDamage = adjustmentType == 'damage_fee' 
-                            ? _currentOrder.damageChargesTotal + val 
-                            : _currentOrder.damageChargesTotal;
-                            
-                        final double newAmountPaid = _currentOrder.amountPaid;
-                        final String newPaymentStatus = newAmountPaid >= updatedTotal 
-                            ? 'paid' 
-                            : newAmountPaid > 0 
-                                ? 'partial' 
-                                : 'pending';
 
-                        final String label = adjustmentType == 'discount' 
-                            ? 'Discount' 
-                            : adjustmentType == 'late_fee' 
-                                ? 'Late Fee' 
-                                : adjustmentType == 'damage_fee' 
-                                    ? 'Damage Fee' 
-                                    : 'Extra Charge';
+                        final double newLateFee = adjustmentType == 'late_fee'
+                            ? _currentOrder.lateFee + val
+                            : _currentOrder.lateFee;
+
+                        final double newDiscount = adjustmentType == 'discount'
+                            ? _currentOrder.discount + val
+                            : _currentOrder.discount;
+
+                        final double newDamage = adjustmentType == 'damage_fee'
+                            ? _currentOrder.damageChargesTotal + val
+                            : _currentOrder.damageChargesTotal;
+
+                        final double newAmountPaid = _currentOrder.amountPaid;
+                        final String newPaymentStatus =
+                            newAmountPaid >= updatedTotal
+                            ? 'paid'
+                            : newAmountPaid > 0
+                            ? 'partial'
+                            : 'pending';
+
+                        final String label = adjustmentType == 'discount'
+                            ? 'Discount'
+                            : adjustmentType == 'late_fee'
+                            ? 'Late Fee'
+                            : adjustmentType == 'damage_fee'
+                            ? 'Damage Fee'
+                            : 'Extra Charge';
 
                         Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
                           // 1. Record as adjustment payment
-                          await ref.read(orderOperationsProvider).collectPayment(
-                            orderId: _currentOrder.id,
-                            amount: val,
-                            paymentMode: 'cash',
-                            paymentType: 'adjustment',
-                            notes: '$label: ${notesController.text.trim().isNotEmpty ? notesController.text.trim() : 'N/A'}',
-                          );
+                          await ref
+                              .read(orderOperationsProvider)
+                              .collectPayment(
+                                orderId: _currentOrder.id,
+                                amount: val,
+                                paymentMode: 'cash',
+                                paymentType: 'adjustment',
+                                notes:
+                                    '$label: ${notesController.text.trim().isNotEmpty ? notesController.text.trim() : 'N/A'}',
+                              );
 
                           // 2. Update order totals
-                          await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
-                            'total_amount': updatedTotal,
-                            'late_fee': newLateFee,
-                            'discount': newDiscount,
-                            'damage_charges_total': newDamage,
-                            'payment_status': newPaymentStatus,
-                          });
+                          await ref
+                              .read(orderOperationsProvider)
+                              .updateOrder(_currentOrder.id, {
+                                'total_amount': updatedTotal,
+                                'late_fee': newLateFee,
+                                'discount': newDiscount,
+                                'damage_charges_total': newDamage,
+                                'payment_status': newPaymentStatus,
+                              });
 
                           await _refreshOrder();
-                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
+                          ref.invalidate(
+                            orderPaymentsProvider(_currentOrder.id),
+                          );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$label of ₹${val.toStringAsFixed(2)} has been applied.')),
+                              SnackBar(
+                                content: Text(
+                                  '$label of ₹${val.toStringAsFixed(2)} has been applied.',
+                                ),
+                              ),
                             );
                           }
                         } catch (e) {
                           setState(() => _isLoading = false);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to apply adjustment: $e')),
+                              SnackBar(
+                                content: Text('Failed to apply adjustment: $e'),
+                              ),
                             );
                           }
                         }
@@ -267,12 +329,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   }
 
   Widget _buildInteractiveItemControls(OrderItem item) {
-    final state = _localReturnItems[item.id] ?? {
-      'status': null,
-      'damage_fee': 0.0,
-      'damaged_quantity': item.quantity,
-      'notes': '',
-    };
+    final state =
+        _localReturnItems[item.id] ??
+        {
+          'status': null,
+          'damage_fee': 0.0,
+          'damaged_quantity': item.quantity,
+          'notes': '',
+        };
 
     final currentStatus = state['status'];
     final isGood = currentStatus == 'good';
@@ -285,11 +349,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         ? (item.conditionRating == ConditionRating.damaged ? 'damaged' : 'good')
         : null;
     final double dbFee = item.damageCharges ?? 0.0;
-    final int dbDamagedQty = item.conditionRating == ConditionRating.damaged ? (item.damagedQuantity ?? 0) : 0;
+    final int dbDamagedQty = item.conditionRating == ConditionRating.damaged
+        ? (item.damagedQuantity ?? 0)
+        : 0;
     final String dbNotes = item.damageDescription ?? '';
 
-    final currentDamagedQty = isDamaged ? (state['damaged_quantity'] as int) : 0;
-    final isDirty = currentStatus != dbStatus ||
+    final currentDamagedQty = isDamaged
+        ? (state['damaged_quantity'] as int)
+        : 0;
+    final isDirty =
+        currentStatus != dbStatus ||
         (state['damage_fee'] as double) != dbFee ||
         currentDamagedQty != dbDamagedQty ||
         (state['notes'] as String) != dbNotes;
@@ -313,7 +382,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   });
                 },
                 icon: Icon(
-                  isGood ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                  isGood
+                      ? Icons.check_circle_rounded
+                      : Icons.check_circle_outline_rounded,
                   size: Responsive.icon(16),
                   color: isGood ? Colors.white : AppColors.success,
                 ),
@@ -328,12 +399,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   backgroundColor: isGood ? AppColors.success : Colors.white,
                   foregroundColor: isGood ? Colors.white : AppColors.success,
                   side: BorderSide(
-                    color: isGood ? AppColors.success : AppColors.success.withValues(alpha: 0.5),
+                    color: isGood
+                        ? AppColors.success
+                        : AppColors.success.withValues(alpha: 0.5),
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
                   ),
-                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                  padding: Responsive.symmetric(
+                    vertical: AppSizes.spacingSmall,
+                  ),
                 ),
               ),
             ),
@@ -343,13 +420,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 onPressed: () {
                   setState(() {
                     _localReturnItems[item.id]!['status'] = 'damaged';
-                    if ((_localReturnItems[item.id]!['damaged_quantity'] as int) == 0) {
-                      _localReturnItems[item.id]!['damaged_quantity'] = item.quantity;
+                    if ((_localReturnItems[item.id]!['damaged_quantity']
+                            as int) ==
+                        0) {
+                      _localReturnItems[item.id]!['damaged_quantity'] =
+                          item.quantity;
                     }
                   });
                 },
                 icon: Icon(
-                  isDamaged ? Icons.warning_rounded : Icons.warning_amber_rounded,
+                  isDamaged
+                      ? Icons.warning_rounded
+                      : Icons.warning_amber_rounded,
                   size: Responsive.icon(16),
                   color: isDamaged ? Colors.white : AppColors.warning,
                 ),
@@ -364,12 +446,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   backgroundColor: isDamaged ? AppColors.warning : Colors.white,
                   foregroundColor: isDamaged ? Colors.white : AppColors.warning,
                   side: BorderSide(
-                    color: isDamaged ? AppColors.warning : AppColors.warning.withValues(alpha: 0.5),
+                    color: isDamaged
+                        ? AppColors.warning
+                        : AppColors.warning.withValues(alpha: 0.5),
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
                   ),
-                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                  padding: Responsive.symmetric(
+                    vertical: AppSizes.spacingSmall,
+                  ),
                 ),
               ),
             ),
@@ -381,8 +469,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             padding: Responsive.all(AppSizes.spacingMedium),
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.05),
-              border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: 1),
-              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              border: Border.all(
+                color: AppColors.warning.withValues(alpha: 0.2),
+                width: 1,
+              ),
+              borderRadius: BorderRadius.circular(
+                Responsive.r(AppSizes.radiusSmall),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,9 +493,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   controller: notesCtrl,
                   decoration: InputDecoration(
                     hintText: 'Describe damage (e.g. Broken clasp)',
-                    hintStyle: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), color: Colors.grey),
+                    hintStyle: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                      color: Colors.grey,
+                    ),
                     isDense: true,
-                    contentPadding: Responsive.symmetric(vertical: AppSizes.spacingSmall, horizontal: AppSizes.spacingSmall),
+                    contentPadding: Responsive.symmetric(
+                      vertical: AppSizes.spacingSmall,
+                      horizontal: AppSizes.spacingSmall,
+                    ),
                     border: const OutlineInputBorder(),
                   ),
                   onChanged: (val) {
@@ -428,7 +527,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           ),
                           SizedBox(height: Responsive.h(4)),
                           Container(
-                            padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall),
+                            padding: Responsive.symmetric(
+                              horizontal: AppSizes.spacingSmall,
+                            ),
                             decoration: BoxDecoration(
                               border: Border.all(color: Colors.grey),
                               borderRadius: BorderRadius.circular(4),
@@ -437,13 +538,21 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                               child: DropdownButton<int>(
                                 value: state['damaged_quantity'] as int,
                                 isExpanded: true,
-                                items: List.generate(item.quantity, (i) => i + 1)
-                                    .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
-                                    .toList(),
+                                items:
+                                    List.generate(item.quantity, (i) => i + 1)
+                                        .map(
+                                          (i) => DropdownMenuItem(
+                                            value: i,
+                                            child: Text('$i'),
+                                          ),
+                                        )
+                                        .toList(),
                                 onChanged: (val) {
                                   if (val != null) {
                                     setState(() {
-                                      _localReturnItems[item.id]!['damaged_quantity'] = val;
+                                      _localReturnItems[item
+                                              .id]!['damaged_quantity'] =
+                                          val;
                                     });
                                   }
                                 },
@@ -472,11 +581,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                              contentPadding: EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 10,
+                              ),
                               border: OutlineInputBorder(),
                             ),
                             onChanged: (val) {
-                              _localReturnItems[item.id]!['damage_fee'] = double.tryParse(val) ?? 0.0;
+                              _localReturnItems[item.id]!['damage_fee'] =
+                                  double.tryParse(val) ?? 0.0;
                               setState(() {});
                             },
                           ),
@@ -493,49 +606,76 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           onPressed: () async {
                             setState(() => _isLoading = true);
                             try {
-                              await ref.read(orderOperationsProvider).updateOrderItemDamage(
+                              await ref
+                                  .read(orderOperationsProvider)
+                                  .updateOrderItemDamage(
                                     itemId: item.id,
                                     conditionRating: 'damaged',
                                     damageDescription: state['notes'] as String,
-                                    damageCharges: state['damage_fee'] as double,
-                                    damagedQuantity: state['damaged_quantity'] as int,
+                                    damageCharges:
+                                        state['damage_fee'] as double,
+                                    damagedQuantity:
+                                        state['damaged_quantity'] as int,
                                   );
                               await _refreshOrder();
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Item damage details saved successfully.')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'Item damage details saved successfully.',
+                                    ),
+                                  ),
                                 );
                               }
                             } catch (e) {
                               setState(() => _isLoading = false);
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to save item damage: $e')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Failed to save item damage: $e',
+                                    ),
+                                  ),
                                 );
                               }
                             }
                           },
-                          icon: Icon(Icons.save_rounded, size: Responsive.icon(16)),
+                          icon: Icon(
+                            Icons.save_rounded,
+                            size: Responsive.icon(16),
+                          ),
                           label: const Text('Save Details'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.success,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
                             ),
                           ),
                         )
                       : Container(
-                          padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                          padding: Responsive.symmetric(
+                            vertical: AppSizes.spacingSmall,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.success.withValues(alpha: 0.1),
-                            border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            border: Border.all(
+                              color: AppColors.success.withValues(alpha: 0.3),
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.check_circle_rounded, color: AppColors.success, size: Responsive.icon(16)),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.success,
+                                size: Responsive.icon(16),
+                              ),
                               SizedBox(width: Responsive.w(8)),
                               Text(
                                 'Saved',
@@ -562,7 +702,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     onPressed: () async {
                       setState(() => _isLoading = true);
                       try {
-                        await ref.read(orderOperationsProvider).updateOrderItemDamage(
+                        await ref
+                            .read(orderOperationsProvider)
+                            .updateOrderItemDamage(
                               itemId: item.id,
                               conditionRating: 'excellent',
                               damageDescription: null,
@@ -572,14 +714,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         await _refreshOrder();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Item condition set to GOOD.')),
+                            const SnackBar(
+                              content: Text('Item condition set to GOOD.'),
+                            ),
                           );
                         }
                       } catch (e) {
                         setState(() => _isLoading = false);
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Failed to update condition: $e')),
+                            SnackBar(
+                              content: Text('Failed to update condition: $e'),
+                            ),
                           );
                         }
                       }
@@ -590,21 +736,33 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                     ),
                   )
                 : Container(
-                    padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
+                    padding: Responsive.symmetric(
+                      vertical: AppSizes.spacingSmall,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.success.withValues(alpha: 0.1),
-                      border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.3),
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.check_circle_rounded, color: AppColors.success, size: Responsive.icon(16)),
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.success,
+                          size: Responsive.icon(16),
+                        ),
                         SizedBox(width: Responsive.w(8)),
                         Text(
                           'Good Condition Saved',
@@ -630,7 +788,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       setState(() => _isLoadingDetails = true);
     }
     try {
-      final updated = await ref.read(orderRepositoryProvider).getOrderById(_currentOrder.id);
+      final updated = await ref
+          .read(orderRepositoryProvider)
+          .getOrderById(_currentOrder.id);
       ref.invalidate(orderPaymentsProvider(_currentOrder.id));
       if (mounted) {
         setState(() {
@@ -646,9 +806,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           _isLoading = false;
           _isLoadingDetails = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to refresh order: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to refresh order: $e')));
       }
     }
   }
@@ -683,9 +843,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         actions: [
           if (isEditable)
             IconButton(
-              icon: Icon(Icons.edit_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
+              icon: Icon(
+                Icons.edit_outlined,
+                size: Responsive.icon(AppSizes.iconMedium),
+                color: AppColors.primary,
+              ),
               onPressed: () => Navigator.of(context)
-                  .push(MaterialPageRoute(builder: (_) => OrderFormView(order: _currentOrder)))
+                  .push(
+                    MaterialPageRoute(
+                      builder: (_) => OrderFormView(order: _currentOrder),
+                    ),
+                  )
                   .then((_) {
                     // Selective invalidation - only invalidate list, keep detail cache
                     ref.invalidate(ordersProvider);
@@ -693,21 +861,35 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   }),
             ),
           IconButton(
-            icon: Icon(Icons.share_outlined, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
+            icon: Icon(
+              Icons.share_outlined,
+              size: Responsive.icon(AppSizes.iconMedium),
+              color: AppColors.primary,
+            ),
             onPressed: _showShareBottomSheet,
           ),
           IconButton(
-            icon: Icon(Icons.refresh_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.primary),
+            icon: Icon(
+              Icons.refresh_rounded,
+              size: Responsive.icon(AppSizes.iconMedium),
+              color: AppColors.primary,
+            ),
             onPressed: _refreshOrder,
           ),
           IconButton(
-            icon: Icon(Icons.delete_outline_rounded, size: Responsive.icon(AppSizes.iconMedium), color: AppColors.error),
+            icon: Icon(
+              Icons.delete_outline_rounded,
+              size: Responsive.icon(AppSizes.iconMedium),
+              color: AppColors.error,
+            ),
             onPressed: _deleteOrder,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : SingleChildScrollView(
               padding: Responsive.all(AppSizes.screenPaddingSmall),
               child: Column(
@@ -739,21 +921,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
   Widget _buildHeroCard() {
     final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
-    final statusText = _currentOrder.isLate ? 'OVERDUE' : _formatStatusName(_currentOrder.status);
+    final statusText = _currentOrder.isLate
+        ? 'OVERDUE'
+        : _formatStatusName(_currentOrder.status);
     final isPaid = balanceDue <= 0;
 
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.primary,
-            AppColors.primary.withValues(alpha: 0.8),
-          ],
+          colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.primary.withValues(alpha: 0.2),
@@ -787,8 +970,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   statusText.toUpperCase(),
@@ -844,10 +1031,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   vertical: AppSizes.spacingSmall,
                 ),
                 decoration: BoxDecoration(
-                  color: isPaid ? AppColors.success.withValues(alpha: 0.25) : AppColors.error.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  color: isPaid
+                      ? AppColors.success.withValues(alpha: 0.25)
+                      : AppColors.error.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
                   border: Border.all(
-                    color: isPaid ? AppColors.success.withValues(alpha: 0.4) : AppColors.error.withValues(alpha: 0.5),
+                    color: isPaid
+                        ? AppColors.success.withValues(alpha: 0.4)
+                        : AppColors.error.withValues(alpha: 0.5),
                     width: 1,
                   ),
                 ),
@@ -887,18 +1080,32 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     final todayMidnight = DateTime(today.year, today.month, today.day);
 
     final rentalEnd = DateTime.tryParse(_currentOrder.endDate);
-    final rentalEndMidnight = rentalEnd != null ? DateTime(rentalEnd.year, rentalEnd.month, rentalEnd.day) : null;
+    final rentalEndMidnight = rentalEnd != null
+        ? DateTime(rentalEnd.year, rentalEnd.month, rentalEnd.day)
+        : null;
 
     final createdAt = DateTime.tryParse(_currentOrder.createdAt);
-    final createdAtMidnight = createdAt != null ? DateTime(createdAt.year, createdAt.month, createdAt.day) : null;
+    final createdAtMidnight = createdAt != null
+        ? DateTime(createdAt.year, createdAt.month, createdAt.day)
+        : null;
 
     final rentalStart = DateTime.tryParse(_currentOrder.startDate);
-    final rentalStartMidnight = rentalStart != null ? DateTime(rentalStart.year, rentalStart.month, rentalStart.day) : null;
+    final rentalStartMidnight = rentalStart != null
+        ? DateTime(rentalStart.year, rentalStart.month, rentalStart.day)
+        : null;
 
-    final isBackdated = rentalStartMidnight != null && createdAtMidnight != null && rentalStartMidnight.isBefore(createdAtMidnight);
-    final isExpired = !isBackdated && rentalEndMidnight != null && todayMidnight.isAfter(rentalEndMidnight);
+    final isBackdated =
+        rentalStartMidnight != null &&
+        createdAtMidnight != null &&
+        rentalStartMidnight.isBefore(createdAtMidnight);
+    final isExpired =
+        !isBackdated &&
+        rentalEndMidnight != null &&
+        todayMidnight.isAfter(rentalEndMidnight);
 
-    if ((_currentOrder.status == OrderStatus.confirmed || _currentOrder.status == OrderStatus.scheduled) && isExpired) {
+    if ((_currentOrder.status == OrderStatus.confirmed ||
+            _currentOrder.status == OrderStatus.scheduled) &&
+        isExpired) {
       return Padding(
         padding: Responsive.only(top: AppSizes.spacingMedium),
         child: Column(
@@ -909,13 +1116,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               padding: Responsive.all(AppSizes.spacingMedium),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.15),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.0),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 1.0,
+                ),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.white, size: Responsive.icon(AppSizes.iconSmall + 2)),
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.white,
+                    size: Responsive.icon(AppSizes.iconSmall + 2),
+                  ),
                   SizedBox(width: Responsive.w(8)),
                   Expanded(
                     child: Column(
@@ -949,15 +1165,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _openCancelDialog,
-                icon: Icon(Icons.cancel_outlined, color: Colors.white, size: Responsive.icon(AppSizes.iconSmall)),
+                icon: Icon(
+                  Icons.cancel_outlined,
+                  color: Colors.white,
+                  size: Responsive.icon(AppSizes.iconSmall),
+                ),
                 label: Text(
                   'Cancel Order',
-                  style: TextStyle(color: Colors.white, fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white, width: 1.5),
-                  padding: Responsive.symmetric(vertical: AppSizes.spacingSmall + 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+                  padding: Responsive.symmetric(
+                    vertical: AppSizes.spacingSmall + 2,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -967,13 +1197,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     }
 
     final status = _currentOrder.status;
-    final isFinalized = status == OrderStatus.completed || status == OrderStatus.cancelled || status == OrderStatus.returned;
+    final isFinalized =
+        status == OrderStatus.completed ||
+        status == OrderStatus.cancelled ||
+        status == OrderStatus.returned;
     if (isFinalized) return const SizedBox.shrink();
 
-    final bool showStartRental = status == OrderStatus.confirmed || status == OrderStatus.scheduled;
-    final bool showProcessReturn = status == OrderStatus.ongoing || status == OrderStatus.delivered || status == OrderStatus.inUse || status == OrderStatus.partial;
-    final bool showCollectPayment = _currentOrder.paymentStatus != PaymentStatus.paid;
-    final bool showCancel = status != OrderStatus.cancelled && status != OrderStatus.completed;
+    final bool showStartRental =
+        status == OrderStatus.confirmed || status == OrderStatus.scheduled;
+    final bool showProcessReturn =
+        status == OrderStatus.ongoing ||
+        status == OrderStatus.delivered ||
+        status == OrderStatus.inUse ||
+        status == OrderStatus.partial;
+    final bool showCollectPayment =
+        _currentOrder.paymentStatus != PaymentStatus.paid;
+    final bool showCancel =
+        status != OrderStatus.cancelled && status != OrderStatus.completed;
 
     Widget buildStartRentalButton({required bool isExpanded}) {
       final btn = ElevatedButton.icon(
@@ -982,13 +1222,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           foregroundColor: AppColors.primary,
           elevation: 0,
           padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              Responsive.r(AppSizes.radiusSmall),
+            ),
+          ),
         ),
         onPressed: _startRentalWithCheck,
-        icon: Icon(Icons.play_arrow_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        icon: Icon(
+          Icons.play_arrow_rounded,
+          size: Responsive.icon(AppSizes.iconSmall),
+        ),
         label: Text(
           AppStrings.startRental,
-          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
       return isExpanded ? Expanded(child: btn) : btn;
@@ -1001,13 +1251,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           foregroundColor: Colors.white,
           elevation: 0,
           padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              Responsive.r(AppSizes.radiusSmall),
+            ),
+          ),
         ),
         onPressed: _openReturnDialog,
-        icon: Icon(Icons.assignment_turned_in_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        icon: Icon(
+          Icons.assignment_turned_in_rounded,
+          size: Responsive.icon(AppSizes.iconSmall),
+        ),
         label: Text(
           'Process Return',
-          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
       return isExpanded ? Expanded(child: btn) : btn;
@@ -1019,13 +1279,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           side: const BorderSide(color: Colors.white, width: 1.5),
           foregroundColor: Colors.white,
           padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              Responsive.r(AppSizes.radiusSmall),
+            ),
+          ),
         ),
         onPressed: _openPaymentDialog,
-        icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+        icon: Icon(
+          Icons.payment_rounded,
+          size: Responsive.icon(AppSizes.iconSmall),
+        ),
         label: Text(
           'Collect Payment',
-          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
       return isExpanded ? Expanded(child: btn) : btn;
@@ -1034,16 +1304,30 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     Widget buildCancelButton({required bool isExpanded}) {
       final btn = OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.4), width: 1.0),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.4),
+            width: 1.0,
+          ),
           foregroundColor: Colors.red[100],
           padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall))),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(
+              Responsive.r(AppSizes.radiusSmall),
+            ),
+          ),
         ),
         onPressed: _openCancelDialog,
-        icon: Icon(Icons.cancel_outlined, size: Responsive.icon(AppSizes.iconSmall), color: Colors.red[100]),
+        icon: Icon(
+          Icons.cancel_outlined,
+          size: Responsive.icon(AppSizes.iconSmall),
+          color: Colors.red[100],
+        ),
         label: Text(
           'Cancel',
-          style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: FontWeight.bold,
+          ),
         ),
       );
       return isExpanded ? Expanded(child: btn) : btn;
@@ -1090,15 +1374,24 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               rowChildren.add(buildCancelButton(isExpanded: true));
             }
             if (showCollectPayment) {
-              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              if (rowChildren.isNotEmpty)
+                rowChildren.add(
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                );
               rowChildren.add(buildCollectPaymentButton(isExpanded: true));
             }
             if (showStartRental) {
-              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              if (rowChildren.isNotEmpty)
+                rowChildren.add(
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                );
               rowChildren.add(buildStartRentalButton(isExpanded: true));
             }
             if (showProcessReturn) {
-              if (rowChildren.isNotEmpty) rowChildren.add(SizedBox(width: Responsive.w(AppSizes.spacingSmall)));
+              if (rowChildren.isNotEmpty)
+                rowChildren.add(
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                );
               rowChildren.add(buildProcessReturnButton(isExpanded: true));
             }
             return Row(children: rowChildren);
@@ -1109,10 +1402,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               child: showStartRental
                   ? buildStartRentalButton(isExpanded: false)
                   : showProcessReturn
-                      ? buildProcessReturnButton(isExpanded: false)
-                      : showCollectPayment
-                          ? buildCollectPaymentButton(isExpanded: false)
-                          : buildCancelButton(isExpanded: false),
+                  ? buildProcessReturnButton(isExpanded: false)
+                  : showCollectPayment
+                  ? buildCollectPaymentButton(isExpanded: false)
+                  : buildCancelButton(isExpanded: false),
             );
           }
         },
@@ -1181,8 +1474,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1228,7 +1526,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     ? (step.activeColor ?? AppColors.primary)
                     : Colors.grey[300]!;
                 final bg = step.isActive
-                    ? (step.activeColor?.withValues(alpha: 0.08) ?? AppColors.primary.withValues(alpha: 0.08))
+                    ? (step.activeColor?.withValues(alpha: 0.08) ??
+                          AppColors.primary.withValues(alpha: 0.08))
                     : Colors.grey[50]!;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1257,7 +1556,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         style: TextStyle(
                           fontSize: Responsive.sp(9),
                           fontWeight: FontWeight.bold,
-                          color: step.isActive ? AppColors.text : Colors.grey[400],
+                          color: step.isActive
+                              ? AppColors.text
+                              : Colors.grey[400],
                         ),
                         textAlign: TextAlign.center,
                         maxLines: 1,
@@ -1292,15 +1593,24 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       padding: Responsive.all(AppSizes.spacingMedium),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3), width: 1.5),
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(
+          color: AppColors.error.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: Responsive.icon(AppSizes.iconSmall)),
+              Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.error,
+                size: Responsive.icon(AppSizes.iconSmall),
+              ),
               SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
               Expanded(
                 child: Text(
@@ -1335,7 +1645,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Shortfall of product units for this booking detected.',
-                style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontTiny + 1)),
+                style: TextStyle(
+                  color: AppColors.error,
+                  fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                ),
               ),
             ),
         ],
@@ -1349,8 +1662,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1393,7 +1711,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           Expanded(
             child: _buildLogisticsGridItem(
               title: 'TOTAL ITEMS',
-              value: '${_currentOrder.items?.fold(0, (sum, i) => sum + i.quantity) ?? 0} pcs',
+              value:
+                  '${_currentOrder.items?.fold(0, (sum, i) => sum + i.quantity) ?? 0} pcs',
               icon: Icons.shopping_bag_outlined,
               iconColor: AppColors.info,
             ),
@@ -1416,7 +1735,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: Responsive.icon(AppSizes.iconTiny), color: iconColor),
+            Icon(
+              icon,
+              size: Responsive.icon(AppSizes.iconTiny),
+              color: iconColor,
+            ),
             SizedBox(width: Responsive.w(4)),
             Text(
               title,
@@ -1459,7 +1782,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-
   Widget _buildCustomerCard() {
     final customer = _currentOrder.customer;
     if (customer == null) return const SizedBox.shrink();
@@ -1468,8 +1790,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1501,7 +1828,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             ),
           ),
           SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-          
+
           // Primary Call Button (Green pill styled button like web)
           InkWell(
             onTap: () async {
@@ -1510,14 +1837,21 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 await launchUrl(uri);
               }
             },
-            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+            borderRadius: BorderRadius.circular(
+              Responsive.r(AppSizes.radiusSmall),
+            ),
             child: Container(
               width: double.infinity,
               padding: Responsive.symmetric(vertical: 12),
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.08),
-                border: Border.all(color: AppColors.success.withValues(alpha: 0.2), width: 1.5),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.2),
+                  width: 1.5,
+                ),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1540,7 +1874,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               ),
             ),
           ),
-          
+
           // Alt Phone call button if present
           if (customer.altPhone != null && customer.altPhone!.isNotEmpty) ...[
             SizedBox(height: Responsive.h(8)),
@@ -1551,14 +1885,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   await launchUrl(uri);
                 }
               },
-              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              borderRadius: BorderRadius.circular(
+                Responsive.r(AppSizes.radiusSmall),
+              ),
               child: Container(
                 width: double.infinity,
                 padding: Responsive.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.scaffoldBackground,
                   border: Border.all(color: AppColors.border, width: 1),
-                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -1582,7 +1920,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               ),
             ),
           ],
-          
+
           // Email & Branch if present
           if (customer.email != null && customer.email!.isNotEmpty) ...[
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1631,7 +1969,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ],
 
           // Delivery Address (Styled Pin Section)
-          if (_currentOrder.deliveryAddress != null && _currentOrder.deliveryAddress!.isNotEmpty) ...[
+          if (_currentOrder.deliveryAddress != null &&
+              _currentOrder.deliveryAddress!.isNotEmpty) ...[
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
             const Divider(color: AppColors.border, height: 1),
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1651,7 +1990,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               decoration: BoxDecoration(
                 color: AppColors.scaffoldBackground,
                 border: Border.all(color: AppColors.border, width: 0.5),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1678,7 +2019,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ],
 
           // Pickup Address (if present)
-          if (_currentOrder.pickupAddress != null && _currentOrder.pickupAddress!.isNotEmpty) ...[
+          if (_currentOrder.pickupAddress != null &&
+              _currentOrder.pickupAddress!.isNotEmpty) ...[
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
             const Divider(color: AppColors.border, height: 1),
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1698,7 +2040,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               decoration: BoxDecoration(
                 color: AppColors.scaffoldBackground,
                 border: Border.all(color: AppColors.border, width: 0.5),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1745,7 +2089,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               decoration: BoxDecoration(
                 color: AppColors.scaffoldBackground,
                 border: Border.all(color: AppColors.border, width: 0.5),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1772,7 +2118,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           ],
 
           // Order Notes (if present, amber box matching web)
-          if (_currentOrder.notes != null && _currentOrder.notes!.isNotEmpty) ...[
+          if (_currentOrder.notes != null &&
+              _currentOrder.notes!.isNotEmpty) ...[
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
             const Divider(color: AppColors.border, height: 1),
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1791,8 +2138,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               padding: Responsive.all(AppSizes.spacingMedium),
               decoration: BoxDecoration(
                 color: AppColors.warning.withValues(alpha: 0.05),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.15), width: 1),
-                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  width: 1,
+                ),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1823,15 +2175,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-
   Widget _buildItemsCard() {
     final items = _currentOrder.items ?? [];
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1879,62 +2235,88 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 baseColor: AppColors.shimmerBase,
                 highlightColor: AppColors.shimmerHighlight,
                 child: Column(
-                  children: List.generate(2, (index) => Padding(
-                    padding: Responsive.only(
-                      bottom: index == 1 ? 0.0 : AppSizes.spacingMedium,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: Responsive.w(AppSizes.iconHuge),
-                          height: Responsive.w(AppSizes.iconHuge),
-                          decoration: BoxDecoration(
-                            color: AppColors.background,
-                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                  children: List.generate(
+                    2,
+                    (index) => Padding(
+                      padding: Responsive.only(
+                        bottom: index == 1 ? 0.0 : AppSizes.spacingMedium,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: Responsive.w(AppSizes.iconHuge),
+                            height: Responsive.w(AppSizes.iconHuge),
+                            decoration: BoxDecoration(
+                              color: AppColors.background,
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
                           ),
-                        ),
-                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: double.infinity,
-                                height: Responsive.h(AppSizes.fontMedium),
-                                decoration: BoxDecoration(
-                                  color: AppColors.background,
-                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
+                          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  height: Responsive.h(AppSizes.fontMedium),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.background,
+                                    borderRadius: BorderRadius.circular(
+                                      Responsive.r(AppSizes.radiusSmall) / 2,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: Responsive.h(AppSizes.spacingSmall - 2)),
-                              Row(
-                                children: [
-                                  Container(
-                                    width: Responsive.w(AppSizes.spacingXXXLarge),
-                                    height: Responsive.h(AppSizes.fontSmall),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.background,
-                                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
-                                    ),
+                                SizedBox(
+                                  height: Responsive.h(
+                                    AppSizes.spacingSmall - 2,
                                   ),
-                                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                                  Container(
-                                    width: Responsive.w(AppSizes.iconHuge + AppSizes.spacingSmall),
-                                    height: Responsive.h(AppSizes.fontSmall),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.background,
-                                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall) / 2),
+                                ),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: Responsive.w(
+                                        AppSizes.spacingXXXLarge,
+                                      ),
+                                      height: Responsive.h(AppSizes.fontSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.background,
+                                        borderRadius: BorderRadius.circular(
+                                          Responsive.r(AppSizes.radiusSmall) /
+                                              2,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                    SizedBox(
+                                      width: Responsive.w(
+                                        AppSizes.spacingSmall,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: Responsive.w(
+                                        AppSizes.iconHuge +
+                                            AppSizes.spacingSmall,
+                                      ),
+                                      height: Responsive.h(AppSizes.fontSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.background,
+                                        borderRadius: BorderRadius.circular(
+                                          Responsive.r(AppSizes.radiusSmall) /
+                                              2,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  )),
+                  ),
                 ),
               ),
             )
@@ -1956,198 +2338,257 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: items.length,
-              separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
+              separatorBuilder: (context, index) =>
+                  const Divider(height: 1, color: AppColors.border),
               itemBuilder: (context, index) {
                 final item = items[index];
-              final isReturnable = _currentOrder.status == OrderStatus.ongoing ||
-                  _currentOrder.status == OrderStatus.inUse ||
-                  _currentOrder.status == OrderStatus.delivered ||
-                  _currentOrder.status == OrderStatus.partial;
+                final isReturnable =
+                    _currentOrder.status == OrderStatus.ongoing ||
+                    _currentOrder.status == OrderStatus.inUse ||
+                    _currentOrder.status == OrderStatus.delivered ||
+                    _currentOrder.status == OrderStatus.partial;
 
-              return Padding(
-                padding: Responsive.all(AppSizes.spacingMedium),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: Responsive.w(56),
-                          height: Responsive.w(56),
-                          decoration: BoxDecoration(
-                            color: AppColors.scaffoldBackground,
-                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                            border: Border.all(color: AppColors.border, width: 0.5),
-                          ),
-                          child: item.product?.primaryImageUrl != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                                  child: Image.network(
-                                    item.product!.primaryImageUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Icon(Icons.image_not_supported_outlined, color: Colors.grey[400]),
-                                  ),
-                                )
-                              : Icon(Icons.image_not_supported_outlined, color: Colors.grey[400]),
-                        ),
-                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
-                                style: TextStyle(
-                                  fontSize: Responsive.sp(AppSizes.fontSmall),
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.text,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+                return Padding(
+                  padding: Responsive.all(AppSizes.spacingMedium),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: Responsive.w(56),
+                            height: Responsive.w(56),
+                            decoration: BoxDecoration(
+                              color: AppColors.scaffoldBackground,
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
                               ),
-                              SizedBox(height: Responsive.h(4)),
-                              Wrap(
-                                spacing: Responsive.w(AppSizes.spacingSmall),
-                                runSpacing: Responsive.h(4),
-                                alignment: WrapAlignment.start,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 0.5,
+                              ),
+                            ),
+                            child: item.product?.primaryImageUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      Responsive.r(AppSizes.radiusSmall),
                                     ),
-                                    child: Text(
-                                      'x${item.quantity}',
-                                      style: TextStyle(
-                                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.primary,
-                                      ),
+                                    child: Image.network(
+                                      item.product!.primaryImageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) => Icon(
+                                            Icons.image_not_supported_outlined,
+                                            color: Colors.grey[400],
+                                          ),
                                     ),
+                                  )
+                                : Icon(
+                                    Icons.image_not_supported_outlined,
+                                    color: Colors.grey[400],
                                   ),
-                                  Text(
-                                    '₹${item.pricePerDay.toStringAsFixed(0)}/day',
-                                    style: TextStyle(
-                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
-                                      color: AppColors.secondaryText,
-                                    ),
+                          ),
+                          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.product?.name ??
+                                      'Product #${item.productId.substring(0, 8)}',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.text,
                                   ),
-                                  if (item.discount > 0)
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                SizedBox(height: Responsive.h(4)),
+                                Wrap(
+                                  spacing: Responsive.w(AppSizes.spacingSmall),
+                                  runSpacing: Responsive.h(4),
+                                  alignment: WrapAlignment.start,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
                                     Container(
-                                      padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                      padding: Responsive.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.success.withValues(alpha: 0.1),
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        item.discountType == 'percent'
-                                            ? '-${item.discount.toStringAsFixed(0)}% Off'
-                                            : '-₹${item.discount.toStringAsFixed(0)} Flat Off',
+                                        'x${item.quantity}',
                                         style: TextStyle(
-                                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                                          fontSize: Responsive.sp(
+                                            AppSizes.fontTiny,
+                                          ),
                                           fontWeight: FontWeight.bold,
-                                          color: AppColors.success,
+                                          color: AppColors.primary,
                                         ),
                                       ),
                                     ),
-                                  if (item.gstPercentage > 0)
-                                    Container(
-                                      padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    Text(
+                                      '₹${item.pricePerDay.toStringAsFixed(0)}/day',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(
+                                          AppSizes.fontTiny + 1,
+                                        ),
+                                        color: AppColors.secondaryText,
+                                      ),
+                                    ),
+                                    if (item.discount > 0)
+                                      Container(
+                                        padding: Responsive.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.success.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          item.discountType == 'percent'
+                                              ? '-${item.discount.toStringAsFixed(0)}% Off'
+                                              : '-₹${item.discount.toStringAsFixed(0)} Flat Off',
+                                          style: TextStyle(
+                                            fontSize: Responsive.sp(
+                                              AppSizes.fontTiny,
+                                            ),
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.success,
+                                          ),
+                                        ),
+                                      ),
+                                    if (item.gstPercentage > 0)
+                                      Container(
+                                        padding: Responsive.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.info.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${item.gstPercentage.toStringAsFixed(0)}% GST Incl.',
+                                          style: TextStyle(
+                                            fontSize: Responsive.sp(
+                                              AppSizes.fontTiny,
+                                            ),
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.info,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                if (item.gstAmount > 0 || item.discount > 0)
+                                  Padding(
+                                    padding: Responsive.only(top: 4),
+                                    child: Text(
+                                      'Base: ₹${item.baseAmount.toStringAsFixed(2)} + GST: ₹${item.gstAmount.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: Responsive.sp(
+                                          AppSizes.fontTiny + 1,
+                                        ),
+                                        color: AppColors.secondaryText,
+                                      ),
+                                    ),
+                                  ),
+                                if (item.isReturned == true)
+                                  Padding(
+                                    padding: Responsive.only(
+                                      top: AppSizes.spacingTiny,
+                                    ),
+                                    child: Container(
+                                      padding: Responsive.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.info.withValues(alpha: 0.1),
+                                        color: AppColors.success.withValues(
+                                          alpha: 0.1,
+                                        ),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        '${item.gstPercentage.toStringAsFixed(0)}% GST Incl.',
+                                        'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
                                         style: TextStyle(
-                                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                                          fontSize: Responsive.sp(9),
+                                          color: AppColors.success,
                                           fontWeight: FontWeight.bold,
-                                          color: AppColors.info,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                if (item.isReturned == true &&
+                                    item.conditionRating ==
+                                        ConditionRating.damaged) ...[
+                                  if (item.damageDescription != null &&
+                                      item.damageDescription!.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4.0),
+                                      child: Text(
+                                        'Damage Notes: ${item.damageDescription}',
+                                        style: TextStyle(
+                                          fontSize: Responsive.sp(
+                                            AppSizes.fontTiny + 1,
+                                          ),
+                                          color: AppColors.warning,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                  if ((item.damageCharges ?? 0.0) > 0)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 2.0),
+                                      child: Text(
+                                        'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
+                                        style: TextStyle(
+                                          fontSize: Responsive.sp(
+                                            AppSizes.fontTiny + 1,
+                                          ),
+                                          color: AppColors.warning,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                 ],
-                              ),
-                              if (item.gstAmount > 0 || item.discount > 0)
-                                Padding(
-                                  padding: Responsive.only(top: 4),
-                                  child: Text(
-                                    'Base: ₹${item.baseAmount.toStringAsFixed(2)} + GST: ₹${item.gstAmount.toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
-                                      color: AppColors.secondaryText,
-                                    ),
-                                  ),
-                                ),
-                              if (item.isReturned == true)
-                                Padding(
-                                  padding: Responsive.only(top: AppSizes.spacingTiny),
-                                  child: Container(
-                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.success.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
-                                      style: TextStyle(
-                                        fontSize: Responsive.sp(9),
-                                        color: AppColors.success,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              if (item.isReturned == true && item.conditionRating == ConditionRating.damaged) ...[
-                                if (item.damageDescription != null && item.damageDescription!.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 4.0),
-                                    child: Text(
-                                      'Damage Notes: ${item.damageDescription}',
-                                      style: TextStyle(
-                                        fontSize: Responsive.sp(AppSizes.fontTiny + 1),
-                                        color: AppColors.warning,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  ),
-                                if ((item.damageCharges ?? 0.0) > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2.0),
-                                    child: Text(
-                                      'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
-                                      style: TextStyle(
-                                        fontSize: Responsive.sp(AppSizes.fontTiny + 1),
-                                        color: AppColors.warning,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                        Text(
-                          '₹${item.totalPrice.toStringAsFixed(0)}',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontSmall),
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.text,
+                          SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                          Text(
+                            '₹${item.totalPrice.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.text,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    if (isReturnable) _buildInteractiveItemControls(item),
-                  ],
-                ),
-              );
-            },
-          ),
+                        ],
+                      ),
+                      if (isReturnable) _buildInteractiveItemControls(item),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
@@ -2155,14 +2596,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
   Widget _buildPaymentsCard() {
     final paymentsAsync = ref.watch(orderPaymentsProvider(_currentOrder.id));
-    print('[OrderDetailView] _buildPaymentsCard. Order ID: ${_currentOrder.id}, status: ${_currentOrder.status}');
-    print('[OrderDetailView] Order advance Collected: ${_currentOrder.advanceCollected}, advanceAmount: ${_currentOrder.advanceAmount}, amountPaid: ${_currentOrder.amountPaid}');
+    print(
+      '[OrderDetailView] _buildPaymentsCard. Order ID: ${_currentOrder.id}, status: ${_currentOrder.status}',
+    );
+    print(
+      '[OrderDetailView] Order advance Collected: ${_currentOrder.advanceCollected}, advanceAmount: ${_currentOrder.advanceAmount}, amountPaid: ${_currentOrder.amountPaid}',
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -2208,7 +2658,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               print('[OrderDetailView] paymentsAsync: LOADING...');
               return const Padding(
                 padding: EdgeInsets.all(16.0),
-                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                ),
               );
             },
             error: (err, stack) {
@@ -2216,70 +2671,105 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               print(stack);
               return Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text('Error loading payments: $err', style: const TextStyle(color: AppColors.error)),
+                child: Text(
+                  'Error loading payments: $err',
+                  style: const TextStyle(color: AppColors.error),
+                ),
               );
             },
             data: (transactions) {
-              print('[OrderDetailView] paymentsAsync: DATA loaded. DB count: ${transactions.length}');
-              
-              final displayedTransactions = List<PaymentTransaction>.from(transactions);
-              
+              print(
+                '[OrderDetailView] paymentsAsync: DATA loaded. DB count: ${transactions.length}',
+              );
+
+              final displayedTransactions = List<PaymentTransaction>.from(
+                transactions,
+              );
+
               // Calculate sum of payments from the database
-              final dbPaymentsSum = transactions.fold<double>(0.0, (sum, tx) => sum + tx.amount);
+              final dbPaymentsSum = transactions.fold<double>(
+                0.0,
+                (sum, tx) => sum + tx.amount,
+              );
               double missingAmount = _currentOrder.amountPaid - dbPaymentsSum;
-              print('[OrderDetailView] dbPaymentsSum: $dbPaymentsSum, currentOrder.amountPaid: ${_currentOrder.amountPaid}, missingAmount: $missingAmount');
-              
+              print(
+                '[OrderDetailView] dbPaymentsSum: $dbPaymentsSum, currentOrder.amountPaid: ${_currentOrder.amountPaid}, missingAmount: $missingAmount',
+              );
+
               if (missingAmount > 0.01) {
                 // Determine if we need to synthesize an advance payment
-                final hasAdvanceInDb = transactions.any((tx) => tx.paymentType.toLowerCase() == 'advance');
-                final shouldSynthesizeAdvance = !hasAdvanceInDb && _currentOrder.advanceCollected && _currentOrder.advanceAmount > 0.01;
-                
+                final hasAdvanceInDb = transactions.any(
+                  (tx) => tx.paymentType.toLowerCase() == 'advance',
+                );
+                final shouldSynthesizeAdvance =
+                    !hasAdvanceInDb &&
+                    _currentOrder.advanceCollected &&
+                    _currentOrder.advanceAmount > 0.01;
+
                 if (shouldSynthesizeAdvance) {
-                  final advanceVirtualAmount = missingAmount < _currentOrder.advanceAmount 
-                      ? missingAmount 
+                  final advanceVirtualAmount =
+                      missingAmount < _currentOrder.advanceAmount
+                      ? missingAmount
                       : _currentOrder.advanceAmount;
-                      
-                  print('[OrderDetailView] Synthesizing virtual advance transaction of ₹$advanceVirtualAmount');
-                  displayedTransactions.add(PaymentTransaction(
-                    id: 'virtual-advance',
-                    orderId: _currentOrder.id,
-                    paymentType: 'advance',
-                    amount: advanceVirtualAmount,
-                    paymentMode: _currentOrder.advancePaymentMethod?.toJsonValue() ?? 'cash',
-                    paymentDate: _currentOrder.advanceCollectedAt ?? _currentOrder.createdAt,
-                    notes: 'Advance payment (Inferred from order details)',
-                    createdBy: null,
-                    createdByName: 'System',
-                  ));
-                  
+
+                  print(
+                    '[OrderDetailView] Synthesizing virtual advance transaction of ₹$advanceVirtualAmount',
+                  );
+                  displayedTransactions.add(
+                    PaymentTransaction(
+                      id: 'virtual-advance',
+                      orderId: _currentOrder.id,
+                      paymentType: 'advance',
+                      amount: advanceVirtualAmount,
+                      paymentMode:
+                          _currentOrder.advancePaymentMethod?.toJsonValue() ??
+                          'cash',
+                      paymentDate:
+                          _currentOrder.advanceCollectedAt ??
+                          _currentOrder.createdAt,
+                      notes: 'Advance payment (Inferred from order details)',
+                      createdBy: null,
+                      createdByName: 'System',
+                    ),
+                  );
+
                   missingAmount -= advanceVirtualAmount;
                 }
-                
+
                 // If there's still a missing amount, synthesize a final/partial payment
                 if (missingAmount > 0.01) {
-                  print('[OrderDetailView] Synthesizing virtual final transaction of ₹$missingAmount');
-                  displayedTransactions.add(PaymentTransaction(
-                    id: 'virtual-payment',
-                    orderId: _currentOrder.id,
-                    paymentType: 'final',
-                    amount: missingAmount,
-                    paymentMode: 'cash',
-                    paymentDate: _currentOrder.createdAt,
-                    notes: 'Payment (Inferred from order amount paid)',
-                    createdBy: null,
-                    createdByName: 'System',
-                  ));
+                  print(
+                    '[OrderDetailView] Synthesizing virtual final transaction of ₹$missingAmount',
+                  );
+                  displayedTransactions.add(
+                    PaymentTransaction(
+                      id: 'virtual-payment',
+                      orderId: _currentOrder.id,
+                      paymentType: 'final',
+                      amount: missingAmount,
+                      paymentMode: 'cash',
+                      paymentDate: _currentOrder.createdAt,
+                      notes: 'Payment (Inferred from order amount paid)',
+                      createdBy: null,
+                      createdByName: 'System',
+                    ),
+                  );
                 }
               }
 
-              print('[OrderDetailView] Total displayed transactions: ${displayedTransactions.length}');
+              print(
+                '[OrderDetailView] Total displayed transactions: ${displayedTransactions.length}',
+              );
 
               if (displayedTransactions.isEmpty) {
                 return Padding(
                   padding: Responsive.all(AppSizes.spacingMedium),
                   child: Text(
                     'No transactions recorded.',
-                    style: TextStyle(color: AppColors.secondaryText, fontSize: Responsive.sp(AppSizes.fontSmall)),
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
+                      fontSize: Responsive.sp(AppSizes.fontSmall),
+                    ),
                   ),
                 );
               }
@@ -2288,7 +2778,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: displayedTransactions.length,
-                separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.border),
+                separatorBuilder: (context, index) =>
+                    const Divider(height: 1, color: AppColors.border),
                 itemBuilder: (context, index) {
                   final tx = displayedTransactions[index];
                   final txTypeColor = _getTransactionTypeColor(tx.paymentType);
@@ -2304,7 +2795,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                               Row(
                                 children: [
                                   Container(
-                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    padding: Responsive.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: txTypeColor.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(4),
@@ -2312,24 +2806,36 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                     child: Text(
                                       tx.paymentType.toUpperCase(),
                                       style: TextStyle(
-                                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                                        fontSize: Responsive.sp(
+                                          AppSizes.fontTiny,
+                                        ),
                                         fontWeight: FontWeight.w800,
                                         color: txTypeColor,
                                       ),
                                     ),
                                   ),
-                                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                                  SizedBox(
+                                    width: Responsive.w(AppSizes.spacingSmall),
+                                  ),
                                   Container(
-                                    padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                    padding: Responsive.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.grey[100],
                                       borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: Colors.grey[300]!, width: 0.5),
+                                      border: Border.all(
+                                        color: Colors.grey[300]!,
+                                        width: 0.5,
+                                      ),
                                     ),
                                     child: Text(
                                       tx.paymentMode.toUpperCase(),
                                       style: TextStyle(
-                                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                                        fontSize: Responsive.sp(
+                                          AppSizes.fontTiny,
+                                        ),
                                         fontWeight: FontWeight.w600,
                                         color: AppColors.secondaryText,
                                       ),
@@ -2337,11 +2843,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                   ),
                                 ],
                               ),
-                              SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+                              SizedBox(
+                                height: Responsive.h(AppSizes.spacingTiny + 2),
+                              ),
                               Text(
                                 _formatDate(tx.paymentDate),
                                 style: TextStyle(
-                                  fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                  fontSize: Responsive.sp(
+                                    AppSizes.fontTiny + 1,
+                                  ),
                                   color: AppColors.secondaryText,
                                 ),
                               ),
@@ -2351,7 +2861,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                   child: Text(
                                     'Notes: ${tx.notes}',
                                     style: TextStyle(
-                                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                                      fontSize: Responsive.sp(
+                                        AppSizes.fontTiny + 1,
+                                      ),
                                       color: AppColors.secondaryText,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -2363,8 +2875,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                   child: Text(
                                     'Processed by: ${tx.createdByName}',
                                     style: TextStyle(
-                                      fontSize: Responsive.sp(AppSizes.fontTiny),
-                                      color: AppColors.secondaryText.withValues(alpha: 0.8),
+                                      fontSize: Responsive.sp(
+                                        AppSizes.fontTiny,
+                                      ),
+                                      color: AppColors.secondaryText.withValues(
+                                        alpha: 0.8,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -2419,18 +2935,35 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     final isPaid = balanceDue <= 0;
     final items = _currentOrder.items ?? [];
 
-    final rawSubtotal = items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
-    final afterItemDiscountTotal = items.fold<double>(0.0, (sum, item) => sum + item.baseAmount + item.gstAmount);
+    final rawSubtotal = items.fold<double>(
+      0.0,
+      (sum, item) => sum + item.subtotal,
+    );
+    final afterItemDiscountTotal = items.fold<double>(
+      0.0,
+      (sum, item) => sum + item.baseAmount + item.gstAmount,
+    );
     final itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
 
-    final totalBaseExclGst = items.fold<double>(0.0, (sum, item) => sum + item.baseAmount);
-    final totalGst = items.fold<double>(0.0, (sum, item) => sum + item.gstAmount);
+    final totalBaseExclGst = items.fold<double>(
+      0.0,
+      (sum, item) => sum + item.baseAmount,
+    );
+    final totalGst = items.fold<double>(
+      0.0,
+      (sum, item) => sum + item.gstAmount,
+    );
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-        border: Border.all(color: AppColors.border, width: AppSizes.spacingTiny / 4),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.border,
+          width: AppSizes.spacingTiny / 4,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -2468,10 +3001,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   ),
                 ),
                 const Spacer(),
-                if (_currentOrder.status != OrderStatus.completed && _currentOrder.status != OrderStatus.cancelled)
+                if (_currentOrder.status != OrderStatus.completed &&
+                    _currentOrder.status != OrderStatus.cancelled)
                   TextButton.icon(
                     onPressed: _openAdjustmentDialog,
-                    icon: Icon(Icons.edit_outlined, size: Responsive.icon(14), color: AppColors.primary),
+                    icon: Icon(
+                      Icons.edit_outlined,
+                      size: Responsive.icon(14),
+                      color: AppColors.primary,
+                    ),
                     label: Text(
                       'Adjust',
                       style: TextStyle(
@@ -2481,7 +3019,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       ),
                     ),
                     style: TextButton.styleFrom(
-                      padding: Responsive.symmetric(horizontal: AppSizes.spacingSmall, vertical: AppSizes.spacingTiny),
+                      padding: Responsive.symmetric(
+                        horizontal: AppSizes.spacingSmall,
+                        vertical: AppSizes.spacingTiny,
+                      ),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -2495,7 +3036,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildReceiptRow('Subtotal', '₹${rawSubtotal.toStringAsFixed(2)}'),
+                _buildReceiptRow(
+                  'Subtotal',
+                  '₹${rawSubtotal.toStringAsFixed(2)}',
+                ),
                 if (itemDiscountsTotal > 0) ...[
                   Padding(
                     padding: Responsive.symmetric(vertical: 2),
@@ -2528,7 +3072,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     if (itemDisc <= 0) return const SizedBox.shrink();
 
                     return Padding(
-                      padding: Responsive.only(left: AppSizes.spacingMedium, top: 2, bottom: 2),
+                      padding: Responsive.only(
+                        left: AppSizes.spacingMedium,
+                        top: 2,
+                        bottom: 2,
+                      ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -2560,21 +3108,41 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                 const Divider(height: 1, color: AppColors.border),
                 SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
-                _buildReceiptRow('Base Amount (excl. GST)', '₹${totalBaseExclGst.toStringAsFixed(2)}'),
-                _buildReceiptRow('GST (included)', '₹${totalGst.toStringAsFixed(2)}', valueColor: AppColors.info),
+                _buildReceiptRow(
+                  'Base Amount (excl. GST)',
+                  '₹${totalBaseExclGst.toStringAsFixed(2)}',
+                ),
+                _buildReceiptRow(
+                  'GST (included)',
+                  '₹${totalGst.toStringAsFixed(2)}',
+                  valueColor: AppColors.info,
+                ),
                 SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                 const Divider(height: 1, color: AppColors.border),
                 SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                 if (_currentOrder.discount > 0)
-                  _buildReceiptRow('Order Discount', '-₹${_currentOrder.discount.toStringAsFixed(2)}', isDiscount: true),
+                  _buildReceiptRow(
+                    'Order Discount',
+                    '-₹${_currentOrder.discount.toStringAsFixed(2)}',
+                    isDiscount: true,
+                  ),
                 if (_currentOrder.damageChargesTotal > 0)
-                  _buildReceiptRow('Damage Charges', '₹${_currentOrder.damageChargesTotal.toStringAsFixed(2)}'),
+                  _buildReceiptRow(
+                    'Damage Charges',
+                    '₹${_currentOrder.damageChargesTotal.toStringAsFixed(2)}',
+                  ),
                 if (_currentOrder.lateFee > 0)
-                  _buildReceiptRow('Late Fee', '₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
+                  _buildReceiptRow(
+                    'Late Fee',
+                    '₹${_currentOrder.lateFee.toStringAsFixed(2)}',
+                  ),
                 SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                 if (_currentOrder.status == OrderStatus.cancelled) ...[
                   if (_currentOrder.advanceAmount > 0.01)
-                    _buildReceiptRow('Original Advance', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
+                    _buildReceiptRow(
+                      'Original Advance',
+                      '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}',
+                    ),
                   SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                   if (_currentOrder.amountPaid == 0) ...[
                     // Case A: Fully refunded
@@ -2582,8 +3150,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       padding: Responsive.all(AppSizes.spacingMedium),
                       decoration: BoxDecoration(
                         color: AppColors.warning.withValues(alpha: 0.08),
-                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.2),
+                          width: AppSizes.spacingTiny / 4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2608,15 +3181,25 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       ),
                     ),
                     SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    _buildReceiptRow('No Balance Due', '₹0.00', valueColor: AppColors.secondaryText),
-                  ] else if (_currentOrder.paymentStatus == PaymentStatus.refundWaived) ...[
+                    _buildReceiptRow(
+                      'No Balance Due',
+                      '₹0.00',
+                      valueColor: AppColors.secondaryText,
+                    ),
+                  ] else if (_currentOrder.paymentStatus ==
+                      PaymentStatus.refundWaived) ...[
                     // Case B: Refund waived — money kept
                     Container(
                       padding: Responsive.all(AppSizes.spacingMedium),
                       decoration: BoxDecoration(
                         color: AppColors.primary.withValues(alpha: 0.08),
-                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.2),
+                          width: AppSizes.spacingTiny / 4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2641,15 +3224,24 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       ),
                     ),
                     SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    _buildReceiptRow('No Balance Due', '₹0.00', valueColor: AppColors.secondaryText),
+                    _buildReceiptRow(
+                      'No Balance Due',
+                      '₹0.00',
+                      valueColor: AppColors.secondaryText,
+                    ),
                   ] else ...[
                     // Case C: Money still held — pending refund
                     Container(
                       padding: Responsive.all(AppSizes.spacingMedium),
                       decoration: BoxDecoration(
                         color: AppColors.warning.withValues(alpha: 0.08),
-                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: AppSizes.spacingTiny / 4),
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(
+                          color: AppColors.warning.withValues(alpha: 0.2),
+                          width: AppSizes.spacingTiny / 4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2674,17 +3266,28 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       ),
                     ),
                     SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    _buildReceiptRow('Refundable', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.warning, isBold: true),
+                    _buildReceiptRow(
+                      'Refundable',
+                      '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                      valueColor: AppColors.warning,
+                      isBold: true,
+                    ),
                   ],
-                  if (_currentOrder.cancellationReason != null && _currentOrder.cancellationReason!.trim().isNotEmpty) ...[
+                  if (_currentOrder.cancellationReason != null &&
+                      _currentOrder.cancellationReason!.trim().isNotEmpty) ...[
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                     Container(
                       width: double.infinity,
                       padding: Responsive.all(AppSizes.spacingMedium),
                       decoration: BoxDecoration(
                         color: AppColors.error.withValues(alpha: 0.05),
-                        border: Border.all(color: AppColors.error.withValues(alpha: 0.15), width: AppSizes.spacingTiny / 4),
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          width: AppSizes.spacingTiny / 4,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2706,7 +3309,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                             ),
                           ),
                           if (_currentOrder.cancelledAt != null) ...[
-                            SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                            SizedBox(
+                              height: Responsive.h(AppSizes.spacingTiny),
+                            ),
                             Text(
                               'Cancelled on ${formatCancelledAt(_currentOrder.cancelledAt!)}',
                               style: TextStyle(
@@ -2720,15 +3325,30 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     ),
                   ],
                 ] else ...[
-                  _buildReceiptRow('Total Amount', '₹${_currentOrder.totalAmount.toStringAsFixed(2)}', isBold: true),
-                  _buildReceiptRow('Advance/Deposit', '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}'),
-                  _buildReceiptRow('Amount Paid', '₹${_currentOrder.amountPaid.toStringAsFixed(2)}', valueColor: AppColors.success),
+                  _buildReceiptRow(
+                    'Total Amount',
+                    '₹${_currentOrder.totalAmount.toStringAsFixed(2)}',
+                    isBold: true,
+                  ),
+                  _buildReceiptRow(
+                    'Advance/Deposit',
+                    '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}',
+                  ),
+                  _buildReceiptRow(
+                    'Amount Paid',
+                    '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                    valueColor: AppColors.success,
+                  ),
                   SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                   Container(
                     padding: Responsive.all(AppSizes.spacingMedium),
                     decoration: BoxDecoration(
-                      color: isPaid ? AppColors.success.withValues(alpha: 0.08) : AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                      color: isPaid
+                          ? AppColors.success.withValues(alpha: 0.08)
+                          : AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2761,7 +3381,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-  Widget _buildReceiptRow(String label, String value, {bool isBold = false, Color? valueColor, bool isDiscount = false}) {
+  Widget _buildReceiptRow(
+    String label,
+    String value, {
+    bool isBold = false,
+    Color? valueColor,
+    bool isDiscount = false,
+  }) {
     return Padding(
       padding: Responsive.symmetric(vertical: 4),
       child: Row(
@@ -2780,7 +3406,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             style: TextStyle(
               fontSize: Responsive.sp(AppSizes.fontSmall),
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-              color: valueColor ?? (isDiscount ? AppColors.success : AppColors.text),
+              color:
+                  valueColor ??
+                  (isDiscount ? AppColors.success : AppColors.text),
             ),
           ),
         ],
@@ -2792,18 +3420,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     setState(() => _isLoading = true);
 
     try {
-      final itemsPayload = (_currentOrder.items ?? []).map((i) => {
-        'product_id': i.productId,
-        'quantity': i.quantity,
-      }).toList();
+      final itemsPayload = (_currentOrder.items ?? [])
+          .map((i) => {'product_id': i.productId, 'quantity': i.quantity})
+          .toList();
 
-      final checkResult = await ref.read(orderOperationsProvider).checkAvailability(
-        startDate: _currentOrder.startDate,
-        endDate: _currentOrder.endDate,
-        branchId: _currentOrder.branchId,
-        items: itemsPayload,
-        excludeOrderId: _currentOrder.id,
-      );
+      final checkResult = await ref
+          .read(orderOperationsProvider)
+          .checkAvailability(
+            startDate: _currentOrder.startDate,
+            endDate: _currentOrder.endDate,
+            branchId: _currentOrder.branchId,
+            items: itemsPayload,
+            excludeOrderId: _currentOrder.id,
+          );
 
       final allAvailable = checkResult['allAvailable'] ?? false;
 
@@ -2817,7 +3446,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       }
 
       // If available, transition status to ongoing
-      await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {'status': 'ongoing'});
+      await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
+        'status': 'ongoing',
+      });
       await _refreshOrder();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2852,18 +3483,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
             children: [
               const Text('Stock shortfall detected for the selected period:'),
               const SizedBox(height: 12),
-              ...itemsList.where((i) => !(i['isAvailable'] as bool? ?? true)).map((i) {
-                final name = i['product_name'] ?? 'Product';
-                final avail = i['available'] ?? 0;
-                final req = i['requested'] ?? 0;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Text(
-                    '• $name: Requested $req, but only $avail available.',
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent),
-                  ),
-                );
-              }),
+              ...itemsList
+                  .where((i) => !(i['isAvailable'] as bool? ?? true))
+                  .map((i) {
+                    final name = i['product_name'] ?? 'Product';
+                    final avail = i['available'] ?? 0;
+                    final req = i['requested'] ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Text(
+                        '• $name: Requested $req, but only $avail available.',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                    );
+                  }),
             ],
           ),
           actions: [
@@ -2921,12 +3557,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
               onPressed: () async {
                 final reason = reasonController.text.trim();
                 if (reason.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a cancellation reason')),
+                    const SnackBar(
+                      content: Text('Please enter a cancellation reason'),
+                    ),
                   );
                   return;
                 }
@@ -2934,15 +3575,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 Navigator.pop(dialogContext);
                 setState(() => _isLoading = true);
                 try {
-                  await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
-                    'status': 'cancelled',
-                    'cancellation_reason': reason,
-                    if (paidAmount > 0) 'refund_amount': refund,
-                  });
+                  await ref
+                      .read(orderOperationsProvider)
+                      .updateOrder(_currentOrder.id, {
+                        'status': 'cancelled',
+                        'cancellation_reason': reason,
+                        if (paidAmount > 0) 'refund_amount': refund,
+                      });
                   await _refreshOrder();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Order cancelled successfully')),
+                      const SnackBar(
+                        content: Text('Order cancelled successfully'),
+                      ),
                     );
                   }
                 } catch (e) {
@@ -2964,14 +3609,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
   void _openPaymentDialog() {
     final maxCollect = _currentOrder.totalAmount - _currentOrder.amountPaid;
-    final amountController = TextEditingController(text: maxCollect.toStringAsFixed(0));
+    final amountController = TextEditingController(
+      text: maxCollect.toStringAsFixed(0),
+    );
     String paymentMode = 'upi';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
@@ -2988,12 +3637,19 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 children: [
                   Text(
                     'Collect Payment',
-                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(16),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Balance Due: ₹${maxCollect.toStringAsFixed(2)}',
-                    style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(12),
+                      color: Colors.grey[600],
+                    ),
                   ),
                   SizedBox(height: Responsive.h(16)),
                   TextField(
@@ -3002,7 +3658,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     style: TextStyle(fontSize: Responsive.sp(15)),
                     decoration: InputDecoration(
                       labelText: 'Amount (₹)',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   SizedBox(height: Responsive.h(16)),
@@ -3010,13 +3668,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     initialValue: paymentMode,
                     decoration: InputDecoration(
                       labelText: 'Payment Mode',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
                       DropdownMenuItem(value: 'cash', child: Text('Cash')),
                       DropdownMenuItem(value: 'card', child: Text('Card')),
-                      DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text('Bank Transfer'),
+                      ),
                       DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
                     ],
                     onChanged: (val) {
@@ -3031,20 +3694,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: () async {
-                        final amt = double.tryParse(amountController.text) ?? 0.0;
+                        final amt =
+                            double.tryParse(amountController.text) ?? 0.0;
                         if (amt <= 0) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter a valid amount')),
+                            const SnackBar(
+                              content: Text('Please enter a valid amount'),
+                            ),
                           );
                           return;
                         }
 
                         if (amt > maxCollect) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Warning: Amount exceeds balance due of ₹${maxCollect.toStringAsFixed(0)}')),
+                            SnackBar(
+                              content: Text(
+                                'Warning: Amount exceeds balance due of ₹${maxCollect.toStringAsFixed(0)}',
+                              ),
+                            ),
                           );
                           return;
                         }
@@ -3052,29 +3724,42 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         Navigator.pop(modalContext);
                         setState(() => _isLoading = true);
                         try {
-                          await ref.read(orderOperationsProvider).collectPayment(
+                          await ref
+                              .read(orderOperationsProvider)
+                              .collectPayment(
                                 orderId: _currentOrder.id,
                                 amount: amt,
                                 paymentMode: paymentMode,
                               );
                           final newAmountPaid = _currentOrder.amountPaid + amt;
-                          final newPaymentStatus = newAmountPaid >= _currentOrder.totalAmount ? 'paid' : 'partial';
-                          await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
-                            'amount_paid': newAmountPaid,
-                            'payment_status': newPaymentStatus,
-                          });
+                          final newPaymentStatus =
+                              newAmountPaid >= _currentOrder.totalAmount
+                              ? 'paid'
+                              : 'partial';
+                          await ref
+                              .read(orderOperationsProvider)
+                              .updateOrder(_currentOrder.id, {
+                                'amount_paid': newAmountPaid,
+                                'payment_status': newPaymentStatus,
+                              });
                           await _refreshOrder();
-                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
+                          ref.invalidate(
+                            orderPaymentsProvider(_currentOrder.id),
+                          );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Payment recorded successfully')),
+                              const SnackBar(
+                                content: Text('Payment recorded successfully'),
+                              ),
                             );
                           }
                         } catch (e) {
                           setState(() => _isLoading = false);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to record payment: $e')),
+                              SnackBar(
+                                content: Text('Failed to record payment: $e'),
+                              ),
                             );
                           }
                         }
@@ -3099,7 +3784,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
@@ -3116,25 +3803,37 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 children: [
                   Text(
                     'Edit Transaction Details',
-                    style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(16),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Amount: ₹${tx.amount.toStringAsFixed(2)}  |  Type: ${tx.paymentType.toUpperCase()}',
-                    style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: Responsive.sp(12),
+                      color: Colors.grey[600],
+                    ),
                   ),
                   SizedBox(height: Responsive.h(16)),
                   DropdownButtonFormField<String>(
                     initialValue: paymentMode,
                     decoration: InputDecoration(
                       labelText: 'Payment Mode',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     items: const [
                       DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
                       DropdownMenuItem(value: 'cash', child: Text('Cash')),
                       DropdownMenuItem(value: 'card', child: Text('Card')),
-                      DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text('Bank Transfer'),
+                      ),
                       DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
                     ],
                     onChanged: (val) {
@@ -3146,7 +3845,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     controller: notesController,
                     decoration: InputDecoration(
                       labelText: 'Notes',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   SizedBox(height: Responsive.h(24)),
@@ -3157,7 +3858,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: () async {
                         Navigator.pop(modalContext);
@@ -3165,28 +3868,36 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         try {
                           if (tx.id.startsWith('virtual-')) {
                             // Convert the virtual transaction into a real recorded payment in the database
-                            await ref.read(orderOperationsProvider).collectPayment(
-                              orderId: _currentOrder.id,
-                              amount: tx.amount,
-                              paymentMode: paymentMode,
-                              paymentType: tx.paymentType,
-                              notes: notesController.text.trim(),
-                            );
+                            await ref
+                                .read(orderOperationsProvider)
+                                .collectPayment(
+                                  orderId: _currentOrder.id,
+                                  amount: tx.amount,
+                                  paymentMode: paymentMode,
+                                  paymentType: tx.paymentType,
+                                  notes: notesController.text.trim(),
+                                );
                           } else {
-                            await ref.read(orderOperationsProvider).updatePayment(
-                              paymentId: tx.id,
-                              paymentMode: paymentMode,
-                              notes: notesController.text.trim(),
-                            );
+                            await ref
+                                .read(orderOperationsProvider)
+                                .updatePayment(
+                                  paymentId: tx.id,
+                                  paymentMode: paymentMode,
+                                  notes: notesController.text.trim(),
+                                );
                           }
                           await _refreshOrder();
-                          ref.invalidate(orderPaymentsProvider(_currentOrder.id));
+                          ref.invalidate(
+                            orderPaymentsProvider(_currentOrder.id),
+                          );
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text(tx.id.startsWith('virtual-')
-                                    ? 'Payment record created successfully'
-                                    : 'Transaction updated successfully'),
+                                content: Text(
+                                  tx.id.startsWith('virtual-')
+                                      ? 'Payment record created successfully'
+                                      : 'Transaction updated successfully',
+                                ),
                               ),
                             );
                           }
@@ -3194,7 +3905,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           setState(() => _isLoading = false);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed to update transaction: $e')),
+                              SnackBar(
+                                content: Text(
+                                  'Failed to update transaction: $e',
+                                ),
+                              ),
                             );
                           }
                         }
@@ -3237,7 +3952,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
@@ -3248,9 +3965,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
               }
             });
 
-            final double parsedLate = double.tryParse(lateFeeController.text) ?? 0.0;
-            final double parsedDiscount = double.tryParse(discountController.text) ?? 0.0;
-            final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid + liveDamageTotal + parsedLate - parsedDiscount;
+            final double parsedLate =
+                double.tryParse(lateFeeController.text) ?? 0.0;
+            final double parsedDiscount =
+                double.tryParse(discountController.text) ?? 0.0;
+            final balanceDue =
+                _currentOrder.totalAmount -
+                _currentOrder.amountPaid +
+                liveDamageTotal +
+                parsedLate -
+                parsedDiscount;
 
             // Barcode scan function
             void handleBarcodeScan() {
@@ -3259,7 +3983,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                 builder: (dialogContext) => QRScannerDialog(
                   onRawCodeScanned: (rawCode) async {
                     try {
-                      final response = await ref.read(productRepositoryProvider)
+                      final response = await ref
+                          .read(productRepositoryProvider)
                           .getProducts(search: rawCode, limit: 1);
 
                       if (response.products.isNotEmpty) {
@@ -3267,19 +3992,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                         final matchedId = matchedProduct.id;
                         final matchedItem = items.firstWhere(
                           (item) => item.productId == matchedId,
-                          orElse: () => throw Exception('Product not found in this order'),
+                          orElse: () => throw Exception(
+                            'Product not found in this order',
+                          ),
                         );
 
                         setModalState(() {
-                          final maxReturn = matchedItem.quantity - (matchedItem.returnedQuantity ?? 0);
+                          final maxReturn =
+                              matchedItem.quantity -
+                              (matchedItem.returnedQuantity ?? 0);
                           returnQuantities[matchedItem.id] = maxReturn;
-                          returnConditions[matchedItem.id] = ConditionRating.good;
+                          returnConditions[matchedItem.id] =
+                              ConditionRating.good;
                         });
 
                         if (modalContext.mounted) {
                           ScaffoldMessenger.of(modalContext).showSnackBar(
                             SnackBar(
-                              content: Text('Item marked as GOOD: ${matchedItem.product?.name ?? "Product"}'),
+                              content: Text(
+                                'Item marked as GOOD: ${matchedItem.product?.name ?? "Product"}',
+                              ),
                               backgroundColor: Colors.green,
                             ),
                           );
@@ -3287,14 +4019,20 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       } else {
                         if (modalContext.mounted) {
                           ScaffoldMessenger.of(modalContext).showSnackBar(
-                            const SnackBar(content: Text('No matching item in order for barcode/SKU')),
+                            const SnackBar(
+                              content: Text(
+                                'No matching item in order for barcode/SKU',
+                              ),
+                            ),
                           );
                         }
                       }
                     } catch (e) {
                       if (modalContext.mounted) {
                         ScaffoldMessenger.of(modalContext).showSnackBar(
-                          SnackBar(content: Text('Error resolving barcode: $e')),
+                          SnackBar(
+                            content: Text('Error resolving barcode: $e'),
+                          ),
                         );
                       }
                     }
@@ -3320,17 +4058,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       children: [
                         Text(
                           'Process Returns Check-In',
-                          style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.bold, color: AppColors.primary),
+                          style: TextStyle(
+                            fontSize: Responsive.sp(16),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.qr_code_scanner_rounded, color: AppColors.primary, size: Responsive.icon(22)),
+                          icon: Icon(
+                            Icons.qr_code_scanner_rounded,
+                            color: AppColors.primary,
+                            size: Responsive.icon(22),
+                          ),
                           onPressed: handleBarcodeScan,
                         ),
                       ],
                     ),
                     const Divider(),
                     ...items.map((item) {
-                      final maxReturn = item.quantity - (item.returnedQuantity ?? 0);
+                      final maxReturn =
+                          item.quantity - (item.returnedQuantity ?? 0);
                       if (maxReturn <= 0) return const SizedBox.shrink();
 
                       final currentCondition = returnConditions[item.id];
@@ -3347,8 +4094,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              item.product?.name ?? 'Product #${item.productId.substring(0, 8)}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              item.product?.name ??
+                                  'Product #${item.productId.substring(0, 8)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                             const SizedBox(height: 6),
                             Row(
@@ -3357,11 +4107,18 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                 DropdownButton<int>(
                                   value: returnQuantities[item.id],
                                   items: List.generate(maxReturn + 1, (i) => i)
-                                      .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
+                                      .map(
+                                        (i) => DropdownMenuItem(
+                                          value: i,
+                                          child: Text('$i'),
+                                        ),
+                                      )
                                       .toList(),
                                   onChanged: (val) {
                                     if (val != null) {
-                                      setModalState(() => returnQuantities[item.id] = val);
+                                      setModalState(
+                                        () => returnQuantities[item.id] = val,
+                                      );
                                     }
                                   },
                                 ),
@@ -3370,29 +4127,48 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                 DropdownButton<ConditionRating>(
                                   value: currentCondition,
                                   items: ConditionRating.values
-                                      .map((e) => DropdownMenuItem(value: e, child: Text(e.name.toUpperCase())))
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e.name.toUpperCase()),
+                                        ),
+                                      )
                                       .toList(),
                                   onChanged: (val) {
                                     if (val != null) {
-                                      setModalState(() => returnConditions[item.id] = val);
+                                      setModalState(
+                                        () => returnConditions[item.id] = val,
+                                      );
                                     }
                                   },
                                 ),
                               ],
                             ),
-                            if (currentCondition == ConditionRating.damaged) ...[
+                            if (currentCondition ==
+                                ConditionRating.damaged) ...[
                               const SizedBox(height: 8),
                               Row(
                                 children: [
                                   const Text('Damaged Qty: '),
                                   DropdownButton<int>(
                                     value: damageQuantities[item.id],
-                                    items: List.generate(returnQuantities[item.id]! + 1, (i) => i)
-                                        .map((i) => DropdownMenuItem(value: i, child: Text('$i')))
-                                        .toList(),
+                                    items:
+                                        List.generate(
+                                              returnQuantities[item.id]! + 1,
+                                              (i) => i,
+                                            )
+                                            .map(
+                                              (i) => DropdownMenuItem(
+                                                value: i,
+                                                child: Text('$i'),
+                                              ),
+                                            )
+                                            .toList(),
                                     onChanged: (val) {
                                       if (val != null) {
-                                        setModalState(() => damageQuantities[item.id] = val);
+                                        setModalState(
+                                          () => damageQuantities[item.id] = val,
+                                        );
                                       }
                                     },
                                   ),
@@ -3401,10 +4177,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                                     width: Responsive.w(120),
                                     child: TextField(
                                       keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(labelText: 'Damage Fee (₹)', isDense: true),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Damage Fee (₹)',
+                                        isDense: true,
+                                      ),
                                       onChanged: (val) {
                                         setModalState(() {
-                                          damageCharges[item.id] = double.tryParse(val) ?? 0.0;
+                                          damageCharges[item.id] =
+                                              double.tryParse(val) ?? 0.0;
                                         });
                                       },
                                     ),
@@ -3413,7 +4193,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                               ),
                               const SizedBox(height: 8),
                               TextField(
-                                decoration: const InputDecoration(labelText: 'Describe Damage', isDense: true),
+                                decoration: const InputDecoration(
+                                  labelText: 'Describe Damage',
+                                  isDense: true,
+                                ),
                                 onChanged: (val) {
                                   damageDescriptions[item.id] = val;
                                 },
@@ -3431,8 +4214,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                             onPressed: () {
                               setModalState(() {
                                 for (final item in items) {
-                                  returnQuantities[item.id] = item.quantity - (item.returnedQuantity ?? 0);
-                                  returnConditions[item.id] = ConditionRating.excellent;
+                                  returnQuantities[item.id] =
+                                      item.quantity -
+                                      (item.returnedQuantity ?? 0);
+                                  returnConditions[item.id] =
+                                      ConditionRating.excellent;
                                 }
                               });
                             },
@@ -3445,20 +4231,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                     TextField(
                       controller: lateFeeController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Late Fee charges (₹)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Late Fee charges (₹)',
+                      ),
                       onChanged: (_) => setModalState(() {}),
                     ),
                     SizedBox(height: Responsive.h(12)),
                     TextField(
                       controller: discountController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Discounts (₹)'),
+                      decoration: const InputDecoration(
+                        labelText: 'Discounts (₹)',
+                      ),
                       onChanged: (_) => setModalState(() {}),
                     ),
                     SizedBox(height: Responsive.h(12)),
                     TextField(
                       controller: notesController,
-                      decoration: const InputDecoration(labelText: 'Return Notes'),
+                      decoration: const InputDecoration(
+                        labelText: 'Return Notes',
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -3470,7 +4262,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Live Return Financials Preview', style: TextStyle(fontWeight: FontWeight.bold)),
+                          const Text(
+                            'Live Return Financials Preview',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3497,12 +4292,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('Projected Balance Due:', style: TextStyle(fontWeight: FontWeight.bold)),
+                              const Text(
+                                'Projected Balance Due:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
                               Text(
                                 '₹${balanceDue.toStringAsFixed(2)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: balanceDue > 0 ? const Color(0xFFFF6B8A) : Colors.green,
+                                  color: balanceDue > 0
+                                      ? const Color(0xFFFF6B8A)
+                                      : Colors.green,
                                 ),
                               ),
                             ],
@@ -3518,7 +4318,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                         onPressed: () async {
                           final returnItemsPayload = <Map<String, dynamic>>[];
@@ -3527,19 +4329,27 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                               returnItemsPayload.add({
                                 'item_id': itemId,
                                 'returned_quantity': qty,
-                                'condition_rating': returnConditions[itemId]!.name.toLowerCase(),
-                                if (returnConditions[itemId] == ConditionRating.damaged) ...{
-                                  'damage_description': damageDescriptions[itemId],
+                                'condition_rating': returnConditions[itemId]!
+                                    .name
+                                    .toLowerCase(),
+                                if (returnConditions[itemId] ==
+                                    ConditionRating.damaged) ...{
+                                  'damage_description':
+                                      damageDescriptions[itemId],
                                   'damage_charges': damageCharges[itemId],
                                   'damaged_quantity': damageQuantities[itemId],
-                                }
+                                },
                               });
                             }
                           });
 
                           if (returnItemsPayload.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please select at least 1 item to return')),
+                              const SnackBar(
+                                content: Text(
+                                  'Please select at least 1 item to return',
+                                ),
+                              ),
                             );
                             return;
                           }
@@ -3547,24 +4357,38 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           Navigator.pop(modalContext);
                           setState(() => _isLoading = true);
                           try {
-                            await ref.read(orderOperationsProvider).processReturn(
+                            await ref
+                                .read(orderOperationsProvider)
+                                .processReturn(
                                   orderId: _currentOrder.id,
                                   items: returnItemsPayload,
                                   notes: notesController.text,
-                                  lateFee: double.tryParse(lateFeeController.text) ?? 0.0,
-                                  discount: double.tryParse(discountController.text) ?? 0.0,
+                                  lateFee:
+                                      double.tryParse(lateFeeController.text) ??
+                                      0.0,
+                                  discount:
+                                      double.tryParse(
+                                        discountController.text,
+                                      ) ??
+                                      0.0,
                                 );
                             await _refreshOrder();
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Return processed successfully')),
+                                const SnackBar(
+                                  content: Text(
+                                    'Return processed successfully',
+                                  ),
+                                ),
                               );
                             }
                           } catch (e) {
                             setState(() => _isLoading = false);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed to process return: $e')),
+                                SnackBar(
+                                  content: Text('Failed to process return: $e'),
+                                ),
                               );
                             }
                           }
@@ -3613,39 +4437,54 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       } catch (e) {
         setState(() => _isLoading = false);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete order: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Failed to delete order: $e')));
         }
       }
     }
   }
 
-
   Color _getTransactionTypeColor(String type) {
     switch (type.toLowerCase()) {
       case 'deposit':
-      case 'advance': return Colors.teal;
-      case 'final': return Colors.green;
-      case 'refund': return Colors.red;
-      case 'adjustment': return Colors.orange;
-      default: return Colors.blue;
+      case 'advance':
+        return Colors.teal;
+      case 'final':
+        return Colors.green;
+      case 'refund':
+        return Colors.red;
+      case 'adjustment':
+        return Colors.orange;
+      default:
+        return Colors.blue;
     }
   }
 
   String _formatStatusName(OrderStatus s) {
     switch (s) {
-      case OrderStatus.pending: return 'Pending';
-      case OrderStatus.confirmed: return 'Confirmed';
-      case OrderStatus.scheduled: return 'Scheduled';
-      case OrderStatus.delivered: return 'Delivered';
-      case OrderStatus.inUse: return 'In Use';
-      case OrderStatus.ongoing: return 'Ongoing';
-      case OrderStatus.partial: return 'Partial';
-      case OrderStatus.returned: return 'Returned';
-      case OrderStatus.completed: return 'Completed';
-      case OrderStatus.cancelled: return 'Cancelled';
-      case OrderStatus.flagged: return 'Flagged';
+      case OrderStatus.pending:
+        return 'Pending';
+      case OrderStatus.confirmed:
+        return 'Confirmed';
+      case OrderStatus.scheduled:
+        return 'Scheduled';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.inUse:
+        return 'In Use';
+      case OrderStatus.ongoing:
+        return 'Ongoing';
+      case OrderStatus.partial:
+        return 'Partial';
+      case OrderStatus.returned:
+        return 'Returned';
+      case OrderStatus.completed:
+        return 'Completed';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+      case OrderStatus.flagged:
+        return 'Flagged';
     }
   }
 
@@ -3661,7 +4500,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
   void _showShareBottomSheet() {
     final customerName = _currentOrder.customer?.name ?? 'Customer';
     final customerPhone = _currentOrder.customer?.phone ?? '';
-    final orderIdShort = _currentOrder.id.length > 8 ? _currentOrder.id.substring(0, 8) : _currentOrder.id;
+    final orderIdShort = _currentOrder.id.length > 8
+        ? _currentOrder.id.substring(0, 8)
+        : _currentOrder.id;
     final startDate = _formatDate(_currentOrder.startDate);
     final endDate = _formatDate(_currentOrder.endDate);
 
@@ -3670,34 +4511,43 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       case OrderStatus.pending:
       case OrderStatus.confirmed:
       case OrderStatus.scheduled:
-        message = 'Hi $customerName, this is regarding your upcoming order #$orderIdShort scheduled for $startDate. Please confirm your availability.';
+        message =
+            'Hi $customerName, this is regarding your upcoming order #$orderIdShort scheduled for $startDate. Please confirm your availability.';
         break;
       case OrderStatus.ongoing:
       case OrderStatus.inUse:
-        message = 'Hi $customerName, your order #$orderIdShort is currently active. Please remember to return by $endDate.';
+        message =
+            'Hi $customerName, your order #$orderIdShort is currently active. Please remember to return by $endDate.';
         break;
       case OrderStatus.partial:
-        message = 'Hi $customerName, your order #$orderIdShort has partial returns pending. Please complete the return process.';
+        message =
+            'Hi $customerName, your order #$orderIdShort has partial returns pending. Please complete the return process.';
         break;
       case OrderStatus.delivered:
-        message = 'Hi $customerName, your order #$orderIdShort has been delivered. Enjoy your event! Please return by $endDate.';
+        message =
+            'Hi $customerName, your order #$orderIdShort has been delivered. Enjoy your event! Please return by $endDate.';
         break;
       case OrderStatus.returned:
-        message = 'Hi $customerName, thank you for returning your order #$orderIdShort. We hope you had a great experience!';
+        message =
+            'Hi $customerName, thank you for returning your order #$orderIdShort. We hope you had a great experience!';
         break;
       case OrderStatus.completed:
-        message = 'Hi $customerName, your order #$orderIdShort has been completed. Thank you for choosing Mazhavil Dance Costumes!';
+        message =
+            'Hi $customerName, your order #$orderIdShort has been completed. Thank you for choosing Mazhavil Dance Costumes!';
         break;
       case OrderStatus.cancelled:
-        message = 'Hi $customerName, your order #$orderIdShort has been cancelled. Contact us if you need assistance.';
+        message =
+            'Hi $customerName, your order #$orderIdShort has been cancelled. Contact us if you need assistance.';
         break;
       case OrderStatus.flagged:
-        message = 'Hi $customerName, there is an issue with your order #$orderIdShort. Please contact us immediately.';
+        message =
+            'Hi $customerName, there is an issue with your order #$orderIdShort. Please contact us immediately.';
         break;
     }
 
     final apiBaseUrl = apiClient.dio.options.baseUrl;
-    final finalInvoiceUrl = '$apiBaseUrl/orders/${_currentOrder.id}/invoice?type=final';
+    final finalInvoiceUrl =
+        '$apiBaseUrl/orders/${_currentOrder.id}/invoice?type=final';
 
     showModalBottomSheet(
       context: context,
@@ -3760,27 +4610,42 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   if (customerPhone.isEmpty) {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Customer phone number is empty')),
+                        const SnackBar(
+                          content: Text('Customer phone number is empty'),
+                        ),
                       );
                     }
                     return;
                   }
-                  
-                  String formattedPhone = customerPhone.replaceAll(RegExp(r'\D'), '');
+
+                  String formattedPhone = customerPhone.replaceAll(
+                    RegExp(r'\D'),
+                    '',
+                  );
                   if (formattedPhone.length == 10) {
                     formattedPhone = '91$formattedPhone';
                   }
-                  
-                  final whatsappUrl = Uri.parse('https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}');
+
+                  final whatsappUrl = Uri.parse(
+                    'https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}',
+                  );
                   try {
-                    await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                    await launchUrl(
+                      whatsappUrl,
+                      mode: LaunchMode.externalApplication,
+                    );
                   } catch (e) {
                     try {
-                      await launchUrl(whatsappUrl, mode: LaunchMode.platformDefault);
+                      await launchUrl(
+                        whatsappUrl,
+                        mode: LaunchMode.platformDefault,
+                      );
                     } catch (e2) {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not launch WhatsApp: $e2')),
+                          SnackBar(
+                            content: Text('Could not launch WhatsApp: $e2'),
+                          ),
                         );
                       }
                     }
@@ -3798,7 +4663,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                   await Clipboard.setData(ClipboardData(text: finalInvoiceUrl));
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Invoice URL copied to clipboard')),
+                      const SnackBar(
+                        content: Text('Invoice URL copied to clipboard'),
+                      ),
                     );
                   }
                 },
@@ -3811,7 +4678,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
     );
   }
 
-  Future<void> _downloadAndShareInvoice({required String type, String? shareText}) async {
+  Future<void> _downloadAndShareInvoice({
+    required String type,
+    String? shareText,
+  }) async {
     // Show a loading indicator dialog
     showDialog(
       context: context,
@@ -3821,7 +4691,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
           child: Card(
             color: Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+              borderRadius: BorderRadius.circular(
+                Responsive.r(AppSizes.radiusMedium),
+              ),
             ),
             child: Padding(
               padding: Responsive.all(AppSizes.screenPaddingSmall),
@@ -3858,14 +4730,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
 
       if (response.data != null) {
         final tempDir = await getTemporaryDirectory();
-        final fileName = 'Invoice_${_currentOrder.id.substring(0, 8).toUpperCase()}_$type.pdf';
+        final fileName =
+            'Invoice_${_currentOrder.id.substring(0, 8).toUpperCase()}_$type.pdf';
         final file = File('${tempDir.path}/$fileName');
         await file.writeAsBytes(response.data!);
 
         final xFile = XFile(file.path);
         await Share.shareXFiles(
           [xFile],
-          text: shareText ?? 'Invoice ($type) for order #${_currentOrder.id.substring(0, 8).toUpperCase()}',
+          text:
+              shareText ??
+              'Invoice ($type) for order #${_currentOrder.id.substring(0, 8).toUpperCase()}',
         );
       } else {
         throw Exception('No data received from server');
@@ -3874,9 +4749,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       // Close loading dialog if it's still open
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to share invoice: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to share invoice: $e')));
       }
     }
   }
@@ -3945,7 +4820,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
       ),
     );
   }
-
 }
 
 class _StepItem {

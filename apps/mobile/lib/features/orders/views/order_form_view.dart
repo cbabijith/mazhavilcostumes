@@ -62,7 +62,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _deliveryAddressController = TextEditingController();
   final _pickupAddressController = TextEditingController();
   final _advanceAmountController = TextEditingController(text: '0');
-  final _amountPaidController = TextEditingController(text: '0');
   final _discountController = TextEditingController(text: '0');
   final _phoneSearchController = TextEditingController();
 
@@ -133,7 +132,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _pickupAddressController.text = widget.order!.pickupAddress ?? '';
       _advanceAmountController.text = widget.order!.advanceAmount
           .toStringAsFixed(0);
-      _amountPaidController.text = widget.order!.amountPaid.toStringAsFixed(0);
       _discountController.text = widget.order!.discount.toStringAsFixed(0);
       _selectedDeliveryMethod = widget.order!.deliveryMethod;
       _orderDiscountType = widget.order!.discountType;
@@ -188,7 +186,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     _deliveryAddressController.dispose();
     _pickupAddressController.dispose();
     _advanceAmountController.dispose();
-    _amountPaidController.dispose();
     _discountController.dispose();
     _phoneSearchController.dispose();
     super.dispose();
@@ -257,30 +254,33 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         backgroundColor: Colors.white,
         iconTheme: IconThemeData(color: AppColors.primary),
       ),
-      body: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          FocusScope.of(context).unfocus();
-          _update(() {
-            _showCustomerDropdown = false;
-          });
-        },
-        child: Stack(
-          children: [
-            Form(
-              key: _formKey,
-              child: _buildFormContent(isEditing),
-            ),
-            if (_isLoading)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.25),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary),
+      body: SafeArea(
+        top: false,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            FocusScope.of(context).unfocus();
+            _update(() {
+              _showCustomerDropdown = false;
+            });
+          },
+          child: Stack(
+            children: [
+              Form(
+                key: _formKey,
+                child: _buildFormContent(isEditing),
+              ),
+              if (_isLoading)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    child: const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar:
