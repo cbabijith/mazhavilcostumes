@@ -81,6 +81,7 @@ flutter:
   assets:
     - assets/images/logo_paris.svg
     - assets/images/mazhavil.png
+    - assets/images/playstore.svg
     - .env
   #   - images/a_dot_ham.jpeg
 

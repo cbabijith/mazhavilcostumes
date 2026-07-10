@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -219,6 +221,102 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     );
   }
 
+  Widget _buildPlayStoreBanner(double screenWidth) {
+    return Container(
+      margin: Responsive.only(bottom: AppSizes.spacingMedium),
+      padding: Responsive.all(AppSizes.spacingMedium),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.15),
+          width: AppSizes.spacingTiny / 4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.spacingSmall),
+            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: Responsive.all(AppSizes.spacingSmall),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: SvgPicture.asset(
+              'assets/images/playstore.svg',
+              width: Responsive.icon(AppSizes.iconMedium),
+              height: Responsive.icon(AppSizes.iconMedium),
+            ),
+          ),
+          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Need to update the app?',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                Text(
+                  'Easily update or reinstall directly from the Google Play Store.',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+          ElevatedButton(
+            onPressed: () async {
+              final Uri url = Uri.parse(
+                'https://play.google.com/store/apps/details?id=com.mazhavilcostumes.app',
+              );
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: Responsive.symmetric(
+                horizontal: AppSizes.spacingMedium,
+                vertical: AppSizes.spacingSmall,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+              ),
+              elevation: AppSizes.spacingTiny / 2,
+            ),
+            child: Text(
+              'Open',
+              style: TextStyle(
+                fontSize: Responsive.sp(AppSizes.fontSmall),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDashboardContent(OperationalMetrics metrics, double screenWidth) {
     final pendingCards = metrics.cards.where((c) => c.hasWarning).toList();
     final clearCards = metrics.cards.where((c) => !c.hasWarning).toList();
@@ -248,6 +346,8 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
             return _buildGridActionCard(clearCards[index], screenWidth);
           },
         ),
+        SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+        _buildPlayStoreBanner(screenWidth),
       ],
     );
   }
