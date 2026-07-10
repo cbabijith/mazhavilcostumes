@@ -73,10 +73,10 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
   }
 
   void _navigateToEdit() async {
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => CategoryFormView(category: _category)),
     );
-    if (!mounted) return;
+    if (result != true || !mounted) return;
 
     try {
       await ref.read(categoriesProvider.notifier).refresh();
@@ -417,12 +417,13 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                               ),
                               if (canManage)
                                 TextButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
+                                  onPressed: () async {
+                                    final result = await Navigator.of(context).push<bool>(
                                       MaterialPageRoute(builder: (_) => CategoryFormView(initialParentId: _category.id)),
-                                    ).then((_) {
+                                    );
+                                    if (result == true && mounted) {
                                       ref.invalidate(categoriesProvider);
-                                    });
+                                    }
                                   },
                                   icon: Icon(Icons.add_rounded, size: Responsive.icon(AppSizes.iconSmall)),
                                   label: Text(
