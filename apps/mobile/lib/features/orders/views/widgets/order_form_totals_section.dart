@@ -756,27 +756,7 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
               );
             },
           ),
-          // Amount paid (edit mode only)
-          if (isEditing) ...[
-            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-            TextFormField(
-              controller: _amountPaidController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
-              decoration: InputDecoration(
-                labelText: 'Total Amount Paid (₹)',
-                contentPadding: Responsive.symmetric(
-                  horizontal: AppSizes.spacingMedium,
-                  vertical: AppSizes.spacingSmall,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                    Responsive.r(AppSizes.radiusSmall),
-                  ),
-                ),
-              ),
-            ),
-          ],
+
         ],
       ),
     );

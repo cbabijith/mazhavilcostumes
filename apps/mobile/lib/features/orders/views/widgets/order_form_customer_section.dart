@@ -95,16 +95,17 @@ extension _OrderFormCustomerSection on _OrderFormViewState {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    Icons.clear_rounded,
-                    color: Colors.grey[600],
-                    size: Responsive.icon(20),
+                if (widget.order == null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.clear_rounded,
+                      color: Colors.grey[600],
+                      size: Responsive.icon(20),
+                    ),
+                    onPressed: _clearCustomer,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   ),
-                  onPressed: _clearCustomer,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
               ],
             ),
           ),

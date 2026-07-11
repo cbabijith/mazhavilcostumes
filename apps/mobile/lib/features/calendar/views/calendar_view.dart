@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/responsive.dart';
@@ -63,6 +64,63 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
                     fontSize: Responsive.sp(AppSizes.fontSmall),
                     color: AppColors.secondaryText,
                   ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (ordersAsync.hasError && !ordersAsync.isLoading) {
+      return Container(
+        color: AppColors.scaffoldBackground,
+        child: Center(
+          child: Padding(
+            padding: Responsive.all(AppSizes.screenPaddingSmall),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: Responsive.icon(AppSizes.iconHuge),
+                  color: AppColors.error,
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                Text(
+                  AppStrings.failedToLoadCalendar,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontXLarge),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                Text(
+                  ordersAsync.error.toString(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingLarge,
+                      vertical: AppSizes.spacingMedium,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    ),
+                  ),
+                  onPressed: () {
+                    ref.invalidate(calendarOrdersProvider);
+                  },
+                  child: const Text(AppStrings.retry),
                 ),
               ],
             ),
@@ -349,23 +407,27 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
   }
 
   Widget _buildCalendarShimmer() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 7,
-        mainAxisSpacing: 6,
-        crossAxisSpacing: 6,
+    return Shimmer.fromColors(
+      baseColor: AppColors.shimmerBase,
+      highlightColor: AppColors.shimmerHighlight,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 7,
+          mainAxisSpacing: 6,
+          crossAxisSpacing: 6,
+        ),
+        itemCount: 35,
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+            ),
+          );
+        },
       ),
-      itemCount: 35,
-      itemBuilder: (context, index) {
-        return Container(
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-          ),
-        );
-      },
     );
   }
 
