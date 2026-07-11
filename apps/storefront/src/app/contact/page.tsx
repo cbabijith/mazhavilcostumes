@@ -163,11 +163,8 @@ export default function ContactPage() {
                     <div className="min-w-0">
                       <p className="text-xs text-body mb-1">Mob / Whatsapp</p>
                       <div className="flex flex-col gap-0.5">
-                        <a href="tel:9446961765" className="text-sm font-medium text-heading hover:text-rosegold transition-colors">
-                          +91 94469 61765
-                        </a>
-                        <a href="tel:9447961765" className="text-sm font-medium text-heading hover:text-rosegold transition-colors">
-                          +91 94479 61765
+                        <a href="tel:8129668157" className="text-sm font-medium text-heading hover:text-rosegold transition-colors">
+                          +91 81296 68157
                         </a>
                       </div>
                     </div>
@@ -192,12 +189,12 @@ export default function ContactPage() {
                     <div className="min-w-0">
                       <p className="text-xs text-body mb-1">Address</p>
                       <a
-                        href="https://www.google.com/maps/search/?api=1&query=8.481222,76.965056"
+                        href="https://www.google.com/maps/search/?api=1&query=9.18014716987313,76.5576453469383"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-heading leading-relaxed hover:text-rosegold transition-colors"
                       >
-                        Karamana Main Road, near QRS, Karamana, Thiruvananthapuram, Kerala 695002
+                        Thazhava Jn, Kayamkulam - Pathanapuram Rd, Kattanam, Kayamkulam, Kerala 690503
                       </a>
                     </div>
                   </div>

@@ -39,7 +39,7 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
           Our Gallery
         </h1>
         <p className="text-sm text-body mt-3 max-w-lg mx-auto leading-relaxed">
-          Step into a world of shared celebrations. Beautiful moments captured by our clients, showcasing the elegance of our rental dance costumes in action.
+          Step into a world of shared celebrations. Beautiful moments captured by our clients, showcasing the elegance of our bridal jewelry rentals in action.
         </p>
       </div>
 
@@ -58,7 +58,7 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
             >
               <Image
                 src={item.image_url}
-                alt="Client shared costume photo"
+                alt="Client shared jewelry photo"
                 fill
                 sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
@@ -97,7 +97,7 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
           >
             <Image
               src={items[selectedIdx].image_url}
-              alt="Client costume photo"
+              alt="Client jewelry photo"
               fill
               className="object-contain"
               priority

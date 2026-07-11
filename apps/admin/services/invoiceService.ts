@@ -232,7 +232,7 @@ export class InvoiceService {
     return {
       companyName: order.store?.name || BRAND_CONFIG.name,
       companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
-      companyPhone: order.store?.phone || '9446961765, 9447961765',
+      companyPhone: order.store?.phone || '+91 81296 68157',
       companyEmail: order.store?.email,
       companyGstin: order.store?.gstin,
 

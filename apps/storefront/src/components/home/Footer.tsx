@@ -56,11 +56,11 @@ export default function Footer({ store, categories: initialCategories }: FooterP
                 {BRAND_CONFIG.name}
               </span>
               <span className="text-[10px] sm:text-[11px] tracking-[0.3em] text-white/40 uppercase block mt-1.5">
-                Karamana | Trivandrum
+                Kayamkulam, Kerala
               </span>
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6 max-w-xs">
-              Premium classical and traditional dance costumes for rent. Crafted with heritage, designed for the stage.
+              Premium bridal jewelry and accessories for rent. Crafted with heritage, designed to make your special day shine.
             </p>
             <div className="flex gap-3">
               {[Instagram, Facebook, Twitter].map((Icon, idx) => (
@@ -122,23 +122,19 @@ export default function Footer({ store, categories: initialCategories }: FooterP
               </li>
               <li>
                 <a
-                  href="https://www.google.com/maps/search/?api=1&query=8.481222,76.965056"
+                  href="https://www.google.com/maps/search/?api=1&query=9.18014716987313,76.5576453469383"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 leading-relaxed block max-w-[240px]"
                 >
-                  Karamana Main Road, near QRS, Karamana, Thiruvananthapuram, Kerala 695002
+                  Thazhava Jn, Kayamkulam - Pathanapuram Rd, Kattanam, Kayamkulam, Kerala 690503
                 </a>
               </li>
               <li>
                 <div className="flex flex-col gap-2.5">
-                  <a href="tel:9446961765" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2">
+                  <a href="tel:8129668157" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2">
                     <Phone size={13} strokeWidth={1.8} className="text-rosegold" />
-                    +91 94469 61765
-                  </a>
-                  <a href="tel:9447961765" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2">
-                    <Phone size={13} strokeWidth={1.8} className="text-rosegold" />
-                    +91 94479 61765
+                    +91 81296 68157
                   </a>
                 </div>
               </li>

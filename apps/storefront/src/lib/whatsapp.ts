@@ -1,8 +1,8 @@
 // Shared WhatsApp ordering config for Mazhavil Dance Costumes
 import { BRAND_CONFIG } from "shared-utils";
 
-export const WHATSAPP_NUMBER = "919446961765";
-export const DISPLAY_PHONE = "+91 94469 61765 / +91 94479 61765";
+export const WHATSAPP_NUMBER = "918129668157";
+export const DISPLAY_PHONE = "+91 81296 68157";
 
 export function calculateRentalPrice(
   pricePerDay: number,
