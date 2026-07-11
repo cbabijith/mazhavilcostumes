@@ -268,6 +268,9 @@ extension _OrderFormSubmit on _OrderFormViewState {
         ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
         : 'pending';
 
+    final double securityDeposit =
+        double.tryParse(_securityDepositController.text) ?? 0.0;
+
     final Map<String, dynamic> body = {
       if (widget.order == null) ...{
         'customer_id': _selectedCustomerId,
@@ -287,6 +290,10 @@ extension _OrderFormSubmit on _OrderFormViewState {
       'advance_collected': advanceAmount > 0,
       if (advanceAmount > 0 && _advancePaymentMethod != null)
         'advance_payment_method': _advancePaymentMethod!.toJsonValue(),
+      'security_deposit': securityDeposit,
+      'deposit_collected': securityDeposit > 0,
+      if (securityDeposit > 0 && _depositPaymentMethod != null)
+        'deposit_payment_method': _depositPaymentMethod!.toJsonValue(),
       'subtotal': _subtotal,
       'gst_amount': _gstAmount,
       'total_amount': _totalAmount,

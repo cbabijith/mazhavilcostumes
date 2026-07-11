@@ -3330,10 +3330,139 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     '₹${_currentOrder.totalAmount.toStringAsFixed(2)}',
                     isBold: true,
                   ),
-                  _buildReceiptRow(
-                    'Advance/Deposit',
-                    '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}',
-                  ),
+                  if (_currentOrder.advanceAmount > 0.01)
+                    _buildReceiptRow(
+                      'Advance Payment',
+                      '₹${_currentOrder.advanceAmount.toStringAsFixed(2)}',
+                    ),
+                  if (_currentOrder.securityDeposit > 0.01) ...[
+                    Padding(
+                      padding: Responsive.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Security Deposit',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                              SizedBox(width: Responsive.w(8)),
+                              // Status badge
+                              if (!_currentOrder.depositCollected)
+                                Container(
+                                  padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    border: Border.all(color: Colors.grey.shade300),
+                                    borderRadius: BorderRadius.circular(Responsive.r(4)),
+                                  ),
+                                  child: Text(
+                                    'Not Collected',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              else if (_currentOrder.depositCollected && !_currentOrder.depositReturned)
+                                Container(
+                                  padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.08),
+                                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                                    borderRadius: BorderRadius.circular(Responsive.r(4)),
+                                  ),
+                                  child: Text(
+                                    'Held',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              else
+                                Container(
+                                  padding: Responsive.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade50,
+                                    border: Border.all(color: Colors.orange.shade200),
+                                    borderRadius: BorderRadius.circular(Responsive.r(4)),
+                                  ),
+                                  child: Text(
+                                    'Refunded',
+                                    style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Text(
+                            '₹${_currentOrder.securityDeposit.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Action button for deposit
+                    if (!_currentOrder.depositCollected && _currentOrder.status != OrderStatus.cancelled)
+                      Padding(
+                        padding: Responsive.only(top: 4, bottom: 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.primary,
+                              side: const BorderSide(color: AppColors.primary, width: 1),
+                              padding: Responsive.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                              ),
+                            ),
+                            onPressed: _openCollectDepositDialog,
+                            icon: Icon(Icons.account_balance_wallet_outlined, size: Responsive.icon(16)),
+                            label: Text(
+                              'Collect Security Deposit',
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (_currentOrder.depositCollected && !_currentOrder.depositReturned)
+                      Padding(
+                        padding: Responsive.only(top: 4, bottom: 8),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.orange[800],
+                              side: BorderSide(color: Colors.orange.shade400, width: 1),
+                              padding: Responsive.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                              ),
+                            ),
+                            onPressed: _openRefundDepositDialog,
+                            icon: Icon(Icons.assignment_return_outlined, size: Responsive.icon(16)),
+                            label: Text(
+                              'Refund Security Deposit',
+                              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall), fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                   _buildReceiptRow(
                     'Amount Paid',
                     '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
@@ -3765,6 +3894,340 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         }
                       },
                       child: const Text('Record Payment'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openCollectDepositDialog() {
+    final amountController = TextEditingController(
+      text: _currentOrder.securityDeposit.toStringAsFixed(0),
+    );
+    String paymentMode = 'upi';
+    final notesController = TextEditingController(text: 'Security Deposit Collection');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Collect Security Deposit',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(16),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Deposit Amount: ₹${_currentOrder.securityDeposit.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(12),
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: amountController,
+                    enabled: false,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Amount (₹)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  DropdownButtonFormField<String>(
+                    initialValue: paymentMode,
+                    decoration: InputDecoration(
+                      labelText: 'Payment Mode',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
+                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                      DropdownMenuItem(value: 'card', child: Text('Card')),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text('Bank Transfer'),
+                      ),
+                      DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => paymentMode = val);
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: notesController,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Notes',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final amt =
+                            double.tryParse(amountController.text) ?? 0.0;
+                        if (amt <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a valid amount'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(modalContext);
+                        setState(() => _isLoading = true);
+                        try {
+                          await ref
+                              .read(orderOperationsProvider)
+                              .collectPayment(
+                                orderId: _currentOrder.id,
+                                amount: amt,
+                                paymentMode: paymentMode,
+                                paymentType: 'deposit',
+                                notes: notesController.text.trim(),
+                              );
+                          await ref
+                              .read(orderOperationsProvider)
+                              .updateOrder(_currentOrder.id, {
+                                'deposit_collected': true,
+                                'deposit_collected_at': DateTime.now().toUtc().toIso8601String(),
+                              });
+                          await _refreshOrder();
+                          ref.invalidate(
+                            orderPaymentsProvider(_currentOrder.id),
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Security deposit collected successfully'),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to collect deposit: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Record Deposit Collection'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openRefundDepositDialog() {
+    final amountController = TextEditingController(
+      text: _currentOrder.securityDeposit.toStringAsFixed(0),
+    );
+    String paymentMode = 'upi';
+    final notesController = TextEditingController(text: 'Security Deposit Refund');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (modalContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Refund Security Deposit',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(16),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange[800],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Refund Amount: ₹${_currentOrder.securityDeposit.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(12),
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: amountController,
+                    enabled: false,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Amount (₹)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  DropdownButtonFormField<String>(
+                    initialValue: paymentMode,
+                    decoration: InputDecoration(
+                      labelText: 'Refund Method',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
+                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                      DropdownMenuItem(value: 'card', child: Text('Card')),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text('Bank Transfer'),
+                      ),
+                      DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setModalState(() => paymentMode = val);
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  TextField(
+                    controller: notesController,
+                    style: TextStyle(fontSize: Responsive.sp(15)),
+                    decoration: InputDecoration(
+                      labelText: 'Notes',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(24)),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange[800],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final amt =
+                            double.tryParse(amountController.text) ?? 0.0;
+                        if (amt <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a valid amount'),
+                            ),
+                          );
+                          return;
+                        }
+
+                        Navigator.pop(modalContext);
+                        setState(() => _isLoading = true);
+                        try {
+                          await ref
+                              .read(orderOperationsProvider)
+                              .collectPayment(
+                                orderId: _currentOrder.id,
+                                amount: amt,
+                                paymentMode: paymentMode,
+                                paymentType: 'refund',
+                                notes: notesController.text.trim(),
+                              );
+                          await ref
+                              .read(orderOperationsProvider)
+                              .updateOrder(_currentOrder.id, {
+                                'deposit_returned': true,
+                                'deposit_returned_at': DateTime.now().toUtc().toIso8601String(),
+                              });
+                          await _refreshOrder();
+                          ref.invalidate(
+                            orderPaymentsProvider(_currentOrder.id),
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Security deposit refunded successfully'),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => _isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to refund deposit: $e'),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      child: const Text('Record Deposit Refund'),
                     ),
                   ),
                 ],

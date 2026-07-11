@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
 import 'core/theme/theme.dart';
+import 'core/supabase/auth_service.dart';
+import 'core/supabase/api_client.dart';
 import 'features/auth/views/splash_view.dart';
 
 Future<void> main() async {
@@ -12,6 +15,22 @@ Future<void> main() async {
   try {
     // Load environment variables
     await dotenv.load(fileName: '.env');
+    
+    // Inject API Base URL dynamically if present in .env
+    var apiBaseUrl = dotenv.env['API_BASE_URL'];
+    if (apiBaseUrl != null && apiBaseUrl.isNotEmpty) {
+      if (Platform.isAndroid) {
+        if (apiBaseUrl.contains('localhost')) {
+          apiBaseUrl = apiBaseUrl.replaceFirst('localhost', '10.0.2.2');
+          debugPrint('[Initialization] Android detected: mapped localhost to 10.0.2.2 ($apiBaseUrl)');
+        } else if (apiBaseUrl.contains('127.0.0.1')) {
+          apiBaseUrl = apiBaseUrl.replaceFirst('127.0.0.1', '10.0.2.2');
+          debugPrint('[Initialization] Android detected: mapped 127.0.0.1 to 10.0.2.2 ($apiBaseUrl)');
+        }
+      }
+      authService.updateBaseUrl(apiBaseUrl);
+      ApiClient.instance.updateBaseUrl(apiBaseUrl);
+    }
     
     // Initialize Supabase client
     final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? const String.fromEnvironment('SUPABASE_URL');

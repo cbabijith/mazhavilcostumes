@@ -197,7 +197,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   Future<void> clearFilters() async {
     _currentSearch = '';
     _currentStatus = null;
-    _currentBranchId = null;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     _currentDateFilter = 'ALL';
     _currentDateFrom = null;
     _currentDateTo = null;

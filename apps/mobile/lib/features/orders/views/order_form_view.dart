@@ -62,6 +62,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _deliveryAddressController = TextEditingController();
   final _pickupAddressController = TextEditingController();
   final _advanceAmountController = TextEditingController(text: '0');
+  final _securityDepositController = TextEditingController(text: '0');
   final _discountController = TextEditingController(text: '0');
   final _phoneSearchController = TextEditingController();
 
@@ -94,6 +95,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   bool _isGstEnabled = false;
   String _orderDiscountType = 'flat'; // 'flat' | 'percent'
   PaymentMethod? _advancePaymentMethod = PaymentMethod.cash;
+  PaymentMethod? _depositPaymentMethod = PaymentMethod.cash;
 
   void _update(VoidCallback fn) {
     if (mounted) {
@@ -132,11 +134,15 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _pickupAddressController.text = widget.order!.pickupAddress ?? '';
       _advanceAmountController.text = widget.order!.advanceAmount
           .toStringAsFixed(0);
+      _securityDepositController.text = widget.order!.securityDeposit
+          .toStringAsFixed(0);
       _discountController.text = widget.order!.discount.toStringAsFixed(0);
       _selectedDeliveryMethod = widget.order!.deliveryMethod;
       _orderDiscountType = widget.order!.discountType;
       _advancePaymentMethod =
           widget.order!.advancePaymentMethod ?? PaymentMethod.cash;
+      _depositPaymentMethod =
+          widget.order!.depositPaymentMethod ?? PaymentMethod.cash;
 
       if (widget.order!.items != null) {
         _items.addAll(
@@ -186,6 +192,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     _deliveryAddressController.dispose();
     _pickupAddressController.dispose();
     _advanceAmountController.dispose();
+    _securityDepositController.dispose();
     _discountController.dispose();
     _phoneSearchController.dispose();
     super.dispose();

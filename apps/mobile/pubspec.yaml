@@ -80,6 +80,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/logo_paris.svg
+    - assets/images/logo_paris.png
     - assets/images/mazhavil.png
     - assets/images/playstore.svg
     - .env
@@ -114,5 +115,5 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/mazhavil.png"
+  image_path: "assets/images/logo_paris.png"
   remove_alpha_ios: true
