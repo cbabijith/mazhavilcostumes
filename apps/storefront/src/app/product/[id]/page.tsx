@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: PageProps) {
     title: `${product.name} — ${BRAND_CONFIG.name}`,
     description:
       product.description ||
-      `Rent ${product.name} from ${BRAND_CONFIG.name}. Premium classical and traditional dance costumes.`,
+      `Rent ${product.name} from ${BRAND_CONFIG.name}. Premium bridal jewelry and accessories.`,
   };
 }
 

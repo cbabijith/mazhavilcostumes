@@ -178,7 +178,7 @@ export const BRAND_CONFIG = {
     return process.env.NEXT_PUBLIC_APP_NAME || "Paris Bridals";
   },
   get email() {
-    return process.env.NEXT_PUBLIC_APP_EMAIL || "parisbridals2@gmail.com";
+    return process.env.NEXT_PUBLIC_APP_EMAIL || "admin@parisbridals.com";
   },
   get slug() {
     return process.env.NEXT_PUBLIC_APP_SLUG || "paris-bridals";

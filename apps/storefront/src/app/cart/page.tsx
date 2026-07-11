@@ -145,7 +145,7 @@ export default function CartPage() {
                 Your cart is empty
               </h2>
               <p className="text-sm text-body mb-6 max-w-sm mx-auto">
-                Browse our collection and add costumes to your enquiry cart.
+                Browse our collection and add premium bridal jewelry to your enquiry cart.
               </p>
               <Link
                 href="/collections"
@@ -181,7 +181,7 @@ export default function CartPage() {
                             />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center bg-rosegold/5">
-                              <span className="text-2xl opacity-20">👗</span>
+                              <span className="text-2xl opacity-20">💎</span>
                             </div>
                           )}
                         </div>
