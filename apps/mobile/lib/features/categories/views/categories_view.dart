@@ -319,12 +319,19 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                 children: [
                   Text(main.name, style: TextStyle(fontSize: Responsive.sp(16), fontWeight: FontWeight.w800, color: AppColors.primary)),
                   SizedBox(height: Responsive.h(6)),
-                  Row(
+                  Wrap(
+                    spacing: Responsive.w(8),
+                    runSpacing: Responsive.h(4),
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      _buildStatusDot(main.isActive),
-                      SizedBox(width: Responsive.w(6)),
-                      Text(main.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600], fontWeight: FontWeight.w500)),
-                      SizedBox(width: Responsive.w(10)),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildStatusDot(main.isActive),
+                          SizedBox(width: Responsive.w(6)),
+                          Text(main.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[600], fontWeight: FontWeight.w500)),
+                        ],
+                      ),
                       Container(
                         padding: Responsive.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
@@ -333,14 +340,12 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                         ),
                         child: Text('${main.gstPercentage}% GST', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
                       ),
-                      if (subs.isNotEmpty) ...[
-                        SizedBox(width: Responsive.w(10)),
+                      if (subs.isNotEmpty)
                         Container(
                           padding: Responsive.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(Responsive.r(8))),
-                          child: Text(' sub-categories', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                          child: Text('${subs.length} sub-categories', style: TextStyle(fontSize: Responsive.sp(10), fontWeight: FontWeight.bold, color: AppColors.primary)),
                         ),
-                      ],
                     ],
                   ),
                 ],

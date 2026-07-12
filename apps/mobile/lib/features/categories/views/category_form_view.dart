@@ -331,10 +331,6 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
                   _buildLabel('Parent Category'),
                   SizedBox(height: Responsive.h(6)),
                   isEditing ? _buildParentSelector() : _buildReadOnlyParent(),
-                  SizedBox(height: Responsive.h(16)),
-                  _buildLabel('Sort Order'),
-                  SizedBox(height: Responsive.h(6)),
-                  _buildTextField(_sortOrderController, '0', keyboardType: TextInputType.number),
                 ],
               ),
 
