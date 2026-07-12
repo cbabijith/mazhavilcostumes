@@ -8,6 +8,7 @@ import '../../../core/utils/responsive.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
+import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../providers/product_details_provider.dart';
 import '../models/product.dart';
 import '../models/product_analytics.dart';
@@ -74,11 +75,12 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     final user = ref.watch(authUserProvider);
     final isAdminOrManager = user?.canManage ?? false;
     final detailsAsync = ref.watch(productDetailsProvider(widget.productId));
+    final selectedBranchId = ref.watch(effectiveBranchIdProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: detailsAsync.when(
-        data: (state) => _buildBody(context, state, isAdminOrManager),
+        data: (state) => _buildBody(context, state, isAdminOrManager, selectedBranchId),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _buildErrorState(context, e),
       ),
@@ -119,13 +121,12 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       ),
     );
   }
-
   Widget _buildBody(BuildContext context, ProductDetailsState state,
-      bool isAdminOrManager) {
+      bool isAdminOrManager, String? selectedBranchId) {
     final product = state.product;
     return CustomScrollView(
       slivers: [
-        _buildSliverAppBar(product, isAdminOrManager),
+        _buildSliverAppBar(product, isAdminOrManager, selectedBranchId, state.branchInventory),
         SliverToBoxAdapter(
           child: Padding(
             padding: Responsive.all(AppSizes.screenPaddingLarge),
@@ -134,7 +135,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               children: [
                 _buildHeaderSection(product),
                 SizedBox(height: Responsive.h(16)),
-                _buildMetricsGrid(state, isAdminOrManager),
+                _buildMetricsGrid(state, isAdminOrManager, selectedBranchId),
                 SizedBox(height: Responsive.h(16)),
                 if (isAdminOrManager) ...[
                   _buildAnalyticsSection(state.analytics),
@@ -144,7 +145,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 SizedBox(height: Responsive.h(16)),
                 _buildProductIdentifiersCard(product),
                 SizedBox(height: Responsive.h(16)),
-                _buildBranchStockSection(state.branchInventory, product),
+                _buildBranchStockSection(state.branchInventory, product, selectedBranchId),
                 SizedBox(height: Responsive.h(16)),
                 _buildCalendarSection(state.availability),
                 SizedBox(height: Responsive.h(16)),
@@ -168,9 +169,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       ],
     );
   }
-
   Widget _buildSliverAppBar(
-      Product product, bool isAdminOrManager) {
+      Product product, bool isAdminOrManager, String? selectedBranchId, List<BranchInventory> branchInventory) {
     return SliverAppBar(
       expandedHeight: Responsive.h(320),
       pinned: true,
@@ -267,7 +267,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               child: Wrap(
                 spacing: Responsive.w(6),
                 children: [
-                  _buildStatusBadge(product),
+                  _buildStatusBadge(product, selectedBranchId, branchInventory),
                   if (product.isFeatured)
                     _buildPillBadge('Featured', const Color(0xFFF5A623)),
                 ],
@@ -291,18 +291,31 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     );
   }
 
-  Widget _buildStatusBadge(Product product) {
-    final stock = product.availableQuantity;
+  Widget _buildStatusBadge(Product product, String? selectedBranchId, List<BranchInventory> branchInventory) {
+    if (!product.isActive) {
+      return _buildPillBadge('Inactive', Colors.grey);
+    }
+
+    final selectedBranchInv = selectedBranchId != null
+        ? branchInventory.cast<BranchInventory?>().firstWhere(
+              (inv) => inv?.branchId == selectedBranchId,
+              orElse: () => null,
+            )
+        : null;
+
+    final int availQty = selectedBranchId != null
+        ? (selectedBranchInv != null ? selectedBranchInv.availableQuantity : 0)
+        : product.availableQuantity;
+    final int lowStockThreshold = selectedBranchId != null
+        ? (selectedBranchInv != null ? selectedBranchInv.lowStockThreshold : 0)
+        : product.lowStockThreshold;
 
     Color bgColor;
     String label;
-    if (!product.isActive) {
-      bgColor = Colors.grey;
-      label = 'Inactive';
-    } else if (stock <= 0) {
+    if (availQty <= 0) {
       bgColor = const Color(0xFFFF6B8A);
       label = 'Out of Stock';
-    } else if (stock <= product.lowStockThreshold) {
+    } else if (availQty <= lowStockThreshold) {
       bgColor = const Color(0xFFF5A623);
       label = 'Low Stock';
     } else {
@@ -418,9 +431,27 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   Widget _buildMetricsGrid(
-      ProductDetailsState state, bool isAdminOrManager) {
+      ProductDetailsState state, bool isAdminOrManager, String? selectedBranchId) {
     final product = state.product;
     final analytics = state.analytics;
+
+    final selectedBranchInv = selectedBranchId != null
+        ? state.branchInventory.cast<BranchInventory?>().firstWhere(
+              (inv) => inv?.branchId == selectedBranchId,
+              orElse: () => null,
+            )
+        : null;
+
+    final int totalQty = selectedBranchId != null
+        ? (selectedBranchInv != null ? selectedBranchInv.quantity : 0)
+        : product.totalQuantity;
+    final int availQty = selectedBranchId != null
+        ? (selectedBranchInv != null ? selectedBranchInv.availableQuantity : 0)
+        : product.availableQuantity;
+    final int lowStockThreshold = selectedBranchId != null
+        ? (selectedBranchInv != null ? selectedBranchInv.lowStockThreshold : 0)
+        : product.lowStockThreshold;
+
     final items = [
       if (isAdminOrManager)
         _MetricItem(
@@ -439,17 +470,16 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       ),
       _MetricItem(
         label: 'Total Rents',
-        value: '${analytics?.totalOrders ?? 0}',
+        value: '${analytics?.totalUnitsRented ?? 0}',
         color: AppColors.warning,
         icon: Icons.repeat_rounded,
       ),
       _MetricItem(
         label: 'Available',
-        value:
-            '${product.availableQuantity} / ${product.totalQuantity}',
-        color: product.availableQuantity == 0
+        value: '$availQty / $totalQty',
+        color: availQty == 0
             ? const Color(0xFFFF6B8A)
-            : product.availableQuantity <= product.lowStockThreshold
+            : availQty <= lowStockThreshold
                 ? const Color(0xFFF5A623)
                 : const Color(0xFF2ECC71),
         icon: Icons.inventory_2_outlined,
@@ -831,7 +861,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   Widget _buildBranchStockSection(
-      List<BranchInventory> branchInventory, Product product) {
+      List<BranchInventory> branchInventory, Product product, String? selectedBranchId) {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -852,69 +882,108 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               ],
             )
           else
-            ...branchInventory.map((b) => Padding(
-                  padding: EdgeInsets.only(bottom: Responsive.h(8)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              b.branchName ?? 'Branch',
-                              style: TextStyle(
-                                  fontSize: Responsive.sp(13),
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Text(
-                            '${b.stockCount} / ${product.totalQuantity}',
+            ...branchInventory.map((b) {
+              final isSelectedBranch = b.branchId == selectedBranchId;
+              final isOut = b.availableQuantity == 0;
+              final isLow = !isOut && b.availableQuantity <= b.lowStockThreshold;
+
+              return Padding(
+                padding: EdgeInsets.only(bottom: Responsive.h(8)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            b.branchName ?? 'Branch',
                             style: TextStyle(
-                                fontSize: Responsive.sp(12),
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary),
+                                fontSize: Responsive.sp(13),
+                                fontWeight: isSelectedBranch ? FontWeight.w800 : FontWeight.w600,
+                                color: isSelectedBranch ? AppColors.primary : AppColors.text),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
-                      SizedBox(height: Responsive.h(6)),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final ratio = product.totalQuantity > 0
-                              ? b.stockCount / product.totalQuantity
-                              : 0.0;
-                          final color = b.stockCount == 0
-                              ? const Color(0xFFFF6B8A)
-                              : b.stockCount <= product.lowStockThreshold
-                                  ? const Color(0xFFF5A623)
-                                  : const Color(0xFF2ECC71);
-                          return Container(
-                            width: constraints.maxWidth,
-                            height: Responsive.h(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius:
-                                  BorderRadius.circular(Responsive.r(4)),
-                            ),
-                            child: FractionallySizedBox(
-                              alignment: Alignment.centerLeft,
-                              widthFactor: ratio.clamp(0.0, 1.0),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius:
-                                      BorderRadius.circular(Responsive.r(4)),
-                                ),
+                        ),
+                        Text(
+                          '${b.availableQuantity} / ${b.quantity}',
+                          style: TextStyle(
+                              fontSize: Responsive.sp(12),
+                              fontWeight: FontWeight.w700,
+                              color: isOut ? const Color(0xFFFF6B8A) : AppColors.text),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: Responsive.h(6)),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final ratio = b.quantity > 0
+                            ? b.availableQuantity / b.quantity
+                            : 0.0;
+                        final color = isOut
+                            ? const Color(0xFFFF6B8A)
+                            : isLow
+                                ? const Color(0xFFF5A623)
+                                : const Color(0xFF2ECC71);
+                        return Container(
+                          width: constraints.maxWidth,
+                          height: Responsive.h(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius:
+                                BorderRadius.circular(Responsive.r(3)),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: ratio.clamp(0.0, 1.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius:
+                                    BorderRadius.circular(Responsive.r(3)),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                )),
+                          ),
+                        );
+                      },
+                    ),
+                    SizedBox(height: Responsive.h(4)),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Threshold: ${b.lowStockThreshold}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(10),
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        if (isOut || isLow)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isOut ? Icons.cancel_outlined : Icons.warning_amber_rounded,
+                                size: Responsive.icon(12),
+                                color: isOut ? const Color(0xFFFF6B8A) : const Color(0xFFF5A623),
+                              ),
+                              SizedBox(width: Responsive.w(2)),
+                              Text(
+                                isOut ? 'Out of stock' : 'Low stock',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(10),
+                                  fontWeight: FontWeight.w600,
+                                  color: isOut ? const Color(0xFFFF6B8A) : const Color(0xFFF5A623),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );

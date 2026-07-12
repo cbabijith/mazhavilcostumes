@@ -11,6 +11,9 @@ class BranchInventory extends Equatable {
   final String productId;
   final String branchId;
   final int stockCount;
+  final int quantity;
+  final int availableQuantity;
+  final int lowStockThreshold;
   final String? branchName;
   final String createdAt;
   final String updatedAt;
@@ -20,13 +23,27 @@ class BranchInventory extends Equatable {
     required this.productId,
     required this.branchId,
     required this.stockCount,
+    required this.quantity,
+    required this.availableQuantity,
+    required this.lowStockThreshold,
     this.branchName,
     required this.createdAt,
     required this.updatedAt,
   });
 
   @override
-  List<Object?> get props => [id, productId, branchId, stockCount, branchName, createdAt, updatedAt];
+  List<Object?> get props => [
+        id,
+        productId,
+        branchId,
+        stockCount,
+        quantity,
+        availableQuantity,
+        lowStockThreshold,
+        branchName,
+        createdAt,
+        updatedAt,
+      ];
 
   factory BranchInventory.fromJson(Map<String, dynamic> json) {
     String? branchName = json['branch_name'] as String?;
@@ -34,11 +51,18 @@ class BranchInventory extends Equatable {
       branchName = (json['branches'] as Map<String, dynamic>)['name'] as String?;
     }
 
+    final qty = json['quantity'] as int? ?? json['stock_count'] as int? ?? 0;
+    final avail = json['available_quantity'] as int? ?? qty;
+    final threshold = json['low_stock_threshold'] as int? ?? 0;
+
     return BranchInventory(
       id: json['id'] as String? ?? '',
       productId: json['product_id'] as String? ?? '',
       branchId: json['branch_id'] as String? ?? '',
-      stockCount: json['stock_count'] as int? ?? json['quantity'] as int? ?? 0,
+      stockCount: qty,
+      quantity: qty,
+      availableQuantity: avail,
+      lowStockThreshold: threshold,
       branchName: branchName,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String? ?? '',
@@ -51,6 +75,9 @@ class BranchInventory extends Equatable {
       'product_id': productId,
       'branch_id': branchId,
       'stock_count': stockCount,
+      'quantity': quantity,
+      'available_quantity': availableQuantity,
+      'low_stock_threshold': lowStockThreshold,
       'branch_name': branchName,
       'created_at': createdAt,
       'updated_at': updatedAt,
