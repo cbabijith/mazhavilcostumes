@@ -374,7 +374,12 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   ref.watch(categoriesProvider).when(
                     data: (all) {
                       final children = all.where((c) => c.parentId == _category.id).toList();
-                      final sortedChildren = children..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                      final sortedChildren = children..sort((a, b) {
+                        if (a.sortOrder != b.sortOrder) {
+                          return a.sortOrder.compareTo(b.sortOrder);
+                        }
+                        return b.createdAt.compareTo(a.createdAt);
+                      });
                       final hasChildren = sortedChildren.isNotEmpty;
 
                       return Column(
@@ -516,7 +521,12 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
 
                                 // 1. Get siblings sorted by sortOrder
                                 final siblings = allCategoriesCopy.where((c) => c.parentId == _category.id).toList()
-                                  ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+                                  ..sort((a, b) {
+                                    if (a.sortOrder != b.sortOrder) {
+                                      return a.sortOrder.compareTo(b.sortOrder);
+                                    }
+                                    return b.createdAt.compareTo(a.createdAt);
+                                  });
 
                                 // 2. Move item
                                 final moved = siblings.removeAt(oldIndex);

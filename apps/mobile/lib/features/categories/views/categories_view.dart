@@ -73,7 +73,12 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
             (c.description ?? '').toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
     final allMainCats = categories.where((c) => c.parentId == null).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      ..sort((a, b) {
+        if (a.sortOrder != b.sortOrder) {
+          return a.sortOrder.compareTo(b.sortOrder);
+        }
+        return b.createdAt.compareTo(a.createdAt);
+      });
     final filteredMainCats = filtered.where((c) => c.parentId == null).toList();
 
     // When searching, also show parents of matching sub/variants
@@ -182,7 +187,12 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
 
                         // 1. Get mains sorted by sortOrder
                         final mains = allCategoriesCopy.where((c) => c.parentId == null).toList()
-                          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+                          ..sort((a, b) {
+                            if (a.sortOrder != b.sortOrder) {
+                              return a.sortOrder.compareTo(b.sortOrder);
+                            }
+                            return b.createdAt.compareTo(a.createdAt);
+                          });
 
                         // 2. Move item
                         final moved = mains.removeAt(oldIndex);
@@ -230,7 +240,12 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       itemBuilder: (context, index) {
                         final main = displayMainCats[index];
                         final subs = categories.where((c) => c.parentId == main.id).toList()
-                          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                          ..sort((a, b) {
+                            if (a.sortOrder != b.sortOrder) {
+                              return a.sortOrder.compareTo(b.sortOrder);
+                            }
+                            return b.createdAt.compareTo(a.createdAt);
+                          });
                         return _buildMainCategoryCard(
                           context,
                           main,
@@ -258,7 +273,12 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       itemBuilder: (context, index) {
                         final main = displayMainCats[index];
                         final subs = categories.where((c) => c.parentId == main.id).toList()
-                          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                          ..sort((a, b) {
+                            if (a.sortOrder != b.sortOrder) {
+                              return a.sortOrder.compareTo(b.sortOrder);
+                            }
+                            return b.createdAt.compareTo(a.createdAt);
+                          });
                         return _buildMainCategoryCard(context, main, subs, categories, canManage);
                       },
                     ),
