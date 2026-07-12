@@ -7,27 +7,36 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Payment, 
-  PaymentWithRelations, 
-  CreatePaymentDTO, 
+import {
+  Payment,
+  PaymentWithRelations,
+  CreatePaymentDTO,
   UpdatePaymentDTO,
-  PaymentSearchParams 
+  PaymentSearchParams,
 } from '@/domain/types/payment';
 
 export class PaymentRepository extends BaseRepository {
   private readonly tableName = 'payments';
   protected useMultiBranchAuditFields = false;
 
+  protected getCreateAuditFields() {
+    return {
+      created_by: this.currentUserId,
+      updated_by: this.currentUserId,
+    };
+  }
+
+  protected getUpdateAuditFields() {
+    return {
+      updated_by: this.currentUserId,
+    };
+  }
+
   /**
    * Find a payment by ID
    */
   async findById(id: string): Promise<RepositoryResult<Payment>> {
-    const response = await this.client
-      .from(this.tableName)
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    const response = await this.client.from(this.tableName).select('*').eq('id', id).maybeSingle();
 
     return this.handleResponse<Payment>(response);
   }
@@ -38,7 +47,7 @@ export class PaymentRepository extends BaseRepository {
   async findByOrderId(orderId: string): Promise<RepositoryResult<Payment[]>> {
     const response = await this.client
       .from(this.tableName)
-      .select('*, staff:created_by(id, name)')
+      .select('*, staff:created_by(id, name), updater:updated_by(id, name)')
       .eq('order_id', orderId)
       .order('payment_date', { ascending: false });
 
@@ -62,9 +71,7 @@ export class PaymentRepository extends BaseRepository {
    * Find all payments with search parameters
    */
   async findAll(params: PaymentSearchParams = {}): Promise<RepositoryResult<Payment[]>> {
-    let query = this.client
-      .from(this.tableName)
-      .select('*, staff:created_by(id, name)');
+    let query = this.client.from(this.tableName).select('*, staff:created_by(id, name), updater:updated_by(id, name)');
 
     if (params.order_id) {
       query = query.eq('order_id', params.order_id);
@@ -133,10 +140,7 @@ export class PaymentRepository extends BaseRepository {
    * Delete a payment
    */
   async delete(id: string): Promise<RepositoryResult<boolean>> {
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const response = await this.client.from(this.tableName).delete().eq('id', id);
 
     if (response.error) {
       return { data: null, error: response.error, success: false };
@@ -157,7 +161,10 @@ export class PaymentRepository extends BaseRepository {
       return { data: null, error: response.error, success: false };
     }
 
-    const total = (response.data || []).reduce((sum: number, p: any) => sum + parseFloat(p.amount), 0);
+    const total = (response.data || []).reduce(
+      (sum: number, p: any) => sum + parseFloat(p.amount),
+      0
+    );
     return { data: total, error: null, success: true };
   }
 }

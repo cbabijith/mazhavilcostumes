@@ -29,10 +29,7 @@ export async function GET(request: NextRequest) {
     const result = await productService.getProductByBarcode(code.trim());
 
     if (!result.success || !result.data) {
-      return NextResponse.json(
-        { success: false, error: 'Product not available' },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: 'Product not available' }, { status: 404 });
     }
 
     return apiSuccess(result.data);

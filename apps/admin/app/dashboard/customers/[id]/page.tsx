@@ -7,15 +7,11 @@
  * @route /dashboard/customers/[id]
  */
 
-import { notFound } from "next/navigation";
-import { customerService } from "@/services";
-import CustomerDetailView from "./CustomerDetailView";
+import { notFound } from 'next/navigation';
+import { customerService } from '@/services';
+import CustomerDetailView from './CustomerDetailView';
 
-export default async function CustomerDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const result = await customerService.getCustomerById(id);

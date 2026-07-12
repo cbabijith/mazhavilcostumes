@@ -23,12 +23,12 @@
  * @module app/api/categories/[id]/route
  */
 
-import { NextRequest } from "next/server";
-import type { UpdateCategoryDTO } from "@/domain";
-import { categoryService } from "@/services/categoryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import type { UpdateCategoryDTO } from '@/domain';
+import { categoryService } from '@/services/categoryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
 const UPDATE_FIELDS = [
   'name',
@@ -46,9 +46,9 @@ const UPDATE_FIELDS = [
 
 function pickCategoryFields(body: Record<string, unknown>) {
   return Object.fromEntries(
-    UPDATE_FIELDS
-      .filter((field) => Object.prototype.hasOwnProperty.call(body, field))
-      .map((field) => [field, body[field]])
+    UPDATE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(body, field)).map(
+      (field) => [field, body[field]]
+    )
   );
 }
 

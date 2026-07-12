@@ -17,14 +17,13 @@ export async function GET(request: Request) {
   const sortBy = searchParams.get('sort_by') as any;
   const sortOrder = searchParams.get('sort_order') as any;
 
-
-  const result = await cleaningService.getQueue({ 
-    branch_id: (branchId && branchId !== 'all') ? branchId : undefined, 
+  const result = await cleaningService.getQueue({
+    branch_id: branchId && branchId !== 'all' ? branchId : undefined,
     status: status || undefined,
     sort_by: sortBy || undefined,
     sort_order: sortOrder || undefined,
   });
-  
+
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }

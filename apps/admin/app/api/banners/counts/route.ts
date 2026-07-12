@@ -6,10 +6,10 @@
  * @module app/api/banners/counts/route
  */
 
-import { NextRequest } from "next/server";
-import { bannerService } from "@/services/bannerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { bannerService } from '@/services/bannerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/banners/counts — get banner counts by type */
 export async function GET(request: NextRequest) {

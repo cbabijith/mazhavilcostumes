@@ -5,4 +5,3 @@
   pick up the single source of truth. All project rules, architecture notes,
   and category-module documentation live in AGENTS.md.
 -->
-

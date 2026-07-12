@@ -5,8 +5,8 @@ import { apiGuard } from '@/lib/apiGuard';
 
 /**
  * Revenue Report API Route
- * 
- * Fetches revenue metrics on the server to bypass RLS issues 
+ *
+ * Fetches revenue metrics on the server to bypass RLS issues
  * and use the SERVICE_ROLE_KEY safely.
  */
 export async function GET(request: NextRequest) {
@@ -29,7 +29,11 @@ export async function GET(request: NextRequest) {
 
     // 3. Fetch data using the service (which uses adminClient on server)
     const reportData = await reportService.getRevenue(
-      { from_date: fromDate, to_date: toDate, status: statusFilter ? statusFilter.split(',') : undefined },
+      {
+        from_date: fromDate,
+        to_date: toDate,
+        status: statusFilter ? statusFilter.split(',') : undefined,
+      },
       branchId,
       storeId
     );

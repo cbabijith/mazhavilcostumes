@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Image from "next/image";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
-import { type GalleryItem } from "@/lib/supabase/queries";
+import { useState } from 'react';
+import Image from 'next/image';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { type GalleryItem } from '@/lib/supabase/queries';
 
 interface GalleryClientProps {
   initialItems: GalleryItem[];
@@ -39,14 +39,17 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
           Our Gallery
         </h1>
         <p className="text-sm text-body mt-3 max-w-lg mx-auto leading-relaxed">
-          Step into a world of shared celebrations. Beautiful moments captured by our clients, showcasing the elegance of our bridal jewelry rentals in action.
+          Step into a world of shared celebrations. Beautiful moments captured by our clients,
+          showcasing the elegance of our bridal jewelry rentals in action.
         </p>
       </div>
 
       {/* Gallery Grid */}
       {items.length === 0 ? (
         <div className="text-center py-20 border border-dashed border-[#EAEAEA] rounded-2xl bg-white max-w-lg mx-auto">
-          <p className="text-sm text-body">Our gallery is being curated. Check back soon for client diaries.</p>
+          <p className="text-sm text-body">
+            Our gallery is being curated. Check back soon for client diaries.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">

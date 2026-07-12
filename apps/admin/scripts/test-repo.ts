@@ -13,8 +13,8 @@ for (const line of envConfig.split('\n')) {
 }
 
 async function run() {
-  console.log("Checking categories...");
+  console.log('Checking categories...');
   const result = await categoryRepository.findAll();
-  console.log("Categories result:", JSON.stringify(result, null, 2));
+  console.log('Categories result:', JSON.stringify(result, null, 2));
 }
 run().catch(console.error);

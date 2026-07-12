@@ -1,17 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { Phone } from "lucide-react";
-import { Store } from "@/lib/supabase/queries";
-import { buildWhatsAppUrl } from "@/lib/whatsapp";
-import { BRAND_CONFIG } from "shared-utils";
+import Link from 'next/link';
+import { Phone } from 'lucide-react';
+import { Store } from '@/lib/supabase/queries';
+import { buildWhatsAppUrl } from '@/lib/whatsapp';
+import { BRAND_CONFIG } from 'shared-utils';
 
 interface MobileCTABarProps {
   store: Store | null;
 }
 
 export default function MobileCTABar({ store }: MobileCTABarProps) {
-  const whatsappUrl = buildWhatsAppUrl(`Hi, I'm interested in renting costumes from ${BRAND_CONFIG.name}.`);
+  const whatsappUrl = buildWhatsAppUrl(
+    `Hi, I'm interested in renting costumes from ${BRAND_CONFIG.name}.`
+  );
 
   return (
     <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-[var(--border-silk)] safe-area-bottom shadow-[0_-4px_24px_rgba(183,110,121,0.08)]">

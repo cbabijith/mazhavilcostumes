@@ -7,11 +7,7 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  BranchInventory, 
-  CreateBranchInventoryDTO, 
-  UpdateBranchInventoryDTO 
-} from '@/domain';
+import { BranchInventory, CreateBranchInventoryDTO, UpdateBranchInventoryDTO } from '@/domain';
 
 export class BranchInventoryRepository extends BaseRepository {
   /**
@@ -20,11 +16,13 @@ export class BranchInventoryRepository extends BaseRepository {
   async getBranchInventoryById(id: string): Promise<RepositoryResult<BranchInventory>> {
     const { data, error } = await this.client
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         *,
         branch:branches(id, name),
         product:products(id, name, sku, images)
-      `)
+      `
+      )
       .eq('id', id)
       .single();
 
@@ -37,10 +35,12 @@ export class BranchInventoryRepository extends BaseRepository {
   async getInventoryByBranch(branchId: string): Promise<RepositoryResult<BranchInventory[]>> {
     const { data, error } = await this.client
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         *,
         product:products(id, name, sku, images)
-      `)
+      `
+      )
       .eq('branch_id', branchId)
       .order('created_at', { ascending: false });
 
@@ -53,10 +53,12 @@ export class BranchInventoryRepository extends BaseRepository {
   async getInventoryByProduct(productId: string): Promise<RepositoryResult<BranchInventory[]>> {
     const { data, error } = await this.client
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         *,
         branch:branches(id, name)
-      `)
+      `
+      )
       .eq('product_id', productId)
       .order('created_at', { ascending: false });
 
@@ -66,7 +68,10 @@ export class BranchInventoryRepository extends BaseRepository {
   /**
    * Get specific branch inventory for a product
    */
-  async getBranchProductInventory(branchId: string, productId: string): Promise<RepositoryResult<BranchInventory | null>> {
+  async getBranchProductInventory(
+    branchId: string,
+    productId: string
+  ): Promise<RepositoryResult<BranchInventory | null>> {
     const { data, error } = await this.client
       .from('product_inventory')
       .select('*')
@@ -80,7 +85,9 @@ export class BranchInventoryRepository extends BaseRepository {
   /**
    * Create branch inventory
    */
-  async createBranchInventory(inventory: CreateBranchInventoryDTO): Promise<RepositoryResult<BranchInventory>> {
+  async createBranchInventory(
+    inventory: CreateBranchInventoryDTO
+  ): Promise<RepositoryResult<BranchInventory>> {
     const { data, error } = await this.client
       .from('product_inventory')
       .insert({
@@ -99,7 +106,10 @@ export class BranchInventoryRepository extends BaseRepository {
   /**
    * Update branch inventory
    */
-  async updateBranchInventory(id: string, inventory: UpdateBranchInventoryDTO): Promise<RepositoryResult<BranchInventory>> {
+  async updateBranchInventory(
+    id: string,
+    inventory: UpdateBranchInventoryDTO
+  ): Promise<RepositoryResult<BranchInventory>> {
     const { data, error } = await this.client
       .from('product_inventory')
       .update(inventory)
@@ -114,10 +124,7 @@ export class BranchInventoryRepository extends BaseRepository {
    * Delete branch inventory
    */
   async deleteBranchInventory(id: string): Promise<RepositoryResult<null>> {
-    const { error } = await this.client
-      .from('product_inventory')
-      .delete()
-      .eq('id', id);
+    const { error } = await this.client.from('product_inventory').delete().eq('id', id);
 
     return this.handleResponse({ data: null, error });
   }
@@ -126,19 +133,26 @@ export class BranchInventoryRepository extends BaseRepository {
    * Adjust inventory quantity
    */
   async adjustInventoryQuantity(
-    branchId: string, 
-    productId: string, 
+    branchId: string,
+    productId: string,
     adjustment: number
   ): Promise<RepositoryResult<BranchInventory>> {
     // First get current inventory
     const currentResult = await this.getBranchProductInventory(branchId, productId);
     if (!currentResult.success || !currentResult.data) {
-      return { success: false, data: null, error: { message: 'Inventory not found', code: 'NOT_FOUND' } as any };
+      return {
+        success: false,
+        data: null,
+        error: { message: 'Inventory not found', code: 'NOT_FOUND' } as any,
+      };
     }
 
     const current = currentResult.data;
     const newQuantity = Math.max(0, current.quantity + adjustment);
-    const newAvailable = Math.max(0, Math.min(current.available_quantity + adjustment, newQuantity));
+    const newAvailable = Math.max(
+      0,
+      Math.min(current.available_quantity + adjustment, newQuantity)
+    );
 
     const { data, error } = await this.client
       .from('product_inventory')
@@ -159,20 +173,22 @@ export class BranchInventoryRepository extends BaseRepository {
   async getLowStockItems(branchId: string): Promise<RepositoryResult<BranchInventory[]>> {
     const { data, error } = await this.client
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         *,
         product:products(id, name, sku, images)
-      `)
+      `
+      )
       .eq('branch_id', branchId)
       .order('available_quantity', { ascending: true });
 
     if (error) return { success: false, data: [], error };
-    
+
     // Filter low stock items in JavaScript
-    const lowStockItems = (data as any[]).filter((item: any) => 
-      item.available_quantity <= item.low_stock_threshold
+    const lowStockItems = (data as any[]).filter(
+      (item: any) => item.available_quantity <= item.low_stock_threshold
     );
-    
+
     return { success: true, data: lowStockItems as any, error: null };
   }
 
@@ -182,11 +198,13 @@ export class BranchInventoryRepository extends BaseRepository {
   async getAllBranchInventory(): Promise<RepositoryResult<BranchInventory[]>> {
     const { data, error } = await this.client
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         *,
         branch:branches(id, name),
         product:products(id, name, sku, images)
-      `)
+      `
+      )
       .order('created_at', { ascending: false });
 
     return this.handleResponse({ data: data as any, error });

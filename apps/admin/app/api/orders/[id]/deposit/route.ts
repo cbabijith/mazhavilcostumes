@@ -7,7 +7,7 @@
  * @module app/api/orders/[id]/deposit/route
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
 interface RouteContext {
   params: Promise<{ id: string }>;

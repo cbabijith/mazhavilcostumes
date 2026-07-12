@@ -8,11 +8,11 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import Link from "next/link";
-import { format, parseISO } from "date-fns";
+import { useMemo } from 'react';
+import Link from 'next/link';
+import { format, parseISO } from 'date-fns';
 import {
   X,
   Package,
@@ -21,10 +21,10 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Clock,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { OrderStatus, type DaySummary, type CalendarEvent } from "@/domain";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { OrderStatus, type DaySummary, type CalendarEvent } from '@/domain';
 
 interface CalendarDayDetailProps {
   summary: DaySummary | null;
@@ -103,9 +103,9 @@ function getStatusBadge(status: OrderStatus) {
 }
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     maximumFractionDigits: 0,
   }).format(amount);
 }
@@ -125,9 +125,7 @@ function EventCard({ event }: { event: CalendarEvent; type: string }) {
           <p className="text-sm font-semibold text-slate-900 group-hover:text-slate-600 transition-colors truncate">
             {event.customerName}
           </p>
-          <p className="text-xs text-slate-400 font-mono mt-0.5">
-            ID: {event.orderId.slice(0, 8)}
-          </p>
+          <p className="text-xs text-slate-400 font-mono mt-0.5">ID: {event.orderId.slice(0, 8)}</p>
         </div>
         {getStatusBadge(event.status)}
       </div>
@@ -138,12 +136,12 @@ function EventCard({ event }: { event: CalendarEvent; type: string }) {
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-1.5 text-slate-600">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            {format(parseISO(event.startDate), "MMM d, yyyy")}
+            {format(parseISO(event.startDate), 'MMM d, yyyy')}
           </div>
           <div className="text-slate-400 ml-5 flex items-center gap-1">
-            to{" "}
+            to{' '}
             <span className="font-medium text-slate-600">
-              {format(parseISO(event.endDate), "MMM d, yyyy")}
+              {format(parseISO(event.endDate), 'MMM d, yyyy')}
             </span>
           </div>
         </div>
@@ -152,24 +150,18 @@ function EventCard({ event }: { event: CalendarEvent; type: string }) {
         <div className="flex items-center gap-1.5 text-slate-600">
           <Package className="w-3.5 h-3.5 text-slate-400" />
           <span className="font-medium">
-            {event.itemCount} item{event.itemCount !== 1 ? "s" : ""}
+            {event.itemCount} item{event.itemCount !== 1 ? 's' : ''}
           </span>
           {event.itemNames.length > 0 && (
-            <span className="text-slate-400 truncate">
-              · {event.itemNames.join(", ")}
-            </span>
+            <span className="text-slate-400 truncate">· {event.itemNames.join(', ')}</span>
           )}
         </div>
 
         {/* Amount */}
         <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-900">
-            {formatCurrency(event.totalAmount)}
-          </span>
+          <span className="font-bold text-slate-900">{formatCurrency(event.totalAmount)}</span>
           {event.depositCollected && (
-            <span className="text-[10px] text-emerald-600 font-medium">
-              Deposit Paid
-            </span>
+            <span className="text-[10px] text-emerald-600 font-medium">Deposit Paid</span>
           )}
         </div>
       </div>
@@ -194,7 +186,9 @@ function EventSection({
 
   return (
     <div>
-      <div className={`flex items-center gap-1.5 mb-2 text-xs font-semibold uppercase tracking-wider ${color}`}>
+      <div
+        className={`flex items-center gap-1.5 mb-2 text-xs font-semibold uppercase tracking-wider ${color}`}
+      >
         <Icon className="w-3.5 h-3.5" />
         {title} ({events.length})
       </div>
@@ -207,10 +201,7 @@ function EventSection({
   );
 }
 
-export default function CalendarDayDetail({
-  summary,
-  onClose,
-}: CalendarDayDetailProps) {
+export default function CalendarDayDetail({ summary, onClose }: CalendarDayDetailProps) {
   const { starting, ongoing, ending } = useMemo(() => {
     if (!summary) return { starting: [], ongoing: [], ending: [] };
 
@@ -240,14 +231,12 @@ export default function CalendarDayDetail({
     return (
       <div className="bg-white border border-slate-200 shadow-sm rounded-lg p-6 text-center">
         <CalendarCheck className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">
-          Select a day to see booking details
-        </p>
+        <p className="text-sm text-slate-500">Select a day to see booking details</p>
       </div>
     );
   }
 
-  const dateLabel = format(parseISO(summary.date), "EEEE, MMMM d, yyyy");
+  const dateLabel = format(parseISO(summary.date), 'EEEE, MMMM d, yyyy');
   const uniqueOrders = new Set(summary.events.map((e) => e.orderId)).size;
   const totalRevenue = summary.events
     .filter((e) => e.startDate === summary.date)
@@ -260,7 +249,7 @@ export default function CalendarDayDetail({
         <div>
           <h3 className="text-sm font-bold text-slate-900">{dateLabel}</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            {uniqueOrders} order{uniqueOrders !== 1 ? "s" : ""}
+            {uniqueOrders} order{uniqueOrders !== 1 ? 's' : ''}
             {totalRevenue > 0 && ` · ${formatCurrency(totalRevenue)} starting`}
           </p>
         </div>

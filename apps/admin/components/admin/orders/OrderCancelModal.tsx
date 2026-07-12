@@ -10,14 +10,14 @@
  * @module components/admin/orders/OrderCancelModal
  */
 
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import { XCircle, AlertTriangle, Banknote } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import Modal from "@/components/admin/Modal";
-import { type OrderWithRelations } from "@/domain";
-import { formatCurrency } from "@/lib/shared-utils";
+import React, { useState } from 'react';
+import { XCircle, AlertTriangle, Banknote } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Modal from '@/components/admin/Modal';
+import { type OrderWithRelations } from '@/domain';
+import { formatCurrency } from '@/lib/shared-utils';
 
 interface OrderCancelModalProps {
   open: boolean;
@@ -34,18 +34,18 @@ function OrderCancelModalInner({
   onConfirm,
   isPending = false,
 }: OrderCancelModalProps) {
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState('');
   const hasPaidAmount = (order?.amount_paid || 0) > 0;
 
   const handleClose = () => {
-    setReason("");
+    setReason('');
     onClose();
   };
 
   const handleConfirm = () => {
     if (!reason.trim()) return;
     onConfirm(reason.trim());
-    setReason("");
+    setReason('');
   };
 
   return (
@@ -56,16 +56,17 @@ function OrderCancelModalInner({
             <XCircle className="w-5 h-5 text-orange-600" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-900 mb-1">
-              Confirm Cancellation
-            </h4>
+            <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Are you sure you want to cancel order{" "}
+              Are you sure you want to cancel order{' '}
               <span className="font-semibold text-slate-900">
                 {order?.invoice_number || `#${order?.id.slice(0, 8)}`}
               </span>
               {order?.customer?.name && (
-                <> for <span className="font-semibold text-slate-900">{order.customer.name}</span></>
+                <>
+                  {' '}
+                  for <span className="font-semibold text-slate-900">{order.customer.name}</span>
+                </>
               )}
               ?
             </p>
@@ -81,8 +82,8 @@ function OrderCancelModalInner({
                 Payment Collected: {formatCurrency(order!.amount_paid)}
               </p>
               <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                This order has payments recorded. After cancellation, you can
-                process a refund from the order detail page.
+                This order has payments recorded. After cancellation, you can process a refund from
+                the order detail page.
               </p>
             </div>
           </div>
@@ -117,7 +118,7 @@ function OrderCancelModalInner({
             disabled={!reason.trim() || isPending}
             className={`text-white ${!reason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'}`}
           >
-            {isPending ? "Cancelling..." : "Cancel Order"}
+            {isPending ? 'Cancelling...' : 'Cancel Order'}
           </Button>
         </div>
       </div>
@@ -126,6 +127,6 @@ function OrderCancelModalInner({
 }
 
 const OrderCancelModal = React.memo(OrderCancelModalInner);
-OrderCancelModal.displayName = "OrderCancelModal";
+OrderCancelModal.displayName = 'OrderCancelModal';
 
 export default OrderCancelModal;

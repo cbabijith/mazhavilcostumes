@@ -18,10 +18,7 @@ import { orderService } from '@/services/orderService';
 import { apiGuard } from '@/lib/apiGuard';
 import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'products');
     if (guard.error) return guard.error;

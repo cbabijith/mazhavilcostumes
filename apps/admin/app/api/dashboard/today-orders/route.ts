@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
     // Fetch today's pickups
     const { data: pickupOrders } = await supabase
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         start_date,
         end_date,
@@ -39,7 +40,8 @@ export async function GET(request: NextRequest) {
             image_url
           )
         )
-      `)
+      `
+      )
       .eq('start_date', todayStr)
       .neq('status', 'cancelled')
       .order('start_date', { ascending: true });
@@ -47,7 +49,8 @@ export async function GET(request: NextRequest) {
     // Fetch today's returns
     const { data: returnOrders } = await supabase
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         start_date,
         end_date,
@@ -63,7 +66,8 @@ export async function GET(request: NextRequest) {
             image_url
           )
         )
-      `)
+      `
+      )
       .eq('end_date', todayStr)
       .in('status', ['ongoing', 'in_use'])
       .order('end_date', { ascending: true });
@@ -72,7 +76,7 @@ export async function GET(request: NextRequest) {
       const customer = order.customer;
       const items = order.order_items || [];
       const firstItem = items[0]?.product || {};
-      
+
       return {
         id: order.id,
         customer_name: customer?.name || 'Unknown',

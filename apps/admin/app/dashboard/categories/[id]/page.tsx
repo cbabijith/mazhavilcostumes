@@ -13,11 +13,11 @@
  * @module app/dashboard/categories/[id]/page
  */
 
-"use client";
+'use client';
 
-import { useEffect, useState, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useEffect, useState, useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Edit,
@@ -32,19 +32,13 @@ import {
   CheckCircle2,
   XCircle,
   Image as ImageIcon,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import Modal from "@/components/admin/Modal";
-import { useCategory, useCategories, useCategoryChildren, useDeleteCategory } from "@/hooks";
-import { type Category } from "@/domain";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import Modal from '@/components/admin/Modal';
+import { useCategory, useCategories, useCategoryChildren, useDeleteCategory } from '@/hooks';
+import { type Category } from '@/domain';
 
 type DeleteCheck = {
   canDelete: boolean;
@@ -86,37 +80,33 @@ export default function CategoryDetailPage() {
   // Derived data
   const parent: Category | undefined = useMemo(
     () =>
-      category?.parent_id
-        ? allCategories.find((c) => c.id === category.parent_id)
-        : undefined,
+      category?.parent_id ? allCategories.find((c) => c.id === category.parent_id) : undefined,
     [category, allCategories]
   );
 
   const grandparent: Category | undefined = useMemo(
-    () =>
-      parent?.parent_id
-        ? allCategories.find((c) => c.id === parent.parent_id)
-        : undefined,
+    () => (parent?.parent_id ? allCategories.find((c) => c.id === parent.parent_id) : undefined),
     [parent, allCategories]
   );
 
   // Level detection
   const level = useMemo(() => {
-    if (!category) return "main";
-    if (!category.parent_id) return "main";
-    if (parent && !parent.parent_id) return "sub";
-    return "variant";
+    if (!category) return 'main';
+    if (!category.parent_id) return 'main';
+    if (parent && !parent.parent_id) return 'sub';
+    return 'variant';
   }, [category, parent]);
 
   const levelConfig = {
-    main: { label: "Main Category", cls: "bg-purple-100 text-purple-700", Icon: FolderOpen },
-    sub: { label: "Sub Category", cls: "bg-blue-100 text-blue-700", Icon: Layers },
-    variant: { label: "Variant", cls: "bg-amber-100 text-amber-700", Icon: Tag },
+    main: { label: 'Main Category', cls: 'bg-purple-100 text-purple-700', Icon: FolderOpen },
+    sub: { label: 'Sub Category', cls: 'bg-blue-100 text-blue-700', Icon: Layers },
+    variant: { label: 'Variant', cls: 'bg-amber-100 text-amber-700', Icon: Tag },
   }[level];
 
-  const canCreateChild = level !== "variant";
-  const childLabel = level === "main" ? "Subcategory" : level === "sub" ? "Variant" : null;
-  const childPluralLabel = level === "main" ? "Subcategories" : level === "sub" ? "Variants" : "Children";
+  const canCreateChild = level !== 'variant';
+  const childLabel = level === 'main' ? 'Subcategory' : level === 'sub' ? 'Variant' : null;
+  const childPluralLabel =
+    level === 'main' ? 'Subcategories' : level === 'sub' ? 'Variants' : 'Children';
 
   // Product count for this category
   const [productCount, setProductCount] = useState<number | null>(null);
@@ -140,7 +130,7 @@ export default function CategoryDetailPage() {
     } catch {
       setDeleteCheckResult({
         canDelete: false,
-        reason: "Unable to verify. Try again.",
+        reason: 'Unable to verify. Try again.',
       });
     }
     setIsCheckingDelete(false);
@@ -152,7 +142,7 @@ export default function CategoryDetailPage() {
     try {
       await deleteCategory.mutateAsync(categoryId);
       setIsDeleteModalOpen(false);
-      router.push("/dashboard/categories");
+      router.push('/dashboard/categories');
     } catch {
       // Error handled in hook
     }
@@ -173,16 +163,11 @@ export default function CategoryDetailPage() {
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
           <Folder className="mb-4 h-12 w-12 text-slate-300" />
-          <h3 className="mb-2 text-lg font-semibold text-slate-900">
-            Category Not Found
-          </h3>
+          <h3 className="mb-2 text-lg font-semibold text-slate-900">Category Not Found</h3>
           <p className="mb-6 text-sm text-slate-500 max-w-sm">
             The category you are looking for does not exist or has been removed.
           </p>
-          <Button
-            variant="outline"
-            onClick={() => router.push("/dashboard/categories")}
-          >
+          <Button variant="outline" onClick={() => router.push('/dashboard/categories')}>
             Return to Categories
           </Button>
         </div>
@@ -198,16 +183,14 @@ export default function CategoryDetailPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => router.push("/dashboard/categories")}
+            onClick={() => router.push('/dashboard/categories')}
             className="w-9 h-9 mt-0.5 shrink-0 border-slate-200 text-slate-500 hover:text-slate-900 bg-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                {category.name}
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">{category.name}</h1>
               <Badge
                 variant="secondary"
                 className={`px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${levelConfig.cls}`}
@@ -219,11 +202,11 @@ export default function CategoryDetailPage() {
                 variant="secondary"
                 className={`px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                   category.is_active
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-slate-100 text-slate-600"
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-slate-100 text-slate-600'
                 }`}
               >
-                {category.is_active ? "Active" : "Inactive"}
+                {category.is_active ? 'Active' : 'Inactive'}
               </Badge>
               {category.is_global && (
                 <Badge
@@ -267,9 +250,7 @@ export default function CategoryDetailPage() {
         <div className="flex items-center gap-2">
           <Button
             size="sm"
-            onClick={() =>
-              router.push(`/dashboard/categories/edit/${category.id}`)
-            }
+            onClick={() => router.push(`/dashboard/categories/edit/${category.id}`)}
             className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
           >
             <Edit className="h-4 w-4" />
@@ -292,7 +273,7 @@ export default function CategoryDetailPage() {
         <StatCard
           label="Hierarchy Level"
           value={levelConfig.label}
-          subtext={`Depth ${level === "main" ? 1 : level === "sub" ? 2 : 3} of 3`}
+          subtext={`Depth ${level === 'main' ? 1 : level === 'sub' ? 2 : 3} of 3`}
         />
         <StatCard
           label={childPluralLabel}
@@ -332,9 +313,7 @@ export default function CategoryDetailPage() {
                 ) : (
                   <div className="w-full aspect-square rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400">
                     <ImageIcon className="h-10 w-10 mb-2 opacity-50" />
-                    <span className="text-xs font-medium uppercase tracking-wider">
-                      No Image
-                    </span>
+                    <span className="text-xs font-medium uppercase tracking-wider">No Image</span>
                   </div>
                 )}
               </div>
@@ -378,8 +357,8 @@ export default function CategoryDetailPage() {
                   {childPluralLabel}
                 </CardTitle>
                 <CardDescription className="text-sm mt-1">
-                  {level === "variant"
-                    ? "Variants are leaf nodes — no children allowed"
+                  {level === 'variant'
+                    ? 'Variants are leaf nodes — no children allowed'
                     : `Direct ${childPluralLabel.toLowerCase()} under this category`}
                 </CardDescription>
               </div>
@@ -389,9 +368,7 @@ export default function CategoryDetailPage() {
                   asChild
                   className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
                 >
-                  <Link
-                    href={`/dashboard/categories/create?parent=${category.id}`}
-                  >
+                  <Link href={`/dashboard/categories/create?parent=${category.id}`}>
                     <Plus className="w-4 h-4" />
                     Add {childLabel}
                   </Link>
@@ -402,9 +379,8 @@ export default function CategoryDetailPage() {
               {!canCreateChild ? (
                 <div className="p-6 text-center">
                   <div className="p-6 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-                    Variants are leaf nodes in the category hierarchy. To
-                    organize further, create additional variants under the parent
-                    sub category.
+                    Variants are leaf nodes in the category hierarchy. To organize further, create
+                    additional variants under the parent sub category.
                   </div>
                 </div>
               ) : isLoadingChildren ? (
@@ -426,9 +402,7 @@ export default function CategoryDetailPage() {
                     No {childPluralLabel.toLowerCase()} yet.
                   </p>
                   <Button variant="outline" asChild>
-                    <Link
-                      href={`/dashboard/categories/create?parent=${category.id}`}
-                    >
+                    <Link href={`/dashboard/categories/create?parent=${category.id}`}>
                       <Plus className="w-4 h-4 mr-2" />
                       Create first {childLabel?.toLowerCase()}
                     </Link>
@@ -440,9 +414,7 @@ export default function CategoryDetailPage() {
                     <div
                       key={child.id}
                       className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
-                      onClick={() =>
-                        router.push(`/dashboard/categories/${child.id}`)
-                      }
+                      onClick={() => router.push(`/dashboard/categories/${child.id}`)}
                     >
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {child.image_url ? (
@@ -465,11 +437,11 @@ export default function CategoryDetailPage() {
                               variant="secondary"
                               className={`text-xs font-medium px-2 py-0.5 ${
                                 child.is_active
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : "bg-slate-100 text-slate-600 border border-slate-200"
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
                               }`}
                             >
-                              {child.is_active ? "Active" : "Inactive"}
+                              {child.is_active ? 'Active' : 'Inactive'}
                             </Badge>
                           </div>
                           <p className="text-xs text-slate-400 font-mono mt-0.5 truncate">
@@ -485,9 +457,7 @@ export default function CategoryDetailPage() {
                           asChild
                           onClick={(e: React.MouseEvent) => e.stopPropagation()}
                         >
-                          <Link
-                            href={`/dashboard/categories/edit/${child.id}`}
-                          >
+                          <Link href={`/dashboard/categories/edit/${child.id}`}>
                             <Edit className="w-4 h-4" />
                           </Link>
                         </Button>
@@ -539,9 +509,7 @@ export default function CategoryDetailPage() {
           {/* GST Information */}
           <Card className="shadow-sm border-slate-200 bg-white">
             <CardHeader className="border-b border-slate-200 py-4 px-5">
-              <CardTitle className="text-sm font-semibold text-slate-900">
-                GST Rate
-              </CardTitle>
+              <CardTitle className="text-sm font-semibold text-slate-900">GST Rate</CardTitle>
             </CardHeader>
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
@@ -585,9 +553,7 @@ export default function CategoryDetailPage() {
                     <p className="font-medium text-slate-900 group-hover:text-slate-600 transition-colors">
                       {parent.name}
                     </p>
-                    <p className="text-xs text-slate-500 font-mono">
-                      {parent.slug}
-                    </p>
+                    <p className="text-xs text-slate-500 font-mono">{parent.slug}</p>
                   </div>
                 </Link>
               </CardContent>
@@ -612,8 +578,10 @@ export default function CategoryDetailPage() {
                     )}
                     Status
                   </dt>
-                  <dd className={`font-medium ${category.is_active ? "text-emerald-700" : "text-slate-500"}`}>
-                    {category.is_active ? "Active" : "Inactive"}
+                  <dd
+                    className={`font-medium ${category.is_active ? 'text-emerald-700' : 'text-slate-500'}`}
+                  >
+                    {category.is_active ? 'Active' : 'Inactive'}
                   </dd>
                 </div>
                 <div className="px-5 py-3 flex items-center justify-between">
@@ -622,7 +590,7 @@ export default function CategoryDetailPage() {
                     Scope
                   </dt>
                   <dd className="font-medium text-slate-700">
-                    {category.is_global ? "Global" : "Store-specific"}
+                    {category.is_global ? 'Global' : 'Store-specific'}
                   </dd>
                 </div>
                 <div className="px-5 py-3 flex items-center justify-between">
@@ -651,14 +619,18 @@ export default function CategoryDetailPage() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">
-                {deleteCheckResult?.canDelete
-                  ? "Confirm Deletion"
-                  : "Cannot Delete"}
+                {deleteCheckResult?.canDelete ? 'Confirm Deletion' : 'Cannot Delete'}
               </h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                {deleteCheckResult?.canDelete
-                  ? <>Are you sure you want to permanently delete <span className="font-semibold text-slate-900">{category.name}</span>? This action cannot be undone.</>
-                  : deleteCheckResult?.reason || "This category cannot be deleted."}
+                {deleteCheckResult?.canDelete ? (
+                  <>
+                    Are you sure you want to permanently delete{' '}
+                    <span className="font-semibold text-slate-900">{category.name}</span>? This
+                    action cannot be undone.
+                  </>
+                ) : (
+                  deleteCheckResult?.reason || 'This category cannot be deleted.'
+                )}
               </p>
             </div>
           </div>
@@ -676,7 +648,7 @@ export default function CategoryDetailPage() {
                 onClick={handleConfirmDelete}
                 disabled={deleteCategory.isPending}
               >
-                {deleteCategory.isPending ? "Deleting..." : "Delete Category"}
+                {deleteCategory.isPending ? 'Deleting...' : 'Delete Category'}
               </Button>
             )}
           </div>
@@ -704,18 +676,14 @@ function StatCard({
     <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {label}
-          </p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
           {highlight && (
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
           )}
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
+          {alert && <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />}
         </div>
         <div className="space-y-1">
           {value === null ? (
@@ -723,15 +691,13 @@ function StatCard({
           ) : (
             <p
               className={`text-2xl font-bold tracking-tight ${
-                alert ? "text-red-600" : "text-slate-900"
+                alert ? 'text-red-600' : 'text-slate-900'
               }`}
             >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

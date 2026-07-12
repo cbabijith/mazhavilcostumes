@@ -7,13 +7,13 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Category, 
-  CreateCategoryDTO, 
+import {
+  Category,
+  CreateCategoryDTO,
   UpdateCategoryDTO,
   CategoryWithRelations,
   CategoryHierarchy,
-  CategoryLevel
+  CategoryLevel,
 } from '@/domain';
 
 export class CategoryRepository extends BaseRepository {
@@ -39,16 +39,18 @@ export class CategoryRepository extends BaseRepository {
   async findById(id: string): Promise<RepositoryResult<CategoryWithRelations>> {
     const response = await this.client
       .from(this.tableName)
-      .select(`
+      .select(
+        `
         *,
         parent:parent_id(id, name, slug)
-      `)
+      `
+      )
       .eq('id', id)
       .is('deleted_at', null)
       .single();
 
     const result = this.handleResponse<Category & { parent?: Category | null }>(response);
-    
+
     if (!result.success || !result.data) {
       return {
         data: null,
@@ -68,7 +70,7 @@ export class CategoryRepository extends BaseRepository {
     }
 
     const level = this.getCategoryLevel(result.data, allCategories.data);
-    
+
     const categoryWithRelations: CategoryWithRelations = {
       ...result.data,
       level,
@@ -169,14 +171,16 @@ export class CategoryRepository extends BaseRepository {
   /**
    * Check if category can be deleted
    */
-  async canDelete(id: string): Promise<RepositoryResult<{
-    canDelete: boolean;
-    reason?: string;
-    relatedData?: {
-      productCount: number;
-      childCount: number;
-    };
-  }>> {
+  async canDelete(id: string): Promise<
+    RepositoryResult<{
+      canDelete: boolean;
+      reason?: string;
+      relatedData?: {
+        productCount: number;
+        childCount: number;
+      };
+    }>
+  > {
     try {
       // Check for child categories
       const childrenResult = await this.findChildren(id);
@@ -280,7 +284,7 @@ export class CategoryRepository extends BaseRepository {
       return CategoryLevel.MAIN;
     }
 
-    const parent = allCategories.find(c => c.id === category.parent_id);
+    const parent = allCategories.find((c) => c.id === category.parent_id);
     if (!parent) {
       return CategoryLevel.MAIN;
     }
@@ -296,13 +300,13 @@ export class CategoryRepository extends BaseRepository {
    * Helper method to build category hierarchy
    */
   private buildHierarchy(categories: Category[]): CategoryHierarchy {
-    const mains = categories.filter(c => !c.parent_id);
-    const subs = categories.filter(c => {
-      const parent = categories.find(p => p.id === c.parent_id);
+    const mains = categories.filter((c) => !c.parent_id);
+    const subs = categories.filter((c) => {
+      const parent = categories.find((p) => p.id === c.parent_id);
       return parent && !parent.parent_id;
     });
-    const variants = categories.filter(c => {
-      const parent = categories.find(p => p.id === c.parent_id);
+    const variants = categories.filter((c) => {
+      const parent = categories.find((p) => p.id === c.parent_id);
       return parent && parent.parent_id;
     });
 
@@ -319,7 +323,7 @@ export class CategoryRepository extends BaseRepository {
     while (current) {
       path.unshift(current.name);
       if (current.parent_id) {
-        current = allCategories.find(c => c.id === current!.parent_id);
+        current = allCategories.find((c) => c.id === current!.parent_id);
       } else {
         current = undefined;
       }

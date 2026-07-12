@@ -2,7 +2,7 @@
  * Product Can Delete API Route
  *
  * GET /api/products/[id]/can-delete
- * 
+ *
  * READ-ONLY safety check — verifies whether a product can be deleted
  * by checking for dependent records (orders, rentals, etc.) WITHOUT
  * actually performing any deletion.
@@ -17,16 +17,13 @@ import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
 /**
  * GET /api/products/[id]/can-delete
- * 
+ *
  * Returns deletion safety information including:
  * - canDelete: boolean indicating if deletion is safe
  * - reason: string explaining why deletion is not safe (if applicable)
  * - relatedData: object with counts of dependent records
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'products');
     if (guard.error) return guard.error;

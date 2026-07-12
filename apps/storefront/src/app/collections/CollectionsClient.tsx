@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ChevronLeft, ChevronRight, Loader2, Search, SlidersHorizontal } from "lucide-react";
-import { Product, Category } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
-import ProductCard from "@/components/product/ProductCard";
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { ChevronLeft, ChevronRight, Loader2, Search, SlidersHorizontal } from 'lucide-react';
+import { Product, Category } from '@/lib/supabase/queries';
+import { cn } from '@/lib/utils';
+import ProductCard from '@/components/product/ProductCard';
 
 interface CollectionsClientProps {
   initialProducts: Product[];
@@ -20,11 +20,11 @@ interface CollectionsClientProps {
 }
 
 const SORT_OPTIONS = [
-  { value: "newest", label: "Newest First" },
-  { value: "price_low", label: "Price: Low to High" },
-  { value: "price_high", label: "Price: High to Low" },
-  { value: "name_asc", label: "Name: A to Z" },
-  { value: "name_desc", label: "Name: Z to A" },
+  { value: 'newest', label: 'Newest First' },
+  { value: 'price_low', label: 'Price: Low to High' },
+  { value: 'price_high', label: 'Price: High to Low' },
+  { value: 'name_asc', label: 'Name: A to Z' },
+  { value: 'name_desc', label: 'Name: Z to A' },
 ];
 
 export default function CollectionsClient({
@@ -43,36 +43,36 @@ export default function CollectionsClient({
   const totalPages = Math.ceil(total / itemsPerPage);
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, total);
-  const currentSort = initialSort || "newest";
+  const currentSort = initialSort || 'newest';
 
   const updateParams = (updates: Record<string, string | undefined>) => {
     startTransition(() => {
       const params = new URLSearchParams(window.location.search);
       Object.entries(updates).forEach(([key, value]) => {
-        if (value === undefined || value === "") {
+        if (value === undefined || value === '') {
           params.delete(key);
         } else {
           params.set(key, value);
         }
       });
       // Reset to page 1 when filters/sort change
-      if (!updates.page) params.set("page", "1");
+      if (!updates.page) params.set('page', '1');
       router.push(`/collections?${params.toString()}`);
     });
   };
 
   const handleSortChange = (value: string) => {
-    updateParams({ sort: value === "newest" ? undefined : value });
+    updateParams({ sort: value === 'newest' ? undefined : value });
   };
 
   const handleCategoryChange = (categoryId: string | undefined) => {
-    updateParams({ category_id: categoryId, page: "1" });
+    updateParams({ category_id: categoryId, page: '1' });
   };
 
   const getPageLink = (page: number) => {
-    if (typeof window === "undefined") return `/collections?page=${page}`;
+    if (typeof window === 'undefined') return `/collections?page=${page}`;
     const params = new URLSearchParams(window.location.search);
-    params.set("page", page.toString());
+    params.set('page', page.toString());
     return `/collections?${params.toString()}`;
   };
 
@@ -80,7 +80,7 @@ export default function CollectionsClient({
     if (page < 1 || page > totalPages || page === currentPage) return;
     startTransition(() => {
       const params = new URLSearchParams(window.location.search);
-      params.set("page", page.toString());
+      params.set('page', page.toString());
       router.push(`/collections?${params.toString()}`);
     });
   };
@@ -101,10 +101,11 @@ export default function CollectionsClient({
           Our Treasures
         </span>
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading mt-2">
-          {initialSearchQuery ? `Results for "${initialSearchQuery}"` : "Explore our Masterpieces"}
+          {initialSearchQuery ? `Results for "${initialSearchQuery}"` : 'Explore our Masterpieces'}
         </h1>
         <p className="text-sm text-body mt-2 max-w-lg mx-auto">
-          Browse Kerala's most exquisite bridal costumes collection. Hand-selected pieces for your most precious moments.
+          Browse Kerala's most exquisite bridal costumes collection. Hand-selected pieces for your
+          most precious moments.
         </p>
       </div>
 
@@ -114,10 +115,10 @@ export default function CollectionsClient({
           <button
             onClick={() => handleCategoryChange(undefined)}
             className={cn(
-              "shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border",
+              'shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border',
               !initialCategoryId
-                ? "bg-rosegold border-rosegold text-white"
-                : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+                ? 'bg-rosegold border-rosegold text-white'
+                : 'bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold'
             )}
           >
             All
@@ -127,10 +128,10 @@ export default function CollectionsClient({
               key={cat.id}
               onClick={() => handleCategoryChange(cat.id)}
               className={cn(
-                "shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border",
+                'shrink-0 px-4 py-2 rounded-full text-xs font-medium transition-colors border',
                 initialCategoryId === cat.id
-                  ? "bg-rosegold border-rosegold text-white"
-                  : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+                  ? 'bg-rosegold border-rosegold text-white'
+                  : 'bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold'
               )}
             >
               {cat.name}
@@ -144,11 +145,15 @@ export default function CollectionsClient({
         <p className="text-xs sm:text-sm text-body">
           {total > 0 ? (
             <>
-              Showing <span className="font-semibold text-heading">{startItem}–{endItem}</span> of{" "}
-              <span className="font-semibold text-heading">{total.toLocaleString("en-IN")}</span> items
+              Showing{' '}
+              <span className="font-semibold text-heading">
+                {startItem}–{endItem}
+              </span>{' '}
+              of <span className="font-semibold text-heading">{total.toLocaleString('en-IN')}</span>{' '}
+              items
             </>
           ) : (
-            "No items available"
+            'No items available'
           )}
         </p>
 
@@ -177,16 +182,18 @@ export default function CollectionsClient({
           </div>
         )}
 
-        <div className={cn(
-          "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 transition-opacity duration-300",
-          isPending ? "opacity-40" : "opacity-100"
-        )}>
+        <div
+          className={cn(
+            'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 transition-opacity duration-300',
+            isPending ? 'opacity-40' : 'opacity-100'
+          )}
+        >
           {initialProducts.length > 0 ? (
             initialProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
-                badge={product.is_featured ? { text: "Featured" } : undefined}
+                badge={product.is_featured ? { text: 'Featured' } : undefined}
               />
             ))
           ) : (
@@ -225,10 +232,10 @@ export default function CollectionsClient({
               onClick={() => handlePageChange(pageNum)}
               disabled={isPending}
               className={cn(
-                "w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors border",
+                'w-9 h-9 flex items-center justify-center rounded-lg text-sm font-medium transition-colors border',
                 currentPage === pageNum
-                  ? "bg-rosegold border-rosegold text-white"
-                  : "bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold"
+                  ? 'bg-rosegold border-rosegold text-white'
+                  : 'bg-white border-[#EAEAEA] text-body hover:border-rosegold hover:text-rosegold'
               )}
             >
               {pageNum}

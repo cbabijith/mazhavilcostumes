@@ -44,4 +44,3 @@ export type {
   CreateGalleryInput,
   UpdateGalleryInput,
 } from './schemas';
-

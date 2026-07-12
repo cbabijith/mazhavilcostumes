@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { getProductImageUrls } from "@/lib/supabase/queries";
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { getProductImageUrls } from '@/lib/supabase/queries';
 
 interface RecentlyViewedItem {
   id: string;
@@ -17,12 +17,12 @@ export default function RecentlyViewed() {
 
   useEffect(() => {
     try {
-      const history = localStorage.getItem("recently_viewed");
+      const history = localStorage.getItem('recently_viewed');
       if (history) {
         setItems(JSON.parse(history));
       }
     } catch (e) {
-      console.error("Failed to read recently viewed items from localStorage", e);
+      console.error('Failed to read recently viewed items from localStorage', e);
     }
     setMounted(true);
   }, []);
@@ -41,7 +41,7 @@ export default function RecentlyViewed() {
           </div>
           <button
             onClick={() => {
-              localStorage.removeItem("recently_viewed");
+              localStorage.removeItem('recently_viewed');
               setItems([]);
             }}
             className="text-xs uppercase tracking-widest text-caption hover:text-rosegold transition-colors font-semibold font-sans ml-auto md:ml-0 cursor-pointer"
@@ -72,7 +72,9 @@ export default function RecentlyViewed() {
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
                     />
                   ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-rosegold/5 text-3xl opacity-20">👗</div>
+                    <div className="absolute inset-0 flex items-center justify-center bg-rosegold/5 text-3xl opacity-20">
+                      👗
+                    </div>
                   )}
                 </div>
                 <div className="mt-2 text-center sm:text-left px-0.5">

@@ -7,10 +7,10 @@ import { orderRepository } from '../repository/orderRepository';
  */
 async function syncAllConflicts() {
   console.log('🚀 Starting global stock conflict synchronization...');
-  
+
   // 1. Fetch all product IDs
   const { data: products, error: pError } = await productRepository.findAll();
-  
+
   if (pError || !products) {
     console.error('❌ Failed to fetch products:', pError);
     return;
@@ -37,7 +37,7 @@ async function syncAllConflicts() {
   process.exit(0);
 }
 
-syncAllConflicts().catch(err => {
+syncAllConflicts().catch((err) => {
   console.error('💥 Fatal error:', err);
   process.exit(1);
 });

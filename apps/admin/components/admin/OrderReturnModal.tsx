@@ -1,14 +1,20 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useProcessOrderReturn, useCreatePayment } from "@/hooks";
-import { ConditionRating, ReturnOrderDTO } from "@/domain/types/order";
-import { PaymentType, PaymentMode } from "@/domain/types/payment";
-import { useAppStore } from "@/stores";
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useProcessOrderReturn, useCreatePayment } from '@/hooks';
+import { ConditionRating, ReturnOrderDTO } from '@/domain/types/order';
+import { PaymentType, PaymentMode } from '@/domain/types/payment';
+import { useAppStore } from '@/stores';
 
 interface OrderReturnModalProps {
   orderId: string;
@@ -20,49 +26,53 @@ interface OrderReturnModalProps {
   onSuccess: () => void;
 }
 
-export default function OrderReturnModal({ orderId, orderItems, orderDetails, onClose, onSuccess }: OrderReturnModalProps) {
+export default function OrderReturnModal({
+  orderId,
+  orderItems,
+  orderDetails,
+  onClose,
+  onSuccess,
+}: OrderReturnModalProps) {
   const { processOrderReturn, isLoading: processing } = useProcessOrderReturn();
   const { createPayment } = useCreatePayment();
   const user = useAppStore((state) => state.user);
-  
+
   const [returnItems, setReturnItems] = useState(
-    orderItems.map(item => ({
+    orderItems.map((item) => ({
       item_id: item.id,
       returned_quantity: 1,
       condition_rating: ConditionRating.EXCELLENT,
-      damage_description: "",
+      damage_description: '',
       damage_charges: 0,
     }))
   );
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState('');
   const [finalPayment, setFinalPayment] = useState({
     payment_mode: PaymentMode.CASH,
     amount: 0,
-    transaction_id: "",
-    notes: "",
+    transaction_id: '',
+    notes: '',
   });
 
   const handleConditionChange = (itemId: string, condition: ConditionRating) => {
-    setReturnItems(prev => 
-      prev.map(item => 
+    setReturnItems((prev) =>
+      prev.map((item) =>
         item.item_id === itemId ? { ...item, condition_rating: condition } : item
       )
     );
   };
 
   const handleDamageDescriptionChange = (itemId: string, description: string) => {
-    setReturnItems(prev => 
-      prev.map(item => 
+    setReturnItems((prev) =>
+      prev.map((item) =>
         item.item_id === itemId ? { ...item, damage_description: description } : item
       )
     );
   };
 
   const handleDamageChargesChange = (itemId: string, charges: number) => {
-    setReturnItems(prev => 
-      prev.map(item => 
-        item.item_id === itemId ? { ...item, damage_charges: charges } : item
-      )
+    setReturnItems((prev) =>
+      prev.map((item) => (item.item_id === itemId ? { ...item, damage_charges: charges } : item))
     );
   };
 
@@ -73,32 +83,35 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
       notes: notes || undefined,
     };
 
-    processOrderReturn({ orderId, returnData }, {
-      onSuccess: async () => {
-        // Create final payment if amount > 0
-        if (finalPayment.amount > 0) {
-          const paymentPayload = {
-            order_id: orderId,
-            payment_type: PaymentType.FINAL,
-            amount: finalPayment.amount,
-            payment_mode: finalPayment.payment_mode,
-            transaction_id: finalPayment.transaction_id || undefined,
-            notes: finalPayment.notes || undefined,
-            created_by: user?.id,
-          };
+    processOrderReturn(
+      { orderId, returnData },
+      {
+        onSuccess: async () => {
+          // Create final payment if amount > 0
+          if (finalPayment.amount > 0) {
+            const paymentPayload = {
+              order_id: orderId,
+              payment_type: PaymentType.FINAL,
+              amount: finalPayment.amount,
+              payment_mode: finalPayment.payment_mode,
+              transaction_id: finalPayment.transaction_id || undefined,
+              notes: finalPayment.notes || undefined,
+              created_by: user?.id,
+            };
 
-          await new Promise((resolve, reject) => {
-            createPayment(paymentPayload, {
-              onSuccess: resolve,
-              onError: reject,
+            await new Promise((resolve, reject) => {
+              createPayment(paymentPayload, {
+                onSuccess: resolve,
+                onError: reject,
+              });
             });
-          });
-        }
-        
-        onSuccess();
-        onClose();
-      },
-    });
+          }
+
+          onSuccess();
+          onClose();
+        },
+      }
+    );
   };
 
   const totalDamageCharges = returnItems.reduce((sum, item) => sum + (item.damage_charges || 0), 0);
@@ -118,12 +131,14 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                 <div className="font-medium text-slate-900">
                   {item.product_name || `Item ${index + 1}`}
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700">Condition Rating</label>
                   <Select
                     value={returnItems[index].condition_rating}
-                    onValueChange={(value: ConditionRating) => handleConditionChange(item.id, value)}
+                    onValueChange={(value: ConditionRating) =>
+                      handleConditionChange(item.id, value)
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -138,7 +153,9 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Damage Description (if any)</label>
+                  <label className="text-sm font-semibold text-slate-700">
+                    Damage Description (if any)
+                  </label>
                   <Input
                     value={returnItems[index].damage_description}
                     onChange={(e) => handleDamageDescriptionChange(item.id, e.target.value)}
@@ -154,7 +171,9 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                     min="0"
                     step="0.01"
                     value={returnItems[index].damage_charges}
-                    onChange={(e) => handleDamageChargesChange(item.id, parseFloat(e.target.value) || 0)}
+                    onChange={(e) =>
+                      handleDamageChargesChange(item.id, parseFloat(e.target.value) || 0)
+                    }
                     disabled={returnItems[index].condition_rating !== ConditionRating.DAMAGED}
                     placeholder="0.00"
                   />
@@ -181,7 +200,7 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                 <span className="font-bold text-amber-900">₹{totalDamageCharges.toFixed(2)}</span>
               </div>
               <p className="text-xs text-amber-700 mt-1">
-              This amount will be charged to the customer.
+                This amount will be charged to the customer.
               </p>
             </div>
           )}
@@ -193,20 +212,26 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
               <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Total Order Amount:</span>
-                  <span className="font-medium text-slate-900">₹{orderDetails.total_amount?.toFixed(2) || '0.00'}</span>
+                  <span className="font-medium text-slate-900">
+                    ₹{orderDetails.total_amount?.toFixed(2) || '0.00'}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700">Damage Charges:</span>
-                  <span className="font-medium text-amber-700">₹{totalDamageCharges.toFixed(2)}</span>
+                  <span className="font-medium text-amber-700">
+                    ₹{totalDamageCharges.toFixed(2)}
+                  </span>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700 block">Payment Mode</label>
-                  <Select 
-                    value={finalPayment.payment_mode} 
-                    onValueChange={(value: PaymentMode) => setFinalPayment({ ...finalPayment, payment_mode: value })}
+                  <Select
+                    value={finalPayment.payment_mode}
+                    onValueChange={(value: PaymentMode) =>
+                      setFinalPayment({ ...finalPayment, payment_mode: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -221,11 +246,15 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 block">Additional Payment (₹)</label>
+                  <label className="text-sm font-semibold text-slate-700 block">
+                    Additional Payment (₹)
+                  </label>
                   <Input
                     type="number"
                     value={finalPayment.amount}
-                    onChange={(e) => setFinalPayment({ ...finalPayment, amount: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      setFinalPayment({ ...finalPayment, amount: parseFloat(e.target.value) || 0 })
+                    }
                     min="0"
                     step="0.01"
                     placeholder="0.00"
@@ -233,15 +262,21 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 block">Transaction ID (Optional)</label>
+                <label className="text-sm font-semibold text-slate-700 block">
+                  Transaction ID (Optional)
+                </label>
                 <Input
                   value={finalPayment.transaction_id}
-                  onChange={(e) => setFinalPayment({ ...finalPayment, transaction_id: e.target.value })}
+                  onChange={(e) =>
+                    setFinalPayment({ ...finalPayment, transaction_id: e.target.value })
+                  }
                   placeholder="Enter transaction ID..."
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 block">Payment Notes (Optional)</label>
+                <label className="text-sm font-semibold text-slate-700 block">
+                  Payment Notes (Optional)
+                </label>
                 <Input
                   value={finalPayment.notes}
                   onChange={(e) => setFinalPayment({ ...finalPayment, notes: e.target.value })}
@@ -253,19 +288,10 @@ export default function OrderReturnModal({ orderId, orderItems, orderDetails, on
 
           {/* Actions */}
           <div className="flex gap-4 pt-4 border-t border-slate-200">
-            <Button
-              onClick={handleSubmit}
-              disabled={processing}
-              className="flex-1"
-            >
-              {processing ? "Processing..." : "Process Return"}
+            <Button onClick={handleSubmit} disabled={processing} className="flex-1">
+              {processing ? 'Processing...' : 'Process Return'}
             </Button>
-            <Button
-              onClick={onClose}
-              variant="outline"
-              disabled={processing}
-              className="flex-1"
-            >
+            <Button onClick={onClose} variant="outline" disabled={processing} className="flex-1">
               Cancel
             </Button>
           </div>

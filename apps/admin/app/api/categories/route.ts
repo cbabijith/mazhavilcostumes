@@ -26,12 +26,12 @@
  * @module app/api/categories/route
  */
 
-import { NextRequest } from "next/server";
-import type { CreateCategoryDTO } from "@/domain";
-import { categoryService } from "@/services/categoryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import type { CreateCategoryDTO } from '@/domain';
+import { categoryService } from '@/services/categoryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiInternalError } from '@/lib/apiResponse';
 
 const CREATE_FIELDS = [
   'name',
@@ -49,9 +49,9 @@ const CREATE_FIELDS = [
 
 function pickCategoryFields(body: Record<string, unknown>) {
   return Object.fromEntries(
-    CREATE_FIELDS
-      .filter((field) => Object.prototype.hasOwnProperty.call(body, field))
-      .map((field) => [field, body[field]])
+    CREATE_FIELDS.filter((field) => Object.prototype.hasOwnProperty.call(body, field)).map(
+      (field) => [field, body[field]]
+    )
   );
 }
 
@@ -63,7 +63,10 @@ export async function GET(request: NextRequest) {
     if (guard.error) return guard.error;
 
     const result = await categoryService.getAllCategories();
-    console.log("[API /api/categories] Result:", JSON.stringify({ success: result.success, count: result.data?.length }));
+    console.log(
+      '[API /api/categories] Result:',
+      JSON.stringify({ success: result.success, count: result.data?.length })
+    );
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to fetch categories');
     }
@@ -83,11 +86,11 @@ export async function POST(request: NextRequest) {
 
     // Get authenticated user for audit fields
     const authUser = await getAuthUser(request);
-    
+
     // Set user context in service
     categoryService.setUserContext(
-      authUser?.staff_id || null, 
-      authUser?.branch_id || null, 
+      authUser?.staff_id || null,
+      authUser?.branch_id || null,
       authUser?.store_id || null
     );
 

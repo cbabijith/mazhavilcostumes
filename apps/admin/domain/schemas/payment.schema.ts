@@ -17,7 +17,8 @@ const PaymentModeEnum = z.enum(['cash', 'upi', 'gpay', 'bank_transfer', 'cheque'
 export const CreatePaymentSchema = z.object({
   order_id: z.string().uuid('Invalid order ID'),
   payment_type: PaymentTypeEnum,
-  amount: z.number()
+  amount: z
+    .number()
     .positive('Amount must be positive')
     .max(10_000_000, 'Amount exceeds maximum limit'),
   payment_mode: PaymentModeEnum,

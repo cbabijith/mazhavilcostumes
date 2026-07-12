@@ -21,7 +21,15 @@ import { reportService } from './reportService';
 const DELIVERY_PENDING_STATUSES = ['scheduled', 'pending', 'confirmed'];
 
 /** Statuses meaning delivery was completed (order has been picked up / is active or done) */
-const DELIVERY_DONE_STATUSES = ['ongoing', 'in_use', 'delivered', 'partial', 'returned', 'completed', 'flagged'];
+const DELIVERY_DONE_STATUSES = [
+  'ongoing',
+  'in_use',
+  'delivered',
+  'partial',
+  'returned',
+  'completed',
+  'flagged',
+];
 
 /** Statuses meaning return is still pending (order is active with customer) */
 const RETURN_PENDING_STATUSES = ['ongoing', 'in_use'];
@@ -145,11 +153,11 @@ export interface DashboardMetrics {
 
 export interface DailyReportStats {
   todaysBookings: number;
-  todaysSales: number;           // Total value of orders booked today
-  todaysCollection: number;      // Total cash collected today
+  todaysSales: number; // Total value of orders booked today
+  todaysCollection: number; // Total cash collected today
   todaysDelivery: { delivered: number; total: number };
   todaysReturn: { returned: number; total: number };
-  todaysRevenue: number;         // Deprecated alias for todaysCollection
+  todaysRevenue: number; // Deprecated alias for todaysCollection
   damagedOrders: number;
   todaysRefunds: number;
   damageIncome: number;
@@ -195,13 +203,13 @@ export class DashboardService {
 
   private getISTDateContext() {
     const now = new Date();
-    
+
     // Format dates directly using Asia/Kolkata timezone to avoid local server timezone offset bugs
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
+      day: '2-digit',
     });
 
     const todayStr = formatter.format(now);
@@ -231,7 +239,8 @@ export class DashboardService {
   async getOperationalMetrics(branchId?: string): Promise<OperationalMetrics> {
     // No caching for operational metrics - need real-time data
     const supabase = createAdminClient();
-    const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
+    const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } =
+      this.getISTDateContext();
 
     const { data, error } = await supabase.rpc('get_operational_dashboard_metrics', {
       p_today_start: todayStart,
@@ -290,28 +299,28 @@ export class DashboardService {
         filterUrl: `/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled${branchIdParam}`,
       },
       {
-        label: "Prepare Delivery (5d)",
+        label: 'Prepare Delivery (5d)',
         orderCount: rpcData.prepareDeliveries || 0,
         icon: 'boxes',
         color: 'amber',
         filterUrl: `/dashboard/orders?status=scheduled&status=pending&date_filter=custom&date_field=start_date&date_from=${tomorrowStr}&date_to=${next5DaysStr}${branchIdParam}`,
       },
       {
-        label: "Pending Delivery",
+        label: 'Pending Delivery',
         orderCount: rpcData.pendingDeliveries || 0,
         icon: 'alert-triangle',
         color: 'rose',
         filterUrl: `/dashboard/orders?status=pending${branchIdParam}`,
       },
       {
-        label: "Pending Return",
+        label: 'Pending Return',
         orderCount: rpcData.pendingReturns || 0,
         icon: 'clock-alert',
         color: 'red',
         filterUrl: `/dashboard/orders?status=ongoing&status=in_use&date_filter=custom&date_field=end_date&date_to=${yesterdayStr}${branchIdParam}`,
       },
       {
-        label: "Revenue Due",
+        label: 'Revenue Due',
         orderCount: rpcData.revenueDueCount || 0,
         amount: Number(rpcData.revenueDueAmount || 0),
         icon: 'banknote',
@@ -320,15 +329,19 @@ export class DashboardService {
       },
     ];
 
-    const priorityCleaning: PriorityCleaningOrder[] = (rpcData.priorityCleaning || []).map((r: any) => ({
-      id: r.priority_order_id || r.id,
-      customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
-      startDate: r.expected_return_date || '',
-      products: [{
-        name: r.product?.name || 'Unknown',
-        quantity: r.quantity || 0,
-      }],
-    }));
+    const priorityCleaning: PriorityCleaningOrder[] = (rpcData.priorityCleaning || []).map(
+      (r: any) => ({
+        id: r.priority_order_id || r.id,
+        customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
+        startDate: r.expected_return_date || '',
+        products: [
+          {
+            name: r.product?.name || 'Unknown',
+            quantity: r.quantity || 0,
+          },
+        ],
+      })
+    );
 
     const result = {
       cards,
@@ -342,8 +355,10 @@ export class DashboardService {
    * Full dashboard metrics — admin-level data + operational metrics.
    */
   async getMetrics(
-    startDate: Date, endDate: Date, 
-    prevStartDate: Date, prevEndDate: Date,
+    startDate: Date,
+    endDate: Date,
+    prevStartDate: Date,
+    prevEndDate: Date,
     branchId?: string | null,
     storeId?: string | null,
     overrides?: {
@@ -364,7 +379,7 @@ export class DashboardService {
       roiLimit: overrides?.roiLimit,
     });
 
-    if (this.lastMetrics[cacheKey] && (nowMs - this.lastMetrics[cacheKey].timestamp < 30000)) {
+    if (this.lastMetrics[cacheKey] && nowMs - this.lastMetrics[cacheKey].timestamp < 30000) {
       console.log('[DashboardService] Returning cached admin metrics');
       return this.lastMetrics[cacheKey].data;
     }
@@ -381,7 +396,9 @@ export class DashboardService {
     const roiLimit = overrides?.roiLimit || 3;
     let catStartDate = startDate;
     if (overrides?.categoryPeriod === 'year') {
-      const d = new Date(); d.setFullYear(d.getFullYear() - 1); catStartDate = d;
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      catStartDate = d;
     } else if (overrides?.categoryPeriod === 'all') {
       catStartDate = new Date(2000, 0, 1);
     }
@@ -393,14 +410,18 @@ export class DashboardService {
     const paymentDueStatuses = 'partial,pending,due';
 
     const ordersOrFilter = `status.in.(${activeStatuses}),and(status.in.(${completedStatuses}),payment_status.in.(${paymentDueStatuses})),and(status.in.(${completedStatuses}),updated_at.gte.${startDateStr},updated_at.lte.${endDateStr})`;
-    
-    let ordersQuery = supabase.from('orders')
-      .select('id, status, payment_status, total_amount, amount_paid, updated_at, end_date, invoice_number')
+
+    let ordersQuery = supabase
+      .from('orders')
+      .select(
+        'id, status, payment_status, total_amount, amount_paid, updated_at, end_date, invoice_number'
+      )
       .or(ordersOrFilter);
     if (branchId) ordersQuery = ordersQuery.eq('branch_id', branchId);
 
     // 2. Cancellations query in a single round-trip for both periods
-    let cancellationsQuery = supabase.from('orders')
+    let cancellationsQuery = supabase
+      .from('orders')
       .select('cancelled_at')
       .eq('status', 'cancelled')
       .gte('cancelled_at', prevStartDateStr)
@@ -408,35 +429,57 @@ export class DashboardService {
     if (branchId) cancellationsQuery = cancellationsQuery.eq('branch_id', branchId);
 
     // 3. Total active products count
-    let totalProductsQuery = supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true);
+    let totalProductsQuery = supabase
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true);
     if (branchId) totalProductsQuery = totalProductsQuery.eq('branch_id', branchId);
 
     // 4. Rented items query
-    let rentedItemsQuery = supabase.from('order_items').select('product_id, orders!inner(status, branch_id)').in('orders.status', ['ongoing', 'in_use', 'delivered', 'partial']);
+    let rentedItemsQuery = supabase
+      .from('order_items')
+      .select('product_id, orders!inner(status, branch_id)')
+      .in('orders.status', ['ongoing', 'in_use', 'delivered', 'partial']);
     if (branchId) rentedItemsQuery = rentedItemsQuery.eq('orders.branch_id', branchId);
 
     // 5. Booking velocity query
-    let upcomingOrdersQuery = supabase.from('orders').select('start_date').gte('start_date', todayStr).lte('start_date', velocityEndDateStr).neq('status', 'cancelled');
+    let upcomingOrdersQuery = supabase
+      .from('orders')
+      .select('start_date')
+      .gte('start_date', todayStr)
+      .lte('start_date', velocityEndDateStr)
+      .neq('status', 'cancelled');
     if (branchId) upcomingOrdersQuery = upcomingOrdersQuery.eq('branch_id', branchId);
 
     // 6. Combined ROI & Category query
-    let combinedItemsQuery = supabase.from('order_items')
-      .select(`
+    let combinedItemsQuery = supabase
+      .from('order_items')
+      .select(
+        `
         product_id,
         quantity,
         price_per_day,
         orders!inner(status, created_at, branch_id),
         products(name, categories:category_id(name))
-      `)
+      `
+      )
       .neq('orders.status', 'cancelled')
       .gte('orders.created_at', catStartDateStr)
       .lte('orders.created_at', endDateStr);
     if (branchId) combinedItemsQuery = combinedItemsQuery.eq('orders.branch_id', branchId);
 
     // 7. Priority cleaning records query
-    let priorityCleaningQuery = supabase.from('cleaning_records').select('id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name, branch_id)').in('status', ['scheduled', 'pending']).eq('priority', 'urgent');
+    let priorityCleaningQuery = supabase
+      .from('cleaning_records')
+      .select(
+        'id, product_id, quantity, expected_return_date, priority_order_id, notes, product:products(name, branch_id)'
+      )
+      .in('status', ['scheduled', 'pending'])
+      .eq('priority', 'urgent');
     if (branchId) priorityCleaningQuery = priorityCleaningQuery.eq('products.branch_id', branchId);
-    priorityCleaningQuery = priorityCleaningQuery.order('expected_return_date', { ascending: true }).limit(5);
+    priorityCleaningQuery = priorityCleaningQuery
+      .order('expected_return_date', { ascending: true })
+      .limit(5);
 
     // Execute in parallel
     const [
@@ -449,10 +492,18 @@ export class DashboardService {
       upcomingOrdersRes,
       combinedItemsRes,
       deadStockRes,
-      priorityRes
+      priorityRes,
     ] = await Promise.all([
-      reportService.getUnifiedRevenueMetrics(format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd'), branchId),
-      reportService.getUnifiedRevenueMetrics(format(prevStartDate, 'yyyy-MM-dd'), format(prevEndDate, 'yyyy-MM-dd'), branchId),
+      reportService.getUnifiedRevenueMetrics(
+        format(startDate, 'yyyy-MM-dd'),
+        format(endDate, 'yyyy-MM-dd'),
+        branchId
+      ),
+      reportService.getUnifiedRevenueMetrics(
+        format(prevStartDate, 'yyyy-MM-dd'),
+        format(prevEndDate, 'yyyy-MM-dd'),
+        branchId
+      ),
       ordersQuery,
       cancellationsQuery,
       totalProductsQuery,
@@ -461,9 +512,9 @@ export class DashboardService {
       combinedItemsQuery.returns<any[]>(),
       supabase.rpc('get_dead_stock', {
         p_ninety_days_ago: ninetyDaysAgo,
-        p_branch_id: branchId || null
+        p_branch_id: branchId || null,
       }),
-      priorityCleaningQuery
+      priorityCleaningQuery,
     ]);
 
     // Processing results
@@ -473,10 +524,10 @@ export class DashboardService {
     const currentSales = currentMetrics.total_booking_sales || 0;
     const prevSales = prevMetrics.total_booking_sales || 0;
 
-    console.log('[DashboardMetrics] FINAL MAPPING:', { 
-      currentRevenue, 
+    console.log('[DashboardMetrics] FINAL MAPPING:', {
+      currentRevenue,
       currentSales,
-      branchId
+      branchId,
     });
 
     // Cap growth % at 999% to avoid misleading numbers when previous period is near-zero
@@ -496,32 +547,37 @@ export class DashboardService {
     const total_gpay = currentMetrics.total_gpay;
     const total_bank_transfer = currentMetrics.total_bank_transfer;
 
-    const dailyRevenue = dailyTrends.map(t => ({
+    const dailyRevenue = dailyTrends.map((t) => ({
       date: format(new Date(t.date), 'MMM dd'),
-      amount: t.cash
+      amount: t.cash,
     }));
 
     // Parse the unified orders data
     const ordersData = ordersRes.data || [];
 
-    const completedOrdersData = ordersData.filter(o => 
-      ['returned', 'completed'].includes(o.status) && 
-      o.updated_at >= startDateStr && 
-      o.updated_at <= endDateStr
+    const completedOrdersData = ordersData.filter(
+      (o) =>
+        ['returned', 'completed'].includes(o.status) &&
+        o.updated_at >= startDateStr &&
+        o.updated_at <= endDateStr
     );
-    const ongoingOrdersData = ordersData.filter(o =>
+    const ongoingOrdersData = ordersData.filter((o) =>
       ['ongoing', 'in_use', 'partial', 'delivered'].includes(o.status)
     );
-    const pendingPaymentData = ordersData.filter(o => 
-      ['returned', 'completed'].includes(o.status) && 
-      ['partial', 'pending', 'due'].includes(o.payment_status)
+    const pendingPaymentData = ordersData.filter(
+      (o) =>
+        ['returned', 'completed'].includes(o.status) &&
+        ['partial', 'pending', 'due'].includes(o.payment_status)
     );
-    const activeOrdersData = ordersData.filter(o =>
+    const activeOrdersData = ordersData.filter((o) =>
       ['ongoing', 'in_use', 'scheduled', 'pending'].includes(o.status)
     );
 
-    const completedRevenue = completedOrdersData.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
-    
+    const completedRevenue = completedOrdersData.reduce(
+      (sum, o) => sum + Number(o.amount_paid || 0),
+      0
+    );
+
     // Uncollected Active: money currently in the hands of customers for ongoing rentals
     const activeBalance = ongoingOrdersData.reduce((sum, o) => {
       const balance = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
@@ -535,21 +591,26 @@ export class DashboardService {
 
     // Process cancellation counts
     const cancellationsData = cancellationsRes.data || [];
-    const cancelCurrent = cancellationsData.filter(o => o.cancelled_at >= startDateStr && o.cancelled_at <= endDateStr).length;
-    const cancelPrev = cancellationsData.filter(o => o.cancelled_at >= prevStartDateStr && o.cancelled_at <= prevEndDateStr).length;
+    const cancelCurrent = cancellationsData.filter(
+      (o) => o.cancelled_at >= startDateStr && o.cancelled_at <= endDateStr
+    ).length;
+    const cancelPrev = cancellationsData.filter(
+      (o) => o.cancelled_at >= prevStartDateStr && o.cancelled_at <= prevEndDateStr
+    ).length;
     const cancelChange = cancelPrev === 0 ? 0 : ((cancelCurrent - cancelPrev) / cancelPrev) * 100;
 
-    const overdueOrders = activeOrdersData.filter(o =>
-      ['ongoing', 'in_use'].includes(o.status) && o.end_date < todayStr
+    const overdueOrders = activeOrdersData.filter(
+      (o) => ['ongoing', 'in_use'].includes(o.status) && o.end_date < todayStr
     );
 
     const totalProducts = totalProductsRes.count || 0;
     const uniqueRentedProducts = new Set((rentedItemsRes.data || []).map((i: any) => i.product_id));
     const rentedOut = uniqueRentedProducts.size;
-    const utilizationPercentage = totalProducts > 0 ? Math.round((rentedOut / totalProducts) * 100) : 0;
+    const utilizationPercentage =
+      totalProducts > 0 ? Math.round((rentedOut / totalProducts) * 100) : 0;
 
     const velocityMap = new Map<string, number>();
-    (upcomingOrdersRes.data || []).forEach(order => {
+    (upcomingOrdersRes.data || []).forEach((order) => {
       const dateStr = format(new Date(order.start_date), 'yyyy-MM-dd');
       velocityMap.set(dateStr, (velocityMap.get(dateStr) || 0) + 1);
     });
@@ -562,7 +623,9 @@ export class DashboardService {
 
     // ROI Processing (filtering the combined list client-side for dates >= startDateStr)
     const productStats = new Map<string, { name: string; rentals: number; revenue: number }>();
-    const roiItems = (combinedItemsRes.data || []).filter((item: any) => item.orders && item.orders.created_at >= startDateStr);
+    const roiItems = (combinedItemsRes.data || []).filter(
+      (item: any) => item.orders && item.orders.created_at >= startDateStr
+    );
     roiItems.forEach((item: any) => {
       if (!item.products) return;
       const pid = item.product_id;
@@ -587,12 +650,15 @@ export class DashboardService {
       categoryRevenueMap.set(catName, existing);
     });
 
-    const categoryRevenueArr = Array.from(categoryRevenueMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const categoryRevenueArr = Array.from(categoryRevenueMap.values()).sort(
+      (a, b) => b.revenue - a.revenue
+    );
     const totalCategoryRevenue = categoryRevenueArr.reduce((sum, c) => sum + c.revenue, 0);
-    const categoryRevenue = categoryRevenueArr.slice(0, 5).map(c => ({
+    const categoryRevenue = categoryRevenueArr.slice(0, 5).map((c) => ({
       name: c.name,
       revenue: c.revenue,
-      percentage: totalCategoryRevenue > 0 ? Math.round((c.revenue / totalCategoryRevenue) * 100) : 0,
+      percentage:
+        totalCategoryRevenue > 0 ? Math.round((c.revenue / totalCategoryRevenue) * 100) : 0,
     }));
 
     // Dead Stock
@@ -616,7 +682,13 @@ export class DashboardService {
         percentageChange: salesChange,
         isPositive: salesChange >= 0,
       },
-      revenueByStatus: { completedRevenue, ongoingRevenue: 0, scheduledRevenue: 0, pendingAmount, activeBalance },
+      revenueByStatus: {
+        completedRevenue,
+        ongoingRevenue: 0,
+        scheduledRevenue: 0,
+        pendingAmount,
+        activeBalance,
+      },
       cancellationStats: {
         currentCount: cancelCurrent,
         previousCount: cancelPrev,
@@ -640,7 +712,7 @@ export class DashboardService {
       topPerformers,
       deadStock,
       categoryRevenue,
-      bottlenecks: overdueOrders.slice(0, 3).map(o => ({
+      bottlenecks: overdueOrders.slice(0, 3).map((o) => ({
         id: o.id,
         type: 'overdue' as const,
         message: `Order ${o.invoice_number || '#' + o.id.substring(0, 8)} is overdue for return`,
@@ -650,10 +722,12 @@ export class DashboardService {
         id: r.priority_order_id || r.id,
         customerName: r.notes?.match(/Order #(\w+)/)?.[1] || 'Cleaning',
         startDate: r.expected_return_date || '',
-        products: [{
-          name: r.product?.name || 'Unknown',
-          quantity: r.quantity || 0,
-        }],
+        products: [
+          {
+            name: r.product?.name || 'Unknown',
+            quantity: r.quantity || 0,
+          },
+        ],
       })),
     };
 
@@ -672,7 +746,10 @@ export class DashboardService {
   async getDailyReport(branchId?: string | null): Promise<DailyReportStats> {
     const nowMs = Date.now();
     const cacheKey = branchId || 'global';
-    if (this.lastDailyReport[cacheKey] && (nowMs - this.lastDailyReport[cacheKey].timestamp < 30000)) {
+    if (
+      this.lastDailyReport[cacheKey] &&
+      nowMs - this.lastDailyReport[cacheKey].timestamp < 30000
+    ) {
       console.log('[DashboardService] Returning cached daily report');
       return this.lastDailyReport[cacheKey].data;
     }
@@ -708,7 +785,9 @@ export class DashboardService {
     // 4. Today's Payments & Refunds
     let paymentsQuery = supabase
       .from('payments')
-      .select('amount, payment_date, payment_mode, payment_type, orders!inner(id, branch_id, customer:customer_id(name))')
+      .select(
+        'amount, payment_date, payment_mode, payment_type, orders!inner(id, branch_id, customer:customer_id(name))'
+      )
       .gte('payment_date', todayStart)
       .lte('payment_date', todayEnd);
     if (branchId) paymentsQuery = paymentsQuery.eq('orders.branch_id', branchId);
@@ -764,12 +843,10 @@ export class DashboardService {
     const revenueDueOrders = (revenueDueRes.data || []) as any[];
 
     // Separate payments into collections and refunds client-side
-    const revenueList = paymentList.filter(p => p.payment_type !== 'refund');
-    const refundList = paymentList.filter(p => p.payment_type === 'refund');
+    const revenueList = paymentList.filter((p) => p.payment_type !== 'refund');
+    const refundList = paymentList.filter((p) => p.payment_type === 'refund');
 
-    const todaysCollection = revenueList.reduce(
-      (sum, p) => sum + Number(p.amount || 0), 0
-    );
+    const todaysCollection = revenueList.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     // 8. Breakdown calculations
     const r = (n: number) => {
@@ -778,7 +855,7 @@ export class DashboardService {
     };
 
     const mode_breakdown = { cash: 0, upi: 0, gpay: 0, bank_transfer: 0, other: 0 };
-    revenueList.forEach(p => {
+    revenueList.forEach((p) => {
       const mode = (p.payment_mode || '').toLowerCase();
       const amount = Number(p.amount || 0);
       if (isNaN(amount)) return;
@@ -797,33 +874,29 @@ export class DashboardService {
     mode_breakdown.bank_transfer = r(mode_breakdown.bank_transfer);
     mode_breakdown.other = r(mode_breakdown.other);
 
-    const todaysSales = bookingList.reduce(
-      (sum, o) => sum + Number(o.total_amount || 0), 0
-    );
-    const todaysRefunds = refundList.reduce(
-      (sum, p) => sum + Number(p.amount || 0), 0
-    );
+    const todaysSales = bookingList.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const todaysRefunds = refundList.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     // Sum dynamic accrued charges client-side
     const chargesList = chargesRes.data || [];
     const damageIncome = chargesList.reduce(
-      (sum, o) => sum + Number(o.damage_charges_total || 0), 0
-    );
-    const lateFeeIncome = chargesList.reduce(
-      (sum, o) => sum + Number(o.late_fee || 0), 0
-    );
-    
-    const revenueDueTotalAmount = revenueDueOrders.reduce(
-      (sum, o) => {
-        const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
-        return sum + (due > 0 ? due : 0);
-      }, 
+      (sum, o) => sum + Number(o.damage_charges_total || 0),
       0
     );
+    const lateFeeIncome = chargesList.reduce((sum, o) => sum + Number(o.late_fee || 0), 0);
+
+    const revenueDueTotalAmount = revenueDueOrders.reduce((sum, o) => {
+      const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+      return sum + (due > 0 ? due : 0);
+    }, 0);
 
     // Compute progress card counts client-side
-    const deliveryDoneCount = deliveryList.filter(o => DELIVERY_DONE_STATUSES.includes(o.status)).length;
-    const returnDoneCount = returnList.filter(o => RETURN_DONE_STATUSES.includes(o.status)).length;
+    const deliveryDoneCount = deliveryList.filter((o) =>
+      DELIVERY_DONE_STATUSES.includes(o.status)
+    ).length;
+    const returnDoneCount = returnList.filter((o) =>
+      RETURN_DONE_STATUSES.includes(o.status)
+    ).length;
 
     const result: DailyReportStats = {
       todaysBookings: bookingList.length,
@@ -848,16 +921,28 @@ export class DashboardService {
       },
       mode_breakdown,
       details: {
-        bookings: bookingList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', amount: o.total_amount })),
-        deliveries: deliveryList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', status: o.status })),
-        returns: returnList.map(o => ({ id: o.id, customer: o.customer?.name || 'Walk-in', status: o.status })),
-        collections: revenueList.map(p => ({
+        bookings: bookingList.map((o) => ({
+          id: o.id,
+          customer: o.customer?.name || 'Walk-in',
+          amount: o.total_amount,
+        })),
+        deliveries: deliveryList.map((o) => ({
+          id: o.id,
+          customer: o.customer?.name || 'Walk-in',
+          status: o.status,
+        })),
+        returns: returnList.map((o) => ({
+          id: o.id,
+          customer: o.customer?.name || 'Walk-in',
+          status: o.status,
+        })),
+        collections: revenueList.map((p) => ({
           amount: p.amount,
           mode: p.payment_mode,
           customer: p.orders?.customer?.name || 'Walk-in',
-          orderId: p.orders?.id?.substring(0, 8) || 'N/A'
-        }))
-      }
+          orderId: p.orders?.id?.substring(0, 8) || 'N/A',
+        })),
+      },
     };
 
     this.lastDailyReport[cacheKey] = {

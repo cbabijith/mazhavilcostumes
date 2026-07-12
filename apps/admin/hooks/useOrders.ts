@@ -10,7 +10,15 @@
  */
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { Order, OrderWithRelations, CreateOrderDTO, UpdateOrderDTO, OrderSearchParams, ReturnOrderDTO, OrderStatusHistory } from '@/domain/types/order';
+import {
+  Order,
+  OrderWithRelations,
+  CreateOrderDTO,
+  UpdateOrderDTO,
+  OrderSearchParams,
+  ReturnOrderDTO,
+  OrderStatusHistory,
+} from '@/domain/types/order';
 import { useAppStore } from '@/stores';
 import type { ApiSuccessResponse, PaginationMeta } from '@/lib/apiResponse';
 import { queryKeys } from '@/lib/query-client';
@@ -59,14 +67,14 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.branch_id) searchParams.append('branch_id', params.branch_id);
       if (params?.status) {
         if (Array.isArray(params.status)) {
-          params.status.forEach(s => searchParams.append('status', s));
+          params.status.forEach((s) => searchParams.append('status', s));
         } else {
           searchParams.append('status', params.status);
         }
       }
       if (params?.exclude_status) {
         if (Array.isArray(params.exclude_status)) {
-          params.exclude_status.forEach(s => searchParams.append('exclude_status', s));
+          params.exclude_status.forEach((s) => searchParams.append('exclude_status', s));
         } else {
           searchParams.append('exclude_status', params.exclude_status);
         }
@@ -74,7 +82,7 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.product_id) searchParams.append('product_id', params.product_id);
       if (params?.payment_status) {
         if (Array.isArray(params.payment_status)) {
-          params.payment_status.forEach(s => searchParams.append('payment_status', s));
+          params.payment_status.forEach((s) => searchParams.append('payment_status', s));
         } else {
           searchParams.append('payment_status', params.payment_status);
         }
@@ -90,11 +98,13 @@ export function useOrders(params?: OrderSearchParams & { page?: number; limit?: 
       if (params?.has_stock_conflict) searchParams.append('has_stock_conflict', 'true');
       if (params?.sort_by) searchParams.append('sort_by', params.sort_by);
       if (params?.sort_order) searchParams.append('sort_order', params.sort_order);
-      
+
       const queryString = searchParams.toString();
       const url = `/api/orders${queryString ? `?${queryString}` : ''}`;
-      
-      const raw = await apiFetch<ApiSuccessResponse<OrderWithRelations[]> & { meta?: PaginationMeta }>(url);
+
+      const raw = await apiFetch<
+        ApiSuccessResponse<OrderWithRelations[]> & { meta?: PaginationMeta }
+      >(url);
 
       // Normalise to the shape the UI expects
       return {
@@ -125,7 +135,6 @@ export function useOrder(id: string) {
       return { success: true, data: res.data };
     },
     enabled: !!id,
-
   });
 }
 
@@ -136,11 +145,12 @@ export function useOrderStatusHistory(id: string, enabled: boolean = true) {
   return useQuery<{ success: boolean; data?: OrderStatusHistory[]; error?: any }>({
     queryKey: queryKeys.orderHistory(id),
     queryFn: async () => {
-      const res = await apiFetch<ApiSuccessResponse<OrderStatusHistory[]>>(`/api/orders/${id}/history`);
+      const res = await apiFetch<ApiSuccessResponse<OrderStatusHistory[]>>(
+        `/api/orders/${id}/history`
+      );
       return { success: true, data: res.data };
     },
     enabled: enabled && !!id,
-
   });
 }
 
@@ -153,7 +163,10 @@ export function useCreateOrder() {
 
   const mutation = useMutation({
     mutationFn: (data: CreateOrderDTO) =>
-      apiFetch<ApiSuccessResponse<OrderWithRelations>>('/api/orders', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<OrderWithRelations>>('/api/orders', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.orders });
       await queryClient.invalidateQueries({ queryKey: ['cleaning'] });
@@ -180,22 +193,32 @@ export function useUpdateOrder() {
   const { showSuccess, showError } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateOrderDTO }) => 
-      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    mutationFn: ({ id, data }: { id: string; data: UpdateOrderDTO }) =>
+      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
 
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({
+        queryKey: queryKeys.orderLists(),
+      });
 
       // Exclude items from spread — UpdateOrderDTO.items has a different shape than OrderItem[]
       const { items: _items, ...scalarData } = data;
-      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() }, (old) => {
-        if (!old?.data) return old;
-        return {
-          ...old,
-          data: old.data.map((o) => o.id === id ? { ...o, ...scalarData } as OrderWithRelations : o),
-        };
-      });
+      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>(
+        { queryKey: queryKeys.orderLists() },
+        (old) => {
+          if (!old?.data) return old;
+          return {
+            ...old,
+            data: old.data.map((o) =>
+              o.id === id ? ({ ...o, ...scalarData } as OrderWithRelations) : o
+            ),
+          };
+        }
+      );
 
       return { previousLists };
     },
@@ -231,15 +254,21 @@ export function useDeleteOrder() {
   const { showSuccess, showError } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: (id: string) => apiFetch<ApiSuccessResponse<null>>(`/api/orders/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) =>
+      apiFetch<ApiSuccessResponse<null>>(`/api/orders/${id}`, { method: 'DELETE' }),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
-      
-      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() }, (old) => {
-        if (!old?.data) return old;
-        return { ...old, data: old.data.filter((o) => o.id !== id), total: (old.total ?? 0) - 1 };
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({
+        queryKey: queryKeys.orderLists(),
       });
+
+      queryClient.setQueriesData<PaginatedResponse<OrderWithRelations>>(
+        { queryKey: queryKeys.orderLists() },
+        (old) => {
+          if (!old?.data) return old;
+          return { ...old, data: old.data.filter((o) => o.id !== id), total: (old.total ?? 0) - 1 };
+        }
+      );
       return { previousLists };
     },
     onSuccess: async (_data, id) => {
@@ -272,11 +301,16 @@ export function useProcessOrderReturn() {
   const { showSuccess, showError } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: ({ orderId, returnData }: { orderId: string; returnData: ReturnOrderDTO }) => 
-      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${orderId}/return`, { method: 'PATCH', body: JSON.stringify(returnData) }),
+    mutationFn: ({ orderId, returnData }: { orderId: string; returnData: ReturnOrderDTO }) =>
+      apiFetch<ApiSuccessResponse<Order>>(`/api/orders/${orderId}/return`, {
+        method: 'PATCH',
+        body: JSON.stringify(returnData),
+      }),
     onMutate: async ({ orderId }) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.orderLists() });
-      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({ queryKey: queryKeys.orderLists() });
+      const previousLists = queryClient.getQueriesData<PaginatedResponse<OrderWithRelations>>({
+        queryKey: queryKeys.orderLists(),
+      });
       return { previousLists };
     },
     onSuccess: async (_res, variables) => {
@@ -311,8 +345,11 @@ export function useUpdateOrderItemDamage() {
   const { showSuccess, showError } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: ({ itemId, data }: { itemId: string; data: any }) => 
-      apiFetch<any>(`/api/orders/items/${itemId}/damage`, { method: 'PATCH', body: JSON.stringify(data) }),
+    mutationFn: ({ itemId, data }: { itemId: string; data: any }) =>
+      apiFetch<any>(`/api/orders/items/${itemId}/damage`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async (data) => {
       // Invalidate the specific order detail and lists
       if (data.order_id) {
@@ -332,4 +369,3 @@ export function useUpdateOrderItemDamage() {
     isUpdating: mutation.isPending,
   };
 }
-

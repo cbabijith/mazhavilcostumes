@@ -7,11 +7,7 @@
  */
 
 import { RepositoryResult } from '@/repository';
-import { 
-  Setting, 
-  SettingKey,
-  UpdateSettingDTO
-} from '@/domain/types/settings';
+import { Setting, SettingKey, UpdateSettingDTO } from '@/domain/types/settings';
 import { settingsRepository } from '@/repository';
 
 export class SettingsService {
@@ -38,8 +34,11 @@ export class SettingsService {
    * Check if GST is enabled for the store
    */
   async getIsGSTEnabled(): Promise<RepositoryResult<boolean>> {
-    const result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.IS_GST_ENABLED);
-    
+    const result = await settingsRepository.findByStoreAndKey(
+      this.storeId,
+      SettingKey.IS_GST_ENABLED
+    );
+
     if (!result.success || !result.data) {
       // Default to false (disabled) if not set
       return {
@@ -72,12 +71,7 @@ export class SettingsService {
    * Set a generic string value for a setting key
    */
   async setValue(key: SettingKey, value: string): Promise<RepositoryResult<Setting>> {
-    return await settingsRepository.upsert(
-      this.storeId,
-      key,
-      value,
-      this.currentUserId
-    );
+    return await settingsRepository.upsert(this.storeId, key, value, this.currentUserId);
   }
 
   /**

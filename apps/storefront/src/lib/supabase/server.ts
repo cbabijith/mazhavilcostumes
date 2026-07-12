@@ -14,7 +14,7 @@ export function createClient() {
     }
     throw new Error(
       'Missing Supabase environment variables. Please check your .env.local file.\n' +
-      'Required: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
+        'Required: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
     );
   }
   if (!client) {

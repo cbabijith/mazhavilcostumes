@@ -1,33 +1,33 @@
-import type { Metadata } from "next";
-import { Cormorant_Garamond, DM_Sans } from "next/font/google";
-import "./globals.css";
-import { cn } from "@/lib/utils";
-import { BRAND_CONFIG } from "shared-utils";
+import type { Metadata } from 'next';
+import { Cormorant_Garamond, DM_Sans } from 'next/font/google';
+import './globals.css';
+import { cn } from '@/lib/utils';
+import { BRAND_CONFIG } from 'shared-utils';
 
 const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-cormorant',
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
 });
 
 const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: `${BRAND_CONFIG.name} — Premium Costumes Rental`,
   description:
-    "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
+    'Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.',
   keywords: [
-    "bridal costumes rental",
-    "wedding costumes",
-    "Kerala costumes rental",
+    'bridal costumes rental',
+    'wedding costumes',
+    'Kerala costumes rental',
     BRAND_CONFIG.name,
-    "premium costumes",
+    'premium costumes',
   ],
   icons: {
     icon: BRAND_CONFIG.defaultLogo,
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
 };
 
-import MobileBottomNav from "@/components/home/MobileBottomNav";
+import MobileBottomNav from '@/components/home/MobileBottomNav';
 
 export default function RootLayout({
   children,
@@ -46,11 +46,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(
-        "h-full antialiased",
-        cormorant.variable,
-        dmSans.variable
-      )}
+      className={cn('h-full antialiased', cormorant.variable, dmSans.variable)}
     >
       <body className="min-h-full flex flex-col bg-silk-gradient selection:bg-rosegold/20 selection:text-rosegold-dark">
         {children}

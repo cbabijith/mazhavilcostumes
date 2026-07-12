@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import Image from "next/image";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { getProductImageUrls } from "@/lib/supabase/queries";
-import { Trash2, ShoppingBag, Calendar, Minus, Plus } from "lucide-react";
-import { buildCartOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react';
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import Image from 'next/image';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { getProductImageUrls } from '@/lib/supabase/queries';
+import { Trash2, ShoppingBag, Calendar, Minus, Plus } from 'lucide-react';
+import { buildCartOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from '@/lib/whatsapp';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface CartItem {
   id: string;
@@ -23,12 +23,12 @@ export default function CartPage() {
   const [store, setStore] = useState<any>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [error, setError] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [error, setError] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
 
   useEffect(() => {
     async function loadStore() {
@@ -37,7 +37,7 @@ export default function CartPage() {
     }
     loadStore();
 
-    const saved = localStorage.getItem("paris_cart");
+    const saved = localStorage.getItem('paris_cart');
     if (saved) {
       try {
         const items = JSON.parse(saved);
@@ -51,15 +51,13 @@ export default function CartPage() {
 
   const saveCart = (items: CartItem[]) => {
     setCartItems(items);
-    localStorage.setItem("paris_cart", JSON.stringify(items));
-    window.dispatchEvent(new CustomEvent("paris_cart_updated", { detail: items.length }));
+    localStorage.setItem('paris_cart', JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent('paris_cart_updated', { detail: items.length }));
   };
 
   const updateQuantity = (id: string, delta: number) => {
     const updated = cartItems.map((item) =>
-      item.id === id
-        ? { ...item, quantity: Math.max(1, (item.quantity || 1) + delta) }
-        : item
+      item.id === id ? { ...item, quantity: Math.max(1, (item.quantity || 1) + delta) } : item
     );
     saveCart(updated);
   };
@@ -71,23 +69,23 @@ export default function CartPage() {
 
   const bookViaWhatsApp = () => {
     if (!startDate || !endDate) {
-      setError("Please select rental start and end dates");
+      setError('Please select rental start and end dates');
       return;
     }
     if (!customerName.trim() || customerName.trim().length < 2) {
-      setError("Please enter your name");
+      setError('Please enter your name');
       return;
     }
-    const cleanPhone = customerPhone.replace(/\D/g, "");
+    const cleanPhone = customerPhone.replace(/\D/g, '');
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      setError("Enter a valid 10-digit mobile number");
+      setError('Enter a valid 10-digit mobile number');
       return;
     }
     if (!customerAddress.trim() || customerAddress.trim().length < 5) {
-      setError("Please enter your delivery address");
+      setError('Please enter your delivery address');
       return;
     }
-    setError("");
+    setError('');
 
     const items = cartItems.map((item) => {
       const { rentalDays, totalRent } = calculateRentalPrice(
@@ -112,7 +110,7 @@ export default function CartPage() {
       customerPhone: cleanPhone,
       customerAddress: customerAddress.trim(),
     });
-    window.open(buildWhatsAppUrl(message), "_blank");
+    window.open(buildWhatsAppUrl(message), '_blank');
   };
 
   if (!mounted) return null;
@@ -132,7 +130,7 @@ export default function CartPage() {
               Enquiry Cart
             </h1>
             <p className="text-sm text-body mt-2">
-              {cartItems.length} {cartItems.length === 1 ? "item" : "items"} selected for your event
+              {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'} selected for your event
             </p>
           </div>
 
@@ -205,7 +203,6 @@ export default function CartPage() {
                           </div>
 
                           <div className="mt-2 flex items-center justify-end">
-
                             {/* Quantity Controls */}
                             <div className="flex items-center gap-2">
                               <button
@@ -238,7 +235,9 @@ export default function CartPage() {
                   <div className="rounded-2xl border border-[#EAEAEA] bg-white p-5 sm:p-6 space-y-5">
                     <div className="flex items-center gap-2 text-rosegold">
                       <Calendar size={18} strokeWidth={1.8} />
-                      <span className="text-xs uppercase font-bold tracking-[0.15em]">Rental Dates</span>
+                      <span className="text-xs uppercase font-bold tracking-[0.15em]">
+                        Rental Dates
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -248,7 +247,7 @@ export default function CartPage() {
                         </label>
                         <input
                           type="date"
-                          min={new Date().toISOString().split("T")[0]}
+                          min={new Date().toISOString().split('T')[0]}
                           value={startDate}
                           onChange={(e) => setStartDate(e.target.value)}
                           className="w-full px-3 py-2.5 bg-gray-50 border border-[#EAEAEA] rounded-xl text-sm focus:outline-none focus:border-rosegold transition-colors"
@@ -260,7 +259,7 @@ export default function CartPage() {
                         </label>
                         <input
                           type="date"
-                          min={startDate || new Date().toISOString().split("T")[0]}
+                          min={startDate || new Date().toISOString().split('T')[0]}
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           className="w-full px-3 py-2.5 bg-gray-50 border border-[#EAEAEA] rounded-xl text-sm focus:outline-none focus:border-rosegold transition-colors"
@@ -270,7 +269,9 @@ export default function CartPage() {
 
                     {/* Customer Details */}
                     <div className="border-t border-[#EAEAEA] pt-4 space-y-3">
-                      <span className="text-xs uppercase font-bold tracking-[0.15em] text-rosegold block">Your Details</span>
+                      <span className="text-xs uppercase font-bold tracking-[0.15em] text-rosegold block">
+                        Your Details
+                      </span>
 
                       <div>
                         <label className="text-xs font-medium text-body block mb-1.5">Name *</label>
@@ -284,7 +285,9 @@ export default function CartPage() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-body block mb-1.5">Phone Number *</label>
+                        <label className="text-xs font-medium text-body block mb-1.5">
+                          Phone Number *
+                        </label>
                         <div className="flex gap-2">
                           <div className="flex items-center justify-center px-3 bg-gray-50 border border-[#EAEAEA] rounded-lg text-sm text-heading font-medium shrink-0">
                             +91
@@ -292,7 +295,9 @@ export default function CartPage() {
                           <input
                             type="tel"
                             value={customerPhone}
-                            onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                            onChange={(e) =>
+                              setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
+                            }
                             className="flex-1 px-3 py-2.5 bg-white border border-[#EAEAEA] rounded-lg text-sm focus:outline-none focus:border-rosegold transition-colors placeholder:text-body/50"
                             placeholder="10-digit mobile number"
                             inputMode="numeric"
@@ -302,7 +307,9 @@ export default function CartPage() {
                       </div>
 
                       <div>
-                        <label className="text-xs font-medium text-body block mb-1.5">Delivery Address *</label>
+                        <label className="text-xs font-medium text-body block mb-1.5">
+                          Delivery Address *
+                        </label>
                         <textarea
                           value={customerAddress}
                           onChange={(e) => setCustomerAddress(e.target.value)}
@@ -338,7 +345,7 @@ export default function CartPage() {
                             <div className="flex justify-between text-sm">
                               <span className="text-body">Duration</span>
                               <span className="font-semibold text-heading">
-                                {rentalDays} {rentalDays === 1 ? "day" : "days"}
+                                {rentalDays} {rentalDays === 1 ? 'day' : 'days'}
                               </span>
                             </div>
                           );

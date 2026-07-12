@@ -41,12 +41,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const { id: orderId } = await params;
     const body = await request.json();
-    
+
     const result = await paymentService.createPayment({
       ...body,
       order_id: orderId,
     });
-    
+
     if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to create payment');
     }

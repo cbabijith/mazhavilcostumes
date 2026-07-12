@@ -1,6 +1,6 @@
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
 
 export default async function PrivacyPage() {
   const store = await getParisBridalsStore();
@@ -14,11 +14,20 @@ export default async function PrivacyPage() {
         <div className="prose prose-stone max-w-none space-y-6 text-body">
           <p>Effective Date: April 20, 2026</p>
           <h2 className="text-xl font-bold text-heading">1. Information We Collect</h2>
-          <p>We collect personal information such as name, email, and ID proof for rental verification purposes.</p>
+          <p>
+            We collect personal information such as name, email, and ID proof for rental
+            verification purposes.
+          </p>
           <h2 className="text-xl font-bold text-heading">2. How We Use Your Data</h2>
-          <p>Your data is used solely for processing rentals, verifying identity, and communicating about your bookings.</p>
+          <p>
+            Your data is used solely for processing rentals, verifying identity, and communicating
+            about your bookings.
+          </p>
           <h2 className="text-xl font-bold text-heading">3. Data Security</h2>
-          <p>We implement strict security measures to protect your personal information and do not share it with third parties except as required by law.</p>
+          <p>
+            We implement strict security measures to protect your personal information and do not
+            share it with third parties except as required by law.
+          </p>
         </div>
       </section>
       <Footer store={store} />

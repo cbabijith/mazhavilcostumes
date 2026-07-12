@@ -13,19 +13,12 @@ import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
-    staffService.setUserContext(
-      guard.user.staff_id,
-      guard.user.branch_id,
-      guard.user.store_id
-    );
+    staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const { id } = await params;
     const result = await staffService.getStaffById(id);
@@ -39,25 +32,27 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
-    staffService.setUserContext(
-      guard.user.staff_id,
-      guard.user.branch_id,
-      guard.user.store_id
-    );
+    staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const { id } = await params;
     const body = await request.json();
 
     // Field whitelisting — prevent mass-assignment
-    const allowedFields = ['name', 'email', 'phone', 'role', 'branch_id', 'is_active', 'can_give_product_discount', 'can_give_order_discount'];
+    const allowedFields = [
+      'name',
+      'email',
+      'phone',
+      'role',
+      'branch_id',
+      'is_active',
+      'can_give_product_discount',
+      'can_give_order_discount',
+    ];
     const sanitized: Record<string, any> = {};
     for (const key of allowedFields) {
       if (key in body) sanitized[key] = body[key];
@@ -66,7 +61,10 @@ export async function PATCH(
     // Managers cannot escalate role to admin/manager
     if (guard.user.role === 'manager' && sanitized.role && sanitized.role !== 'staff') {
       return NextResponse.json(
-        { success: false, error: { message: 'Managers can only assign the staff role.', code: 'FORBIDDEN' } },
+        {
+          success: false,
+          error: { message: 'Managers can only assign the staff role.', code: 'FORBIDDEN' },
+        },
         { status: 403 }
       );
     }
@@ -76,7 +74,10 @@ export async function PATCH(
       const target = await staffService.getStaffById(id);
       if (target.success && target.data && target.data.role === 'super_admin') {
         return NextResponse.json(
-          { success: false, error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' } },
+          {
+            success: false,
+            error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' },
+          },
           { status: 403 }
         );
       }
@@ -101,11 +102,7 @@ export async function DELETE(
     const guard = await apiGuard(request, 'staff');
     if (guard.error) return guard.error;
 
-    staffService.setUserContext(
-      guard.user.staff_id,
-      guard.user.branch_id,
-      guard.user.store_id
-    );
+    staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const { id } = await params;
 
@@ -113,7 +110,10 @@ export async function DELETE(
     const target = await staffService.getStaffById(id);
     if (target.success && target.data && target.data.role === 'super_admin') {
       return NextResponse.json(
-        { success: false, error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' } },
+        {
+          success: false,
+          error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' },
+        },
         { status: 403 }
       );
     }

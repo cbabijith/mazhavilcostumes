@@ -93,10 +93,33 @@ export async function GET(request: NextRequest) {
       countOrders(supabase, { branchId, storeId, createdFrom: todayStart, createdTo: todayEnd }),
       countOrders(supabase, { branchId, storeId, createdFrom: weekStart, createdTo: weekEnd }),
       countOrders(supabase, { branchId, storeId, statuses: pendingStatuses }),
-      countOrders(supabase, { branchId, storeId, statuses: activeRentalStatuses, endBefore: todayStart }),
-      countOrders(supabase, { branchId, storeId, startFrom: todayStart, startTo: todayEnd, excludeStatuses: ['cancelled'] }),
-      countOrders(supabase, { branchId, storeId, endFrom: todayStart, endTo: todayEnd, statuses: activeRentalStatuses }),
-      countOrders(supabase, { branchId, storeId, startFrom: tomorrowStart, startTo: tomorrowEnd, excludeStatuses: ['cancelled'] }),
+      countOrders(supabase, {
+        branchId,
+        storeId,
+        statuses: activeRentalStatuses,
+        endBefore: todayStart,
+      }),
+      countOrders(supabase, {
+        branchId,
+        storeId,
+        startFrom: todayStart,
+        startTo: todayEnd,
+        excludeStatuses: ['cancelled'],
+      }),
+      countOrders(supabase, {
+        branchId,
+        storeId,
+        endFrom: todayStart,
+        endTo: todayEnd,
+        statuses: activeRentalStatuses,
+      }),
+      countOrders(supabase, {
+        branchId,
+        storeId,
+        startFrom: tomorrowStart,
+        startTo: tomorrowEnd,
+        excludeStatuses: ['cancelled'],
+      }),
       countOrders(supabase, { branchId, storeId, statuses: activeRentalStatuses }),
       countCustomers(supabase, branchId, storeId),
       sumDepositsHeld(supabase, branchId, storeId),
@@ -165,7 +188,13 @@ function scopePaymentQuery(query: any, branchId?: string, storeId?: string) {
   return query;
 }
 
-async function sumPayments(supabase: any, from: Date, to: Date, branchId?: string, storeId?: string) {
+async function sumPayments(
+  supabase: any,
+  from: Date,
+  to: Date,
+  branchId?: string,
+  storeId?: string
+) {
   let query = supabase
     .from('payments')
     .select('amount, orders!inner(branch_id, store_id)')
@@ -199,10 +228,12 @@ async function countOrders(supabase: any, params: OrderCountParams) {
   query = scopeOrderQuery(query, params.branchId, params.storeId);
 
   if (params.statuses?.length) query = query.in('status', params.statuses);
-  if (params.excludeStatuses?.length) query = query.not('status', 'in', `(${params.excludeStatuses.join(',')})`);
+  if (params.excludeStatuses?.length)
+    query = query.not('status', 'in', `(${params.excludeStatuses.join(',')})`);
   if (params.createdFrom) query = query.gte('created_at', params.createdFrom.toISOString());
   if (params.createdTo) query = query.lte('created_at', params.createdTo.toISOString());
-  if (params.startFrom) query = query.gte('start_date', params.startFrom.toISOString().split('T')[0]);
+  if (params.startFrom)
+    query = query.gte('start_date', params.startFrom.toISOString().split('T')[0]);
   if (params.startTo) query = query.lte('start_date', params.startTo.toISOString().split('T')[0]);
   if (params.endFrom) query = query.gte('end_date', params.endFrom.toISOString().split('T')[0]);
   if (params.endTo) query = query.lte('end_date', params.endTo.toISOString().split('T')[0]);
@@ -232,7 +263,9 @@ async function getProductStats(supabase: any, branchId?: string, storeId?: strin
   if (branchId) {
     const { data, error } = await supabase
       .from('product_inventory')
-      .select('available_quantity, low_stock_threshold, product:products(id, is_featured, is_active)')
+      .select(
+        'available_quantity, low_stock_threshold, product:products(id, is_featured, is_active)'
+      )
       .eq('branch_id', branchId);
 
     if (error) throw error;
@@ -276,7 +309,8 @@ async function getRecentProducts(supabase: any, branchId?: string, storeId?: str
   if (branchId) {
     const { data, error } = await supabase
       .from('product_inventory')
-      .select(`
+      .select(
+        `
         available_quantity,
         updated_at,
         product:products(
@@ -287,7 +321,8 @@ async function getRecentProducts(supabase: any, branchId?: string, storeId?: str
           is_active,
           category:category_id(id, name)
         )
-      `)
+      `
+      )
       .eq('branch_id', branchId)
       .order('updated_at', { ascending: false })
       .limit(5);
@@ -304,7 +339,9 @@ async function getRecentProducts(supabase: any, branchId?: string, storeId?: str
 
   let query = supabase
     .from('products')
-    .select('id, name, price_per_day, available_quantity, images, is_active, category:category_id(id, name)')
+    .select(
+      'id, name, price_per_day, available_quantity, images, is_active, category:category_id(id, name)'
+    )
     .order('created_at', { ascending: false })
     .limit(5);
 

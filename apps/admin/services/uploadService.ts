@@ -6,21 +6,15 @@
  * @module services/uploadService
  */
 
-import { 
-  uploadRepository,
-  RepositoryResult
-} from '@/repository';
-import { 
-  ImageUploadResult, 
-  FileUpload 
-} from '@/domain';
+import { uploadRepository, RepositoryResult } from '@/repository';
+import { ImageUploadResult, FileUpload } from '@/domain';
 
 export class UploadService {
   /**
    * Upload single file with validation
    */
   async uploadFile(
-    file: File, 
+    file: File,
     options: {
       folder?: string;
       maxSize?: number;
@@ -35,7 +29,7 @@ export class UploadService {
       return {
         success: false,
         data: null,
-        error: validation.error
+        error: validation.error,
       };
     }
 
@@ -58,7 +52,7 @@ export class UploadService {
     const { folder = 'uploads', maxSize, allowedTypes, onProgress } = options;
 
     // Validate all files first
-    const validationResults = files.map(file => 
+    const validationResults = files.map((file) =>
       uploadRepository.validateFile(file, { maxSize, allowedTypes })
     );
 
@@ -76,7 +70,7 @@ export class UploadService {
             fileName: files[index].name,
             error: result.error?.message,
           })),
-          code: 'INVALID_FILES'
+          code: 'INVALID_FILES',
         } as any,
         success: false,
       };
@@ -104,9 +98,7 @@ export class UploadService {
   /**
    * Upload category image with specific validation
    */
-  async uploadCategoryImage(
-    file: File
-  ): Promise<RepositoryResult<ImageUploadResult>> {
+  async uploadCategoryImage(file: File): Promise<RepositoryResult<ImageUploadResult>> {
     return await this.uploadFile(file, {
       folder: 'categories',
       maxSize: 2 * 1024 * 1024, // 2MB
@@ -160,9 +152,7 @@ export class UploadService {
         ];
         break;
       default:
-        sizes = [
-          { width: 800, height: 600, name: 'default' },
-        ];
+        sizes = [{ width: 800, height: 600, name: 'default' }];
     }
 
     return await uploadRepository.generateImageVariants(originalUrl, sizes);
@@ -187,7 +177,7 @@ export class UploadService {
       const params = new URLSearchParams();
       params.set('q', quality.toString());
       params.set('f', format);
-      
+
       if (maxWidth) params.set('w', maxWidth.toString());
       if (maxHeight) params.set('h', maxHeight.toString());
 
@@ -218,7 +208,11 @@ export class UploadService {
   /**
    * Update upload progress
    */
-  updateUploadProgress(upload: FileUpload, progress: number, status: FileUpload['status']): FileUpload {
+  updateUploadProgress(
+    upload: FileUpload,
+    progress: number,
+    status: FileUpload['status']
+  ): FileUpload {
     return uploadRepository.updateUploadProgress(upload, progress, status);
   }
 
@@ -258,7 +252,7 @@ export class UploadService {
     const randomString = Math.random().toString(36).substring(2, 15);
     const extension = originalName.split('.').pop();
     const nameWithoutExt = originalName.replace(`.${extension}`, '');
-    
+
     return `${nameWithoutExt}_${timestamp}_${randomString}.${extension}`;
   }
 
@@ -292,14 +286,16 @@ export class UploadService {
   /**
    * Get image dimensions from file
    */
-  async getImageDimensions(file: File): Promise<RepositoryResult<{ width: number; height: number }>> {
+  async getImageDimensions(
+    file: File
+  ): Promise<RepositoryResult<{ width: number; height: number }>> {
     return new Promise((resolve) => {
       if (!this.isImageFile(file)) {
         resolve({
           data: null,
           error: {
             message: 'File is not an image',
-            code: 'NOT_IMAGE'
+            code: 'NOT_IMAGE',
           } as any,
           success: false,
         });
@@ -324,7 +320,7 @@ export class UploadService {
           data: null,
           error: {
             message: 'Failed to load image',
-            code: 'IMAGE_LOAD_ERROR'
+            code: 'IMAGE_LOAD_ERROR',
           } as any,
           success: false,
         });

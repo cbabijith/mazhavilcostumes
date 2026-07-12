@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from "lucide-react";
-import { useAppStore } from "@/stores";
-import { cn } from "@/lib/utils";
+import { useEffect } from 'react';
+import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { useAppStore } from '@/stores';
+import { cn } from '@/lib/utils';
 
 const icons = {
   success: CheckCircle,
@@ -13,17 +13,17 @@ const icons = {
 };
 
 const styles = {
-  success: "bg-emerald-50 border-emerald-200 text-emerald-800",
-  error: "bg-red-50 border-red-200 text-red-800",
-  warning: "bg-amber-50 border-amber-200 text-amber-800",
-  info: "bg-blue-50 border-blue-200 text-blue-800",
+  success: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+  error: 'bg-red-50 border-red-200 text-red-800',
+  warning: 'bg-amber-50 border-amber-200 text-amber-800',
+  info: 'bg-blue-50 border-blue-200 text-blue-800',
 };
 
 const iconStyles = {
-  success: "text-emerald-500",
-  error: "text-red-500",
-  warning: "text-amber-500",
-  info: "text-blue-500",
+  success: 'text-emerald-500',
+  error: 'text-red-500',
+  warning: 'text-amber-500',
+  info: 'text-blue-500',
 };
 
 /**
@@ -38,7 +38,7 @@ export default function Toasts() {
   // Auto-dismiss notifications
   useEffect(() => {
     notifications.forEach((n) => {
-      const duration = n.type === "error" || n.type === "warning" ? 8000 : 5000;
+      const duration = n.type === 'error' || n.type === 'warning' ? 8000 : 5000;
       const timer = setTimeout(() => removeNotification(n.id), duration);
       return () => clearTimeout(timer);
     });
@@ -54,12 +54,12 @@ export default function Toasts() {
           <div
             key={n.id}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg",
-              "animate-in slide-in-from-right-full fade-in duration-300",
+              'pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg',
+              'animate-in slide-in-from-right-full fade-in duration-300',
               styles[n.type]
             )}
           >
-            <Icon className={cn("w-5 h-5 shrink-0 mt-0.5", iconStyles[n.type])} />
+            <Icon className={cn('w-5 h-5 shrink-0 mt-0.5', iconStyles[n.type])} />
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm">{n.title}</p>
               {n.message && <p className="text-xs mt-0.5 opacity-80">{n.message}</p>}

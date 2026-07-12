@@ -11,10 +11,7 @@ import { adminOnly } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
 import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await adminOnly(request);
     if (guard.error) return guard.error;
@@ -31,10 +28,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await adminOnly(request);
     if (guard.error) return guard.error;
@@ -64,13 +58,16 @@ export async function DELETE(
     const guard = await adminOnly(request);
     if (guard.error) return guard.error;
 
+    const authUser = await getAuthUser(request);
+    paymentService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
+
     const { id } = await params;
     const result = await paymentService.deletePayment(id);
 
-    if (!result.success) {
+    if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to delete payment');
     }
-    return apiSuccess(null, { message: 'Payment deleted successfully' });
+    return apiSuccess(result.data, { message: 'Payment deleted successfully' });
   } catch (error: any) {
     console.error('[API] DELETE /api/payments/:id error:', error);
     return apiInternalError(error.message || 'Internal server error');

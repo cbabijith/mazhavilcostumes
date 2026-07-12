@@ -94,7 +94,6 @@ export {
   useReorderGalleryItems,
 } from './useGallery';
 
-
 // Customer hooks
 export {
   useCustomers,
@@ -144,11 +143,7 @@ export {
 } from './useProductAvailability';
 
 // Calendar hooks
-export {
-  useCalendarOrders,
-  useCalendarView,
-  useCalendarNavigation,
-} from './useCalendar';
+export { useCalendarOrders, useCalendarView, useCalendarNavigation } from './useCalendar';
 
 // Damage Assessment hooks
 export {

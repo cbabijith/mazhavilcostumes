@@ -6,10 +6,10 @@
  * @module app/api/banners/remaining-slots/route
  */
 
-import { NextRequest } from "next/server";
-import { bannerService } from "@/services/bannerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError, apiRepositoryError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { bannerService } from '@/services/bannerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiInternalError, apiRepositoryError } from '@/lib/apiResponse';
 
 /** GET /api/banners/remaining-slots — get remaining slots by type */
 export async function GET(request: NextRequest) {

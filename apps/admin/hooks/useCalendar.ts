@@ -18,7 +18,13 @@ import {
   isSameDay,
   parseISO,
 } from 'date-fns';
-import { OrderStatus, type OrderWithRelations, type CalendarEvent, type DaySummary, type CalendarMonthStats } from '@/domain';
+import {
+  OrderStatus,
+  type OrderWithRelations,
+  type CalendarEvent,
+  type DaySummary,
+  type CalendarMonthStats,
+} from '@/domain';
 
 // ── API helper ────────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -78,7 +84,11 @@ function orderToCalendarEvent(order: OrderWithRelations): CalendarEvent {
   };
 }
 
-function buildDaySummaryMap(events: CalendarEvent[], startDate: Date, endDate: Date): Map<string, DaySummary> {
+function buildDaySummaryMap(
+  events: CalendarEvent[],
+  startDate: Date,
+  endDate: Date
+): Map<string, DaySummary> {
   const map = new Map<string, DaySummary>();
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -143,8 +153,8 @@ function buildDaySummaryMap(events: CalendarEvent[], startDate: Date, endDate: D
 export function useCalendarNavigation() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
-  const goToPrevMonth = useCallback(() => setCurrentMonth(prev => subMonths(prev, 1)), []);
-  const goToNextMonth = useCallback(() => setCurrentMonth(prev => addMonths(prev, 1)), []);
+  const goToPrevMonth = useCallback(() => setCurrentMonth((prev) => subMonths(prev, 1)), []);
+  const goToNextMonth = useCallback(() => setCurrentMonth((prev) => addMonths(prev, 1)), []);
   const goToToday = useCallback(() => setCurrentMonth(new Date()), []);
   const goToMonth = useCallback((date: Date) => setCurrentMonth(date), []);
 
@@ -204,10 +214,7 @@ export function useCalendarView(branchId: string | null) {
           seenScheduled.add(ev.orderId);
           scheduledThisMonth++;
         }
-        if (
-          (ev.is_late || ev.status === OrderStatus.FLAGGED) &&
-          !seenLate.has(ev.orderId)
-        ) {
+        if ((ev.is_late || ev.status === OrderStatus.FLAGGED) && !seenLate.has(ev.orderId)) {
           seenLate.add(ev.orderId);
           lateReturns++;
         }

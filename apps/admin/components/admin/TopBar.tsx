@@ -1,5 +1,5 @@
-import { Suspense } from "react";
-import BranchSwitcher from "./BranchSwitcher";
+import { Suspense } from 'react';
+import BranchSwitcher from './BranchSwitcher';
 
 export default function TopBar() {
   return (

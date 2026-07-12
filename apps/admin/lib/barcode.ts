@@ -12,7 +12,9 @@
  */
 export function generateBarcodeNumber(): string {
   const timestamp = Date.now().toString();
-  const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  const random = Math.floor(Math.random() * 10000)
+    .toString()
+    .padStart(4, '0');
   return `PRD${timestamp.slice(-6)}${random}`;
 }
 
@@ -27,11 +29,14 @@ export function validateBarcode(barcode: string): boolean {
 /**
  * Generate barcode SVG as data URL
  */
-export async function generateBarcodeSVG(barcode: string, options?: {
-  width?: number;
-  height?: number;
-  format?: string;
-}): Promise<string> {
+export async function generateBarcodeSVG(
+  barcode: string,
+  options?: {
+    width?: number;
+    height?: number;
+    format?: string;
+  }
+): Promise<string> {
   const JsBarcode = (await import('jsbarcode')).default;
   const canvas = document.createElement('canvas');
   JsBarcode(canvas, barcode, {
@@ -42,7 +47,7 @@ export async function generateBarcodeSVG(barcode: string, options?: {
     fontSize: 14,
     margin: 10,
   });
-  
+
   return canvas.toDataURL();
 }
 
@@ -50,9 +55,9 @@ export async function generateBarcodeSVG(barcode: string, options?: {
  * Generate barcode and download as PNG
  */
 export async function downloadBarcode(
-  barcode: string, 
+  barcode: string,
   productName: string,
-  options?: { width?: number; height?: number; }
+  options?: { width?: number; height?: number }
 ): Promise<void> {
   try {
     const JsBarcode = (await import('jsbarcode')).default;
@@ -65,32 +70,32 @@ export async function downloadBarcode(
       fontSize: 14,
       margin: 10,
     });
-    
+
     const finalCanvas = document.createElement('canvas');
     const ctx = finalCanvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
-    
+
     const padding = 20;
     const textSpace = 30;
-    
-    finalCanvas.width = barcodeCanvas.width + (padding * 2);
-    finalCanvas.height = barcodeCanvas.height + textSpace + (padding * 2);
-    
+
+    finalCanvas.width = barcodeCanvas.width + padding * 2;
+    finalCanvas.height = barcodeCanvas.height + textSpace + padding * 2;
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
     ctx.drawImage(barcodeCanvas, padding, padding);
-    
+
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'center';
-    
+
     let displayName = productName;
     if (displayName.length > 40) {
       displayName = displayName.substring(0, 37) + '...';
     }
-    
+
     ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
-    
+
     const link = document.createElement('a');
     link.download = `barcode-${barcode}-${productName.replace(/[^a-zA-Z0-9]/g, '_')}.png`;
     link.href = finalCanvas.toDataURL('image/png');
@@ -105,9 +110,9 @@ export async function downloadBarcode(
  * Generate barcode and open print dialog
  */
 export async function printBarcode(
-  barcode: string, 
+  barcode: string,
   productName: string,
-  options?: { width?: number; height?: number; }
+  options?: { width?: number; height?: number }
 ): Promise<void> {
   try {
     const JsBarcode = (await import('jsbarcode')).default;
@@ -120,34 +125,34 @@ export async function printBarcode(
       fontSize: 14,
       margin: 10,
     });
-    
+
     const finalCanvas = document.createElement('canvas');
     const ctx = finalCanvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
-    
+
     const padding = 20;
     const textSpace = 30;
-    
-    finalCanvas.width = barcodeCanvas.width + (padding * 2);
-    finalCanvas.height = barcodeCanvas.height + textSpace + (padding * 2);
-    
+
+    finalCanvas.width = barcodeCanvas.width + padding * 2;
+    finalCanvas.height = barcodeCanvas.height + textSpace + padding * 2;
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
     ctx.drawImage(barcodeCanvas, padding, padding);
-    
+
     ctx.fillStyle = '#000000';
     ctx.font = 'bold 14px Arial, sans-serif';
     ctx.textAlign = 'center';
-    
+
     let displayName = productName;
     if (displayName.length > 40) {
       displayName = displayName.substring(0, 37) + '...';
     }
-    
+
     ctx.fillText(displayName, finalCanvas.width / 2, finalCanvas.height - padding);
-    
+
     const dataUrl = finalCanvas.toDataURL('image/png');
-    
+
     // Create an iframe to print the image
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -157,10 +162,10 @@ export async function printBarcode(
     iframe.style.height = '0';
     iframe.style.border = '0';
     document.body.appendChild(iframe);
-    
+
     const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
     if (!iframeDoc) throw new Error('Could not get iframe document');
-    
+
     iframeDoc.write(`
       <html>
         <head>
@@ -210,13 +215,12 @@ export async function printBarcode(
   }
 }
 
-
 /**
  * Generate multiple barcodes for bulk download
  */
 export async function downloadMultipleBarcodes(
   products: Array<{ barcode: string; name: string }>,
-  options?: { width?: number; height?: number; }
+  options?: { width?: number; height?: number }
 ): Promise<void> {
   try {
     for (const product of products) {
@@ -231,7 +235,10 @@ export async function downloadMultipleBarcodes(
 /**
  * Check if barcode is unique (placeholder for API call)
  */
-export async function checkBarcodeUniqueness(barcode: string, excludeId?: string): Promise<boolean> {
+export async function checkBarcodeUniqueness(
+  barcode: string,
+  excludeId?: string
+): Promise<boolean> {
   // This would typically make an API call to check uniqueness
   // For now, return true (assume unique)
   return true;
@@ -315,13 +322,18 @@ export const LABEL_SIZES: Record<LabelSizeKey, LabelSize> = {
 export async function printBarcodeSingleSheet(
   barcode: string,
   productName: string,
-  options?: { labelWidth_mm?: number; labelHeight_mm?: number; }
+  options?: { labelWidth_mm?: number; labelHeight_mm?: number }
 ): Promise<void> {
   try {
     const labelWidth_mm = options?.labelWidth_mm || 50;
     const labelHeight_mm = options?.labelHeight_mm || 60;
 
-    const dataUrl = await renderBarcodeLabelForPrinter(barcode, productName, labelWidth_mm, labelHeight_mm);
+    const dataUrl = await renderBarcodeLabelForPrinter(
+      barcode,
+      productName,
+      labelWidth_mm,
+      labelHeight_mm
+    );
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
@@ -385,7 +397,7 @@ export async function printBarcodeSingleSheet(
  */
 export async function bulkPrintBarcodesSingleSheet(
   products: Array<{ barcode: string; name: string }>,
-  options?: { labelWidth_mm?: number; labelHeight_mm?: number; }
+  options?: { labelWidth_mm?: number; labelHeight_mm?: number }
 ): Promise<void> {
   if (products.length === 0) return;
 
@@ -396,7 +408,12 @@ export async function bulkPrintBarcodesSingleSheet(
 
   for (const product of products) {
     try {
-      const url = await renderBarcodeLabelForPrinter(product.barcode, product.name, labelWidth_mm, labelHeight_mm);
+      const url = await renderBarcodeLabelForPrinter(
+        product.barcode,
+        product.name,
+        labelWidth_mm,
+        labelHeight_mm
+      );
       dataUrls.push(url);
     } catch (err) {
       console.error(`Failed to generate barcode for ${product.barcode}:`, err);
@@ -407,7 +424,9 @@ export async function bulkPrintBarcodesSingleSheet(
     throw new Error('No barcodes could be generated');
   }
 
-  const images = dataUrls.map(url => `<div class="label"><img src="${url}" alt="barcode" /></div>`).join('');
+  const images = dataUrls
+    .map((url) => `<div class="label"><img src="${url}" alt="barcode" /></div>`)
+    .join('');
 
   const html = `<!DOCTYPE html>
 <html>
@@ -488,7 +507,7 @@ async function renderBarcodeLabel(
   productName: string,
   barWidth: number,
   barHeight: number,
-  fontSize: number,
+  fontSize: number
 ): Promise<string> {
   const JsBarcode = (await import('jsbarcode')).default;
   const scale = 3;
@@ -547,7 +566,7 @@ async function renderBarcodeLabelForPrinter(
   barcode: string,
   productName: string,
   labelWidth_mm: number,
-  labelHeight_mm: number,
+  labelHeight_mm: number
 ): Promise<string> {
   const JsBarcode = (await import('jsbarcode')).default;
 
@@ -588,10 +607,10 @@ async function renderBarcodeLabelForPrinter(
   const paddedBarcodeCanvas = document.createElement('canvas');
   const paddedCtx = paddedBarcodeCanvas.getContext('2d');
   if (!paddedCtx) throw new Error('Could not get canvas context');
-  
+
   paddedBarcodeCanvas.width = barcodeCanvas.width + sidePaddingPx * 2;
   paddedBarcodeCanvas.height = barcodeCanvas.height;
-  
+
   paddedCtx.fillStyle = '#ffffff';
   paddedCtx.fillRect(0, 0, paddedBarcodeCanvas.width, paddedBarcodeCanvas.height);
   paddedCtx.drawImage(barcodeCanvas, sidePaddingPx, 0);
@@ -655,14 +674,17 @@ async function renderBarcodeLabelForPrinter(
  */
 export async function bulkPrintBarcodes(
   products: Array<{ barcode: string; name: string }>,
-  sizeKey: LabelSizeKey = 'costume-label',
+  sizeKey: LabelSizeKey = 'costume-label'
 ): Promise<void> {
   if (products.length === 0) return;
 
   const size = LABEL_SIZES[sizeKey];
   const perSheet = size.perSheet;
 
-  const renderParams: Record<LabelSizeKey, { barWidth: number; barHeight: number; fontSize: number }> = {
+  const renderParams: Record<
+    LabelSizeKey,
+    { barWidth: number; barHeight: number; fontSize: number }
+  > = {
     'costume-label': { barWidth: 1, barHeight: 34, fontSize: 8 },
     'price-tag': { barWidth: 1, barHeight: 28, fontSize: 7 },
     'small-square': { barWidth: 1, barHeight: 38, fontSize: 7 },
@@ -673,7 +695,13 @@ export async function bulkPrintBarcodes(
   const dataUrls: string[] = [];
   for (const product of products) {
     try {
-      const url = await renderBarcodeLabel(product.barcode, product.name, rp.barWidth, rp.barHeight, rp.fontSize);
+      const url = await renderBarcodeLabel(
+        product.barcode,
+        product.name,
+        rp.barWidth,
+        rp.barHeight,
+        rp.fontSize
+      );
       dataUrls.push(url);
     } catch (err) {
       console.error(`Failed to generate barcode for ${product.barcode}:`, err);

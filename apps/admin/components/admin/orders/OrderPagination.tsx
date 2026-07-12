@@ -13,11 +13,11 @@
  * @module components/admin/orders/OrderPagination
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface OrderPaginationProps {
   page: number;
@@ -48,9 +48,7 @@ function OrderPaginationInner({
           {Math.min((page - 1) * pageSize + 1, total)}
         </span>
         <span>–</span>
-        <span className="font-semibold text-slate-900">
-          {Math.min(page * pageSize, total)}
-        </span>
+        <span className="font-semibold text-slate-900">{Math.min(page * pageSize, total)}</span>
         <span>of</span>
         <span className="font-semibold text-slate-900">{total}</span>
         <span>orders</span>
@@ -100,6 +98,6 @@ function OrderPaginationInner({
 }
 
 const OrderPagination = React.memo(OrderPaginationInner);
-OrderPagination.displayName = "OrderPagination";
+OrderPagination.displayName = 'OrderPagination';
 
 export default OrderPagination;

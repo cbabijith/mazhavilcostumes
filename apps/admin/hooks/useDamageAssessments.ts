@@ -115,7 +115,7 @@ export function useAssessDamageUnit() {
       queryClient.invalidateQueries({ queryKey: ['cleaning'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['availability'] });
-      
+
       const label = variables.decision === 'reuse' ? 'Reuse' : 'Write Off';
       showSuccess('Assessment Updated', `Unit marked as "${label}".`);
     },

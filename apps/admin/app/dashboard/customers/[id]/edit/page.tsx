@@ -6,15 +6,11 @@
  * @route /dashboard/customers/[id]/edit
  */
 
-import CustomerForm from "@/components/admin/CustomerForm";
-import { customerService } from "@/services";
-import { notFound } from "next/navigation";
+import CustomerForm from '@/components/admin/CustomerForm';
+import { customerService } from '@/services';
+import { notFound } from 'next/navigation';
 
-export default async function EditCustomerPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const result = await customerService.getCustomerById(id);

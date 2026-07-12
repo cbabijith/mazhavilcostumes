@@ -6,13 +6,13 @@
  * @module services/cleaningService
  */
 
-import { 
-  CleaningRecord, 
-  CreateCleaningRecordDTO, 
+import {
+  CleaningRecord,
+  CreateCleaningRecordDTO,
   UpdateCleaningRecordDTO,
   CleaningSearchParams,
   CleaningStatus,
-  CleaningPriority
+  CleaningPriority,
 } from '@/domain';
 import { cleaningRepository } from '@/repository/cleaningRepository';
 import { orderRepository } from '@/repository/orderRepository';
@@ -35,7 +35,7 @@ export class CleaningService {
       return {
         data: null,
         error: { message: 'Quantity must be greater than 0', code: 'VALIDATION_ERROR' } as any,
-        success: false
+        success: false,
       };
     }
 
@@ -48,7 +48,7 @@ export class CleaningService {
   async startCleaning(id: string): Promise<RepositoryResult<CleaningRecord>> {
     return cleaningRepository.update(id, {
       status: CleaningStatus.IN_PROGRESS,
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
     });
   }
 
@@ -58,7 +58,7 @@ export class CleaningService {
   async completeCleaning(id: string): Promise<RepositoryResult<CleaningRecord>> {
     const result = await cleaningRepository.update(id, {
       status: CleaningStatus.COMPLETED,
-      completed_at: new Date().toISOString()
+      completed_at: new Date().toISOString(),
     });
 
     if (result.success && result.data) {
@@ -71,10 +71,14 @@ export class CleaningService {
   /**
    * Update priority
    */
-  async updatePriority(id: string, priority: CleaningPriority, priorityOrderId?: string): Promise<RepositoryResult<CleaningRecord>> {
+  async updatePriority(
+    id: string,
+    priority: CleaningPriority,
+    priorityOrderId?: string
+  ): Promise<RepositoryResult<CleaningRecord>> {
     const result = await cleaningRepository.update(id, {
       priority,
-      priority_order_id: priorityOrderId
+      priority_order_id: priorityOrderId,
     });
 
     if (result.success && result.data) {
@@ -88,18 +92,19 @@ export class CleaningService {
    * Get metrics for dashboard
    */
   async getDashboardMetrics(branchId: string) {
-    const queueResult = await cleaningRepository.findMany({ 
+    const queueResult = await cleaningRepository.findMany({
       branch_id: branchId,
-      status: CleaningStatus.IN_PROGRESS 
+      status: CleaningStatus.IN_PROGRESS,
     });
-    
-    const urgentCount = queueResult.data?.filter(r => r.priority === CleaningPriority.URGENT).length || 0;
+
+    const urgentCount =
+      queueResult.data?.filter((r) => r.priority === CleaningPriority.URGENT).length || 0;
     const totalCount = queueResult.data?.length || 0;
 
     return {
       urgentCount,
       totalCount,
-      queue: queueResult.data || []
+      queue: queueResult.data || [],
     };
   }
 
@@ -129,7 +134,9 @@ export class CleaningService {
       }
     }
 
-    console.log(`[Cleaning Cron] Auto-completed ${count} cleaning records (buffer: ${bufferDays} day(s))`);
+    console.log(
+      `[Cleaning Cron] Auto-completed ${count} cleaning records (buffer: ${bufferDays} day(s))`
+    );
     return count;
   }
 }

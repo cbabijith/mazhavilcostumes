@@ -8,11 +8,11 @@
  * @module app/api/gallery/route
  */
 
-import { NextRequest } from "next/server";
-import { galleryService } from "@/services/galleryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { galleryService } from '@/services/galleryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiInternalError } from '@/lib/apiResponse';
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     const authUser = await getAuthUser(request);
     galleryService.setUserContext(
-      authUser?.staff_id || null, 
+      authUser?.staff_id || null,
       authUser?.branch_id || null,
       authUser?.store_id || null
     );

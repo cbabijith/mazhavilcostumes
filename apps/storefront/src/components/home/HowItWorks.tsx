@@ -1,20 +1,20 @@
-import { Search, Calendar, MessageCircle } from "lucide-react";
+import { Search, Calendar, MessageCircle } from 'lucide-react';
 
 const steps = [
   {
     icon: Search,
-    title: "Browse",
-    desc: "Explore our collection of premium costumes.",
+    title: 'Browse',
+    desc: 'Explore our collection of premium costumes.',
   },
   {
     icon: Calendar,
-    title: "Pick Dates",
-    desc: "Select the date for your special event.",
+    title: 'Pick Dates',
+    desc: 'Select the date for your special event.',
   },
   {
     icon: MessageCircle,
-    title: "WhatsApp Order",
-    desc: "Continue your order through WhatsApp with selected date and product.",
+    title: 'WhatsApp Order',
+    desc: 'Continue your order through WhatsApp with selected date and product.',
   },
 ];
 
@@ -40,11 +40,7 @@ export default function HowItWorks() {
             >
               <div className="relative shrink-0">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 md:w-18 md:h-18 rounded-2xl bg-rosegold/10 flex items-center justify-center">
-                  <step.icon
-                    className="text-rosegold"
-                    size={22}
-                    strokeWidth={1.8}
-                  />
+                  <step.icon className="text-rosegold" size={22} strokeWidth={1.8} />
                 </div>
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-rosegold text-white text-[9px] sm:text-[10px] font-bold flex items-center justify-center">
                   {index + 1}
@@ -61,7 +57,10 @@ export default function HowItWorks() {
               </div>
 
               {index < steps.length - 1 && (
-                <div className="hidden sm:block w-8 md:w-12 h-px bg-border-silk sm:absolute sm:top-8 md:top-9" style={{ left: `calc(${(index + 1) * 33.33}% - 16px)` }} />
+                <div
+                  className="hidden sm:block w-8 md:w-12 h-px bg-border-silk sm:absolute sm:top-8 md:top-9"
+                  style={{ left: `calc(${(index + 1) * 33.33}% - 16px)` }}
+                />
               )}
             </div>
           ))}

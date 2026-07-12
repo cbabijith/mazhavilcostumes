@@ -25,11 +25,11 @@
  * @module app/api/banners/route
  */
 
-import { NextRequest } from "next/server";
-import { bannerService } from "@/services/bannerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { bannerService } from '@/services/bannerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/banners — fetch all banners */
 export async function GET(request: NextRequest) {
@@ -39,10 +39,14 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const params = {
-      is_active: searchParams.get('is_active') === 'true' ? true :
-                 searchParams.get('is_active') === 'false' ? false : undefined,
-      redirect_type: searchParams.get('redirect_type') as any || undefined,
-      banner_type: searchParams.get('banner_type') as any || undefined,
+      is_active:
+        searchParams.get('is_active') === 'true'
+          ? true
+          : searchParams.get('is_active') === 'false'
+            ? false
+            : undefined,
+      redirect_type: (searchParams.get('redirect_type') as any) || undefined,
+      banner_type: (searchParams.get('banner_type') as any) || undefined,
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined,
       offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')!) : undefined,
     };
@@ -66,8 +70,8 @@ export async function POST(request: NextRequest) {
 
     const authUser = await getAuthUser(request);
     bannerService.setUserContext(
-      authUser?.staff_id || null, 
-      authUser?.branch_id || null, 
+      authUser?.staff_id || null,
+      authUser?.branch_id || null,
       authUser?.store_id || null
     );
 

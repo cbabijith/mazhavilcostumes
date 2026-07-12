@@ -110,27 +110,29 @@ export interface GalleryItem {
   created_at: string;
 }
 
-
 /**
  * Resolve the correct link for a banner based on its redirect type and target ID.
  */
 export function getBannerLink(banner: Banner): string | null {
-  if (banner.redirect_type === "none") return null;
+  if (banner.redirect_type === 'none') return null;
 
-  if (banner.redirect_type === "url" && banner.redirect_url) {
+  if (banner.redirect_type === 'url' && banner.redirect_url) {
     return banner.redirect_url;
   }
 
-  if (banner.redirect_type === "category" && banner.redirect_target_id) {
+  if (banner.redirect_type === 'category' && banner.redirect_target_id) {
     return `/collections?category_id=${banner.redirect_target_id}`;
   }
 
-  if (banner.redirect_type === "product" && banner.redirect_target_id) {
+  if (banner.redirect_type === 'product' && banner.redirect_target_id) {
     return `/product/${banner.redirect_target_id}`;
   }
 
   // Fallback for subcategories/subvariants if they use the same collection view
-  if ((banner.redirect_type === "subcategory" || banner.redirect_type === "subvariant") && banner.redirect_target_id) {
+  if (
+    (banner.redirect_type === 'subcategory' || banner.redirect_type === 'subvariant') &&
+    banner.redirect_target_id
+  ) {
     return `/collections?category_id=${banner.redirect_target_id}`;
   }
 
@@ -164,11 +166,7 @@ export async function getStoreByEmail(email: string): Promise<Store | null> {
  */
 export async function getStoreBySlug(slug: string): Promise<Store | null> {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from('stores')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
+  const { data, error } = await supabase.from('stores').select('*').eq('slug', slug).maybeSingle();
 
   if (error) {
     console.error('Error fetching store:', error);
@@ -206,7 +204,7 @@ export async function getCategories(storeId: string): Promise<Category[]> {
  * Uses getProductImageUrls() to safely extract URLs from JSONB.
  */
 function filterProductsWithImages(products: Product[]): Product[] {
-  return products.filter(p => getProductImageUrls(p.images).length > 0);
+  return products.filter((p) => getProductImageUrls(p.images).length > 0);
 }
 
 /**
@@ -214,7 +212,7 @@ function filterProductsWithImages(products: Product[]): Product[] {
  */
 export async function getFeaturedProducts(storeId: string, limit = 8): Promise<Product[]> {
   const supabase = createClient();
-  
+
   // First try to get featured products — over-fetch to compensate for JS-level edge case filtering
   let { data, error } = await supabase
     .from('products')
@@ -242,7 +240,7 @@ export async function getFeaturedProducts(storeId: string, limit = 8): Promise<P
       .not('images', 'eq', '[]')
       .order('created_at', { ascending: false })
       .limit(limit * 2);
-    
+
     data = result.data;
     error = result.error;
   }
@@ -324,7 +322,7 @@ export async function getHeroBanners(storeId: string): Promise<Banner[]> {
     return [];
   }
 
-  return (data || []).filter(b => b.web_image_url?.trim());
+  return (data || []).filter((b) => b.web_image_url?.trim());
 }
 
 /**
@@ -350,7 +348,7 @@ export async function getEditorialBanners(storeId: string): Promise<Banner[]> {
     return [];
   }
 
-  return (data || []).filter(b => b.web_image_url?.trim());
+  return (data || []).filter((b) => b.web_image_url?.trim());
 }
 
 /**
@@ -375,13 +373,15 @@ export async function getSplitBanners(storeId: string): Promise<Banner[]> {
     return [];
   }
 
-  return (data || []).filter(b => b.web_image_url?.trim());
+  return (data || []).filter((b) => b.web_image_url?.trim());
 }
 
 /**
  * Get a single product with category
  */
-export async function getProductById(id: string): Promise<(Product & { category: { id: string; name: string; slug: string } | null }) | null> {
+export async function getProductById(
+  id: string
+): Promise<(Product & { category: { id: string; name: string; slug: string } | null }) | null> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from('products')
@@ -422,9 +422,7 @@ export async function getRelatedProducts(
     query = query.eq('category_id', categoryId);
   }
 
-  const { data, error } = await query
-    .order('created_at', { ascending: false })
-    .limit(limit * 2);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit * 2);
 
   if (error) {
     console.error('Error fetching related products:', error);
@@ -465,23 +463,23 @@ export async function getProducts(
 ): Promise<{ products: Product[]; total: number }> {
   const supabase = createClient();
   let query = supabase
-    .from("products")
-    .select("*", { count: "exact" })
-    .eq("store_id", storeId)
-    .eq("is_active", true)
+    .from('products')
+    .select('*', { count: 'exact' })
+    .eq('store_id', storeId)
+    .eq('is_active', true)
     .not('images', 'is', null)
     .not('images', 'eq', '[]');
 
   if (options.categoryId) {
-    query = query.eq("category_id", options.categoryId);
+    query = query.eq('category_id', options.categoryId);
   }
 
   if (options.featured !== undefined) {
-    query = query.eq("is_featured", options.featured);
+    query = query.eq('is_featured', options.featured);
   }
 
   if (options.search) {
-    query = query.ilike("name", `%${options.search}%`);
+    query = query.ilike('name', `%${options.search}%`);
   }
 
   // Sorting
@@ -543,4 +541,3 @@ export async function getGalleryItems(): Promise<GalleryItem[]> {
 
   return data || [];
 }
-

@@ -7,11 +7,7 @@
  */
 
 import { RepositoryResult } from '@/repository';
-import { 
-  GalleryItem, 
-  CreateGalleryItemDTO, 
-  UpdateGalleryItemDTO
-} from '@/domain';
+import { GalleryItem, CreateGalleryItemDTO, UpdateGalleryItemDTO } from '@/domain';
 import { galleryRepository } from '@/repository';
 
 export class GalleryService {
@@ -22,7 +18,11 @@ export class GalleryService {
   /**
    * Set user context for audit logging
    */
-  setUserContext(userId: string | null, branchId: string | null, storeId: string | null = null): void {
+  setUserContext(
+    userId: string | null,
+    branchId: string | null,
+    storeId: string | null = null
+  ): void {
     this.currentUserId = userId;
     this.currentBranchId = branchId;
     this.currentStoreId = storeId;
@@ -32,7 +32,9 @@ export class GalleryService {
   /**
    * Get all gallery items
    */
-  async getAllGalleryItems(params?: { is_active?: boolean }): Promise<RepositoryResult<GalleryItem[]>> {
+  async getAllGalleryItems(params?: {
+    is_active?: boolean;
+  }): Promise<RepositoryResult<GalleryItem[]>> {
     return await galleryRepository.findAll(params);
   }
 
@@ -52,7 +54,7 @@ export class GalleryService {
         data: null,
         error: {
           message: 'Image URL is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -70,14 +72,17 @@ export class GalleryService {
   /**
    * Update an existing gallery item
    */
-  async updateGalleryItem(id: string, data: UpdateGalleryItemDTO): Promise<RepositoryResult<GalleryItem>> {
+  async updateGalleryItem(
+    id: string,
+    data: UpdateGalleryItemDTO
+  ): Promise<RepositoryResult<GalleryItem>> {
     const existing = await galleryRepository.findById(id);
     if (!existing.success || !existing.data) {
       return {
         data: null,
         error: {
           message: 'Gallery item not found',
-          code: 'NOT_FOUND'
+          code: 'NOT_FOUND',
         } as any,
         success: false,
       };
@@ -96,7 +101,7 @@ export class GalleryService {
         data: null,
         error: {
           message: 'Gallery item not found',
-          code: 'NOT_FOUND'
+          code: 'NOT_FOUND',
         } as any,
         success: false,
       };

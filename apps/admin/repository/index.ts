@@ -9,11 +9,7 @@
 // Base repository
 export { BaseRepository } from './supabaseClient';
 export type { RepositoryResult } from './supabaseClient';
-export { 
-  createRepositoryResult, 
-  isRepositorySuccess, 
-  isRepositoryError 
-} from './supabaseClient';
+export { createRepositoryResult, isRepositorySuccess, isRepositoryError } from './supabaseClient';
 
 // Repository implementations
 export { ProductRepository, productRepository } from './productRepository';
@@ -30,4 +26,3 @@ export { paymentRepository } from './paymentRepository';
 export { cleaningRepository } from './cleaningRepository';
 export { damageAssessmentRepository } from './damageAssessmentRepository';
 export { GalleryRepository, galleryRepository } from './galleryRepository';
-

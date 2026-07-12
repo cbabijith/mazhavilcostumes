@@ -6,18 +6,18 @@
  * @route /dashboard/banners/edit/:id
  */
 
-"use client";
+'use client';
 
-import { useBanner } from "@/hooks";
-import BannerForm from "@/components/admin/BannerForm";
-import { useParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { useBanner } from '@/hooks';
+import BannerForm from '@/components/admin/BannerForm';
+import { useParams, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 
 export default function EditBannerPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  
+
   const { data: banner, isLoading, error } = useBanner(id);
 
   if (isLoading) {

@@ -38,7 +38,10 @@ export async function getPageAuthUser(): Promise<AuthUser | null> {
       }
     );
 
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) return null;
 
     // Look up staff record for role
