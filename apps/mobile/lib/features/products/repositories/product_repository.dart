@@ -31,6 +31,8 @@ class ProductRepository {
     String? branchId,
     String? status,
     String? category,
+    String sortBy = 'created_at',
+    String sortOrder = 'desc',
     CancelToken? cancelToken,
   }) async {
     try {
@@ -50,6 +52,12 @@ class ProductRepository {
       }
       if (category != null && category.isNotEmpty && category != 'All') {
         queryParams['category_id'] = category;
+      }
+      if (sortBy.isNotEmpty) {
+        queryParams['sort_by'] = sortBy;
+      }
+      if (sortOrder.isNotEmpty) {
+        queryParams['sort_order'] = sortOrder;
       }
 
       final response = await _api.get(
