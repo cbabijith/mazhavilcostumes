@@ -37,24 +37,8 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     // Keep data alive across tab switches to avoid re-fetching
     ref.keepAlive();
     _currentPage = 1;
-    _currentBranchId = ref.read(effectiveBranchIdProvider);
-    final categoryName = ref.read(productCategoryFilterProvider);
-
-    // Listen to changes and invalidate self to trigger clean rebuilds
-    // without establishing reactive diamond dependencies that crash Riverpod
-    ref.listen<String?>(effectiveBranchIdProvider, (previous, next) {
-      if (previous != next) {
-        _currentPage = 1;
-        ref.invalidateSelf();
-      }
-    });
-
-    ref.listen<String>(productCategoryFilterProvider, (previous, next) {
-      if (previous != next) {
-        _currentPage = 1;
-        ref.invalidateSelf();
-      }
-    });
+    _currentBranchId = ref.watch(effectiveBranchIdProvider);
+    final categoryName = ref.watch(productCategoryFilterProvider);
 
     final cancelToken = CancelToken();
     ref.onDispose(cancelToken.cancel);

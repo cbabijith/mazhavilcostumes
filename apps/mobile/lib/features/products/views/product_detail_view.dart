@@ -129,39 +129,42 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         _buildSliverAppBar(product, isAdminOrManager, selectedBranchId, state.branchInventory),
         SliverToBoxAdapter(
           child: Padding(
-            padding: Responsive.all(AppSizes.screenPaddingLarge),
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingMedium,
+              vertical: AppSizes.spacingSmall,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeaderSection(product),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 _buildMetricsGrid(state, isAdminOrManager, selectedBranchId),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 if (isAdminOrManager) ...[
                   _buildAnalyticsSection(state.analytics),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(8)),
                 ],
                 _buildGeneralInfoCard(product),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 _buildProductIdentifiersCard(product),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 _buildBranchStockSection(state.branchInventory, product, selectedBranchId),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 _buildCalendarSection(state.availability),
-                SizedBox(height: Responsive.h(16)),
+                SizedBox(height: Responsive.h(8)),
                 if (isAdminOrManager) ...[
                   _buildMonthlyRevenueSection(state.analytics),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(8)),
                 ],
                 if (state.analytics?.items.isNotEmpty ?? false) ...[
                   _buildRentalHistorySection(state.analytics!.items),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(8)),
                 ],
                 if (isAdminOrManager && state.damageHistory.isNotEmpty) ...[
                   _buildDamageHistorySection(state.damageHistory),
-                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(height: Responsive.h(8)),
                 ],
-                SizedBox(height: Responsive.h(100)),
+                SizedBox(height: Responsive.h(40)),
               ],
             ),
           ),
@@ -172,7 +175,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   Widget _buildSliverAppBar(
       Product product, bool isAdminOrManager, String? selectedBranchId, List<BranchInventory> branchInventory) {
     return SliverAppBar(
-      expandedHeight: Responsive.h(320),
+      expandedHeight: Responsive.h(220),
       pinned: true,
       backgroundColor: AppColors.primary,
       leading: IconButton(
@@ -349,43 +352,61 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: TextStyle(
-          fontSize: Responsive.sp(14),
-          fontWeight: FontWeight.w700,
-          color: AppColors.primary),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: Responsive.w(2.5),
+          height: Responsive.h(11),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(Responsive.r(1.5)),
+          ),
+        ),
+        SizedBox(width: Responsive.w(6)),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: Responsive.sp(12),
+            fontWeight: FontWeight.w800,
+            color: AppColors.primary,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildPriceItem(String label, String value, Color color) {
-    return Container(
-      padding: Responsive.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(Responsive.r(10)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: TextStyle(
-                  fontSize: Responsive.sp(11), color: Colors.grey[600]),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-          SizedBox(height: Responsive.h(4)),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              style: TextStyle(
-                  fontSize: Responsive.sp(20),
-                  fontWeight: FontWeight.w800,
-                  color: color == AppColors.warning ? const Color(0xFFD4A540) : AppColors.primary),
-            ),
+  Widget _buildCompactPriceItem(String label, String value, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Responsive.sp(9),
+            color: Colors.grey[500],
+            fontWeight: FontWeight.w600,
           ),
-        ],
-      ),
+        ),
+        SizedBox(height: Responsive.h(2)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: Responsive.sp(13),
+            fontWeight: FontWeight.w900,
+            color: color == AppColors.warning ? const Color(0xFFD97706) : color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactDivider() {
+    return Container(
+      width: Responsive.w(1),
+      height: Responsive.h(18),
+      color: Colors.grey[200],
     );
   }
 
@@ -393,12 +414,33 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (product.categoryName != null) ...[
+          Container(
+            padding: Responsive.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(Responsive.r(20)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+            ),
+            child: Text(
+              product.categoryName!.toUpperCase(),
+              style: TextStyle(
+                fontSize: Responsive.sp(9),
+                fontWeight: FontWeight.w800,
+                color: AppColors.primary,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ),
+          SizedBox(height: Responsive.h(6)),
+        ],
         AutoSizeText(
           product.name,
           style: TextStyle(
-            fontSize: Responsive.sp(22),
-            fontWeight: FontWeight.w800,
-            color: AppColors.primary,
+            fontSize: Responsive.sp(18),
+            fontWeight: FontWeight.w900,
+            color: AppColors.text,
+            height: 1.15,
           ),
           maxLines: 2,
           minFontSize: 14,
@@ -406,24 +448,41 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         ),
         if (product.sku != null && product.sku!.isNotEmpty) ...[
           SizedBox(height: Responsive.h(4)),
-          Text(
-            'SKU: ${product.sku}',
-            style: TextStyle(
-                fontSize: Responsive.sp(12),
-                color: Colors.grey[500],
-                fontFamily: 'monospace'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-        if (product.categoryName != null) ...[
-          SizedBox(height: Responsive.h(4)),
-          Text(
-            product.categoryName!,
-            style: TextStyle(
-                fontSize: Responsive.sp(12), color: Colors.grey[600]),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: product.sku!));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('SKU copied to clipboard'),
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: AppColors.primary,
+                ),
+              );
+            },
+            child: Container(
+              padding: Responsive.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.grey[50]?.withValues(alpha: 0.5) ?? const Color(0xFFFAFAFA),
+                borderRadius: BorderRadius.circular(Responsive.r(6)),
+                border: Border.all(color: const Color(0xFFF1F5F9)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'SKU: ${product.sku}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(10),
+                      color: Colors.grey[500],
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(width: Responsive.w(3)),
+                  Icon(Icons.copy_rounded, size: Responsive.icon(10), color: Colors.grey[400]),
+                ],
+              ),
+            ),
           ),
         ],
       ],
@@ -459,7 +518,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           value: analytics != null
               ? '₹${analytics.totalRevenue.toStringAsFixed(0)}'
               : '—',
-          color: const Color(0xFF2ECC71),
+          color: const Color(0xFF10B981),
           icon: Icons.account_balance_wallet_outlined,
         ),
       _MetricItem(
@@ -471,79 +530,97 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       _MetricItem(
         label: 'Total Rents',
         value: '${analytics?.totalUnitsRented ?? 0}',
-        color: AppColors.warning,
+        color: const Color(0xFFF59E0B),
         icon: Icons.repeat_rounded,
       ),
       _MetricItem(
         label: 'Available',
         value: '$availQty / $totalQty',
         color: availQty == 0
-            ? const Color(0xFFFF6B8A)
+            ? const Color(0xFFEF4444)
             : availQty <= lowStockThreshold
-                ? const Color(0xFFF5A623)
-                : const Color(0xFF2ECC71),
+                ? const Color(0xFFF59E0B)
+                : const Color(0xFF10B981),
         icon: Icons.inventory_2_outlined,
       ),
     ];
 
     return GridView.builder(
       shrinkWrap: true,
+      padding: EdgeInsets.zero,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        crossAxisSpacing: Responsive.w(10),
-        mainAxisSpacing: Responsive.h(10),
-        childAspectRatio: 1.6,
+        crossAxisSpacing: Responsive.w(8),
+        mainAxisSpacing: Responsive.h(8),
+        childAspectRatio: 2.3,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) => AppCard(
-        padding: Responsive.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        padding: Responsive.symmetric(
+          horizontal: AppSizes.spacingSmall,
+          vertical: AppSizes.spacingSmall - 2,
+        ),
+        borderColor: const Color(0xFFF1F5F9),
+        borderRadius: AppSizes.radiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: Responsive.r(6),
+            offset: Offset(0, Responsive.h(1)),
+          )
+        ],
+        child: Row(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(items[i].icon, size: Responsive.icon(20), color: items[i].color),
-                if (items[i].label == 'Active Rentals' && (analytics?.activeOrders ?? 0) > 0)
-                  Container(
-                    width: Responsive.w(8),
-                    height: Responsive.w(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2ECC71),
-                      shape: BoxShape.circle,
+            Container(
+              padding: Responsive.all(5),
+              decoration: BoxDecoration(
+                color: items[i].color.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(items[i].icon, size: Responsive.icon(14), color: items[i].color),
+            ),
+            SizedBox(width: Responsive.w(6)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      items[i].value,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(14),
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.text,
+                        height: 1.1,
+                      ),
                     ),
                   ),
-              ],
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    items[i].value,
+                  Text(
+                    items[i].label,
                     style: TextStyle(
-                      fontSize: Responsive.sp(18),
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.primary,
+                      fontSize: Responsive.sp(9),
+                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w600,
+                      height: 1.1,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                SizedBox(height: Responsive.h(2)),
-                Text(
-                  items[i].label,
-                  style: TextStyle(
-                    fontSize: Responsive.sp(11),
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
+            if (items[i].label == 'Active Rentals' && (analytics?.activeOrders ?? 0) > 0)
+              Container(
+                width: Responsive.w(5),
+                height: Responsive.w(5),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF10B981),
+                  shape: BoxShape.circle,
+                ),
+              ),
           ],
         ),
       ),
@@ -567,10 +644,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         value: roi != null ? '${roi >= 0 ? '+' : ''}$roi%' : 'N/A',
         subtext: roi != null ? (roi > 0 ? 'Profitable' : 'Below cost') : 'Set purchase price',
         color: roi != null && roi >= 100
-            ? const Color(0xFF2ECC71)
+            ? const Color(0xFF10B981)
             : roi != null && roi < 0
-                ? const Color(0xFFFF6B8A)
-                : const Color(0xFFF5A623),
+                ? const Color(0xFFEF4444)
+                : const Color(0xFFF59E0B),
         icon: Icons.trending_up_rounded,
       ),
       _AnalyticsCardItem(
@@ -584,14 +661,14 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         label: 'Avg Duration',
         value: '${analytics.avgRentalDuration} days',
         subtext: 'Per rental',
-        color: const Color(0xFF9B59B6),
+        color: const Color(0xFF8B5CF6),
         icon: Icons.timelapse_rounded,
       ),
       _AnalyticsCardItem(
         label: 'Cancelled',
         value: '${analytics.cancelledOrders}',
         subtext: 'Orders cancelled',
-        color: const Color(0xFFFF6B8A),
+        color: const Color(0xFFEF4444),
         icon: Icons.cancel_presentation_outlined,
       ),
     ];
@@ -603,63 +680,70 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         SizedBox(height: Responsive.h(10)),
         GridView.builder(
           shrinkWrap: true,
+          padding: EdgeInsets.zero,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            crossAxisSpacing: Responsive.w(10),
-            mainAxisSpacing: Responsive.h(10),
-            childAspectRatio: 1.5,
+            crossAxisSpacing: Responsive.w(8),
+            mainAxisSpacing: Responsive.h(8),
+            childAspectRatio: 2.3,
           ),
           itemCount: items.length,
           itemBuilder: (context, i) => AppCard(
-            padding: Responsive.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: Responsive.symmetric(
+              horizontal: AppSizes.spacingSmall,
+              vertical: AppSizes.spacingSmall - 2,
+            ),
+            borderColor: const Color(0xFFF1F5F9),
+            borderRadius: AppSizes.radiusMedium,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.01),
+                blurRadius: Responsive.r(6),
+                offset: Offset(0, Responsive.h(1)),
+              )
+            ],
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
+                Container(
+                  padding: Responsive.all(5),
+                  decoration: BoxDecoration(
+                    color: items[i].color.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(items[i].icon, size: Responsive.icon(14), color: items[i].color),
+                ),
+                SizedBox(width: Responsive.w(6)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          items[i].value,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(14),
+                            fontWeight: FontWeight.w900,
+                            color: items[i].label == 'ROI' ? items[i].color : AppColors.text,
+                            height: 1.1,
+                          ),
+                        ),
+                      ),
+                      Text(
                         items[i].label,
                         style: TextStyle(
-                          fontSize: Responsive.sp(10),
+                          fontSize: Responsive.sp(9),
                           color: Colors.grey[500],
                           fontWeight: FontWeight.w600,
+                          height: 1.1,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    Icon(items[i].icon, size: Responsive.icon(16), color: items[i].color),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        items[i].value,
-                        style: TextStyle(
-                          fontSize: Responsive.sp(16),
-                          fontWeight: FontWeight.w800,
-                          color: items[i].label == 'ROI' ? items[i].color : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(2)),
-                    Text(
-                      items[i].subtext,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(9),
-                        color: Colors.grey[500],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -671,60 +755,54 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
 
   Widget _buildGeneralInfoCard(Product product) {
     return AppCard(
+      padding: Responsive.symmetric(
+        horizontal: AppSizes.spacingSmall + 2,
+        vertical: AppSizes.spacingSmall,
+      ),
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.012),
+          blurRadius: Responsive.r(8),
+          offset: Offset(0, Responsive.h(1.5)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('General Info'),
-          SizedBox(height: Responsive.h(12)),
-          Row(
-            children: [
-              Expanded(
-                child: _buildPriceItem(
-                    'Rent / Day',
-                    '₹${product.pricePerDay.toStringAsFixed(0)}',
-                    AppColors.warning),
-              ),
-              SizedBox(width: Responsive.w(12)),
-              Expanded(
-                child: _buildPriceItem(
-                    'Deposit',
-                    '₹${product.securityDeposit.toStringAsFixed(0)}',
-                    AppColors.primary),
-              ),
-            ],
-          ),
-          if (product.purchasePrice > 0 || product.gstPercentage > 0) ...[
-            SizedBox(height: Responsive.h(12)),
-            Row(
+          SizedBox(height: Responsive.h(8)),
+          Container(
+            padding: Responsive.symmetric(vertical: 8, horizontal: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(Responsive.r(8)),
+              border: Border.all(color: const Color(0xFFF1F5F9)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                if (product.purchasePrice > 0)
-                  Expanded(
-                    child: _buildPriceItem(
-                        'Purchase Price',
-                        '₹${product.purchasePrice.toStringAsFixed(0)}',
-                        Colors.grey[700]!),
-                  )
-                else
-                  const Spacer(),
-                SizedBox(width: Responsive.w(12)),
-                if (product.gstPercentage > 0)
-                  Expanded(
-                    child: _buildPriceItem(
-                        'GST Rate',
-                        '${product.gstPercentage.toStringAsFixed(1)}%',
-                        const Color(0xFF3B82F6)),
-                  )
-                else
-                  const Spacer(),
+                _buildCompactPriceItem('Rent / Day', '₹${product.pricePerDay.toStringAsFixed(0)}', AppColors.warning),
+                _buildCompactDivider(),
+                _buildCompactPriceItem('Deposit', '₹${product.securityDeposit.toStringAsFixed(0)}', AppColors.primary),
+                if (product.purchasePrice > 0) ...[
+                  _buildCompactDivider(),
+                  _buildCompactPriceItem('Purchase Price', '₹${product.purchasePrice.toStringAsFixed(0)}', Colors.grey[700]!),
+                ],
+                if (product.gstPercentage > 0) ...[
+                  _buildCompactDivider(),
+                  _buildCompactPriceItem('GST Rate', '${product.gstPercentage.toStringAsFixed(0)}%', const Color(0xFF3B82F6)),
+                ],
               ],
             ),
-          ],
+          ),
           if (product.minRentalDays != null ||
               product.maxRentalDays != null) ...[
-            SizedBox(height: Responsive.h(12)),
+            SizedBox(height: Responsive.h(8)),
             Wrap(
-              spacing: Responsive.w(8),
-              runSpacing: Responsive.h(8),
+              spacing: Responsive.w(6),
+              runSpacing: Responsive.h(6),
               children: [
                 if (product.minRentalDays != null)
                   _buildInfoChip('Min ${product.minRentalDays} days', Icons.timer_outlined),
@@ -735,13 +813,13 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           ],
           if (product.description != null &&
               product.description!.isNotEmpty) ...[
-            SizedBox(height: Responsive.h(12)),
+            SizedBox(height: Responsive.h(8)),
             Text(
               product.description!,
               style: TextStyle(
-                  fontSize: Responsive.sp(13),
+                  fontSize: Responsive.sp(12),
                   color: Colors.grey[700],
-                  height: 1.5),
+                  height: 1.4),
             ),
           ],
           if (product.material != null ||
@@ -749,10 +827,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               product.metalColor != null ||
               product.weightGrams != null ||
               product.condition != null) ...[
-            SizedBox(height: Responsive.h(12)),
+            SizedBox(height: Responsive.h(8)),
             Wrap(
-              spacing: Responsive.w(8),
-              runSpacing: Responsive.h(8),
+              spacing: Responsive.w(6),
+              runSpacing: Responsive.h(6),
               children: [
                 if (product.material != null)
                   _buildSpecChip('Material', product.material!),
@@ -774,15 +852,28 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
 
   Widget _buildProductIdentifiersCard(Product product) {
     return AppCard(
+      padding: Responsive.symmetric(
+        horizontal: AppSizes.spacingSmall + 2,
+        vertical: AppSizes.spacingSmall,
+      ),
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.012),
+          blurRadius: Responsive.r(8),
+          offset: Offset(0, Responsive.h(1.5)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Product Identifiers'),
-          SizedBox(height: Responsive.h(12)),
+          SizedBox(height: Responsive.h(8)),
           _buildIdentifierRow('SKU', product.sku ?? 'N/A'),
-          Divider(color: Colors.grey[200], height: Responsive.h(16)),
+          Divider(color: Colors.grey[100], height: Responsive.h(10)),
           _buildIdentifierRow('Barcode', product.barcode ?? 'N/A'),
-          Divider(color: Colors.grey[200], height: Responsive.h(16)),
+          Divider(color: Colors.grey[100], height: Responsive.h(10)),
           _buildIdentifierRow(
             'System ID',
             product.id,
@@ -863,11 +954,24 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   Widget _buildBranchStockSection(
       List<BranchInventory> branchInventory, Product product, String? selectedBranchId) {
     return AppCard(
+      padding: Responsive.symmetric(
+        horizontal: AppSizes.spacingSmall + 2,
+        vertical: AppSizes.spacingSmall,
+      ),
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.012),
+          blurRadius: Responsive.r(8),
+          offset: Offset(0, Responsive.h(1.5)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Branch Stock'),
-          SizedBox(height: Responsive.h(10)),
+          SizedBox(height: Responsive.h(8)),
           if (branchInventory.isEmpty)
             Row(
               children: [
@@ -909,8 +1013,8 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                           '${b.availableQuantity} / ${b.quantity}',
                           style: TextStyle(
                               fontSize: Responsive.sp(12),
-                              fontWeight: FontWeight.w700,
-                              color: isOut ? const Color(0xFFFF6B8A) : AppColors.text),
+                              fontWeight: FontWeight.w800,
+                              color: isOut ? const Color(0xFFEF4444) : AppColors.text),
                         ),
                       ],
                     ),
@@ -921,17 +1025,17 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                             ? b.availableQuantity / b.quantity
                             : 0.0;
                         final color = isOut
-                            ? const Color(0xFFFF6B8A)
+                            ? const Color(0xFFEF4444)
                             : isLow
-                                ? const Color(0xFFF5A623)
-                                : const Color(0xFF2ECC71);
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF10B981);
                         return Container(
                           width: constraints.maxWidth,
-                          height: Responsive.h(6),
+                          height: Responsive.h(4),
                           decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: const Color(0xFFF1F5F9),
                             borderRadius:
-                                BorderRadius.circular(Responsive.r(3)),
+                                BorderRadius.circular(Responsive.r(2)),
                           ),
                           child: FractionallySizedBox(
                             alignment: Alignment.centerLeft,
@@ -940,14 +1044,14 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               decoration: BoxDecoration(
                                 color: color,
                                 borderRadius:
-                                    BorderRadius.circular(Responsive.r(3)),
+                                    BorderRadius.circular(Responsive.r(2)),
                               ),
                             ),
                           ),
                         );
                       },
                     ),
-                    SizedBox(height: Responsive.h(4)),
+                    SizedBox(height: Responsive.h(6)),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -965,7 +1069,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                               Icon(
                                 isOut ? Icons.cancel_outlined : Icons.warning_amber_rounded,
                                 size: Responsive.icon(12),
-                                color: isOut ? const Color(0xFFFF6B8A) : const Color(0xFFF5A623),
+                                color: isOut ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
                               ),
                               SizedBox(width: Responsive.w(2)),
                               Text(
@@ -973,7 +1077,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                 style: TextStyle(
                                   fontSize: Responsive.sp(10),
                                   fontWeight: FontWeight.w600,
-                                  color: isOut ? const Color(0xFFFF6B8A) : const Color(0xFFF5A623),
+                                  color: isOut ? const Color(0xFFEF4444) : const Color(0xFFF59E0B),
                                 ),
                               ),
                             ],
@@ -1070,11 +1174,20 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   Widget _buildCalendarSection(ProductAvailability? availability) {
     if (availability == null || availability.days.isEmpty) {
       return AppCard(
+        borderColor: const Color(0xFFF1F5F9),
+        borderRadius: AppSizes.radiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.015),
+            blurRadius: Responsive.r(10),
+            offset: Offset(0, Responsive.h(2)),
+          )
+        ],
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionTitle('Booking Calendar'),
-            SizedBox(height: Responsive.h(10)),
+            SizedBox(height: Responsive.h(12)),
             Text('No availability data',
                 style: TextStyle(
                     fontSize: Responsive.sp(13), color: Colors.grey[600])),
@@ -1089,6 +1202,15 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     final monthLabel = DateFormat('MMMM yyyy').format(currentMonth);
 
     return AppCard(
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.015),
+          blurRadius: Responsive.r(10),
+          offset: Offset(0, Responsive.h(2)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1100,21 +1222,21 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 monthLabel,
                 style: TextStyle(
                     fontSize: Responsive.sp(12),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                     color: Colors.grey[600]),
               ),
             ],
           ),
-          SizedBox(height: Responsive.h(10)),
+          SizedBox(height: Responsive.h(12)),
           _buildCalendarGrid(days, currentMonth),
-          SizedBox(height: Responsive.h(8)),
+          SizedBox(height: Responsive.h(12)),
           Wrap(
-            spacing: Responsive.w(8),
-            runSpacing: Responsive.h(4),
+            spacing: Responsive.w(12),
+            runSpacing: Responsive.h(6),
             children: [
-              _buildLegendDot('Available', const Color(0xFF2ECC71)),
-              _buildLegendDot('Partial', const Color(0xFFF5A623)),
-              _buildLegendDot('Booked', const Color(0xFFFF6B8A)),
+              _buildLegendDot('Available', const Color(0xFF10B981)),
+              _buildLegendDot('Partial', const Color(0xFFF59E0B)),
+              _buildLegendDot('Booked', const Color(0xFFEF4444)),
               _buildLegendDot('Buffer', const Color(0xFF3B82F6)),
             ],
           ),
@@ -1312,11 +1434,20 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
 
   Widget _buildRentalHistorySection(List<ProductOrderItem> items) {
     return AppCard(
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.015),
+          blurRadius: Responsive.r(10),
+          offset: Offset(0, Responsive.h(2)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Rental History'),
-          SizedBox(height: Responsive.h(10)),
+          SizedBox(height: Responsive.h(12)),
           ...items.take(10).map((item) => _buildRentalHistoryRow(item)),
           if (items.length > 10)
             Padding(
@@ -1433,11 +1564,20 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
 
   Widget _buildDamageHistorySection(List<DamageRecord> records) {
     return AppCard(
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.015),
+          blurRadius: Responsive.r(10),
+          offset: Offset(0, Responsive.h(2)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Damage History'),
-          SizedBox(height: Responsive.h(10)),
+          SizedBox(height: Responsive.h(12)),
           ...records.map((r) {
             final dateStr = r.assessedAt ?? r.createdAt;
             String dateFormatted = '';
@@ -1502,10 +1642,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                           padding: Responsive.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: r.decision == 'reuse'
-                                ? const Color(0xFF2ECC71).withValues(alpha: 0.1)
+                                ? const Color(0xFF10B981).withValues(alpha: 0.1)
                                 : r.decision == 'not_reuse'
-                                    ? const Color(0xFFFF6B8A).withValues(alpha: 0.1)
-                                    : const Color(0xFFF5A623).withValues(alpha: 0.1),
+                                    ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                                    : const Color(0xFFF59E0B).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(Responsive.r(6)),
                           ),
                           child: Text(
@@ -1514,10 +1654,10 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                                 fontSize: Responsive.sp(10),
                                 fontWeight: FontWeight.w700,
                                 color: r.decision == 'reuse'
-                                    ? const Color(0xFF2ECC71)
+                                    ? const Color(0xFF10B981)
                                     : r.decision == 'not_reuse'
-                                        ? const Color(0xFFFF6B8A)
-                                        : const Color(0xFFF5A623)),
+                                        ? const Color(0xFFEF4444)
+                                        : const Color(0xFFF59E0B)),
                           ),
                         ),
                       ],
@@ -1808,6 +1948,15 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
     final maxRevenue = list.map((e) => e.revenue).fold<double>(1.0, (m, e) => e > m ? e : m);
 
     return AppCard(
+      borderColor: const Color(0xFFF1F5F9),
+      borderRadius: AppSizes.radiusMedium,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.015),
+          blurRadius: Responsive.r(10),
+          offset: Offset(0, Responsive.h(2)),
+        )
+      ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
