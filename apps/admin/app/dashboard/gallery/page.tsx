@@ -7,32 +7,24 @@
  * @module app/dashboard/gallery/page
  */
 
-"use client";
+'use client';
 
-import { Suspense, useState, useMemo, useCallback, useRef } from "react";
-import {
-  Images,
-  Trash2,
-  GripVertical,
-  Loader2,
-  AlertTriangle,
-  Eye,
-  EyeOff,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { FileUpload } from "@/components/ui/file-upload";
-import Modal from "@/components/admin/Modal";
+import { Suspense, useState, useMemo, useCallback, useRef } from 'react';
+import { Images, Trash2, GripVertical, Loader2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { FileUpload } from '@/components/ui/file-upload';
+import Modal from '@/components/admin/Modal';
 import {
   useGallery,
   useCreateGalleryItem,
   useUpdateGalleryItem,
   useDeleteGalleryItem,
   useReorderGalleryItems,
-} from "@/hooks";
-import { type GalleryItem } from "@/domain";
-import { useAppStore } from "@/stores";
+} from '@/hooks';
+import { type GalleryItem } from '@/domain';
+import { useAppStore } from '@/stores';
 import {
   DndContext,
   closestCenter,
@@ -53,12 +45,14 @@ import { CSS } from '@dnd-kit/utilities';
 
 export default function GalleryPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center p-12 text-slate-500">
-        <Loader2 className="w-6 h-6 animate-spin mr-2" />
-        Loading gallery...
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12 text-slate-500">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          Loading gallery...
+        </div>
+      }
+    >
       <GalleryContent />
     </Suspense>
   );
@@ -87,8 +81,8 @@ function GalleryContent() {
 
   const handleUploadChange = async (urls: string[]) => {
     // urls is the cumulative array from FileUpload. We find new ones.
-    const existingUrls = galleryItems?.map(item => item.image_url) || [];
-    const newUrls = urls.filter(url => !existingUrls.includes(url));
+    const existingUrls = galleryItems?.map((item) => item.image_url) || [];
+    const newUrls = urls.filter((url) => !existingUrls.includes(url));
 
     if (newUrls.length === 0) return;
 
@@ -104,7 +98,7 @@ function GalleryContent() {
         } as any);
         successCountRef.current++;
       } catch (err) {
-        console.error("Failed to save gallery item:", err);
+        console.error('Failed to save gallery item:', err);
       }
     }
 
@@ -126,7 +120,7 @@ function GalleryContent() {
         data: { is_active: !item.is_active },
       });
     } catch (err) {
-      console.error("Failed to toggle item status:", err);
+      console.error('Failed to toggle item status:', err);
     }
   };
 
@@ -139,7 +133,7 @@ function GalleryContent() {
       try {
         await deleteGalleryItem.mutateAsync(deleteDialog.item.id);
       } catch (err) {
-        console.error("Failed to delete gallery item:", err);
+        console.error('Failed to delete gallery item:', err);
       } finally {
         setDeleteDialog({ open: false, item: null });
       }
@@ -157,28 +151,31 @@ function GalleryContent() {
     })
   );
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
 
-    if (over && active.id !== over.id) {
-      const oldIndex = sortedItems.findIndex((item) => item.id === active.id);
-      const newIndex = sortedItems.findIndex((item) => item.id === over.id);
+      if (over && active.id !== over.id) {
+        const oldIndex = sortedItems.findIndex((item) => item.id === active.id);
+        const newIndex = sortedItems.findIndex((item) => item.id === over.id);
 
-      const reordered = arrayMove(sortedItems, oldIndex, newIndex);
+        const reordered = arrayMove(sortedItems, oldIndex, newIndex);
 
-      // Re-calculate all sort orders sequentially
-      const updates = reordered.map((item, index) => ({
-        id: item.id,
-        sort_order: index + 1,
-      }));
+        // Re-calculate all sort orders sequentially
+        const updates = reordered.map((item, index) => ({
+          id: item.id,
+          sort_order: index + 1,
+        }));
 
-      reorderGalleryItems.mutate(updates);
-    }
-  }, [sortedItems, reorderGalleryItems]);
+        reorderGalleryItems.mutate(updates);
+      }
+    },
+    [sortedItems, reorderGalleryItems]
+  );
 
   const stats = useMemo(() => {
     const total = sortedItems.length;
-    const active = sortedItems.filter(item => item.is_active).length;
+    const active = sortedItems.filter((item) => item.is_active).length;
     return { total, active };
   }, [sortedItems]);
 
@@ -193,7 +190,9 @@ function GalleryContent() {
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
             <Images className="w-4 h-4 text-slate-400" />
             <span>Upload and manage costume photos shared by your clients</span>
-            <span>• {stats.total} total ({stats.active} active)</span>
+            <span>
+              • {stats.total} total ({stats.active} active)
+            </span>
           </p>
         </div>
       </div>
@@ -231,7 +230,8 @@ function GalleryContent() {
             <Images className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-slate-900 mb-1">No Costume Photos Yet</h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
-              Upload client-shared costume photos using the box above. They will show on your storefront immediately.
+              Upload client-shared costume photos using the box above. They will show on your
+              storefront immediately.
             </p>
           </div>
         ) : (
@@ -241,7 +241,7 @@ function GalleryContent() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={sortedItems.map(item => item.id)}
+              items={sortedItems.map((item) => item.id)}
               strategy={rectSortingStrategy}
             >
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -251,7 +251,9 @@ function GalleryContent() {
                     item={item}
                     onDelete={() => handleDeleteClick(item)}
                     onToggleActive={() => handleToggleActive(item)}
-                    isUpdating={updateGalleryItem.isPending && updateGalleryItem.variables?.id === item.id}
+                    isUpdating={
+                      updateGalleryItem.isPending && updateGalleryItem.variables?.id === item.id
+                    }
                   />
                 ))}
               </div>
@@ -275,19 +277,34 @@ function GalleryContent() {
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to permanently delete this costume photo? This action cannot be undone and it will be removed from the storefront.
+                Are you sure you want to permanently delete this costume photo? This action cannot
+                be undone and it will be removed from the storefront.
               </p>
             </div>
           </div>
           {deleteDialog.item && (
             <div className="w-32 h-32 mx-auto rounded-lg overflow-hidden border border-slate-200 mb-6 bg-slate-50">
-              <img src={deleteDialog.item.image_url} alt="To delete" className="w-full h-full object-cover" />
+              <img
+                src={deleteDialog.item.image_url}
+                alt="To delete"
+                className="w-full h-full object-cover"
+              />
             </div>
           )}
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setDeleteDialog({ open: false, item: null })} className="border-slate-200">Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteGalleryItem.isPending}>
-              {deleteGalleryItem.isPending ? "Deleting..." : "Delete Photo"}
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog({ open: false, item: null })}
+              className="border-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteGalleryItem.isPending}
+            >
+              {deleteGalleryItem.isPending ? 'Deleting...' : 'Delete Photo'}
             </Button>
           </div>
         </div>
@@ -303,15 +320,15 @@ interface SortableGalleryCardProps {
   isUpdating?: boolean;
 }
 
-function SortableGalleryCard({ item, onDelete, onToggleActive, isUpdating }: SortableGalleryCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id });
+function SortableGalleryCard({
+  item,
+  onDelete,
+  onToggleActive,
+  isUpdating,
+}: SortableGalleryCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -364,11 +381,11 @@ function SortableGalleryCard({ item, onDelete, onToggleActive, isUpdating }: Sor
         <Badge
           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full select-none shadow-sm ${
             item.is_active
-              ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
-              : "bg-slate-100 text-slate-600 border border-slate-200/50"
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/50'
+              : 'bg-slate-100 text-slate-600 border border-slate-200/50'
           }`}
         >
-          {item.is_active ? "Active" : "Hidden"}
+          {item.is_active ? 'Active' : 'Hidden'}
         </Badge>
 
         {/* Toggle Switch */}
@@ -377,7 +394,7 @@ function SortableGalleryCard({ item, onDelete, onToggleActive, isUpdating }: Sor
           onClick={onToggleActive}
           disabled={isUpdating}
           className="relative inline-flex items-center cursor-pointer p-1 rounded-full bg-white/90 hover:bg-white shadow-sm hover:scale-105 transition-all"
-          title={item.is_active ? "Hide from Storefront" : "Show on Storefront"}
+          title={item.is_active ? 'Hide from Storefront' : 'Show on Storefront'}
         >
           {isUpdating ? (
             <Loader2 className="w-4 h-4 animate-spin text-slate-500" />

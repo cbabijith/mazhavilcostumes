@@ -6,14 +6,14 @@
  * @component
  */
 
-"use client";
+'use client';
 
 export default function CalendarLegend() {
   const items = [
-    { color: "bg-emerald-500", label: "Starting" },
-    { color: "bg-purple-500", label: "Ongoing" },
-    { color: "bg-amber-500", label: "Ending" },
-    { color: "bg-red-500", label: "Late Return" },
+    { color: 'bg-emerald-500', label: 'Starting' },
+    { color: 'bg-purple-500', label: 'Ongoing' },
+    { color: 'bg-amber-500', label: 'Ending' },
+    { color: 'bg-red-500', label: 'Late Return' },
   ];
 
   return (
@@ -21,9 +21,7 @@ export default function CalendarLegend() {
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-1.5">
           <span className={`w-2 h-2 rounded-full ${item.color}`} />
-          <span className="text-[11px] text-slate-500 font-medium">
-            {item.label}
-          </span>
+          <span className="text-[11px] text-slate-500 font-medium">{item.label}</span>
         </div>
       ))}
     </div>

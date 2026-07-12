@@ -21,21 +21,17 @@ export default function NewArrivals({ products }: NewArrivalsProps) {
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-heading animate-fadeInUp">
             New Arrivals
           </h2>
-          <Link 
-            href="/collections?sort=new" 
+          <Link
+            href="/collections?sort=new"
             className="text-sm font-medium text-rosegold hover:text-rosegold-dark transition-all flex items-center gap-2 group animate-fadeInUp"
           >
             Explore All <span className="group-hover:translate-x-1.5 transition-transform">→</span>
           </Link>
         </div>
-        
+
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 stagger-children">
           {productsWithImages.slice(0, 8).map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              badge={{ text: 'New' }}
-            />
+            <ProductCard key={product.id} product={product} badge={{ text: 'New' }} />
           ))}
         </div>
       </div>

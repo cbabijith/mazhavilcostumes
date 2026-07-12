@@ -1,13 +1,22 @@
-"use client";
+'use client';
 
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, TrendingUp, Boxes, Star } from "lucide-react";
-import { formatCurrency } from "@/lib/shared-utils";
-import { ReportTable } from "../ReportTable";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trophy, TrendingUp, Boxes, Star } from 'lucide-react';
+import { formatCurrency } from '@/lib/shared-utils';
+import { ReportTable } from '../ReportTable';
 
 interface TopCostumesViewProps {
   data: any[];
@@ -19,23 +28,23 @@ interface TopCostumesViewProps {
   rankBy: 'count' | 'revenue';
 }
 
-const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#3b82f6", "#8b5cf6", "#ec4899"];
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899'];
 
-export function TopCostumesView({ 
-  data, 
-  loading, 
-  error, 
-  sortConfig, 
-  onSort, 
+export function TopCostumesView({
+  data,
+  loading,
+  error,
+  sortConfig,
+  onSort,
   formatCell,
-  rankBy
+  rankBy,
 }: TopCostumesViewProps) {
   const columns = [
-    { header: "Costume Name", key: "product_name" },
-    { header: "Category", key: "category_name" },
-    { header: "Rental Count", key: "rental_count", format: "number" as const },
-    { header: "Total Revenue", key: "revenue", format: "currency" as const },
-    { header: "Avg. Days", key: "avg_rental_days", format: "number" as const },
+    { header: 'Costume Name', key: 'product_name' },
+    { header: 'Category', key: 'category_name' },
+    { header: 'Rental Count', key: 'rental_count', format: 'number' as const },
+    { header: 'Total Revenue', key: 'revenue', format: 'currency' as const },
+    { header: 'Avg. Days', key: 'avg_rental_days', format: 'number' as const },
   ];
 
   const chartDataKey = rankBy === 'revenue' ? 'revenue' : 'rental_count';
@@ -45,11 +54,11 @@ export function TopCostumesView({
   const top10 = data.slice(0, 10);
   const totalRentals = data.reduce((sum, item) => sum + (item.rental_count || 0), 0);
   const totalRevenue = data.reduce((sum, item) => sum + (item.revenue || 0), 0);
-  
+
   // Category distribution for top items
   const catMap = new Map();
-  top10.forEach(item => {
-    const cat = item.category_name || "Uncategorized";
+  top10.forEach((item) => {
+    const cat = item.category_name || 'Uncategorized';
     catMap.set(cat, (catMap.get(cat) || 0) + 1);
   });
   const categoryData = Array.from(catMap.entries()).map(([name, value]) => ({ name, value }));
@@ -66,8 +75,12 @@ export function TopCostumesView({
                   <Trophy className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Best Performer</p>
-                  <p className="text-sm font-black text-slate-900 truncate max-w-[150px]">{data[0]?.product_name}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Best Performer
+                  </p>
+                  <p className="text-sm font-black text-slate-900 truncate max-w-[150px]">
+                    {data[0]?.product_name}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -77,7 +90,9 @@ export function TopCostumesView({
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Top Rentals</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Total Top Rentals
+                  </p>
                   <p className="text-sm font-black text-slate-900">{totalRentals} Bookings</p>
                 </div>
               </CardContent>
@@ -88,8 +103,12 @@ export function TopCostumesView({
                   <Star className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Top Revenue</p>
-                  <p className="text-sm font-black text-slate-900">{formatCurrency(totalRevenue)}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Total Top Revenue
+                  </p>
+                  <p className="text-sm font-black text-slate-900">
+                    {formatCurrency(totalRevenue)}
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -99,7 +118,9 @@ export function TopCostumesView({
                   <Boxes className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Categories Represented</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Categories Represented
+                  </p>
                   <p className="text-sm font-black text-slate-900">{categoryData.length} Types</p>
                 </div>
               </CardContent>
@@ -110,36 +131,47 @@ export function TopCostumesView({
             {/* Horizontal Bar Chart: Top 10 */}
             <Card className="shadow-sm border-slate-200 bg-white lg:col-span-2">
               <CardHeader className="py-3 px-6 border-b border-slate-100">
-                <CardTitle className="text-sm font-semibold">Top 10 Costumes by {chartLabel}</CardTitle>
+                <CardTitle className="text-sm font-semibold">
+                  Top 10 Costumes by {chartLabel}
+                </CardTitle>
               </CardHeader>
               <CardContent className="p-6 h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={top10} layout="vertical" margin={{ left: 20, right: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      horizontal={true}
+                      vertical={false}
+                      stroke="#f1f5f9"
+                    />
                     <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="product_name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      width={140} 
+                    <YAxis
+                      dataKey="product_name"
+                      type="category"
+                      axisLine={false}
+                      tickLine={false}
+                      width={140}
                       fontSize={10}
                       fontWeight={600}
                     />
-                    <Tooltip 
+                    <Tooltip
                       cursor={{ fill: '#f8fafc' }}
-                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                      }}
                       formatter={(value: any) => [
-                        rankBy === 'revenue' ? formatCurrency(value) : `${value} Rentals`, 
-                        chartLabel
+                        rankBy === 'revenue' ? formatCurrency(value) : `${value} Rentals`,
+                        chartLabel,
                       ]}
                     />
-                    <Bar 
-                      dataKey={chartDataKey} 
-                      name={chartLabel} 
-                      fill={rankBy === 'revenue' ? "#6366f1" : "#f59e0b"} 
-                      radius={[0, 4, 4, 0]} 
-                      barSize={20} 
+                    <Bar
+                      dataKey={chartDataKey}
+                      name={chartLabel}
+                      fill={rankBy === 'revenue' ? '#6366f1' : '#f59e0b'}
+                      radius={[0, 4, 4, 0]}
+                      barSize={20}
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -162,14 +194,18 @@ export function TopCostumesView({
                       outerRadius={85}
                       paddingAngle={5}
                       dataKey="value"
-                      label={({percent}) => `${((percent || 0) * 100).toFixed(0)}%`}
+                      label={({ percent }) => `${((percent || 0) * 100).toFixed(0)}%`}
                     >
                       {categoryData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
-                    <Legend verticalAlign="bottom" height={36} wrapperStyle={{fontSize: '10px'}} />
+                    <Legend
+                      verticalAlign="bottom"
+                      height={36}
+                      wrapperStyle={{ fontSize: '10px' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -178,7 +214,7 @@ export function TopCostumesView({
         </>
       )}
 
-      <ReportTable 
+      <ReportTable
         columns={columns}
         data={data}
         loading={loading}

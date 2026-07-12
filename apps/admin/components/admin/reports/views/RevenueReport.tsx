@@ -1,19 +1,28 @@
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell
-} from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/shared-utils";
-import { ReportTable } from "../ReportTable";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import { RevenueReportData, RevenueRow, RevenueDetailRow } from "@/domain";
-import { AlertTriangle, ShieldAlert, Clock, ArrowUpRight } from "lucide-react";
+import { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { formatCurrency } from '@/lib/shared-utils';
+import { ReportTable } from '../ReportTable';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { RevenueReportData, RevenueRow, RevenueDetailRow } from '@/domain';
+import { AlertTriangle, ShieldAlert, Clock, ArrowUpRight } from 'lucide-react';
 
 interface RevenueViewProps {
   data: RevenueRow[];
@@ -28,112 +37,136 @@ interface RevenueViewProps {
 }
 
 const COLORS = {
-  completed: "#10b981", // Emerald 500
-  ongoing: "#3b82f6",   // Blue 500
-  scheduled: "#94a3b8", // Slate 400
-  cancelled: "#ef4444", // Red 500
-  cash: "#0ea5e9",      // Sky 500
-  upi: "#8b5cf6",       // Violet 500
-  gpay: "#f59e0b",      // Amber 500
-  bank_transfer: "#10b981", // Emerald 500
-  other: "#64748b"      // Slate 500
+  completed: '#10b981', // Emerald 500
+  ongoing: '#3b82f6', // Blue 500
+  scheduled: '#94a3b8', // Slate 400
+  cancelled: '#ef4444', // Red 500
+  cash: '#0ea5e9', // Sky 500
+  upi: '#8b5cf6', // Violet 500
+  gpay: '#f59e0b', // Amber 500
+  bank_transfer: '#10b981', // Emerald 500
+  other: '#64748b', // Slate 500
 };
 
-export function RevenueView({ 
-  data, 
-  loading, 
-  error, 
-  sortConfig, 
-  onSort, 
+export function RevenueView({
+  data,
+  loading,
+  error,
+  sortConfig,
+  onSort,
   formatCell,
   reportSummary,
   filters,
-  setFilters
+  setFilters,
 }: RevenueViewProps) {
   const router = useRouter();
   const summaryColumns = [
-    { header: "Period", key: "period" },
-    { header: "Rental Revenue", key: "booking_sales", format: "currency" as const },
-    { header: "Amount Collection", key: "amount_collection", format: "currency" as const },
-    { header: "Revenue Due", key: "revenue_due", format: "currency" as const },
-    { header: "Net Revenue", key: "net_revenue", format: "currency" as const },
-    { header: "GST", key: "gst_collected", format: "currency" as const },
-    { header: "Refunded", key: "refund_amount", format: "currency" as const },
-    { header: "Orders", key: "order_count" },
+    { header: 'Period', key: 'period' },
+    { header: 'Rental Revenue', key: 'booking_sales', format: 'currency' as const },
+    { header: 'Amount Collection', key: 'amount_collection', format: 'currency' as const },
+    { header: 'Revenue Due', key: 'revenue_due', format: 'currency' as const },
+    { header: 'Net Revenue', key: 'net_revenue', format: 'currency' as const },
+    { header: 'GST', key: 'gst_collected', format: 'currency' as const },
+    { header: 'Refunded', key: 'refund_amount', format: 'currency' as const },
+    { header: 'Orders', key: 'order_count' },
   ];
 
   const detailColumns = [
-    { header: "Date", key: "date", format: "date" as const },
-    { header: "Order ID", key: "order_id" },
-    { header: "Customer", key: "customer_name" },
-    { 
-      header: "Type", 
-      key: "payment_type",
+    { header: 'Date', key: 'date', format: 'date' as const },
+    { header: 'Order ID', key: 'order_id' },
+    { header: 'Customer', key: 'customer_name' },
+    {
+      header: 'Type',
+      key: 'payment_type',
       render: (type: string) => (
-        <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", 
-          type === 'refund' ? "bg-orange-50 text-orange-700 border-orange-200" :
-          type === 'advance' ? "bg-blue-50 text-blue-700 border-blue-100" :
-          "bg-slate-50 text-slate-600 border-slate-100"
-        )}>
+        <Badge
+          variant="outline"
+          className={cn(
+            'capitalize font-bold text-[10px] px-2 py-0',
+            type === 'refund'
+              ? 'bg-orange-50 text-orange-700 border-orange-200'
+              : type === 'advance'
+                ? 'bg-blue-50 text-blue-700 border-blue-100'
+                : 'bg-slate-50 text-slate-600 border-slate-100'
+          )}
+        >
           {type}
         </Badge>
-      )
+      ),
     },
-    { 
-      header: "Mode", 
-      key: "payment_mode",
+    {
+      header: 'Mode',
+      key: 'payment_mode',
       render: (mode: string) => (
-        <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", 
-          mode === 'cash' ? "bg-sky-50 text-sky-700 border-sky-100" :
-          mode === 'upi' ? "bg-violet-50 text-violet-700 border-violet-100" :
-          mode === 'gpay' ? "bg-amber-50 text-amber-700 border-amber-100" :
-          "bg-slate-50 text-slate-700"
-        )}>
+        <Badge
+          variant="outline"
+          className={cn(
+            'capitalize font-bold text-[10px] px-2 py-0',
+            mode === 'cash'
+              ? 'bg-sky-50 text-sky-700 border-sky-100'
+              : mode === 'upi'
+                ? 'bg-violet-50 text-violet-700 border-violet-100'
+                : mode === 'gpay'
+                  ? 'bg-amber-50 text-amber-700 border-amber-100'
+                  : 'bg-slate-50 text-slate-700'
+          )}
+        >
           {mode}
         </Badge>
-      )
+      ),
     },
-    { 
-      header: "Amount", 
-      key: "amount",
+    {
+      header: 'Amount',
+      key: 'amount',
       render: (_: any, row: any) => {
         const isRefund = row?.payment_type === 'refund';
         return (
-          <span className={cn("font-bold", isRefund ? "text-orange-600" : "text-slate-900")}>
-            {isRefund ? '-' : ''}{formatCurrency(row?.amount || 0)}
+          <span className={cn('font-bold', isRefund ? 'text-orange-600' : 'text-slate-900')}>
+            {isRefund ? '-' : ''}
+            {formatCurrency(row?.amount || 0)}
           </span>
         );
-      }
+      },
     },
-    { 
-      header: "Order Status", 
-      key: "status",
+    {
+      header: 'Order Status',
+      key: 'status',
       render: (status: string) => {
         const colors: any = {
-          completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
-          returned: "bg-emerald-50 text-emerald-700 border-emerald-100",
-          ongoing: "bg-blue-50 text-blue-700 border-blue-100",
-          in_use: "bg-blue-50 text-blue-700 border-blue-100",
-          delivered: "bg-blue-50 text-blue-700 border-blue-100",
-          scheduled: "bg-slate-50 text-slate-700 border-slate-100",
-          pending: "bg-slate-50 text-slate-700 border-slate-100",
-          cancelled: "bg-red-50 text-red-700 border-red-100",
+          completed: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+          returned: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+          ongoing: 'bg-blue-50 text-blue-700 border-blue-100',
+          in_use: 'bg-blue-50 text-blue-700 border-blue-100',
+          delivered: 'bg-blue-50 text-blue-700 border-blue-100',
+          scheduled: 'bg-slate-50 text-slate-700 border-slate-100',
+          pending: 'bg-slate-50 text-slate-700 border-slate-100',
+          cancelled: 'bg-red-50 text-red-700 border-red-100',
         };
         return (
-          <Badge variant="outline" className={cn("capitalize font-bold text-[10px] px-2 py-0", colors[status] || "bg-slate-50 text-slate-700")}>
+          <Badge
+            variant="outline"
+            className={cn(
+              'capitalize font-bold text-[10px] px-2 py-0',
+              colors[status] || 'bg-slate-50 text-slate-700'
+            )}
+          >
             {status}
           </Badge>
         );
-      }
+      },
     },
   ];
 
-  const netRevenue = reportSummary ? reportSummary.total_collected - reportSummary.total_refunded : 0;
+  const netRevenue = reportSummary
+    ? reportSummary.total_collected - reportSummary.total_refunded
+    : 0;
 
   // Local sort state for the detail transaction table
-  const [detailSort, setDetailSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [detailSort, setDetailSort] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(
+    null
+  );
   const handleDetailSort = (key: string) => {
-    setDetailSort(prev => {
+    setDetailSort((prev) => {
       if (prev?.key === key && prev.direction === 'asc') return { key, direction: 'desc' };
       return { key, direction: 'asc' };
     });
@@ -151,12 +184,18 @@ export function RevenueView({
     });
   }, [details, detailSort]);
 
-  const pieData = reportSummary ? [
-    { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },
-    { name: "UPI", value: reportSummary.total_upi, color: COLORS.upi },
-    { name: "GPay", value: reportSummary.total_gpay, color: COLORS.gpay },
-    { name: "Bank Transfer", value: reportSummary.total_bank_transfer, color: COLORS.bank_transfer || "#10b981" },
-  ].filter(d => d.value > 0) : [];
+  const pieData = reportSummary
+    ? [
+        { name: 'Cash', value: reportSummary.total_cash, color: COLORS.cash },
+        { name: 'UPI', value: reportSummary.total_upi, color: COLORS.upi },
+        { name: 'GPay', value: reportSummary.total_gpay, color: COLORS.gpay },
+        {
+          name: 'Bank Transfer',
+          value: reportSummary.total_bank_transfer,
+          color: COLORS.bank_transfer || '#10b981',
+        },
+      ].filter((d) => d.value > 0)
+    : [];
 
   const handleNavigate = (status?: string) => {
     const from = filters.from_date;
@@ -169,7 +208,7 @@ export function RevenueView({
     if (to) query.set('date_to', to);
     query.set('date_field', 'start_date');
     if (status) query.set('status', status);
-    
+
     router.push(`/dashboard/orders?${query.toString()}`);
   };
 
@@ -187,15 +226,18 @@ export function RevenueView({
                 <div className="flex-1">
                   <p className="text-sm font-bold text-amber-800">Refund Due</p>
                   <p className="text-xs text-amber-600 mt-0.5">
-                    {formatCurrency(reportSummary.refund_due)} collected from cancelled orders hasn&apos;t been refunded yet. 
+                    {formatCurrency(reportSummary.refund_due)} collected from cancelled orders
+                    hasn&apos;t been refunded yet.
                   </p>
                 </div>
-                <div className="text-lg font-black text-amber-700">{formatCurrency(reportSummary.refund_due)}</div>
+                <div className="text-lg font-black text-amber-700">
+                  {formatCurrency(reportSummary.refund_due)}
+                </div>
               </div>
             )}
 
             {reportSummary.revenue_due > 0 && (
-              <div 
+              <div
                 className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl cursor-pointer hover:bg-rose-100/50 transition-colors group"
                 onClick={() => handleNavigate('revenue_due')}
               >
@@ -208,60 +250,87 @@ export function RevenueView({
                     <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <p className="text-xs text-rose-600 mt-0.5">
-                    {formatCurrency(reportSummary.revenue_due)} is still pending from {reportSummary.revenue_due_count} orders in this period.
+                    {formatCurrency(reportSummary.revenue_due)} is still pending from{' '}
+                    {reportSummary.revenue_due_count} orders in this period.
                   </p>
                 </div>
-                <div className="text-lg font-black text-rose-700">{formatCurrency(reportSummary.revenue_due)}</div>
+                <div className="text-lg font-black text-rose-700">
+                  {formatCurrency(reportSummary.revenue_due)}
+                </div>
               </div>
             )}
           </div>
 
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <Card 
+            <Card
               className="shadow-sm border-slate-200 bg-white border-l-4 border-l-indigo-600 cursor-pointer hover:bg-slate-50 transition-colors group"
               onClick={() => handleNavigate()}
             >
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-1">
-                  <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest">Total Rental Revenue</p>
+                  <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest">
+                    Total Rental Revenue
+                  </p>
                   <ArrowUpRight className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_booking_sales)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of rental bookings</p>
+                <p className="text-2xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_booking_sales)}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                  Value of rental bookings
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-600">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Amount Collection</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_amount_collection)}</p>
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">
+                  Amount Collection
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_amount_collection)}
+                </p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">Actual money received</p>
               </CardContent>
             </Card>
-            <Card 
+            <Card
               className="shadow-sm border-slate-200 bg-white border-l-4 border-l-rose-600 cursor-pointer hover:bg-rose-50 transition-colors group"
               onClick={() => handleNavigate('revenue_due')}
             >
               <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-1">
-                  <p className="text-[10px] font-bold text-rose-600/70 uppercase tracking-widest">Revenue Due</p>
+                  <p className="text-[10px] font-bold text-rose-600/70 uppercase tracking-widest">
+                    Revenue Due
+                  </p>
                   <ArrowUpRight className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.revenue_due)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Money yet to be collected</p>
+                <p className="text-2xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.revenue_due)}
+                </p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                  Money yet to be collected
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-slate-900">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net (Excl GST)</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_net_revenue)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                  Net (Excl GST)
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_net_revenue)}
+                </p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">After 18% GST removal</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST Collected</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gst_collected)}</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">
+                  GST Collected
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_gst_collected)}
+                </p>
                 <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion</p>
               </CardContent>
             </Card>
@@ -270,38 +339,62 @@ export function RevenueView({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-sky-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-widest mb-1">Cash</p>
-                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_cash)}</p>
+                <p className="text-[10px] font-bold text-sky-600/70 uppercase tracking-widest mb-1">
+                  Cash
+                </p>
+                <p className="text-xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_cash)}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-violet-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-violet-600/70 uppercase tracking-widest mb-1">UPI</p>
-                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_upi)}</p>
+                <p className="text-[10px] font-bold text-violet-600/70 uppercase tracking-widest mb-1">
+                  UPI
+                </p>
+                <p className="text-xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_upi)}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GPay</p>
-                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_gpay)}</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">
+                  GPay
+                </p>
+                <p className="text-xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_gpay)}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">Bank Transfer</p>
-                <p className="text-xl font-black text-slate-900">{formatCurrency(reportSummary.total_bank_transfer)}</p>
+                <p className="text-[10px] font-bold text-emerald-600/70 uppercase tracking-widest mb-1">
+                  Bank Transfer
+                </p>
+                <p className="text-xl font-black text-slate-900">
+                  {formatCurrency(reportSummary.total_bank_transfer)}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-orange-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-orange-600/70 uppercase tracking-widest mb-1">Refunded</p>
-                <p className="text-xl font-black text-orange-600">-{formatCurrency(reportSummary.total_refunded)}</p>
+                <p className="text-[10px] font-bold text-orange-600/70 uppercase tracking-widest mb-1">
+                  Refunded
+                </p>
+                <p className="text-xl font-black text-orange-600">
+                  -{formatCurrency(reportSummary.total_refunded)}
+                </p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-red-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-red-600/70 uppercase tracking-widest mb-1">Cancelled (Keep)</p>
-                <p className="text-xl font-black text-red-600">{formatCurrency(reportSummary.cancelled_total)}</p>
+                <p className="text-[10px] font-bold text-red-600/70 uppercase tracking-widest mb-1">
+                  Cancelled (Keep)
+                </p>
+                <p className="text-xl font-black text-red-600">
+                  {formatCurrency(reportSummary.cancelled_total)}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -314,10 +407,16 @@ export function RevenueView({
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 mb-1">
                       <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                      <p className="text-[10px] font-bold text-rose-600/70 uppercase tracking-widest">Damage Charges Collected</p>
+                      <p className="text-[10px] font-bold text-rose-600/70 uppercase tracking-widest">
+                        Damage Charges Collected
+                      </p>
                     </div>
-                    <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_damage_charges)}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 font-medium">From damaged product assessments</p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {formatCurrency(reportSummary.total_damage_charges)}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      From damaged product assessments
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -326,10 +425,16 @@ export function RevenueView({
                   <CardContent className="p-5">
                     <div className="flex items-center gap-2 mb-1">
                       <Clock className="w-3.5 h-3.5 text-amber-500" />
-                      <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest">Late Fee Income</p>
+                      <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest">
+                        Late Fee Income
+                      </p>
                     </div>
-                    <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_late_fees)}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 font-medium">From late return penalties</p>
+                    <p className="text-2xl font-black text-slate-900">
+                      {formatCurrency(reportSummary.total_late_fees)}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                      From late return penalties
+                    </p>
                   </CardContent>
                 </Card>
               )}
@@ -357,7 +462,7 @@ export function RevenueView({
                       ))}
                     </Pie>
                     <Tooltip formatter={(value: any) => formatCurrency(Number(value || 0))} />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Legend verticalAlign="bottom" height={36} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -373,15 +478,34 @@ export function RevenueView({
                   <BarChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="period" axisLine={false} tickLine={false} fontSize={10} />
-                    <YAxis axisLine={false} tickLine={false} fontSize={10} tickFormatter={(v) => `₹${v/1000}k`} />
-                    <Tooltip 
-                      cursor={{fill: '#f8fafc'}}
-                      contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                      formatter={(value: any) => formatCurrency(Number(value || 0))} 
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      fontSize={10}
+                      tickFormatter={(v) => `₹${v / 1000}k`}
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#f8fafc' }}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                      }}
+                      formatter={(value: any) => formatCurrency(Number(value || 0))}
                     />
                     <Legend verticalAlign="top" align="right" iconType="circle" />
-                    <Bar dataKey="booking_sales" name="Rental Revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="amount_collection" name="Amount (Payments)" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar
+                      dataKey="booking_sales"
+                      name="Rental Revenue"
+                      fill="#6366f1"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="amount_collection"
+                      name="Amount (Payments)"
+                      fill="#10b981"
+                      radius={[4, 4, 0, 0]}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -391,8 +515,10 @@ export function RevenueView({
       )}
 
       <div className="space-y-4">
-        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider px-1">Revenue Summary</h3>
-        <ReportTable 
+        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider px-1">
+          Revenue Summary
+        </h3>
+        <ReportTable
           columns={summaryColumns}
           data={data}
           loading={loading}
@@ -414,7 +540,7 @@ export function RevenueView({
             </Badge>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <ReportTable 
+            <ReportTable
               columns={detailColumns}
               data={sortedDetails}
               loading={false}
@@ -423,11 +549,16 @@ export function RevenueView({
               onSort={handleDetailSort}
               formatCell={formatCell}
             />
-            
+
             {/* Pagination Footer */}
             <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
               <p className="text-xs text-slate-500 font-medium">
-                Showing {((filters.page || 1) - 1) * (filters.limit || 50) + 1} to {Math.min((filters.page || 1) * (filters.limit || 50), reportSummary.total_details_count)} of {reportSummary.total_details_count} records
+                Showing {((filters.page || 1) - 1) * (filters.limit || 50) + 1} to{' '}
+                {Math.min(
+                  (filters.page || 1) * (filters.limit || 50),
+                  reportSummary.total_details_count
+                )}{' '}
+                of {reportSummary.total_details_count} records
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -442,7 +573,9 @@ export function RevenueView({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={(filters.page || 1) * (filters.limit || 50) >= reportSummary.total_details_count}
+                  disabled={
+                    (filters.page || 1) * (filters.limit || 50) >= reportSummary.total_details_count
+                  }
                   onClick={() => setFilters({ ...filters, page: (filters.page || 1) + 1 })}
                   className="h-8 px-3 text-xs"
                 >

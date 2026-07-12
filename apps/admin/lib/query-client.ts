@@ -27,10 +27,10 @@ export function createQueryClient(): QueryClient {
       queries: {
         // Data is considered fresh for 2 minutes
         staleTime: 2 * 60 * 1000,
-        
+
         // Data stays in cache for 5 minutes
         gcTime: 5 * 60 * 1000,
-        
+
         // Retry failed requests 3 times with exponential backoff
         retry: (failureCount, error) => {
           // Don't retry on 4xx errors (client errors)
@@ -40,28 +40,28 @@ export function createQueryClient(): QueryClient {
               return false;
             }
           }
-          
+
           // Retry up to 3 times for other errors
           return failureCount < 3;
         },
-        
+
         // Exponential backoff for retries
         retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-        
+
         // Don't refetch on window focus (avoids surprise reloads)
         refetchOnWindowFocus: false,
-        
+
         // Refetch on reconnect
         refetchOnReconnect: true,
-        
+
         // Refetch on mount if data is stale (critical for post-mutation freshness)
         refetchOnMount: true,
       },
-      
+
       mutations: {
         // Retry mutations once
         retry: 1,
-        
+
         // Error handling for mutations
         onError: (error) => {
           console.error('Mutation error:', error);
@@ -87,16 +87,16 @@ export const queryKeys = {
   product: (id: string) => ['products', id] as const,
   productsByCategory: (categoryId: string) => ['products', 'category', categoryId] as const,
   productsSearch: (query: string) => ['products', 'search', query] as const,
-  
+
   // Category queries
   categories: ['categories'] as const,
   category: (id: string) => ['categories', id] as const,
   categoryChildren: (id: string) => ['categories', id, 'children'] as const,
-  
+
   // Store queries
   stores: ['stores'] as const,
   store: (id: string) => ['stores', id] as const,
-  
+
   // Order queries
   orders: ['orders'] as const,
   order: (id: string) => ['orders', id] as const,
@@ -105,20 +105,20 @@ export const queryKeys = {
   orderDetails: () => ['orders', 'detail'] as const,
   orderDetail: (id: string) => ['orders', 'detail', id] as const,
   orderHistory: (id: string) => ['orders', 'detail', id, 'history'] as const,
-  
+
   // Customer queries
   customers: ['customers'] as const,
   customer: (id: string) => ['customers', id] as const,
-  
+
   // Banner queries
   banners: ['banners'] as const,
   banner: (id: string) => ['banners', id] as const,
-  
+
   // Payment queries
   payments: ['payments'] as const,
   payment: (id: string) => ['payments', id] as const,
   orderPayments: (orderId: string) => ['payments', 'order', orderId] as const,
-  
+
   // Settings queries
   settings: ['settings'] as const,
 } as const;
@@ -135,7 +135,7 @@ export const queryUtils = {
       queryKey: queryKeys.products,
     });
   },
-  
+
   /**
    * Invalidate a specific product and related queries
    */
@@ -149,7 +149,7 @@ export const queryUtils = {
       }),
     ]);
   },
-  
+
   /**
    * Invalidate all category-related queries
    */
@@ -158,7 +158,7 @@ export const queryUtils = {
       queryKey: queryKeys.categories,
     });
   },
-  
+
   /**
    * Invalidate all payment-related queries
    */
@@ -167,7 +167,7 @@ export const queryUtils = {
       queryKey: queryKeys.payments,
     });
   },
-  
+
   /**
    * Invalidate a specific payment
    */
@@ -181,7 +181,7 @@ export const queryUtils = {
       }),
     ]);
   },
-  
+
   /**
    * Invalidate order payments
    */
@@ -207,7 +207,7 @@ export const queryUtils = {
       queryKey: queryKeys.orderPayments(orderId),
     });
   },
-  
+
   /**
    * Invalidate all settings-related queries
    */
@@ -216,17 +216,14 @@ export const queryUtils = {
       queryKey: queryKeys.settings,
     });
   },
-  
+
   /**
    * Set optimistic update for a product
    */
   setProductOptimistic: (id: string, updater: (old: any) => any) => {
-    return queryClient.setQueryData(
-      queryKeys.product(id),
-      updater
-    );
+    return queryClient.setQueryData(queryKeys.product(id), updater);
   },
-  
+
   /**
    * Cancel all ongoing queries
    */

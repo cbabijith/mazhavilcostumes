@@ -10,15 +10,27 @@
  * @module components/admin/ProductAvailabilityCalendar
  */
 
-"use client";
+'use client';
 
-import { useState, useMemo } from "react";
-import { ChevronLeft, ChevronRight, Calendar, Users, Package, Loader2, X } from "lucide-react";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isSameDay, isToday, addDays } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { useProductAvailabilityCalendar } from "@/hooks";
-import { useAppStore } from "@/stores";
-import type { DayAvailability } from "@/domain/types/order";
+import { useState, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, Users, Package, Loader2, X } from 'lucide-react';
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addMonths,
+  subMonths,
+  isSameMonth,
+  isSameDay,
+  isToday,
+  addDays,
+} from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { useProductAvailabilityCalendar } from '@/hooks';
+import { useAppStore } from '@/stores';
+import type { DayAvailability } from '@/domain/types/order';
 
 interface Props {
   productId: string;
@@ -30,8 +42,8 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
   const [selectedDay, setSelectedDay] = useState<DayAvailability | null>(null);
 
   // Fetch 2 months of data (current + next) for smooth navigation
-  const rangeStart = format(startOfMonth(currentMonth), "yyyy-MM-dd");
-  const rangeEnd = format(endOfMonth(addMonths(currentMonth, 1)), "yyyy-MM-dd");
+  const rangeStart = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+  const rangeEnd = format(endOfMonth(addMonths(currentMonth, 1)), 'yyyy-MM-dd');
 
   const { data: calendarData, isLoading } = useProductAvailabilityCalendar(
     productId,
@@ -67,38 +79,42 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
     day = addDays(day, 1);
   }
 
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const getDayData = (date: Date): DayAvailability | undefined => {
-    const dateStr = format(date, "yyyy-MM-dd");
+    const dateStr = format(date, 'yyyy-MM-dd');
     return dayMap.get(dateStr);
   };
 
   const getDayColor = (dayData?: DayAvailability, isCurrentMonth?: boolean) => {
-    if (!isCurrentMonth) return "bg-slate-50 text-slate-300";
-    if (!dayData) return "bg-white text-slate-700 hover:bg-slate-50";
+    if (!isCurrentMonth) return 'bg-slate-50 text-slate-300';
+    if (!dayData) return 'bg-white text-slate-700 hover:bg-slate-50';
 
     switch (dayData.status) {
-      case "unavailable":
-        return "bg-red-50 text-red-800 border-red-200 hover:bg-red-100";
-      case "partial":
-        return "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100";
-      case "buffer":
-        return "bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100";
-      case "available":
-        return "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100";
+      case 'unavailable':
+        return 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100';
+      case 'partial':
+        return 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100';
+      case 'buffer':
+        return 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100';
+      case 'available':
+        return 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100';
       default:
-        return "bg-white text-slate-700 hover:bg-slate-50";
+        return 'bg-white text-slate-700 hover:bg-slate-50';
     }
   };
 
   const getDotColor = (dayData?: DayAvailability) => {
     if (!dayData || dayData.reserved === 0) return null;
     switch (dayData.status) {
-      case "unavailable": return "bg-red-500";
-      case "partial": return "bg-amber-500";
-      case "buffer": return "bg-blue-500";
-      default: return "bg-emerald-500";
+      case 'unavailable':
+        return 'bg-red-500';
+      case 'partial':
+        return 'bg-amber-500';
+      case 'buffer':
+        return 'bg-blue-500';
+      default:
+        return 'bg-emerald-500';
     }
   };
 
@@ -115,7 +131,7 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
           <ChevronLeft className="w-4 h-4" />
         </Button>
         <h4 className="text-sm font-semibold text-slate-900">
-          {format(currentMonth, "MMMM yyyy")}
+          {format(currentMonth, 'MMMM yyyy')}
         </h4>
         <Button
           variant="ghost"
@@ -136,7 +152,10 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
           {/* Weekday headers */}
           <div className="grid grid-cols-7 mb-1">
             {weekDays.map((wd) => (
-              <div key={wd} className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-1">
+              <div
+                key={wd}
+                className="text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider py-1"
+              >
                 {wd}
               </div>
             ))}
@@ -164,12 +183,12 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
                     h-8 rounded-md text-xs font-medium transition-all
                     border border-transparent
                     ${getDayColor(dayData, isCurrentMonth_)}
-                    ${isSelected ? "ring-2 ring-slate-900 ring-offset-1" : ""}
-                    ${isToday(date) && isCurrentMonth_ ? "font-bold" : ""}
-                    ${isCurrentMonth_ && dayData ? "cursor-pointer" : "cursor-default"}
+                    ${isSelected ? 'ring-2 ring-slate-900 ring-offset-1' : ''}
+                    ${isToday(date) && isCurrentMonth_ ? 'font-bold' : ''}
+                    ${isCurrentMonth_ && dayData ? 'cursor-pointer' : 'cursor-default'}
                   `}
                 >
-                  <span>{format(date, "d")}</span>
+                  <span>{format(date, 'd')}</span>
                   {dotColor && (
                     <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${dotColor}`} />
                   )}
@@ -203,9 +222,12 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
             <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <h5 className="text-xs font-semibold text-slate-900">
-                  {format(new Date(selectedDay.date + "T00:00:00"), "MMM d, yyyy")}
+                  {format(new Date(selectedDay.date + 'T00:00:00'), 'MMM d, yyyy')}
                 </h5>
-                <button onClick={() => setSelectedDay(null)} className="text-slate-400 hover:text-slate-600">
+                <button
+                  onClick={() => setSelectedDay(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -214,14 +236,16 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
                 <div className="flex items-center gap-1 text-xs">
                   <Package className="w-3 h-3 text-slate-400" />
                   <span className="text-slate-600">
-                    <span className="font-bold text-slate-900">{selectedDay.available}</span> / {selectedDay.total} available
+                    <span className="font-bold text-slate-900">{selectedDay.available}</span> /{' '}
+                    {selectedDay.total} available
                   </span>
                 </div>
                 {selectedDay.reserved > 0 && (
                   <div className="flex items-center gap-1 text-xs">
                     <Users className="w-3 h-3 text-slate-400" />
                     <span className="text-slate-600">
-                      <span className="font-bold text-slate-900">{selectedDay.reserved}</span> reserved
+                      <span className="font-bold text-slate-900">{selectedDay.reserved}</span>{' '}
+                      reserved
                     </span>
                   </div>
                 )}
@@ -229,18 +253,26 @@ export default function ProductAvailabilityCalendar({ productId }: Props) {
 
               {selectedDay.bookings.length > 0 && (
                 <div className="space-y-1.5 pt-1">
-                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Bookings</p>
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Bookings
+                  </p>
                   {selectedDay.bookings.map((b, idx) => (
-                    <div key={idx} className={`flex items-center justify-between text-xs rounded px-2 py-1.5 border ${b.isBuffer ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}>
+                    <div
+                      key={idx}
+                      className={`flex items-center justify-between text-xs rounded px-2 py-1.5 border ${b.isBuffer ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-100'}`}
+                    >
                       <div>
                         <span className="font-medium text-slate-900">{b.customerName}</span>
                         <span className="text-slate-400 ml-1">×{b.quantity}</span>
                         {b.isBuffer && (
-                          <span className="ml-1.5 text-[9px] font-bold text-blue-600 bg-blue-100 px-1 py-0.5 rounded">BUFFER</span>
+                          <span className="ml-1.5 text-[9px] font-bold text-blue-600 bg-blue-100 px-1 py-0.5 rounded">
+                            BUFFER
+                          </span>
                         )}
                       </div>
                       <span className="text-[10px] text-slate-400">
-                        {format(new Date(b.startDate + "T00:00:00"), "MMM d")} – {format(new Date(b.endDate + "T00:00:00"), "MMM d")}
+                        {format(new Date(b.startDate + 'T00:00:00'), 'MMM d')} –{' '}
+                        {format(new Date(b.endDate + 'T00:00:00'), 'MMM d')}
                       </span>
                     </div>
                   ))}

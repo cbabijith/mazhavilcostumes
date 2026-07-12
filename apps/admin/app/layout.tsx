@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import { BRAND_CONFIG } from "shared-utils";
+import type { Metadata } from 'next';
+import './globals.css';
+import { BRAND_CONFIG } from 'shared-utils';
 
 export const metadata: Metadata = {
   title: `${BRAND_CONFIG.name} Admin`,
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   },
 };
 
-import AuthProvider from "@/components/providers/AuthProvider";
+import AuthProvider from '@/components/providers/AuthProvider';
 
 export default function RootLayout({
   children,
@@ -21,9 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased">
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

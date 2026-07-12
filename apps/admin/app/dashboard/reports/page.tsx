@@ -1,33 +1,63 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  BarChart3, CalendarDays, AlertTriangle, TrendingUp, Trophy, Users, 
-  PiggyBank, PackageX, UserCheck, Boxes, MessageSquare, ArrowLeft,
-  FileSpreadsheet, FileText, Search, Loader2, Plus, X
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { REPORT_LIST, type ReportType, type ReportMeta, type CreateEnquiryDTO, type ReportFilters as FilterType } from "@/domain";
-import { exportToExcel, exportToPDF } from "@/lib/exportUtils";
-import { formatCurrency } from "@/lib/shared-utils";
-import { reportService } from "@/services/reportService";
-import { useAppStore } from "@/stores/appStore";
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  BarChart3,
+  CalendarDays,
+  AlertTriangle,
+  TrendingUp,
+  Trophy,
+  Users,
+  PiggyBank,
+  PackageX,
+  UserCheck,
+  Boxes,
+  MessageSquare,
+  ArrowLeft,
+  FileSpreadsheet,
+  FileText,
+  Search,
+  Loader2,
+  Plus,
+  X,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  REPORT_LIST,
+  type ReportType,
+  type ReportMeta,
+  type CreateEnquiryDTO,
+  type ReportFilters as FilterType,
+} from '@/domain';
+import { exportToExcel, exportToPDF } from '@/lib/exportUtils';
+import { formatCurrency } from '@/lib/shared-utils';
+import { reportService } from '@/services/reportService';
+import { useAppStore } from '@/stores/appStore';
 
 // Shared Components
-import { ReportHeader } from "@/components/admin/reports/ReportHeader";
-import { ReportFilters } from "@/components/admin/reports/ReportFilters";
+import { ReportHeader } from '@/components/admin/reports/ReportHeader';
+import { ReportFilters } from '@/components/admin/reports/ReportFilters';
 
 // Modular Views
-import { 
-  DayWiseBookingView, DueOverdueView, RevenueView, TopCostumesView,
-  TopCustomersView, RentalFrequencyView, ROIView, DeadStockView,
-  SalesByStaffView, InventoryRevenueView, EnquiryLogView, GSTFilingView,
-  TodaysRevenueView
-} from "@/components/admin/reports/views";
+import {
+  DayWiseBookingView,
+  DueOverdueView,
+  RevenueView,
+  TopCostumesView,
+  TopCustomersView,
+  RentalFrequencyView,
+  ROIView,
+  DeadStockView,
+  SalesByStaffView,
+  InventoryRevenueView,
+  EnquiryLogView,
+  GSTFilingView,
+  TodaysRevenueView,
+} from '@/components/admin/reports/views';
 
-import { ICONS, CATEGORY_COLORS } from "@/lib/reports-shared";
+import { ICONS, CATEGORY_COLORS } from '@/lib/reports-shared';
 
 type SortConfig = {
   key: string;
@@ -37,7 +67,7 @@ type SortConfig = {
 function ReportsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const reportFromUrl = searchParams.get("type") as ReportType | null;
+  const reportFromUrl = searchParams.get('type') as ReportType | null;
 
   const { user, selectedBranchId } = useAppStore();
   const userRole = user?.role || 'staff';
@@ -45,7 +75,7 @@ function ReportsPageContent() {
 
   // Filter reports by user role
   const visibleReports = useMemo(() => {
-    return REPORT_LIST.filter(r => {
+    return REPORT_LIST.filter((r) => {
       if (!r.roles) return true; // No roles restriction = visible to all
       return r.roles.includes(userRole as any);
     });
@@ -64,16 +94,16 @@ function ReportsPageContent() {
       return inv.slabs && inv.slabs.includes(gstSlabFilter + '%');
     });
   }, [gstDetails, gstSlabFilter]);
-  
+
   const [filters, setFilters] = useState<FilterType>(() => {
     // Determine context (Server vs Client)
     const isClient = typeof window !== 'undefined';
     const params = isClient ? new URLSearchParams(window.location.search) : null;
-    
+
     const range = params?.get('range');
     const urlFrom = params?.get('from_date');
     const urlTo = params?.get('to_date');
-    
+
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
     const istNow = new Date(now.getTime() + istOffset);
@@ -122,7 +152,12 @@ function ReportsPageContent() {
       rank_by: 'count',
       limit: 50,
       page: 1,
-      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue' || reportFromUrl === 'gst-filing') ? [] : ['completed', 'returned'],
+      status:
+        reportFromUrl === 'revenue' ||
+        reportFromUrl === 'todays-revenue' ||
+        reportFromUrl === 'gst-filing'
+          ? []
+          : ['completed', 'returned'],
     };
   });
 
@@ -131,9 +166,14 @@ function ReportsPageContent() {
   // Sync status filter defaults when selected report changes to avoid preserving incompatible filters
   useEffect(() => {
     if (!selectedReport) return;
-    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'gst-filing') ? [] : ['completed', 'returned'];
-    
-    setFilters(prev => {
+    const targetStatus =
+      selectedReport === 'revenue' ||
+      selectedReport === 'todays-revenue' ||
+      selectedReport === 'gst-filing'
+        ? []
+        : ['completed', 'returned'];
+
+    setFilters((prev) => {
       const currentJoined = prev.status?.join(',') || '';
       const targetJoined = targetStatus.join(',');
       if (currentJoined === targetJoined) {
@@ -142,7 +182,7 @@ function ReportsPageContent() {
       return {
         ...prev,
         status: targetStatus,
-        page: 1
+        page: 1,
       };
     });
     setGstSlabFilter('all');
@@ -192,14 +232,18 @@ function ReportsPageContent() {
 
         const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
         const json = await response.json();
-        
+
         if (!json.success) {
-          throw new Error(json.error?.message || "Failed to fetch report data");
+          throw new Error(json.error?.message || 'Failed to fetch report data');
         }
         result = json.data.rows !== undefined ? json.data.rows : json.data;
       }
 
-      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+      if (
+        selectedReport === 'gst-filing' ||
+        selectedReport === 'revenue' ||
+        selectedReport === 'todays-revenue'
+      ) {
         setData(result.summary || []);
         setReportSummary(result);
         setGstDetails(result.details || []);
@@ -209,7 +253,7 @@ function ReportsPageContent() {
         setGstDetails([]);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to fetch report data");
+      setError(err.message || 'Failed to fetch report data');
     } finally {
       setLoading(false);
       setIsInitial(false);
@@ -251,210 +295,234 @@ function ReportsPageContent() {
     switch (selectedReport) {
       case 'day-wise-booking':
         return [
-          { header: "Customer", key: "customer_name" },
-          { header: "Phone", key: "customer_phone" },
-          { header: "Products", key: "product_names" },
-          { header: "Start Date", key: "start_date", format: "date" as const },
-          { header: "End Date", key: "end_date", format: "date" as const },
-          { header: "Amount", key: "total_amount", format: "currency" as const },
-          { header: "Status", key: "status" },
+          { header: 'Customer', key: 'customer_name' },
+          { header: 'Phone', key: 'customer_phone' },
+          { header: 'Products', key: 'product_names' },
+          { header: 'Start Date', key: 'start_date', format: 'date' as const },
+          { header: 'End Date', key: 'end_date', format: 'date' as const },
+          { header: 'Amount', key: 'total_amount', format: 'currency' as const },
+          { header: 'Status', key: 'status' },
         ];
       case 'due-overdue':
         return [
-          { header: "Customer", key: "customer_name" },
-          { header: "Phone", key: "customer_phone" },
-          { header: "Products", key: "product_names" },
-          { header: "Return Date", key: "end_date", format: "date" as const },
-          { header: "Days Overdue", key: "days_overdue", format: "number" as const },
-          { header: "Total Amount", key: "total_amount", format: "currency" as const },
-          { header: "Paid", key: "amount_paid", format: "currency" as const },
-          { header: "Balance", key: "balance", format: "currency" as const },
-          { header: "Status", key: "status" },
+          { header: 'Customer', key: 'customer_name' },
+          { header: 'Phone', key: 'customer_phone' },
+          { header: 'Products', key: 'product_names' },
+          { header: 'Return Date', key: 'end_date', format: 'date' as const },
+          { header: 'Days Overdue', key: 'days_overdue', format: 'number' as const },
+          { header: 'Total Amount', key: 'total_amount', format: 'currency' as const },
+          { header: 'Paid', key: 'amount_paid', format: 'currency' as const },
+          { header: 'Balance', key: 'balance', format: 'currency' as const },
+          { header: 'Status', key: 'status' },
         ];
       case 'revenue':
         return [
-          { header: "Period", key: "period" },
-          { header: "Cash", key: "cash_revenue", format: "currency" as const },
-          { header: "UPI", key: "upi_revenue", format: "currency" as const },
-          { header: "Completed", key: "completed_revenue", format: "currency" as const },
-          { header: "Ongoing", key: "ongoing_revenue", format: "currency" as const },
-          { header: "Cancelled", key: "cancelled_revenue", format: "currency" as const },
-          { header: "Refunded", key: "refund_amount", format: "currency" as const },
-          { header: "Net Total", key: "total_revenue", format: "currency" as const },
-          { header: "Orders", key: "order_count" },
+          { header: 'Period', key: 'period' },
+          { header: 'Cash', key: 'cash_revenue', format: 'currency' as const },
+          { header: 'UPI', key: 'upi_revenue', format: 'currency' as const },
+          { header: 'Completed', key: 'completed_revenue', format: 'currency' as const },
+          { header: 'Ongoing', key: 'ongoing_revenue', format: 'currency' as const },
+          { header: 'Cancelled', key: 'cancelled_revenue', format: 'currency' as const },
+          { header: 'Refunded', key: 'refund_amount', format: 'currency' as const },
+          { header: 'Net Total', key: 'total_revenue', format: 'currency' as const },
+          { header: 'Orders', key: 'order_count' },
         ];
       case 'top-costumes':
         return [
-          { header: "Costume Name", key: "product_name" },
-          { header: "Category", key: "category_name" },
-          { header: "Rentals", key: "rental_count", format: "number" as const },
-          { header: "Revenue", key: "revenue", format: "currency" as const },
-          { header: "Avg. Days", key: "avg_rental_days", format: "number" as const },
+          { header: 'Costume Name', key: 'product_name' },
+          { header: 'Category', key: 'category_name' },
+          { header: 'Rentals', key: 'rental_count', format: 'number' as const },
+          { header: 'Revenue', key: 'revenue', format: 'currency' as const },
+          { header: 'Avg. Days', key: 'avg_rental_days', format: 'number' as const },
         ];
       case 'top-customers':
         return [
-          { header: "Customer", key: "customer_name" },
-          { header: "Phone", key: "customer_phone" },
-          { header: "Orders", key: "order_count", format: "number" as const },
-          { header: "Total Spent", key: "total_spent", format: "currency" as const },
-          { header: "Last Order", key: "last_order_date", format: "date" as const },
+          { header: 'Customer', key: 'customer_name' },
+          { header: 'Phone', key: 'customer_phone' },
+          { header: 'Orders', key: 'order_count', format: 'number' as const },
+          { header: 'Total Spent', key: 'total_spent', format: 'currency' as const },
+          { header: 'Last Order', key: 'last_order_date', format: 'date' as const },
         ];
       case 'rental-frequency':
         return [
-          { header: "Product", key: "product_name" },
-          { header: "Category", key: "category_name" },
-          { header: "Rental Count", key: "rental_count", format: "number" as const },
-          { header: "Last Rented", key: "last_rented", format: "date" as const },
+          { header: 'Product', key: 'product_name' },
+          { header: 'Category', key: 'category_name' },
+          { header: 'Rental Count', key: 'rental_count', format: 'number' as const },
+          { header: 'Last Rented', key: 'last_rented', format: 'date' as const },
         ];
       case 'roi':
         return [
-          { header: "Product", key: "product_name" },
-          { header: "Purchase Price", key: "purchase_price", format: "currency" as const },
-          { header: "Revenue", key: "total_revenue", format: "currency" as const },
-          { header: "Profit", key: "profit", format: "currency" as const },
-          { header: "ROI %", key: "roi_percentage", format: "percent" as const },
+          { header: 'Product', key: 'product_name' },
+          { header: 'Purchase Price', key: 'purchase_price', format: 'currency' as const },
+          { header: 'Revenue', key: 'total_revenue', format: 'currency' as const },
+          { header: 'Profit', key: 'profit', format: 'currency' as const },
+          { header: 'ROI %', key: 'roi_percentage', format: 'percent' as const },
         ];
       case 'dead-stock':
         return [
-          { header: "Product", key: "product_name" },
-          { header: "Category", key: "category_name" },
-          { header: "Price/Day", key: "price_per_day", format: "currency" as const },
-          { header: "Quantity", key: "quantity", format: "number" as const },
-          { header: "Days Idle", key: "days_since_last_rental", format: "number" as const },
+          { header: 'Product', key: 'product_name' },
+          { header: 'Category', key: 'category_name' },
+          { header: 'Price/Day', key: 'price_per_day', format: 'currency' as const },
+          { header: 'Quantity', key: 'quantity', format: 'number' as const },
+          { header: 'Days Idle', key: 'days_since_last_rental', format: 'number' as const },
         ];
       case 'sales-by-staff':
         return [
-          { header: "Staff Member", key: "staff_name" },
-          { header: "Orders", key: "order_count", format: "number" as const },
-          { header: "Total Revenue", key: "total_revenue", format: "currency" as const },
-          { header: "Avg. Order", key: "avg_order_value", format: "currency" as const },
+          { header: 'Staff Member', key: 'staff_name' },
+          { header: 'Orders', key: 'order_count', format: 'number' as const },
+          { header: 'Total Revenue', key: 'total_revenue', format: 'currency' as const },
+          { header: 'Avg. Order', key: 'avg_order_value', format: 'currency' as const },
         ];
       case 'inventory-revenue':
         return [
-          { header: "Product", key: "product_name" },
-          { header: "Category", key: "category_name" },
-          { header: "Quantity", key: "quantity", format: "number" as const },
-          { header: "Daily Price", key: "price_per_day", format: "currency" as const },
-          { header: "Lifetime Revenue", key: "lifetime_revenue", format: "currency" as const },
+          { header: 'Product', key: 'product_name' },
+          { header: 'Category', key: 'category_name' },
+          { header: 'Quantity', key: 'quantity', format: 'number' as const },
+          { header: 'Daily Price', key: 'price_per_day', format: 'currency' as const },
+          { header: 'Lifetime Revenue', key: 'lifetime_revenue', format: 'currency' as const },
         ];
       case 'enquiry-log':
         return [
-          { header: "Date", key: "created_at", format: "date" as const },
-          { header: "Query", key: "product_query" },
-          { header: "Customer", key: "customer_name" },
-          { header: "Phone", key: "customer_phone" },
-          { header: "Logged By", key: "staff_name" },
+          { header: 'Date', key: 'created_at', format: 'date' as const },
+          { header: 'Query', key: 'product_query' },
+          { header: 'Customer', key: 'customer_name' },
+          { header: 'Phone', key: 'customer_phone' },
+          { header: 'Logged By', key: 'staff_name' },
         ];
       case 'gst-filing':
         return [
-          { header: "GST Slab", key: "slab", format: "percent" as const },
-          { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-          { header: "CGST", key: "cgst", format: "currency" as const },
-          { header: "SGST", key: "sgst", format: "currency" as const },
-          { header: "Total GST", key: "total_gst", format: "currency" as const },
+          { header: 'GST Slab', key: 'slab', format: 'percent' as const },
+          { header: 'Taxable Value', key: 'taxable_value', format: 'currency' as const },
+          { header: 'CGST', key: 'cgst', format: 'currency' as const },
+          { header: 'SGST', key: 'sgst', format: 'currency' as const },
+          { header: 'Total GST', key: 'total_gst', format: 'currency' as const },
         ];
-      default: return [];
+      default:
+        return [];
     }
   };
 
   const handleExportExcel = () => {
-    const meta = REPORT_LIST.find(r => r.id === selectedReport);
+    const meta = REPORT_LIST.find((r) => r.id === selectedReport);
     if (!meta) return;
-    
+
     let exportData = sortedData;
     let exportColumns = getExportColumns();
-    
+
     if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
       exportData = filteredGstDetails;
       exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
+        { header: 'Invoice No', key: 'invoice_no' },
+        { header: 'Date', key: 'date', format: 'date' as const },
+        { header: 'Customer', key: 'customer_name' },
+        { header: 'Items & Qty', key: 'items_summary' },
+        { header: 'Total Value', key: 'total_value', format: 'currency' as const },
+        { header: 'Taxable Value', key: 'taxable_value', format: 'currency' as const },
+        { header: 'GST Slabs', key: 'slabs' },
+        { header: 'Total GST', key: 'gst_amount', format: 'currency' as const },
       ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
+    } else if (
+      (selectedReport === 'revenue' || selectedReport === 'todays-revenue') &&
+      gstDetails.length > 0
+    ) {
       exportData = gstDetails;
       exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
+        { header: 'Date', key: 'date', format: 'date' as const },
+        { header: 'Order ID', key: 'order_id' },
+        { header: 'Customer', key: 'customer_name' },
+        { header: 'Type', key: 'payment_type' },
+        { header: 'Payment Mode', key: 'payment_mode' },
+        { header: 'Amount', key: 'amount', format: 'currency' as const },
+        { header: 'Order Status', key: 'status' },
       ];
     } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+      exportData = sortedData.map((d) => ({ ...d, staff_name: d.staff?.name || 'System' }));
     }
-    
-    exportToExcel(exportData, exportColumns as any, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
+
+    exportToExcel(
+      exportData,
+      exportColumns as any,
+      `${meta.name}_${new Date().toISOString().split('T')[0]}`
+    );
   };
 
   const handleExportPDF = () => {
-    const meta = REPORT_LIST.find(r => r.id === selectedReport);
+    const meta = REPORT_LIST.find((r) => r.id === selectedReport);
     if (!meta) return;
-    
+
     let exportData = sortedData;
     let exportColumns = getExportColumns();
-    
+
     if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
       exportData = filteredGstDetails;
       exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
+        { header: 'Invoice No', key: 'invoice_no' },
+        { header: 'Date', key: 'date', format: 'date' as const },
+        { header: 'Customer', key: 'customer_name' },
+        { header: 'Items & Qty', key: 'items_summary' },
+        { header: 'Total Value', key: 'total_value', format: 'currency' as const },
+        { header: 'Taxable Value', key: 'taxable_value', format: 'currency' as const },
+        { header: 'GST Slabs', key: 'slabs' },
+        { header: 'Total GST', key: 'gst_amount', format: 'currency' as const },
       ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
+    } else if (
+      (selectedReport === 'revenue' || selectedReport === 'todays-revenue') &&
+      gstDetails.length > 0
+    ) {
       exportData = gstDetails;
       exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
+        { header: 'Date', key: 'date', format: 'date' as const },
+        { header: 'Order ID', key: 'order_id' },
+        { header: 'Customer', key: 'customer_name' },
+        { header: 'Type', key: 'payment_type' },
+        { header: 'Payment Mode', key: 'payment_mode' },
+        { header: 'Amount', key: 'amount', format: 'currency' as const },
+        { header: 'Order Status', key: 'status' },
       ];
     } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+      exportData = sortedData.map((d) => ({ ...d, staff_name: d.staff?.name || 'System' }));
     }
-    
-    exportToPDF(exportData, exportColumns as any, meta.name, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
-  };
 
+    exportToPDF(
+      exportData,
+      exportColumns as any,
+      meta.name,
+      `${meta.name}_${new Date().toISOString().split('T')[0]}`
+    );
+  };
 
   const handleLogEnquiry = async (dto: CreateEnquiryDTO) => {
     try {
       const response = await fetch(`/api/reports/enquiry-log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto)
+        body: JSON.stringify(dto),
       });
       const json = await response.json();
-      if (!json.success) throw new Error(json.error?.message || "Failed to log enquiry");
+      if (!json.success) throw new Error(json.error?.message || 'Failed to log enquiry');
       fetchReport();
     } catch (err: any) {
-      setError(err.message || "Failed to log enquiry");
+      setError(err.message || 'Failed to log enquiry');
     }
   };
 
   const formatCell = (value: any, format?: string) => {
-    if (value === null || value === undefined) return "-";
+    if (value === null || value === undefined) return '-';
     switch (format) {
-      case "currency": return formatCurrency(Number(value));
-      case "date": return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-      case "percent": return `${value}%`;
-      case "number": return typeof value === 'number' ? value.toLocaleString() : value;
-      default: return value.toString();
+      case 'currency':
+        return formatCurrency(Number(value));
+      case 'date':
+        return new Date(value).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      case 'percent':
+        return `${value}%`;
+      case 'number':
+        return typeof value === 'number' ? value.toLocaleString() : value;
+      default:
+        return value.toString();
     }
   };
 
@@ -462,10 +530,14 @@ function ReportsPageContent() {
     return (
       <div className="space-y-8 animate-in fade-in duration-500">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Business Intelligence</h1>
-          <p className="text-slate-500 font-medium">Select a specialized report to analyze your business performance.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            Business Intelligence
+          </h1>
+          <p className="text-slate-500 font-medium">
+            Select a specialized report to analyze your business performance.
+          </p>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {visibleReports.map((report) => {
             const Icon = ICONS[report.icon] || BarChart3;
@@ -475,12 +547,18 @@ function ReportsPageContent() {
                 onClick={() => router.push(`/dashboard/reports?type=${report.id}`)}
                 className="group p-6 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-900 transition-all text-left flex flex-col h-full active:scale-[0.98]"
               >
-                <div className={`w-12 h-12 rounded-xl mb-6 flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3 ${CATEGORY_COLORS[report.category]}`}>
+                <div
+                  className={`w-12 h-12 rounded-xl mb-6 flex items-center justify-center transition-transform group-hover:scale-110 group-hover:rotate-3 ${CATEGORY_COLORS[report.category]}`}
+                >
                   <Icon className="w-6 h-6" />
                 </div>
                 <div className="mt-auto">
-                  <h3 className="font-bold text-slate-900 group-hover:text-slate-900 mb-1">{report.name}</h3>
-                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{report.description}</p>
+                  <h3 className="font-bold text-slate-900 group-hover:text-slate-900 mb-1">
+                    {report.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                    {report.description}
+                  </p>
                 </div>
               </button>
             );
@@ -490,22 +568,33 @@ function ReportsPageContent() {
     );
   }
 
-  const meta = REPORT_LIST.find(r => r.id === selectedReport)!;
+  const meta = REPORT_LIST.find((r) => r.id === selectedReport)!;
   const needsDateFilter = false; // All reports now use range or have no date filter
-  const needsRangeFilter = ["day-wise-booking", "due-overdue", "revenue", "dead-stock", "sales-by-staff", "enquiry-log", "gst-filing", "top-customers", "rental-frequency", "roi"].includes(selectedReport);
+  const needsRangeFilter = [
+    'day-wise-booking',
+    'due-overdue',
+    'revenue',
+    'dead-stock',
+    'sales-by-staff',
+    'enquiry-log',
+    'gst-filing',
+    'top-customers',
+    'rental-frequency',
+    'roi',
+  ].includes(selectedReport);
   // Today's Revenue has no date filters — it's always locked to today
-  const needsRankBy = selectedReport === "top-costumes";
+  const needsRankBy = selectedReport === 'top-costumes';
 
   return (
     <div className="space-y-6">
-      <ReportHeader 
+      <ReportHeader
         meta={meta}
         onExportExcel={handleExportExcel}
         onExportPDF={handleExportPDF}
         hasData={data.length > 0 || gstDetails.length > 0}
       />
 
-      <ReportFilters 
+      <ReportFilters
         filters={filters}
         setFilters={setFilters}
         onGenerate={fetchReport}
@@ -513,7 +602,11 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
+        needsStatusFilter={
+          selectedReport === 'gst-filing' ||
+          selectedReport === 'revenue' ||
+          selectedReport === 'todays-revenue'
+        }
         needsPaymentModeFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
       />
 
@@ -525,28 +618,144 @@ function ReportsPageContent() {
       )}
 
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {selectedReport === 'day-wise-booking' && <DayWiseBookingView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'due-overdue' && <DueOverdueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'todays-revenue' && <TodaysRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
-        {selectedReport === 'revenue' && <RevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} reportSummary={reportSummary} filters={filters} setFilters={setFilters} />}
-        {selectedReport === 'top-costumes' && <TopCostumesView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} rankBy={filters.rank_by || 'count'} />}
-        {selectedReport === 'top-customers' && <TopCustomersView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'rental-frequency' && <RentalFrequencyView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'roi' && <ROIView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'dead-stock' && <DeadStockView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'sales-by-staff' && <SalesByStaffView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'inventory-revenue' && <InventoryRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
-        {selectedReport === 'enquiry-log' && <EnquiryLogView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} onLogEnquiry={handleLogEnquiry} />}
+        {selectedReport === 'day-wise-booking' && (
+          <DayWiseBookingView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'due-overdue' && (
+          <DueOverdueView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'todays-revenue' && (
+          <TodaysRevenueView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+            reportSummary={reportSummary}
+            filters={filters}
+            setFilters={setFilters}
+          />
+        )}
+        {selectedReport === 'revenue' && (
+          <RevenueView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+            reportSummary={reportSummary}
+            filters={filters}
+            setFilters={setFilters}
+          />
+        )}
+        {selectedReport === 'top-costumes' && (
+          <TopCostumesView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+            rankBy={filters.rank_by || 'count'}
+          />
+        )}
+        {selectedReport === 'top-customers' && (
+          <TopCustomersView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'rental-frequency' && (
+          <RentalFrequencyView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'roi' && (
+          <ROIView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'dead-stock' && (
+          <DeadStockView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'sales-by-staff' && (
+          <SalesByStaffView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'inventory-revenue' && (
+          <InventoryRevenueView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+          />
+        )}
+        {selectedReport === 'enquiry-log' && (
+          <EnquiryLogView
+            data={sortedData}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+            onLogEnquiry={handleLogEnquiry}
+          />
+        )}
         {selectedReport === 'gst-filing' && (
-          <GSTFilingView 
-            data={sortedData} 
-            reportSummary={reportSummary} 
-            loading={loading} 
-            error={error} 
-            sortConfig={sortConfig} 
-            onSort={handleSort} 
-            formatCell={formatCell} 
-            gstDetails={gstDetails} 
+          <GSTFilingView
+            data={sortedData}
+            reportSummary={reportSummary}
+            loading={loading}
+            error={error}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            formatCell={formatCell}
+            gstDetails={gstDetails}
             gstSlabFilter={gstSlabFilter}
             setGstSlabFilter={setGstSlabFilter}
             filteredGstDetails={filteredGstDetails}
@@ -559,12 +768,15 @@ function ReportsPageContent() {
 
 export default function ReportsPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center flex flex-col items-center gap-4">
-      <Loader2 className="w-10 h-10 animate-spin text-slate-400" />
-      <p className="text-sm font-medium text-slate-500">Loading Business Intelligence...</p>
-    </div>}>
+    <Suspense
+      fallback={
+        <div className="p-8 text-center flex flex-col items-center gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-slate-400" />
+          <p className="text-sm font-medium text-slate-500">Loading Business Intelligence...</p>
+        </div>
+      }
+    >
       <ReportsPageContent />
     </Suspense>
   );
 }
-  

@@ -1,16 +1,16 @@
 import { Suspense } from 'react';
-import Header from "@/components/home/Header";
-import HeroCarousel from "@/components/home/HeroCarousel";
-import NewArrivals from "@/components/home/NewArrivals";
-import HowItWorks from "@/components/home/HowItWorks";
-import CustomerReviews from "@/components/home/CustomerReviews";
-import FinalCTA from "@/components/home/FinalCTA";
-import Footer from "@/components/home/Footer";
-import TrustBadges from "@/components/home/TrustBadges";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCachedCategories, getCachedNewArrivals } from "@/lib/supabase/cached-queries";
-import { getHeroBanners } from "@/lib/supabase/queries";
-import { BRAND_CONFIG } from "shared-utils";
+import Header from '@/components/home/Header';
+import HeroCarousel from '@/components/home/HeroCarousel';
+import NewArrivals from '@/components/home/NewArrivals';
+import HowItWorks from '@/components/home/HowItWorks';
+import CustomerReviews from '@/components/home/CustomerReviews';
+import FinalCTA from '@/components/home/FinalCTA';
+import Footer from '@/components/home/Footer';
+import TrustBadges from '@/components/home/TrustBadges';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { getCachedCategories, getCachedNewArrivals } from '@/lib/supabase/cached-queries';
+import { getHeroBanners } from '@/lib/supabase/queries';
+import { BRAND_CONFIG } from 'shared-utils';
 
 async function getStoreData() {
   const store = await getParisBridalsStore();
@@ -25,7 +25,9 @@ export default async function Home() {
       <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12 flex items-center justify-center bg-silk min-h-screen">
         <div className="text-center animate-fadeInUp">
           <h1 className="text-4xl font-serif text-heading mb-4">{BRAND_CONFIG.name}</h1>
-          <p className="text-body font-light">Elegance is taking a moment. Please check back soon.</p>
+          <p className="text-body font-light">
+            Elegance is taking a moment. Please check back soon.
+          </p>
         </div>
       </div>
     );
@@ -50,7 +52,7 @@ export default async function Home() {
 
       {/* 4. Trust Badges */}
       <TrustBadges />
-      
+
       {/* 5. Latest Treasures (New Arrivals) */}
       <Suspense fallback={<div className="h-[600px] animate-pulse bg-silk-dark/30" />}>
         <NewArrivals products={newArrivals} />
@@ -61,10 +63,10 @@ export default async function Home() {
 
       {/* 9. Bridal Stories (Reviews) */}
       <CustomerReviews />
-      
+
       {/* 10. Final Invitation (CTA) */}
       <FinalCTA />
-      
+
       {/* 11. Footer */}
       <Footer store={store} />
     </main>

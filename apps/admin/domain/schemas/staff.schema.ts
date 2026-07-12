@@ -29,7 +29,8 @@ const baseStaffSchema = {
  */
 export const CreateStaffSchema = z.object({
   ...baseStaffSchema,
-  password: z.string()
+  password: z
+    .string()
     .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be 128 characters or less'),
 });
@@ -38,14 +39,16 @@ export const CreateStaffSchema = z.object({
  * Schema for updating an existing staff member
  * Password is not updatable via this schema
  */
-export const UpdateStaffSchema = z.object({
-  name: baseStaffSchema.name,
-  email: baseStaffSchema.email,
-  phone: baseStaffSchema.phone,
-  role: baseStaffSchema.role,
-  branch_id: baseStaffSchema.branch_id,
-  is_active: baseStaffSchema.is_active,
-}).partial();
+export const UpdateStaffSchema = z
+  .object({
+    name: baseStaffSchema.name,
+    email: baseStaffSchema.email,
+    phone: baseStaffSchema.phone,
+    role: baseStaffSchema.role,
+    branch_id: baseStaffSchema.branch_id,
+    is_active: baseStaffSchema.is_active,
+  })
+  .partial();
 
 /**
  * Schema for searching staff

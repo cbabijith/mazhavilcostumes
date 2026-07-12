@@ -9,11 +9,12 @@ interface EditorialBannerProps {
 
 export default function EditorialBanner({ banners }: EditorialBannerProps) {
   // Find first banner that has a title/subtitle (editorial-like) or just the first one
-  const editorialBanner = banners.find(b => b.title && b.subtitle) || banners[0];
+  const editorialBanner = banners.find((b) => b.title && b.subtitle) || banners[0];
 
   if (!editorialBanner) return null;
 
-  const hasContent = !!editorialBanner.title || !!editorialBanner.subtitle || !!editorialBanner.call_to_action;
+  const hasContent =
+    !!editorialBanner.title || !!editorialBanner.subtitle || !!editorialBanner.call_to_action;
 
   const BannerContent = (
     <div className="group relative w-full aspect-[21/10] md:aspect-[28/10] rounded-[2.5rem] overflow-hidden">
@@ -40,12 +41,18 @@ export default function EditorialBanner({ banners }: EditorialBannerProps) {
               </span>
             )}
             {editorialBanner.subtitle && (
-              <h2 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-serif mb-5 sm:mb-6 md:mb-8 tracking-tight leading-[1.1] animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
+              <h2
+                className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-serif mb-5 sm:mb-6 md:mb-8 tracking-tight leading-[1.1] animate-fadeInUp"
+                style={{ animationDelay: '0.1s' }}
+              >
                 {editorialBanner.subtitle}
               </h2>
             )}
             {editorialBanner.call_to_action && (
-              <div className="animate-fadeInUp absolute bottom-8 left-4 sm:bottom-8 sm:left-6 md:bottom-8 md:left-8 lg:bottom-8 lg:left-10" style={{ animationDelay: '0.2s' }}>
+              <div
+                className="animate-fadeInUp absolute bottom-8 left-4 sm:bottom-8 sm:left-6 md:bottom-8 md:left-8 lg:bottom-8 lg:left-10"
+                style={{ animationDelay: '0.2s' }}
+              >
                 <Button className="shimmer-btn px-4 py-2 sm:px-5 sm:py-2.5 md:px-8 md:py-3 lg:px-10 lg:py-3.5 rounded-full text-[9px] sm:text-[10px] md:text-xs lg:text-sm uppercase tracking-[0.2em] font-bold border-none">
                   {editorialBanner.call_to_action}
                 </Button>

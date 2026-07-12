@@ -10,10 +10,7 @@ import { NextResponse } from 'next/server';
 import { cleaningService } from '@/services/cleaningService';
 import { CleaningStatus } from '@/domain';
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
   const { status } = body;

@@ -1,13 +1,13 @@
-import { Suspense } from "react";
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCachedCategories, getCachedProducts } from "@/lib/supabase/cached-queries";
-import CollectionsClient from "./CollectionsClient";
+import { Suspense } from 'react';
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { getCachedCategories, getCachedProducts } from '@/lib/supabase/cached-queries';
+import CollectionsClient from './CollectionsClient';
 
 interface CollectionsPageProps {
-  searchParams: Promise<{ 
-    category_id?: string; 
+  searchParams: Promise<{
+    category_id?: string;
     q?: string;
     sort?: string;
     featured?: string;
@@ -23,8 +23,8 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
   const categoryId = params.category_id;
   const searchQuery = params.q;
   const sort = params.sort;
-  const isFeatured = params.featured === "true";
-  const currentPage = Math.max(1, parseInt(params.page || "1", 10));
+  const isFeatured = params.featured === 'true';
+  const currentPage = Math.max(1, parseInt(params.page || '1', 10));
   const limit = 24;
   const offset = (currentPage - 1) * limit;
 
@@ -46,9 +46,11 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
   return (
     <main className="min-h-screen bg-white selection:bg-rosegold/20 pb-20 lg:pb-0">
       <Header store={store} categories={categories} />
-      
-      <Suspense fallback={<div className="container mx-auto py-24 text-center">Loading collections...</div>}>
-        <CollectionsClient 
+
+      <Suspense
+        fallback={<div className="container mx-auto py-24 text-center">Loading collections...</div>}
+      >
+        <CollectionsClient
           initialProducts={products}
           categories={categories}
           initialCategoryId={categoryId}
@@ -64,4 +66,3 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
     </main>
   );
 }
-

@@ -38,7 +38,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Deduplicate items by product_id (keep max quantity per product)
-    const productMap = new Map<string, { product_id: string; quantity: number; product_name?: string }>();
+    const productMap = new Map<
+      string,
+      { product_id: string; quantity: number; product_name?: string }
+    >();
     for (const item of items) {
       if (!item.product_id || !item.quantity) {
         return apiBadRequest('Each item must have product_id and quantity');
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
       })
     );
 
-    const allAvailable = results.every(r => r.isAvailable);
+    const allAvailable = results.every((r) => r.isAvailable);
 
     return apiSuccess({ allAvailable, items: results });
   } catch (err) {

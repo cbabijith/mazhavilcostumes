@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -22,15 +22,15 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
 
   useEffect(() => {
     const checkCart = () => {
-      const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+      const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
       setIsInCart(cart.some((item: any) => item.id === product.id));
     };
 
     checkCart();
 
-    window.addEventListener("paris_cart_updated", checkCart);
+    window.addEventListener('paris_cart_updated', checkCart);
     return () => {
-      window.removeEventListener("paris_cart_updated", checkCart);
+      window.removeEventListener('paris_cart_updated', checkCart);
     };
   }, [product.id]);
 
@@ -38,7 +38,7 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
-    const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+    const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
     const exists = cart.some((item: any) => item.id === product.id);
 
     let newCart;
@@ -54,16 +54,13 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
       newCart = [...cart, newItem];
     }
 
-    localStorage.setItem("paris_cart", JSON.stringify(newCart));
+    localStorage.setItem('paris_cart', JSON.stringify(newCart));
     setIsInCart(!exists);
-    window.dispatchEvent(new CustomEvent("paris_cart_updated", { detail: newCart.length }));
+    window.dispatchEvent(new CustomEvent('paris_cart_updated', { detail: newCart.length }));
   };
 
   return (
-    <Link
-      href={`/product/${product.id}`}
-      className="group block"
-    >
+    <Link href={`/product/${product.id}`} className="group block">
       {/* Image Container — square aspect ratio matching reference */}
       <div className="relative aspect-square overflow-hidden rounded-xl sm:rounded-2xl bg-gray-50">
         {imageUrl ? (
@@ -101,9 +98,11 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
         <div className="flex items-center justify-end">
           <button
             onClick={handleCartToggle}
-            aria-label={isInCart ? "Remove from cart" : "Add to cart"}
+            aria-label={isInCart ? 'Remove from cart' : 'Add to cart'}
             className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg transition-colors duration-300 active:scale-95 ${
-              isInCart ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-rosegold text-white hover:bg-rosegold-dark'
+              isInCart
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-rosegold text-white hover:bg-rosegold-dark'
             }`}
           >
             {isInCart ? (

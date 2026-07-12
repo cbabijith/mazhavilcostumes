@@ -35,10 +35,7 @@ type GuardResult = GuardSuccess | GuardError;
  * @param permission - The permission required (e.g. 'branches', 'staff', 'products')
  * @returns The authenticated user or an error response
  */
-export async function apiGuard(
-  request: NextRequest,
-  permission: Permission
-): Promise<GuardResult> {
+export async function apiGuard(request: NextRequest, permission: Permission): Promise<GuardResult> {
   // Allow authentication bypass in development mode for scratch testing
   if (process.env.NODE_ENV === 'development' && request.headers.get('x-bypass-auth') === 'true') {
     return {

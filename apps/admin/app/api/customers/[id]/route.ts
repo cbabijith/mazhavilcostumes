@@ -9,13 +9,19 @@
  * @module app/api/customers/[id]/route
  */
 
-import { NextRequest } from "next/server";
-import { customerService } from "@/services/customerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { UpdateCustomerSchema } from "@/domain";
-import { z } from "zod";
-import { apiSuccess, apiRepositoryError, apiNotFound, apiZodError, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { customerService } from '@/services/customerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { UpdateCustomerSchema } from '@/domain';
+import { z } from 'zod';
+import {
+  apiSuccess,
+  apiRepositoryError,
+  apiNotFound,
+  apiZodError,
+  apiInternalError,
+} from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;

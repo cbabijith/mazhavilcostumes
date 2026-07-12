@@ -1,5 +1,5 @@
-import { Product } from "@/lib/supabase/queries";
-import ProductCard from "@/components/product/ProductCard";
+import { Product } from '@/lib/supabase/queries';
+import ProductCard from '@/components/product/ProductCard';
 
 interface RelatedProductsProps {
   products: Product[];
@@ -9,8 +9,8 @@ interface RelatedProductsProps {
 
 export default function RelatedProducts({
   products,
-  heading = "You May Also Love",
-  eyebrow = "More from the collection",
+  heading = 'You May Also Love',
+  eyebrow = 'More from the collection',
 }: RelatedProductsProps) {
   if (!products || products.length === 0) return null;
 
@@ -21,9 +21,7 @@ export default function RelatedProducts({
           <span className="text-[10px] uppercase tracking-[0.2em] font-bold text-rosegold block mb-1">
             {eyebrow}
           </span>
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-heading">
-            {heading}
-          </h2>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-heading">{heading}</h2>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5">

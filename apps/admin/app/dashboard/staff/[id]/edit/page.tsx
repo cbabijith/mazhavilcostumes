@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import StaffForm from "@/components/admin/StaffForm";
-import { useStaffMember } from "@/hooks";
+import { useParams } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+import StaffForm from '@/components/admin/StaffForm';
+import { useStaffMember } from '@/hooks';
 
 export default function EditStaffPage() {
   const params = useParams();
@@ -20,11 +20,7 @@ export default function EditStaffPage() {
   }
 
   if (!staff) {
-    return (
-      <div className="p-12 text-center text-slate-500">
-        Staff member not found.
-      </div>
-    );
+    return <div className="p-12 text-center text-slate-500">Staff member not found.</div>;
   }
 
   return <StaffForm staff={staff} />;

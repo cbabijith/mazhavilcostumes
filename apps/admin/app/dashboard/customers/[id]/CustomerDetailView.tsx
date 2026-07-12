@@ -6,10 +6,10 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Edit,
@@ -21,11 +21,11 @@ import {
   FileText,
   Calendar,
   ExternalLink,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { type Customer } from "@/domain";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { type Customer } from '@/domain';
 
 interface CustomerDetailViewProps {
   customer: Customer;
@@ -34,8 +34,8 @@ interface CustomerDetailViewProps {
 export default function CustomerDetailView({ customer }: CustomerDetailViewProps) {
   const router = useRouter();
 
-  const frontDoc = customer.id_documents?.find((d) => d.type === "front");
-  const backDoc = customer.id_documents?.find((d) => d.type === "back");
+  const frontDoc = customer.id_documents?.find((d) => d.type === 'front');
+  const backDoc = customer.id_documents?.find((d) => d.type === 'back');
 
   return (
     <div className="space-y-6">
@@ -45,7 +45,7 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => router.push("/dashboard/customers")}
+            onClick={() => router.push('/dashboard/customers')}
             className="shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -62,25 +62,23 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
               ) : (
                 <span className="text-xl font-bold text-slate-400">
                   {customer.name
-                    .split(" ")
+                    .split(' ')
                     .map((n) => n[0])
-                    .join("")
+                    .join('')
                     .slice(0, 2)
                     .toUpperCase()}
                 </span>
               )}
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                {customer.name}
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">{customer.name}</h1>
               <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-2">
                 <Calendar className="w-3.5 h-3.5" />
-                Customer since{" "}
-                {new Date(customer.created_at).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
+                Customer since{' '}
+                {new Date(customer.created_at).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
                 })}
               </p>
             </div>
@@ -117,23 +115,19 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
                 <InfoField
                   icon={<Phone className="w-4 h-4" />}
                   label="Alternate Phone"
-                  value={customer.alt_phone || "Not provided"}
+                  value={customer.alt_phone || 'Not provided'}
                   muted={!customer.alt_phone}
                 />
                 <InfoField
                   icon={<Mail className="w-4 h-4" />}
                   label="Email"
-                  value={customer.email || "Not provided"}
+                  value={customer.email || 'Not provided'}
                   muted={!customer.email}
                 />
                 <InfoField
                   icon={<MapPin className="w-4 h-4" />}
                   label="Address"
-                  value={
-                    typeof customer.address === "string"
-                      ? customer.address
-                      : "Not provided"
-                  }
+                  value={typeof customer.address === 'string' ? customer.address : 'Not provided'}
                   muted={!customer.address}
                   className="sm:col-span-2"
                 />
@@ -168,7 +162,7 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
                     <InfoField
                       icon={<FileText className="w-4 h-4" />}
                       label="ID Number"
-                      value={customer.id_number || "Not provided"}
+                      value={customer.id_number || 'Not provided'}
                       muted={!customer.id_number}
                     />
                   </div>
@@ -180,18 +174,8 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
                         Document Photos
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {frontDoc && (
-                          <DocumentPreview
-                            label="Front Side"
-                            url={frontDoc.url}
-                          />
-                        )}
-                        {backDoc && (
-                          <DocumentPreview
-                            label="Back Side"
-                            url={backDoc.url}
-                          />
-                        )}
+                        {frontDoc && <DocumentPreview label="Front Side" url={frontDoc.url} />}
+                        {backDoc && <DocumentPreview label="Back Side" url={backDoc.url} />}
                       </div>
                     </div>
                   )}
@@ -199,9 +183,7 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
               ) : (
                 <div className="text-center py-8">
                   <CreditCard className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm text-slate-500">
-                    No identity document on file
-                  </p>
+                  <p className="text-sm text-slate-500">No identity document on file</p>
                 </div>
               )}
             </CardContent>
@@ -214,9 +196,7 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
           {customer.photo_url && (
             <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                <h2 className="text-sm font-semibold text-slate-900">
-                  Customer Photo
-                </h2>
+                <h2 className="text-sm font-semibold text-slate-900">Customer Photo</h2>
               </div>
               <CardContent className="p-4">
                 <div className="aspect-square rounded-lg overflow-hidden border border-slate-200">
@@ -233,9 +213,7 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
           {/* Quick Info */}
           <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <h2 className="text-sm font-semibold text-slate-900">
-                Quick Info
-              </h2>
+              <h2 className="text-sm font-semibold text-slate-900">Quick Info</h2>
             </div>
             <CardContent className="p-6 space-y-4">
               <div className="flex justify-between items-center">
@@ -247,10 +225,10 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Added</span>
                 <span className="text-sm font-medium text-slate-700">
-                  {new Date(customer.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
+                  {new Date(customer.created_at).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
                   })}
                 </span>
               </div>
@@ -258,10 +236,10 @@ export default function CustomerDetailView({ customer }: CustomerDetailViewProps
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-500">Last Updated</span>
                   <span className="text-sm font-medium text-slate-700">
-                    {new Date(customer.updated_at).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
+                    {new Date(customer.updated_at).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
                     })}
                   </span>
                 </div>
@@ -302,11 +280,7 @@ function InfoField({
           {label}
         </span>
       </div>
-      <p
-        className={`text-sm font-medium ${
-          muted ? "text-slate-400 italic" : "text-slate-900"
-        }`}
-      >
+      <p className={`text-sm font-medium ${muted ? 'text-slate-400 italic' : 'text-slate-900'}`}>
         {value}
       </p>
     </div>
@@ -319,11 +293,7 @@ function DocumentPreview({ label, url }: { label: string; url: string }) {
     <div className="space-y-2">
       <p className="text-xs font-medium text-slate-600">{label}</p>
       <div className="relative group rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
-        <img
-          src={url}
-          alt={label}
-          className="w-full h-48 object-contain bg-white"
-        />
+        <img src={url} alt={label} className="w-full h-48 object-contain bg-white" />
         <a
           href={url}
           target="_blank"

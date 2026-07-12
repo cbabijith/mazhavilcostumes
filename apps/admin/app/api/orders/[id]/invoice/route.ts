@@ -10,10 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { invoiceService } from '@/services/invoiceService';
 import { apiGuard } from '@/lib/apiGuard';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
@@ -30,7 +27,10 @@ export async function GET(
     }
 
     // generateInvoice now returns a Buffer and the generated invoice number
-    const { buffer: pdfBuffer, invoiceNumber } = await invoiceService.generateInvoice(id, invoiceType as 'deposit' | 'final');
+    const { buffer: pdfBuffer, invoiceNumber } = await invoiceService.generateInvoice(
+      id,
+      invoiceType as 'deposit' | 'final'
+    );
 
     const filename = `${invoiceNumber}.pdf`;
     // Support ?disposition=inline for print (iframe) vs attachment for download

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function FinalCTA() {
   return (
@@ -11,7 +11,9 @@ export default function FinalCTA() {
           Shine on Your Special Day
         </h2>
         <p className="text-sm sm:text-base text-body mt-3 sm:mt-4 leading-relaxed max-w-xl mx-auto">
-          Rent Kerala's most exquisite collection of premium bridal jewelry and accessory sets. Exquisitely crafted with traditional Kundan, antique gold, and diamonds to add elegance and grace to your wedding celebrations.
+          Rent Kerala's most exquisite collection of premium bridal jewelry and accessory sets.
+          Exquisitely crafted with traditional Kundan, antique gold, and diamonds to add elegance
+          and grace to your wedding celebrations.
         </p>
 
         <Link

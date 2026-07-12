@@ -21,10 +21,10 @@
  * @module app/api/products/count/route
  */
 
-import { NextRequest } from "next/server";
-import { productRepository } from "@/repository";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { productRepository } from '@/repository';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/products/count — get total product count with optional filters */
 export async function GET(request: NextRequest) {
@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
     // if (guard.error) return guard.error;
 
     const { searchParams } = new URL(request.url);
-    
+
     // Build filters object
     const filters: Record<string, any> = {};
-    
+
     if (searchParams.get('category_id')) {
       filters.category_id = searchParams.get('category_id');
     }

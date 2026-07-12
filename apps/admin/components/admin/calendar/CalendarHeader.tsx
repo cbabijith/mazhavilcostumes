@@ -7,10 +7,10 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface CalendarHeaderProps {
   monthLabel: string;
@@ -32,14 +32,12 @@ export default function CalendarHeader({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Calendar
-        </h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Calendar</h1>
         <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-slate-400" />
           <span>Viewing bookings for</span>
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
-            {branchName || "Select a branch"}
+            {branchName || 'Select a branch'}
           </span>
           {isFetching && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs font-medium animate-pulse">

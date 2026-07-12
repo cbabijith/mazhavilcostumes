@@ -9,7 +9,14 @@
 import { z } from 'zod';
 
 const BannerTypeEnum = z.enum(['hero', 'editorial', 'split']);
-const BannerRedirectTypeEnum = z.enum(['none', 'category', 'subcategory', 'subvariant', 'product', 'url']);
+const BannerRedirectTypeEnum = z.enum([
+  'none',
+  'category',
+  'subcategory',
+  'subvariant',
+  'product',
+  'url',
+]);
 const BannerPositionEnum = z.enum(['left', 'right']);
 
 /**
@@ -42,30 +49,34 @@ const baseBannerSchema = {
  * - Split banners require position to be 'left' or 'right'
  * - URL redirect type requires a redirect_url
  */
-export const CreateBannerSchema = z.object(baseBannerSchema).refine(
-  (data) => {
-    if (data.redirect_type === 'url' && !data.redirect_url) return false;
-    return true;
-  },
-  { message: 'Redirect URL is required when redirect type is "url"', path: ['redirect_url'] }
-).refine(
-  (data) => {
-    if (data.banner_type === 'hero' && data.position) {
-      const posNum = parseInt(data.position, 10);
-      if (isNaN(posNum) || posNum < 1 || posNum > 10) return false;
-    }
-    return true;
-  },
-  { message: 'Hero banner position must be between 1 and 10', path: ['position'] }
-).refine(
-  (data) => {
-    if (data.banner_type === 'split' && data.position) {
-      if (!['left', 'right'].includes(data.position)) return false;
-    }
-    return true;
-  },
-  { message: 'Split banner position must be "left" or "right"', path: ['position'] }
-);
+export const CreateBannerSchema = z
+  .object(baseBannerSchema)
+  .refine(
+    (data) => {
+      if (data.redirect_type === 'url' && !data.redirect_url) return false;
+      return true;
+    },
+    { message: 'Redirect URL is required when redirect type is "url"', path: ['redirect_url'] }
+  )
+  .refine(
+    (data) => {
+      if (data.banner_type === 'hero' && data.position) {
+        const posNum = parseInt(data.position, 10);
+        if (isNaN(posNum) || posNum < 1 || posNum > 10) return false;
+      }
+      return true;
+    },
+    { message: 'Hero banner position must be between 1 and 10', path: ['position'] }
+  )
+  .refine(
+    (data) => {
+      if (data.banner_type === 'split' && data.position) {
+        if (!['left', 'right'].includes(data.position)) return false;
+      }
+      return true;
+    },
+    { message: 'Split banner position must be "left" or "right"', path: ['position'] }
+  );
 
 /**
  * Schema for updating an existing banner

@@ -9,25 +9,25 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, User, CreditCard, Camera, Loader2 } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, User, CreditCard, Camera, Loader2 } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileUpload } from "@/components/ui/file-upload";
-import { type Customer, type IdType } from "@/domain";
-import { useAppStore, useAppSelectors } from "@/stores";
-import { useQueryClient } from "@tanstack/react-query";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FileUpload } from '@/components/ui/file-upload';
+import { type Customer, type IdType } from '@/domain';
+import { useAppStore, useAppSelectors } from '@/stores';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ID_TYPE_OPTIONS: { value: IdType; label: string }[] = [
-  { value: "Aadhaar", label: "Aadhaar Card" },
-  { value: "PAN", label: "PAN Card" },
-  { value: "Driving Licence", label: "Driving Licence" },
-  { value: "Passport", label: "Passport" },
-  { value: "Others", label: "Others" },
+  { value: 'Aadhaar', label: 'Aadhaar Card' },
+  { value: 'PAN', label: 'PAN Card' },
+  { value: 'Driving Licence', label: 'Driving Licence' },
+  { value: 'Passport', label: 'Passport' },
+  { value: 'Others', label: 'Others' },
 ];
 
 interface CustomerFormProps {
@@ -36,14 +36,14 @@ interface CustomerFormProps {
 
 function emptyFormData() {
   return {
-    name: "",
-    phone: "",
-    alt_phone: "",
-    email: "",
-    address: "",
-    gstin: "",
-    id_type: "" as string,
-    id_number: "",
+    name: '',
+    phone: '',
+    alt_phone: '',
+    email: '',
+    address: '',
+    gstin: '',
+    id_type: '' as string,
+    id_number: '',
   };
 }
 
@@ -55,28 +55,28 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
   const queryClient = useQueryClient();
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   // Photo URL
-  const [photoUrl, setPhotoUrl] = useState<string>(customer?.photo_url || "");
+  const [photoUrl, setPhotoUrl] = useState<string>(customer?.photo_url || '');
 
   // ID Document URLs — front and back
-  const existingFront = customer?.id_documents?.find((d) => d.type === "front")?.url || "";
-  const existingBack = customer?.id_documents?.find((d) => d.type === "back")?.url || "";
+  const existingFront = customer?.id_documents?.find((d) => d.type === 'front')?.url || '';
+  const existingBack = customer?.id_documents?.find((d) => d.type === 'back')?.url || '';
   const [idFrontUrl, setIdFrontUrl] = useState<string>(existingFront);
   const [idBackUrl, setIdBackUrl] = useState<string>(existingBack);
 
   const [formData, setFormData] = useState(() =>
     customer
       ? {
-          name: customer.name ?? "",
-          phone: customer.phone ?? "",
-          alt_phone: customer.alt_phone ?? "",
-          email: customer.email ?? "",
-          address: typeof customer.address === "string" ? customer.address : "",
-          gstin: customer.gstin ?? "",
-          id_type: customer.id_type ?? "",
-          id_number: customer.id_number ?? "",
+          name: customer.name ?? '',
+          phone: customer.phone ?? '',
+          alt_phone: customer.alt_phone ?? '',
+          email: customer.email ?? '',
+          address: typeof customer.address === 'string' ? customer.address : '',
+          gstin: customer.gstin ?? '',
+          id_type: customer.id_type ?? '',
+          id_number: customer.id_number ?? '',
         }
       : emptyFormData()
   );
@@ -88,22 +88,22 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
   // ── Save ──────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      setError("Customer name is required");
+      setError('Customer name is required');
       return;
     }
     if (!formData.phone.trim()) {
-      setError("Phone number is required");
+      setError('Phone number is required');
       return;
     }
 
     setLoading(true);
-    setError("");
+    setError('');
 
     try {
       // Build id_documents array
-      const id_documents: { url: string; type: "front" | "back" }[] = [];
-      if (idFrontUrl) id_documents.push({ url: idFrontUrl, type: "front" });
-      if (idBackUrl) id_documents.push({ url: idBackUrl, type: "back" });
+      const id_documents: { url: string; type: 'front' | 'back' }[] = [];
+      if (idFrontUrl) id_documents.push({ url: idFrontUrl, type: 'front' });
+      if (idBackUrl) id_documents.push({ url: idBackUrl, type: 'back' });
 
       const payload = {
         name: formData.name.trim(),
@@ -118,30 +118,30 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
         id_documents,
       };
 
-      const url = isEdit ? `/api/customers/${customer.id}` : "/api/customers";
-      const method = isEdit ? "PATCH" : "POST";
+      const url = isEdit ? `/api/customers/${customer.id}` : '/api/customers';
+      const method = isEdit ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       const json = await res.json();
 
       if (!res.ok) {
-        setError(json.error || "Failed to save customer");
+        setError(json.error || 'Failed to save customer');
         setLoading(false);
         return;
       }
 
       // Wipe cache so list page shows fresh data
-      queryClient.removeQueries({ queryKey: ["customers"] });
+      queryClient.removeQueries({ queryKey: ['customers'] });
 
-      showSuccess(isEdit ? "Customer updated" : "Customer created");
-      router.push("/dashboard/customers");
+      showSuccess(isEdit ? 'Customer updated' : 'Customer created');
+      router.push('/dashboard/customers');
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error");
+      setError(err instanceof Error ? err.message : 'Unexpected error');
       setLoading(false);
     }
   };
@@ -153,19 +153,17 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push("/dashboard/customers")}
+          onClick={() => router.push('/dashboard/customers')}
           className="shrink-0"
         >
           <ArrowLeft className="w-5 h-5" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {isEdit ? "Edit Customer" : "Add Customer"}
+            {isEdit ? 'Edit Customer' : 'Add Customer'}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {isEdit
-              ? `Updating ${customer.name}`
-              : "Fill in the customer details below"}
+            {isEdit ? `Updating ${customer.name}` : 'Fill in the customer details below'}
           </p>
         </div>
       </div>
@@ -197,7 +195,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                 </label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => handleFieldChange("name", e.target.value)}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
                   placeholder="Enter customer full name"
                   className="border-slate-200 focus:border-slate-900"
                 />
@@ -211,7 +209,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                   </label>
                   <Input
                     value={formData.phone}
-                    onChange={(e) => handleFieldChange("phone", e.target.value)}
+                    onChange={(e) => handleFieldChange('phone', e.target.value)}
                     placeholder="e.g. +91 9876543210"
                     className="border-slate-200 focus:border-slate-900"
                   />
@@ -222,7 +220,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                   </label>
                   <Input
                     value={formData.alt_phone}
-                    onChange={(e) => handleFieldChange("alt_phone", e.target.value)}
+                    onChange={(e) => handleFieldChange('alt_phone', e.target.value)}
                     placeholder="e.g. +91 9876543210"
                     className="border-slate-200 focus:border-slate-900"
                   />
@@ -238,7 +236,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                   <Input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => handleFieldChange("email", e.target.value)}
+                    onChange={(e) => handleFieldChange('email', e.target.value)}
                     placeholder="customer@email.com"
                     className="border-slate-200 focus:border-slate-900"
                   />
@@ -252,7 +250,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                 </label>
                 <textarea
                   value={formData.address}
-                  onChange={(e) => handleFieldChange("address", e.target.value)}
+                  onChange={(e) => handleFieldChange('address', e.target.value)}
                   placeholder="Full postal address"
                   rows={3}
                   className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900 resize-none"
@@ -266,9 +264,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                 </label>
                 <Input
                   value={formData.gstin}
-                  onChange={(e) =>
-                    handleFieldChange("gstin", e.target.value.toUpperCase())
-                  }
+                  onChange={(e) => handleFieldChange('gstin', e.target.value.toUpperCase())}
                   placeholder="e.g. 22AAAAA0000A1Z5"
                   className="border-slate-200 focus:border-slate-900 uppercase"
                 />
@@ -288,12 +284,10 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
               {/* ID Type + ID Number */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    ID Type
-                  </label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">ID Type</label>
                   <select
                     value={formData.id_type}
-                    onChange={(e) => handleFieldChange("id_type", e.target.value)}
+                    onChange={(e) => handleFieldChange('id_type', e.target.value)}
                     className="w-full h-10 rounded-md border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
                   >
                     <option value="">Select ID type</option>
@@ -310,7 +304,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                   </label>
                   <Input
                     value={formData.id_number}
-                    onChange={(e) => handleFieldChange("id_number", e.target.value)}
+                    onChange={(e) => handleFieldChange('id_number', e.target.value)}
                     placeholder="Enter ID number"
                     className="border-slate-200 focus:border-slate-900"
                   />
@@ -329,7 +323,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                     maxSize={20 * 1024 * 1024}
                     folder="customers/id-documents"
                     value={idFrontUrl ? [idFrontUrl] : []}
-                    onChange={(urls) => setIdFrontUrl(urls[0] || "")}
+                    onChange={(urls) => setIdFrontUrl(urls[0] || '')}
                     helperText="Upload front side of ID"
                   />
                 </div>
@@ -343,7 +337,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                     maxSize={20 * 1024 * 1024}
                     folder="customers/id-documents"
                     value={idBackUrl ? [idBackUrl] : []}
-                    onChange={(urls) => setIdBackUrl(urls[0] || "")}
+                    onChange={(urls) => setIdBackUrl(urls[0] || '')}
                     helperText="Upload back side of ID"
                   />
                 </div>
@@ -368,7 +362,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
                 maxSize={20 * 1024 * 1024}
                 folder="customers/photos"
                 value={photoUrl ? [photoUrl] : []}
-                onChange={(urls) => setPhotoUrl(urls[0] || "")}
+                onChange={(urls) => setPhotoUrl(urls[0] || '')}
                 helperText="Optional customer photo"
               />
             </div>
@@ -380,7 +374,7 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
       <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 -mx-6 md:-mx-8 px-6 md:px-8 py-4 mt-8 flex items-center justify-between z-10">
         <Button
           variant="outline"
-          onClick={() => router.push("/dashboard/customers")}
+          onClick={() => router.push('/dashboard/customers')}
           className="border-slate-200"
         >
           Cancel
@@ -396,9 +390,9 @@ export default function CustomerForm({ customer }: CustomerFormProps) {
               Saving...
             </>
           ) : isEdit ? (
-            "Update Customer"
+            'Update Customer'
           ) : (
-            "Create Customer"
+            'Create Customer'
           )}
         </Button>
       </div>

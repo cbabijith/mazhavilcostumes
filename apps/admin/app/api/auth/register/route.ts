@@ -29,10 +29,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
     }
 
     // Auto-confirm the user using admin client
@@ -44,15 +41,13 @@ export async function POST(request: NextRequest) {
 
     // Create staff record if role is staff/manager
     if (role !== 'admin' && data.user) {
-      const { error: staffError } = await supabase
-        .from('staff')
-        .insert({
-          user_id: data.user.id,
-          email,
-          role,
-          is_active: true,
-          store_id: storeId || null,
-        });
+      const { error: staffError } = await supabase.from('staff').insert({
+        user_id: data.user.id,
+        email,
+        role,
+        is_active: true,
+        store_id: storeId || null,
+      });
 
       if (staffError) {
         console.error('Staff creation error:', staffError);
@@ -69,9 +64,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Registration failed' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Registration failed' }, { status: 500 });
   }
 }

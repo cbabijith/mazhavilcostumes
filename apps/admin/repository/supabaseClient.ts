@@ -56,7 +56,7 @@ export abstract class BaseRepository {
   // Current user context for audit fields
   protected currentUserId: string | null = null;
   protected currentBranchId: string | null = null;
-  
+
   // Configuration flag for multi-branch audit fields tracking
   protected useMultiBranchAuditFields: boolean = true;
 
@@ -81,7 +81,7 @@ export abstract class BaseRepository {
   /**
    * Get audit fields for create operations
    */
-  protected getCreateAuditFields() {
+  protected getCreateAuditFields(): Record<string, any> {
     if (!this.useMultiBranchAuditFields) {
       return {
         created_by: this.currentUserId,
@@ -99,7 +99,7 @@ export abstract class BaseRepository {
   /**
    * Get audit fields for update operations
    */
-  protected getUpdateAuditFields() {
+  protected getUpdateAuditFields(): Record<string, any> {
     if (!this.useMultiBranchAuditFields) {
       return {};
     }
@@ -199,16 +199,8 @@ export abstract class BaseRepository {
   /**
    * Check if a record exists
    */
-  protected async exists(
-    table: string,
-    column: string,
-    value: any
-  ): Promise<boolean> {
-    const { data, error } = await this.client
-      .from(table)
-      .select('id')
-      .eq(column, value)
-      .single();
+  protected async exists(table: string, column: string, value: any): Promise<boolean> {
+    const { data, error } = await this.client.from(table).select('id').eq(column, value).single();
 
     return !error && !!data;
   }
@@ -216,10 +208,7 @@ export abstract class BaseRepository {
   /**
    * Get count of records
    */
-  protected async getCount(
-    table: string,
-    filters: Record<string, any> = {}
-  ): Promise<number> {
+  protected async getCount(table: string, filters: Record<string, any> = {}): Promise<number> {
     let query = this.client.from(table);
 
     Object.entries(filters).forEach(([key, value]) => {
@@ -255,7 +244,10 @@ export abstract class BaseRepository {
 
     // Select columns
     if (options.select) {
-      query = (query as any).select(options.select, options.count ? { count: options.count } : undefined);
+      query = (query as any).select(
+        options.select,
+        options.count ? { count: options.count } : undefined
+      );
     }
 
     // Apply filters
@@ -273,7 +265,9 @@ export abstract class BaseRepository {
 
     // Apply ordering
     if (options.orderBy) {
-      query = (query as any).order(options.orderBy.column, { ascending: options.orderBy.ascending });
+      query = (query as any).order(options.orderBy.column, {
+        ascending: options.orderBy.ascending,
+      });
     }
 
     // Apply pagination
@@ -304,7 +298,7 @@ export abstract class BaseRepository {
   ): Promise<RepositoryResult<T[]>> {
     console.warn(
       '[BaseRepository.transaction] ⚠️  This method is non-atomic. ' +
-      'Use rpc() with a PostgreSQL function for true transactional safety.'
+        'Use rpc() with a PostgreSQL function for true transactional safety.'
     );
 
     const results: T[] = [];
@@ -362,7 +356,7 @@ export abstract class BaseRepository {
    */
   protected async rpc<T>(
     functionName: string,
-    params: Record<string, unknown> = {},
+    params: Record<string, unknown> = {}
   ): Promise<RepositoryResult<T>> {
     try {
       const { data, error } = await this.client.rpc(functionName, params);
@@ -400,7 +394,9 @@ export const createRepositoryResult = <T>(
   success: !error,
 });
 
-export const isRepositorySuccess = <T>(result: RepositoryResult<T>): result is RepositoryResult<T> & { data: T } => {
+export const isRepositorySuccess = <T>(
+  result: RepositoryResult<T>
+): result is RepositoryResult<T> & { data: T } => {
   return result.success && result.data !== null;
 };
 

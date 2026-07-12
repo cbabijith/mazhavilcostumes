@@ -58,7 +58,9 @@ export function useCustomers(params?: CustomerSearchParams) {
       if (params?.limit) qs.set('limit', String(params.limit));
       if (params?.sort_by) qs.set('sort_by', params.sort_by);
       if (params?.sort_order) qs.set('sort_order', params.sort_order);
-      const response = await apiFetch<ApiSuccessResponse<CustomerSearchResult>>(`/api/customers?${qs.toString()}`);
+      const response = await apiFetch<ApiSuccessResponse<CustomerSearchResult>>(
+        `/api/customers?${qs.toString()}`
+      );
       return response.data;
     },
     placeholderData: keepPreviousData, // Prevents blank screen on pagination/search
@@ -91,7 +93,9 @@ export function useCustomerByPhone(phone: string, enabled: boolean = true) {
   return useQuery<Customer | null>({
     queryKey: ['customers', 'phone', phone],
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<CustomerSearchResult>>(`/api/customers?query=${encodeURIComponent(phone)}&limit=1`);
+      const response = await apiFetch<ApiSuccessResponse<CustomerSearchResult>>(
+        `/api/customers?query=${encodeURIComponent(phone)}&limit=1`
+      );
       const match = response.data?.customers?.find((c: Customer) => c.phone === phone);
       return match || null;
     },

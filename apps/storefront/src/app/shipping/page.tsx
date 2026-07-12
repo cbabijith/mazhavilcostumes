@@ -1,15 +1,15 @@
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { Truck, Package, MapPin, Clock } from "lucide-react";
-import { WHATSAPP_NUMBER, buildWhatsAppUrl } from "@/lib/whatsapp";
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { Button } from '@/components/ui/button';
+import { Truck, Package, MapPin, Clock } from 'lucide-react';
+import { WHATSAPP_NUMBER, buildWhatsAppUrl } from '@/lib/whatsapp';
 
 export default async function ShippingPage() {
   const store = await getParisBridalsStore();
   if (!store) return null;
 
-  const whatsappMessage = "Hi, I have a question about delivery to my location.";
+  const whatsappMessage = 'Hi, I have a question about delivery to my location.';
   const whatsappUrl = buildWhatsAppUrl(whatsappMessage);
 
   return (
@@ -20,7 +20,9 @@ export default async function ShippingPage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <div className="section-eyebrow justify-center">Logistics</div>
-            <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">Shipping & Delivery</h1>
+            <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">
+              Shipping & Delivery
+            </h1>
             <p className="text-body font-light max-w-2xl mx-auto">
               We ensure your precious pieces arrive safely and on time for your special occasion.
             </p>
@@ -35,8 +37,9 @@ export default async function ShippingPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Delivery Zones</h2>
                   <p className="text-body text-sm leading-relaxed">
-                    We deliver across Kerala with doorstep service. Major cities include Kochi, Thrissur, 
-                    Kozhikode, Trivandrum, and surrounding areas. For other locations, please contact us.
+                    We deliver across Kerala with doorstep service. Major cities include Kochi,
+                    Thrissur, Kozhikode, Trivandrum, and surrounding areas. For other locations,
+                    please contact us.
                   </p>
                 </div>
               </div>
@@ -50,8 +53,8 @@ export default async function ShippingPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Delivery Timeline</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    We deliver 1-2 days before your event date to ensure you have time for trials and 
-                    any adjustments. Pickup is arranged 1-2 days after the event.
+                    We deliver 1-2 days before your event date to ensure you have time for trials
+                    and any adjustments. Pickup is arranged 1-2 days after the event.
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
@@ -82,13 +85,15 @@ export default async function ShippingPage() {
                     <div className="border-b border-[var(--border-silk)] pb-4">
                       <h3 className="font-medium text-heading mb-1">Doorstep Delivery</h3>
                       <p className="text-body text-sm">
-                        We deliver directly to your home or venue. Charges vary by distance (₹200-₹500).
+                        We deliver directly to your home or venue. Charges vary by distance
+                        (₹200-₹500).
                       </p>
                     </div>
                     <div>
                       <h3 className="font-medium text-heading mb-1">Store Pickup</h3>
                       <p className="text-body text-sm">
-                        Free pickup from our store. Visit us to try on pieces and collect your order.
+                        Free pickup from our store. Visit us to try on pieces and collect your
+                        order.
                       </p>
                     </div>
                   </div>
@@ -104,7 +109,7 @@ export default async function ShippingPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Packaging & Handling</h2>
                   <p className="text-body text-sm leading-relaxed">
-                    All pieces are professionally packaged in secure costumes boxes with protective 
+                    All pieces are professionally packaged in secure costumes boxes with protective
                     padding. Each item is individually wrapped to prevent damage during transit.
                   </p>
                 </div>
@@ -115,7 +120,8 @@ export default async function ShippingPage() {
           <div className="bg-rosegold/5 rounded-3xl p-8 text-center">
             <h2 className="font-serif text-heading text-xl mb-3">Questions About Delivery?</h2>
             <p className="text-body text-sm mb-6 max-w-md mx-auto">
-              Not sure if we deliver to your location? Need express delivery? Contact us on WhatsApp.
+              Not sure if we deliver to your location? Need express delivery? Contact us on
+              WhatsApp.
             </p>
             <a
               href={whatsappUrl}

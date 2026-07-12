@@ -46,7 +46,10 @@ export const CreateProductVariantSchema = ProductVariantSchema.omit({ id: true }
 // Client input validation ≠ Database integrity validation.
 export const ClientCreateProductSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  slug: z.string().min(1, 'Slug is required').max(100, 'Slug must be less than 100 characters')
+  slug: z
+    .string()
+    .min(1, 'Slug is required')
+    .max(100, 'Slug must be less than 100 characters')
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens'),
   sku: z.string().max(50, 'SKU must be less than 50 characters').optional(),
   barcode: z.string().max(50, 'Barcode must be less than 50 characters').optional(),
@@ -55,9 +58,18 @@ export const ClientCreateProductSchema = z.object({
   subvariant_id: z.string().optional().nullable(),
   description: z.string().max(1000, 'Description must be less than 1000 characters').optional(),
   price_per_day: positiveNumber.max(999999, 'Price must be less than 999,999'),
-  purchase_price: z.number().min(0, 'Purchase price must be non-negative').max(9999999, 'Purchase price must be less than 99,99,999').optional().default(0),
+  purchase_price: z
+    .number()
+    .min(0, 'Purchase price must be non-negative')
+    .max(9999999, 'Purchase price must be less than 99,99,999')
+    .optional()
+    .default(0),
   quantity: z.number().int().min(0).optional().default(0),
-  available_quantity: z.number().int().min(0, 'Available quantity must be a non-negative integer').optional(),
+  available_quantity: z
+    .number()
+    .int()
+    .min(0, 'Available quantity must be a non-negative integer')
+    .optional(),
   images: z.array(CreateProductImageSchema).optional(),
   sizes: z.array(CreateProductVariantSchema).optional(),
   colors: z.array(CreateProductVariantSchema).optional(),
@@ -65,11 +77,15 @@ export const ClientCreateProductSchema = z.object({
   is_featured: z.boolean().default(false),
   track_inventory: z.boolean().default(true),
   low_stock_threshold: z.number().int().min(0).default(5),
-  branch_inventory: z.array(z.object({
-    branch_id: z.string(),
-    quantity: z.number().int().min(0),
-    id: z.string().optional(),
-  })).optional(),
+  branch_inventory: z
+    .array(
+      z.object({
+        branch_id: z.string(),
+        quantity: z.number().int().min(0),
+        id: z.string().optional(),
+      })
+    )
+    .optional(),
   branch_id: z.string().optional().nullable(),
 });
 
@@ -82,69 +98,98 @@ export const CreateProductSchema = ClientCreateProductSchema.extend({
 });
 
 // Product Update Schema
-export const UpdateProductSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters').optional(),
-  slug: z.string().min(1, 'Slug is required').max(100, 'Slug must be less than 100 characters')
-    .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens')
-    .optional(),
-  sku: z.string().max(50, 'SKU must be less than 50 characters').optional(),
-  barcode: z.string().max(50, 'Barcode must be less than 50 characters').optional(),
-  category_id: z.string().optional().nullable(),
-  subcategory_id: z.string().optional().nullable(),
-  subvariant_id: z.string().optional().nullable(),
-  description: z.string().max(1000, 'Description must be less than 1000 characters').optional(),
-  price_per_day: positiveNumber.max(999999, 'Price must be less than 999,999').optional(),
-  purchase_price: z.number().min(0, 'Purchase price must be non-negative').max(9999999, 'Purchase price must be less than 99,99,999').optional(),
-  quantity: z.number().int().min(0, 'Quantity must be a non-negative integer').optional(),
-  available_quantity: z.number().int().min(0, 'Available quantity must be a non-negative integer').optional(),
-  images: z.array(CreateProductImageSchema).optional(),
-  sizes: z.array(CreateProductVariantSchema).optional(),
-  colors: z.array(CreateProductVariantSchema).optional(),
-  is_active: z.boolean().optional(),
-  is_featured: z.boolean().optional(),
-  track_inventory: z.boolean().optional(),
-  low_stock_threshold: z.number().int().min(0).optional(),
-  branch_inventory: z.array(z.object({
-    branch_id: z.string(),
-    quantity: z.number().int().min(0),
-    id: z.string().optional(),
-  })).optional(),
-  branch_id: z.string().optional().nullable(),
-  removed_inventory_ids: z.array(z.string()).optional(),
-}).refine((data) => {
-  if (data.quantity !== undefined && data.available_quantity !== undefined) {
-    return data.available_quantity <= data.quantity;
-  }
-  return true;
-}, {
-  message: 'Available quantity cannot be greater than total quantity',
-  path: ['available_quantity'],
-});
+export const UpdateProductSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, 'Name is required')
+      .max(100, 'Name must be less than 100 characters')
+      .optional(),
+    slug: z
+      .string()
+      .min(1, 'Slug is required')
+      .max(100, 'Slug must be less than 100 characters')
+      .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens')
+      .optional(),
+    sku: z.string().max(50, 'SKU must be less than 50 characters').optional(),
+    barcode: z.string().max(50, 'Barcode must be less than 50 characters').optional(),
+    category_id: z.string().optional().nullable(),
+    subcategory_id: z.string().optional().nullable(),
+    subvariant_id: z.string().optional().nullable(),
+    description: z.string().max(1000, 'Description must be less than 1000 characters').optional(),
+    price_per_day: positiveNumber.max(999999, 'Price must be less than 999,999').optional(),
+    purchase_price: z
+      .number()
+      .min(0, 'Purchase price must be non-negative')
+      .max(9999999, 'Purchase price must be less than 99,99,999')
+      .optional(),
+    quantity: z.number().int().min(0, 'Quantity must be a non-negative integer').optional(),
+    available_quantity: z
+      .number()
+      .int()
+      .min(0, 'Available quantity must be a non-negative integer')
+      .optional(),
+    images: z.array(CreateProductImageSchema).optional(),
+    sizes: z.array(CreateProductVariantSchema).optional(),
+    colors: z.array(CreateProductVariantSchema).optional(),
+    is_active: z.boolean().optional(),
+    is_featured: z.boolean().optional(),
+    track_inventory: z.boolean().optional(),
+    low_stock_threshold: z.number().int().min(0).optional(),
+    branch_inventory: z
+      .array(
+        z.object({
+          branch_id: z.string(),
+          quantity: z.number().int().min(0),
+          id: z.string().optional(),
+        })
+      )
+      .optional(),
+    branch_id: z.string().optional().nullable(),
+    removed_inventory_ids: z.array(z.string()).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.quantity !== undefined && data.available_quantity !== undefined) {
+        return data.available_quantity <= data.quantity;
+      }
+      return true;
+    },
+    {
+      message: 'Available quantity cannot be greater than total quantity',
+      path: ['available_quantity'],
+    }
+  );
 
 // Product Search Schema
-export const ProductSearchSchema = z.object({
-  query: z.string().optional(),
-  category_id: z.string().optional(),
-  store_id: z.string().optional(),
-  branch_id: z.string().optional(),
-  status: z.nativeEnum(ProductStatus).optional(),
-  is_featured: z.boolean().optional(),
-  min_price: positiveNumber.optional(),
-  max_price: positiveNumber.optional(),
-  in_stock: z.boolean().optional(),
-  sort_by: z.enum(['name', 'price', 'created_at', 'stock']).optional(),
-  sort_order: z.enum(['asc', 'desc']).optional(),
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(100).default(20),
-}).refine((data) => {
-  if (data.min_price !== undefined && data.max_price !== undefined) {
-    return data.min_price <= data.max_price;
-  }
-  return true;
-}, {
-  message: 'Minimum price cannot be greater than maximum price',
-  path: ['min_price'],
-});
+export const ProductSearchSchema = z
+  .object({
+    query: z.string().optional(),
+    category_id: z.string().optional(),
+    store_id: z.string().optional(),
+    branch_id: z.string().optional(),
+    status: z.nativeEnum(ProductStatus).optional(),
+    is_featured: z.boolean().optional(),
+    min_price: positiveNumber.optional(),
+    max_price: positiveNumber.optional(),
+    in_stock: z.boolean().optional(),
+    sort_by: z.enum(['name', 'price', 'created_at', 'stock']).optional(),
+    sort_order: z.enum(['asc', 'desc']).optional(),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(20),
+  })
+  .refine(
+    (data) => {
+      if (data.min_price !== undefined && data.max_price !== undefined) {
+        return data.min_price <= data.max_price;
+      }
+      return true;
+    },
+    {
+      message: 'Minimum price cannot be greater than maximum price',
+      path: ['min_price'],
+    }
+  );
 
 // Bulk Operation Schema
 export const BulkProductOperationSchema = z.object({

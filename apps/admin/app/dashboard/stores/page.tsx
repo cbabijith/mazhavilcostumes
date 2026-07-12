@@ -1,25 +1,31 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import Link from "next/link";
-import { Plus, Trash2, Edit, MapPin, Phone, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useBranches, useDeleteBranch } from "@/hooks";
-import { type Branch } from "@/domain";
+import { useState, useCallback } from 'react';
+import Link from 'next/link';
+import { Plus, Trash2, Edit, MapPin, Phone, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useBranches, useDeleteBranch } from '@/hooks';
+import { type Branch } from '@/domain';
 
 export default function StoresPage() {
   const { branches, isLoading } = useBranches();
   const { mutate: deleteBranch, isPending: isDeleting } = useDeleteBranch();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleDelete = useCallback(async (branch: Branch) => {
-    if (!confirm(`Are you sure you want to delete "${branch.name}"? This action cannot be undone.`)) return;
-    setDeletingId(branch.id);
-    deleteBranch(branch.id, {
-      onSettled: () => setDeletingId(null),
-    } as any);
-  }, [deleteBranch]);
+  const handleDelete = useCallback(
+    async (branch: Branch) => {
+      if (
+        !confirm(`Are you sure you want to delete "${branch.name}"? This action cannot be undone.`)
+      )
+        return;
+      setDeletingId(branch.id);
+      deleteBranch(branch.id, {
+        onSettled: () => setDeletingId(null),
+      } as any);
+    },
+    [deleteBranch]
+  );
 
   if (isLoading) {
     return (
@@ -48,22 +54,35 @@ export default function StoresPage() {
       {branches.length === 0 ? (
         <Card className="border-0 shadow-lg">
           <CardContent className="p-12 text-center">
-            <p className="text-slate-500">No stores found. Click &quot;Add Store&quot; to create your first store.</p>
+            <p className="text-slate-500">
+              No stores found. Click &quot;Add Store&quot; to create your first store.
+            </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {branches.map((branch) => (
-            <Card key={branch.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-200">
+            <Card
+              key={branch.id}
+              className="border-0 shadow-lg hover:shadow-xl transition-shadow duration-200"
+            >
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-4">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center shadow-md">
                   <span className="text-xl font-bold text-white">
-                    {branch.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                    {branch.name
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .toUpperCase()
+                      .slice(0, 2)}
                   </span>
                 </div>
                 <div className="flex gap-1">
                   <Link href={`/dashboard/branches/${branch.id}`}>
-                    <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors" title="Edit store">
+                    <button
+                      className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                      title="Edit store"
+                    >
                       <Edit className="w-4 h-4 text-slate-400" />
                     </button>
                   </Link>
@@ -101,11 +120,11 @@ export default function StoresPage() {
                   )}
                 </div>
                 <div className="mt-3 flex items-center gap-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    branch.is_active 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      branch.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }`}
+                  >
                     {branch.is_active ? 'Active' : 'Inactive'}
                   </span>
                   {branch.is_main && (

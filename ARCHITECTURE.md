@@ -31,26 +31,27 @@ graph TD
 
     Storefront --> SAPI
     Admin --> SAPI
-    
+
     SAPI --> STypes
     SUI --> STypes
-    
+
     Storefront --> DB
     Admin --> DB
     Mobile --> Admin
-    
+
     Admin --> R2
     Storefront --> WhatsApp
 ```
 
 ### Module Structure
-* **`apps/admin`**: Next.js App Router admin application. Operates at port `3001`.
-* **`apps/storefront`**: Customer-facing rental interface. Operates at port `3002`.
-* **`apps/mobile`**: Staff mobile companion written in Flutter.
-* **`packages/shared-api`**: Shared Supabase queries, mutations, and API clients.
-* **`packages/shared-types`**: Shared TypeScript definitions.
-* **`packages/shared-ui`**: Shared Design System assets and UI primitives.
-* **`packages/shared-utils`**: Common utility functions.
+
+- **`apps/admin`**: Next.js App Router admin application. Operates at port `3001`.
+- **`apps/storefront`**: Customer-facing rental interface. Operates at port `3002`.
+- **`apps/mobile`**: Staff mobile companion written in Flutter.
+- **`packages/shared-api`**: Shared Supabase queries, mutations, and API clients.
+- **`packages/shared-types`**: Shared TypeScript definitions.
+- **`packages/shared-ui`**: Shared Design System assets and UI primitives.
+- **`packages/shared-utils`**: Common utility functions.
 
 ---
 
@@ -64,16 +65,18 @@ Domain ➔ Repository ➔ Service ➔ Hooks ➔ Components/Pages
 
 ### Layer Roles and Responsibilities
 
-| Layer | Location | Purpose | Constraints |
-|---|---|---|---|
-| **Domain** | `domain/` | Zod validation schemas, TypeScript interfaces, type-guards, and default values. | Pure functions and static definitions. **Must not** import from other layers. |
-| **Repository** | `repository/` | Direct database transactions (Supabase CRUD). Inherits from `BaseRepository`. | No business logic. Returns `RepositoryResult<T>` instead of throwing. |
-| **Service** | `services/` | Business validation, slug conflict resolution, parent-level checks, deleting dependency evaluations. | Orchestrates multiple repositories if needed. Returns formatted error codes. |
-| **Hooks** | `hooks/` | TanStack Query wrapper layers handling fetching, caching, and optimistic mutations. | Displays UI notices (Toasts) via the Zustand store. |
-| **Components** | `components/` | React pages and UI widgets. | **Must not** query Supabase or Repositories directly. Always uses Hooks. |
+| Layer          | Location      | Purpose                                                                                              | Constraints                                                                   |
+| -------------- | ------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **Domain**     | `domain/`     | Zod validation schemas, TypeScript interfaces, type-guards, and default values.                      | Pure functions and static definitions. **Must not** import from other layers. |
+| **Repository** | `repository/` | Direct database transactions (Supabase CRUD). Inherits from `BaseRepository`.                        | No business logic. Returns `RepositoryResult<T>` instead of throwing.         |
+| **Service**    | `services/`   | Business validation, slug conflict resolution, parent-level checks, deleting dependency evaluations. | Orchestrates multiple repositories if needed. Returns formatted error codes.  |
+| **Hooks**      | `hooks/`      | TanStack Query wrapper layers handling fetching, caching, and optimistic mutations.                  | Displays UI notices (Toasts) via the Zustand store.                           |
+| **Components** | `components/` | React pages and UI widgets.                                                                          | **Must not** query Supabase or Repositories directly. Always uses Hooks.      |
 
 ### Singleton Pattern
+
 All Repositories and Services export both their class structure and a singleton instance:
+
 ```typescript
 export class ProductService { ... }
 export const productService = new ProductService();
@@ -90,6 +93,7 @@ View (Widget) ➔ Provider (Riverpod) ➔ Repository (Dio) ➔ Next.js API
 ```
 
 ### Key Rules
+
 1. **Rivers of Riverpod**: All UI interactions trigger Riverpod state controllers. Providers handle asynchronous status states.
 2. **Repositories**: Repositories wrap the Dio network client, handle error states gracefully, and map JSON payloads.
 3. **No Direct Database Access**: The mobile client communicates strictly with Vercel endpoints; it does not connect to Supabase directly.
@@ -102,28 +106,30 @@ View (Widget) ➔ Provider (Riverpod) ➔ Repository (Dio) ➔ Next.js API
 The database is built on Supabase PostgreSQL.
 
 ### Row-Level Security (RLS)
-* Policies are applied to isolate reads and mutations.
-* Roles determine write abilities:
-  * `super_admin`, `admin`, `manager`: Can write and modify categories, products, inventory, orders, and settings.
-  * `staff`: Read-only access to products/categories, write access for logging customer orders and updating cleaning statuses.
+
+- Policies are applied to isolate reads and mutations.
+- Roles determine write abilities:
+  - `super_admin`, `admin`, `manager`: Can write and modify categories, products, inventory, orders, and settings.
+  - `staff`: Read-only access to products/categories, write access for logging customer orders and updating cleaning statuses.
 
 ### DB Operations & Custom Functions
-* **Late Flags**: Database triggers run automated updates calculating order deadlines:
+
+- **Late Flags**: Database triggers run automated updates calculating order deadlines:
   ```sql
   -- Sets is_late to True when end_date < current_date and status is delivered/ongoing
   ```
-* **Dashboard Operations**: Centralized RPC functions (e.g. `get_operational_dashboard_metrics`) calculate real-time inventory alerts, cleaning backlogs, and revenue statistics on the database server to prevent client-side network overload.
+- **Dashboard Operations**: Centralized RPC functions (e.g. `get_operational_dashboard_metrics`) calculate real-time inventory alerts, cleaning backlogs, and revenue statistics on the database server to prevent client-side network overload.
 
 ---
 
 ## 5. State Management Policies
 
-| App | Use Case | Solution |
-|---|---|---|
-| **Web Apps** | Server State | **TanStack Query** (with `queryKeys` factory and `queryUtils` cache invalidation). |
-| **Web Apps** | Client UI State | **Zustand** (sidebar states, theme toggles, notification stacks). |
-| **Web Apps** | Form States | **React Hook Form** with Zod schema validation resolvers. |
-| **Mobile Client** | State Management | **Riverpod** with Auto-generated notifier states. |
+| App               | Use Case         | Solution                                                                           |
+| ----------------- | ---------------- | ---------------------------------------------------------------------------------- |
+| **Web Apps**      | Server State     | **TanStack Query** (with `queryKeys` factory and `queryUtils` cache invalidation). |
+| **Web Apps**      | Client UI State  | **Zustand** (sidebar states, theme toggles, notification stacks).                  |
+| **Web Apps**      | Form States      | **React Hook Form** with Zod schema validation resolvers.                          |
+| **Mobile Client** | State Management | **Riverpod** with Auto-generated notifier states.                                  |
 
 ---
 
@@ -137,5 +143,6 @@ File Selection (Max 20MB)
   ➔ Parallel Upload via API (Multipart Upload to R2)
   ➔ Direct CDN serving (unoptimized: true in next.config)
 ```
+
 - **CDN Serving**: Images bypass Vercel proxies entirely.
 - **Optimistic Removal**: When a product is deleted, the database entries are deleted instantly and a background worker clears the corresponding image objects from Cloudflare R2 storage.

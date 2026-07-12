@@ -7,12 +7,12 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  CleaningRecord, 
-  CreateCleaningRecordDTO, 
+import {
+  CleaningRecord,
+  CreateCleaningRecordDTO,
   UpdateCleaningRecordDTO,
   CleaningSearchParams,
-  CleaningStatus
+  CleaningStatus,
 } from '@/domain';
 
 export class CleaningRepository extends BaseRepository {
@@ -35,9 +35,7 @@ export class CleaningRepository extends BaseRepository {
    */
   async findMany(params: CleaningSearchParams = {}): Promise<RepositoryResult<CleaningRecord[]>> {
     return this.executeOperation(async () => {
-      let query = this.client
-        .from(this.TABLE)
-        .select('*, product:products(name, images)')
+      let query = this.client.from(this.TABLE).select('*, product:products(name, images)');
       if (params.branch_id) query = query.eq('branch_id', params.branch_id);
       if (params.status) query = query.eq('status', params.status);
       if (params.priority) query = query.eq('priority', params.priority);
@@ -98,7 +96,10 @@ export class CleaningRepository extends BaseRepository {
   /**
    * Update a cleaning record
    */
-  async update(id: string, data: UpdateCleaningRecordDTO): Promise<RepositoryResult<CleaningRecord>> {
+  async update(
+    id: string,
+    data: UpdateCleaningRecordDTO
+  ): Promise<RepositoryResult<CleaningRecord>> {
     return this.executeOperation(async () => {
       return this.client
         .from(this.TABLE)
@@ -118,10 +119,7 @@ export class CleaningRepository extends BaseRepository {
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
     return this.executeOperation(async () => {
-      return this.client
-        .from(this.TABLE)
-        .delete()
-        .eq('id', id);
+      return this.client.from(this.TABLE).delete().eq('id', id);
     });
   }
 
@@ -134,7 +132,7 @@ export class CleaningRepository extends BaseRepository {
       .select('*', { count: 'exact', head: true })
       .eq('branch_id', branchId)
       .in('status', [CleaningStatus.SCHEDULED, CleaningStatus.PENDING, CleaningStatus.IN_PROGRESS]);
-    
+
     return count || 0;
   }
 
@@ -158,7 +156,10 @@ export class CleaningRepository extends BaseRepository {
    * Used by priority recalculation where we just need any record for the pair.
    * Note: After partial-return splits, multiple records may exist for the same pair.
    */
-  async findByOrderAndProduct(orderId: string, productId: string): Promise<RepositoryResult<CleaningRecord | null>> {
+  async findByOrderAndProduct(
+    orderId: string,
+    productId: string
+  ): Promise<RepositoryResult<CleaningRecord | null>> {
     return this.executeOperation(async () => {
       return this.client
         .from(this.TABLE)
@@ -176,7 +177,10 @@ export class CleaningRepository extends BaseRepository {
    * Used during return processing — specifically targets the scheduled record
    * so that partial returns can split it without touching in_progress records.
    */
-  async findScheduledByOrderAndProduct(orderId: string, productId: string): Promise<RepositoryResult<CleaningRecord | null>> {
+  async findScheduledByOrderAndProduct(
+    orderId: string,
+    productId: string
+  ): Promise<RepositoryResult<CleaningRecord | null>> {
     return this.executeOperation(async () => {
       return this.client
         .from(this.TABLE)
@@ -193,7 +197,10 @@ export class CleaningRepository extends BaseRepository {
    * Find an active (non-completed) cleaning record for an order + product pair.
    * Prefers in_progress over pending/scheduled.
    */
-  async findActiveByOrderAndProduct(orderId: string, productId: string): Promise<RepositoryResult<CleaningRecord | null>> {
+  async findActiveByOrderAndProduct(
+    orderId: string,
+    productId: string
+  ): Promise<RepositoryResult<CleaningRecord | null>> {
     return this.executeOperation(async () => {
       const response = await this.client
         .from(this.TABLE)
@@ -223,7 +230,6 @@ export class CleaningRepository extends BaseRepository {
     });
   }
 
-
   /**
    * Find all cleaning records whose buffer period has expired.
    * Buffer = 1 calendar day after started_at.
@@ -250,12 +256,11 @@ export class CleaningRepository extends BaseRepository {
    * Find all cleaning records that reference a specific order as priority_order_id.
    * Used to downgrade priority when the requesting order is cancelled.
    */
-  async findByPriorityOrderId(priorityOrderId: string): Promise<RepositoryResult<CleaningRecord[]>> {
+  async findByPriorityOrderId(
+    priorityOrderId: string
+  ): Promise<RepositoryResult<CleaningRecord[]>> {
     return this.executeOperation(async () => {
-      return this.client
-        .from(this.TABLE)
-        .select('*')
-        .eq('priority_order_id', priorityOrderId);
+      return this.client.from(this.TABLE).select('*').eq('priority_order_id', priorityOrderId);
     });
   }
 
@@ -265,13 +270,9 @@ export class CleaningRepository extends BaseRepository {
    */
   async findByOrderId(orderId: string): Promise<RepositoryResult<CleaningRecord[]>> {
     return this.executeOperation(async () => {
-      return this.client
-        .from(this.TABLE)
-        .select('*')
-        .eq('order_id', orderId);
+      return this.client.from(this.TABLE).select('*').eq('order_id', orderId);
     });
   }
 }
 
 export const cleaningRepository = new CleaningRepository();
-

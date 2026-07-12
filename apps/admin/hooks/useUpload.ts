@@ -55,7 +55,7 @@ export function useUploadMultipleFiles(options?: {
   const [progress, setProgress] = useState(0);
 
   const mutation = useMutation({
-    mutationFn: (files: File[]) => 
+    mutationFn: (files: File[]) =>
       uploadService.uploadMultipleFiles(files, {
         ...options,
         onProgress: (index, progressPercent) => {
@@ -64,9 +64,9 @@ export function useUploadMultipleFiles(options?: {
       }),
     onSuccess: (result) => {
       if (result.success) {
-        const successful = result.data!.filter(r => r.result).length;
-        const failed = result.data!.filter(r => r.error).length;
-        
+        const successful = result.data!.filter((r) => r.result).length;
+        const failed = result.data!.filter((r) => r.error).length;
+
         if (failed === 0) {
           showSuccess(`Successfully uploaded ${successful} files`);
         } else {
@@ -99,15 +99,15 @@ export function useUploadProductImages() {
   const [progress, setProgress] = useState(0);
 
   const mutation = useMutation({
-    mutationFn: (files: File[]) => 
+    mutationFn: (files: File[]) =>
       uploadService.uploadProductImages(files, (index, progressPercent) => {
         setProgress(progressPercent);
       }),
     onSuccess: (result) => {
       if (result.success) {
-        const successful = result.data!.filter(r => r.result).length;
-        const failed = result.data!.filter(r => r.error).length;
-        
+        const successful = result.data!.filter((r) => r.result).length;
+        const failed = result.data!.filter((r) => r.error).length;
+
         if (failed === 0) {
           showSuccess(`Successfully uploaded ${successful} product images`);
         } else {
@@ -211,12 +211,12 @@ export function useGenerateImageVariants() {
   const { showError, showSuccess } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: ({ 
-      originalUrl, 
-      type 
-    }: { 
-      originalUrl: string; 
-      type: 'product' | 'category' | 'banner' 
+    mutationFn: ({
+      originalUrl,
+      type,
+    }: {
+      originalUrl: string;
+      type: 'product' | 'category' | 'banner';
     }) => uploadService.generateImageVariants(originalUrl, type),
     onSuccess: (result) => {
       if (result.success) {
@@ -244,11 +244,11 @@ export function useOptimizeImage() {
   const { showError, showSuccess } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: ({ 
-      imageUrl, 
-      options 
-    }: { 
-      imageUrl: string; 
+    mutationFn: ({
+      imageUrl,
+      options,
+    }: {
+      imageUrl: string;
       options?: {
         quality?: number;
         format?: 'webp' | 'jpeg' | 'png';
@@ -281,33 +281,39 @@ export function useOptimizeImage() {
 export function useFileValidation() {
   const { showError } = useAppStore();
 
-  const validateFile = useCallback((
-    file: File, 
-    options?: {
-      maxSize?: number;
-      allowedTypes?: string[];
-    }
-  ) => {
-    const validation = uploadService.validateImageFile(file);
-    
-    if (!validation.success) {
-      showError('Invalid file', validation.error?.message);
-      return false;
-    }
+  const validateFile = useCallback(
+    (
+      file: File,
+      options?: {
+        maxSize?: number;
+        allowedTypes?: string[];
+      }
+    ) => {
+      const validation = uploadService.validateImageFile(file);
 
-    // Additional custom validations
-    if (options?.maxSize && file.size > options.maxSize) {
-      showError('File too large', `Maximum size is ${uploadService.getFormattedFileSize(options.maxSize)}`);
-      return false;
-    }
+      if (!validation.success) {
+        showError('Invalid file', validation.error?.message);
+        return false;
+      }
 
-    if (options?.allowedTypes && !options.allowedTypes.includes(file.type)) {
-      showError('Invalid file type', `Allowed types: ${options.allowedTypes.join(', ')}`);
-      return false;
-    }
+      // Additional custom validations
+      if (options?.maxSize && file.size > options.maxSize) {
+        showError(
+          'File too large',
+          `Maximum size is ${uploadService.getFormattedFileSize(options.maxSize)}`
+        );
+        return false;
+      }
 
-    return true;
-  }, [showError]);
+      if (options?.allowedTypes && !options.allowedTypes.includes(file.type)) {
+        showError('Invalid file type', `Allowed types: ${options.allowedTypes.join(', ')}`);
+        return false;
+      }
+
+      return true;
+    },
+    [showError]
+  );
 
   return { validateFile };
 }
@@ -321,27 +327,30 @@ export function useImageUploadWithPreview() {
   const { showError } = useAppStore();
   const { validateFile } = useFileValidation();
 
-  const addImages = useCallback((files: FileList) => {
-    const newPreviews: Array<{ file: File; preview: string }> = [];
-    
-    Array.from(files).forEach(file => {
-      if (!validateFile(file)) return;
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const preview = e.target?.result as string;
-        newPreviews.push({ file, preview });
-        
-        if (newPreviews.length === files.length) {
-          setPreviews(prev => [...prev, ...newPreviews]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-  }, [validateFile]);
+  const addImages = useCallback(
+    (files: FileList) => {
+      const newPreviews: Array<{ file: File; preview: string }> = [];
+
+      Array.from(files).forEach((file) => {
+        if (!validateFile(file)) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const preview = e.target?.result as string;
+          newPreviews.push({ file, preview });
+
+          if (newPreviews.length === files.length) {
+            setPreviews((prev) => [...prev, ...newPreviews]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    },
+    [validateFile]
+  );
 
   const removePreview = useCallback((index: number) => {
-    setPreviews(prev => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const clearPreviews = useCallback(() => {
@@ -354,13 +363,13 @@ export function useImageUploadWithPreview() {
       return;
     }
 
-    const files = previews.map(p => p.file);
+    const files = previews.map((p) => p.file);
     const result = await uploadImages(files);
-    
+
     if (result.success) {
       clearPreviews();
     }
-    
+
     return result;
   }, [previews, uploadImages, clearPreviews, showError]);
 
@@ -381,16 +390,19 @@ export function useImageUploadWithPreview() {
 export function useImageDimensions() {
   const { showError } = useAppStore();
 
-  const getDimensions = useCallback(async (file: File): Promise<{ width: number; height: number } | null> => {
-    const result = await uploadService.getImageDimensions(file);
-    
-    if (!result.success) {
-      showError('Failed to get image dimensions', result.error?.message);
-      return null;
-    }
-    
-    return result.data;
-  }, [showError]);
+  const getDimensions = useCallback(
+    async (file: File): Promise<{ width: number; height: number } | null> => {
+      const result = await uploadService.getImageDimensions(file);
+
+      if (!result.success) {
+        showError('Failed to get image dimensions', result.error?.message);
+        return null;
+      }
+
+      return result.data;
+    },
+    [showError]
+  );
 
   return { getDimensions };
 }

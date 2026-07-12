@@ -167,4 +167,3 @@ export const getCachedProducts = (
   );
   return cachedFn(storeId, optsKey);
 };
-

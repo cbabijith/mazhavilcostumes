@@ -9,16 +9,16 @@
  * @module components/admin/orders/OrderItemsPanel
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import { X, Package, Calendar, User, Loader2 } from "lucide-react";
-import { format } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/shared-utils";
-import { type OrderWithRelations, type OrderItem } from "@/domain";
-import type { ApiSuccessResponse } from "@/lib/apiResponse";
+import React from 'react';
+import { X, Package, Calendar, User, Loader2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { formatCurrency } from '@/lib/shared-utils';
+import { type OrderWithRelations, type OrderItem } from '@/domain';
+import type { ApiSuccessResponse } from '@/lib/apiResponse';
 
 interface OrderItemsPanelProps {
   order: OrderWithRelations | null;
@@ -33,7 +33,7 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
       if (!order) return [];
       const res = await fetch(`/api/orders/${order.id}/items`);
       if (!res.ok) throw new Error('Failed to fetch items');
-      const json = await res.json() as ApiSuccessResponse<OrderItem[]>;
+      const json = (await res.json()) as ApiSuccessResponse<OrderItem[]>;
       return json.data;
     },
     enabled: !!order,
@@ -48,10 +48,7 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 z-40 transition-opacity"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/20 z-40 transition-opacity" onClick={onClose} />
 
       {/* Panel */}
       <div className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200">
@@ -73,7 +70,8 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
             <div className="flex items-center gap-1 text-xs text-slate-400 mt-1">
               <Calendar className="w-3 h-3" />
               <span>
-                {format(new Date(order.start_date), "MMM d")} – {format(new Date(order.end_date), "MMM d, yyyy")}
+                {format(new Date(order.start_date), 'MMM d')} –{' '}
+                {format(new Date(order.end_date), 'MMM d, yyyy')}
               </span>
             </div>
           </div>
@@ -94,73 +92,89 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
               <Loader2 className="w-6 h-6 text-slate-300 animate-spin" />
             </div>
           ) : (
-          <div className="divide-y divide-slate-100">
-            {(items || order.items)?.map((item, index) => {
-              const product = (item as any).product;
-              const imgUrl = product?.images?.length > 0
-                ? (typeof product.images[0] === "string" ? product.images[0] : product.images[0]?.url)
-                : null;
-              return (
-                <div key={item.id} className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors">
-                  {/* Thumbnail */}
-                  <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0 border border-slate-200 overflow-hidden">
-                    {imgUrl ? (
-                      <img src={imgUrl} alt={product?.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300">
-                        <Package className="w-6 h-6" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold text-slate-900 truncate">
-                      {product?.name || `Product #${item.product_id?.slice(0, 6)}`}
-                    </h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-medium text-slate-500">
-                        Qty: {item.quantity}
-                      </span>
-                      <span className="text-xs text-slate-400">×</span>
-                      <span className="text-xs font-medium text-slate-500">
-                        {formatCurrency(item.price_per_day)}/day
-                      </span>
+            <div className="divide-y divide-slate-100">
+              {(items || order.items)?.map((item, index) => {
+                const product = (item as any).product;
+                const imgUrl =
+                  product?.images?.length > 0
+                    ? typeof product.images[0] === 'string'
+                      ? product.images[0]
+                      : product.images[0]?.url
+                    : null;
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-4 px-6 py-4 hover:bg-slate-50/50 transition-colors"
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0 border border-slate-200 overflow-hidden">
+                      {imgUrl ? (
+                        <img
+                          src={imgUrl}
+                          alt={product?.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-slate-300">
+                          <Package className="w-6 h-6" />
+                        </div>
+                      )}
                     </div>
-                    {item.discount > 0 && (
-                      <span className="inline-block mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                        -{item.discount_type === 'percent' ? `${item.discount}%` : formatCurrency(item.discount)} Off
+
+                    {/* Details */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-slate-900 truncate">
+                        {product?.name || `Product #${item.product_id?.slice(0, 6)}`}
+                      </h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs font-medium text-slate-500">
+                          Qty: {item.quantity}
+                        </span>
+                        <span className="text-xs text-slate-400">×</span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {formatCurrency(item.price_per_day)}/day
+                        </span>
+                      </div>
+                      {item.discount > 0 && (
+                        <span className="inline-block mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          -
+                          {item.discount_type === 'percent'
+                            ? `${item.discount}%`
+                            : formatCurrency(item.discount)}{' '}
+                          Off
+                        </span>
+                      )}
+
+                      {/* Damage info (for returned/flagged orders) */}
+                      {item.condition_rating === 'damaged' && (
+                        <div className="mt-1.5">
+                          <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
+                            Damaged
+                          </span>
+                          {item.damage_description && (
+                            <p className="text-[10px] text-orange-500 mt-0.5 italic">
+                              {item.damage_description}
+                            </p>
+                          )}
+                          {(item.damage_charges || 0) > 0 && (
+                            <p className="text-[10px] text-orange-600 font-bold mt-0.5">
+                              Fee: {formatCurrency(item.damage_charges || 0)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Return status badge */}
+                    {item.is_returned && (
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 flex-shrink-0">
+                        Returned
                       </span>
                     )}
-
-                    {/* Damage info (for returned/flagged orders) */}
-                    {item.condition_rating === 'damaged' && (
-                      <div className="mt-1.5">
-                        <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200">
-                          Damaged
-                        </span>
-                        {item.damage_description && (
-                          <p className="text-[10px] text-orange-500 mt-0.5 italic">{item.damage_description}</p>
-                        )}
-                        {(item.damage_charges || 0) > 0 && (
-                          <p className="text-[10px] text-orange-600 font-bold mt-0.5">
-                            Fee: {formatCurrency(item.damage_charges || 0)}
-                          </p>
-                        )}
-                      </div>
-                    )}
                   </div>
-
-                  {/* Return status badge */}
-                  {item.is_returned && (
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 flex-shrink-0">
-                      Returned
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -181,6 +195,6 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
 }
 
 const OrderItemsPanel = React.memo(OrderItemsPanelInner);
-OrderItemsPanel.displayName = "OrderItemsPanel";
+OrderItemsPanel.displayName = 'OrderItemsPanel';
 
 export default OrderItemsPanel;

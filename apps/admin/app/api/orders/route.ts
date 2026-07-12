@@ -18,11 +18,11 @@
  * @module app/api/orders/route
  */
 
-import { NextRequest } from "next/server";
-import { orderService } from "@/services/orderService";
-import { apiGuard } from "@/lib/apiGuard";
-import { CreateOrderSchema } from "@/domain";
-import { apiSuccess, apiRepositoryError, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { orderService } from '@/services/orderService';
+import { apiGuard } from '@/lib/apiGuard';
+import { CreateOrderSchema } from '@/domain';
+import { apiSuccess, apiRepositoryError, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/orders — fetch all orders */
 export async function GET(request: NextRequest) {
@@ -33,15 +33,30 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 25;
-    
+
     const statusParams = searchParams.getAll('status');
-    const status = statusParams.length > 0 ? (statusParams.length === 1 ? statusParams[0] : statusParams) : undefined;
+    const status =
+      statusParams.length > 0
+        ? statusParams.length === 1
+          ? statusParams[0]
+          : statusParams
+        : undefined;
 
     const paymentStatusParams = searchParams.getAll('payment_status');
-    const payment_status = paymentStatusParams.length > 0 ? (paymentStatusParams.length === 1 ? paymentStatusParams[0] : paymentStatusParams) : undefined;
+    const payment_status =
+      paymentStatusParams.length > 0
+        ? paymentStatusParams.length === 1
+          ? paymentStatusParams[0]
+          : paymentStatusParams
+        : undefined;
 
     const excludeStatusParams = searchParams.getAll('exclude_status');
-    const exclude_status = excludeStatusParams.length > 0 ? (excludeStatusParams.length === 1 ? excludeStatusParams[0] : excludeStatusParams) : undefined;
+    const exclude_status =
+      excludeStatusParams.length > 0
+        ? excludeStatusParams.length === 1
+          ? excludeStatusParams[0]
+          : excludeStatusParams
+        : undefined;
 
     const params = {
       customer_id: searchParams.get('customer_id') || undefined,
@@ -51,13 +66,13 @@ export async function GET(request: NextRequest) {
       payment_status: payment_status as any,
       product_id: searchParams.get('product_id') || undefined,
       query: searchParams.get('query') || undefined,
-      date_filter: searchParams.get('date_filter') as any || undefined,
-      date_field: searchParams.get('date_field') as any || undefined,
+      date_filter: (searchParams.get('date_filter') as any) || undefined,
+      date_field: (searchParams.get('date_field') as any) || undefined,
       date_from: searchParams.get('date_from') || undefined,
       date_to: searchParams.get('date_to') || undefined,
       has_damage_charges: searchParams.get('has_damage_charges') === 'true' || undefined,
       has_stock_conflict: searchParams.get('has_stock_conflict') === 'true' || undefined,
-      sort_by: searchParams.get('sort_by') as any || undefined,
+      sort_by: (searchParams.get('sort_by') as any) || undefined,
       sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || undefined,
       limit,
       offset: (page - 1) * limit,
@@ -103,7 +118,7 @@ export async function POST(request: NextRequest) {
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
 
     const body = await request.json();
-    
+
     // Validate request body
     const validatedData = CreateOrderSchema.safeParse(body);
     if (!validatedData.success) {
@@ -111,12 +126,16 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await orderService.createOrder(validatedData.data);
-    
+
     if (!result.success) {
       // Special handling: priority cleaning required but not confirmed
       if ((result.error as any)?.code === 'PRIORITY_CLEANING_REQUIRED') {
         return Response.json(
-          { error: result.error?.message, code: 'PRIORITY_CLEANING_REQUIRED', details: (result.error as any)?.details || [] },
+          {
+            error: result.error?.message,
+            code: 'PRIORITY_CLEANING_REQUIRED',
+            details: (result.error as any)?.details || [],
+          },
           { status: 409 }
         );
       }

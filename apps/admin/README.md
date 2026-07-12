@@ -6,18 +6,20 @@ A modern, responsive admin dashboard for managing the Mazhavil Dance Costumes e-
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - pnpm
 - Supabase project with required tables
 
 ### Environment Setup
 
 1. Copy the environment template:
+
    ```bash
    cp .env.example .env.local
    ```
 
 2. Fill in your Supabase and Cloudflare R2 credentials:
+
    ```env
    # Supabase
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -132,9 +134,10 @@ Main Category (parent_id = null)
 
 ### Product Management System
 
-The admin also features a highly optimized **Product Module** for managing high-value rental inventory across multiple branches. 
+The admin also features a highly optimized **Product Module** for managing high-value rental inventory across multiple branches.
 
 #### Key Features
+
 - **Instant Save & Background Sync**: Fire-and-forget inventory synchronization for sub-second form submissions.
 - **Client-Side Image Compression**: Compresses huge photos (up to 20MB) to WebP (<100KB) in the browser before parallel uploading to Cloudflare R2.
 - **Optimistic UI Updates**: Instant cache updates on deletion for a zero-latency feel.
@@ -147,6 +150,7 @@ The admin also features a highly optimized **Product Module** for managing high-
 The **Customer Module** is a high-performance, fully integrated system for managing client profiles, identity verification, and order history, built upon the strict 5-layer Next.js architecture.
 
 #### Key Features
+
 - **Comprehensive Profiles**: Track essential contact details, GSTIN, addresses, and high-resolution profile photos.
 - **Identity Verification (KYC)**: Dual-sided document uploads (Front/Back) for Aadhaar, PAN, Passport, Driving License, or other IDs.
 - **Client-Side Image Compression**: Instant compression of large ID/Profile photos to WebP format (<100KB) before uploading to Cloudflare R2, ensuring rapid form submissions and low storage costs.
@@ -155,6 +159,7 @@ The **Customer Module** is a high-performance, fully integrated system for manag
 - **Unified Form Component**: A single `CustomerForm` powers both Creation and Updating, utilizing Zod schemas for strict bi-directional validation.
 
 #### Architecture Flow (UI to Database)
+
 1. **Components**: Client-side views (`customers/page.tsx`, `CustomerForm`, `CustomerDetailView`) collect data and handle browser-based WebP compression.
 2. **Hooks**: `useCustomers.ts` (TanStack Query) manages cache invalidation and triggers optimistic updates.
 3. **API Routes**: `app/api/customers/route.ts` runs strict Zod validation (`CreateCustomerSchema`) to sanitize inputs before passing them to the server context.
@@ -162,6 +167,7 @@ The **Customer Module** is a high-performance, fully integrated system for manag
 5. **Repository**: `customerRepository.ts` executes raw Supabase queries using the robust `BaseRepository` error-handling wrapper.
 
 #### Detailed User Flows
+
 - **Viewing Customers**: Navigate to `/dashboard/customers`. The data table automatically fetches Page 1. Users can dynamically change rows-per-page or search by name/phone/email using the debounced search bar. Shimmer skeletons prevent layout shift during loading.
 - **Creating a Customer**: The user clicks "Add Customer" and fills out `/dashboard/customers/create`. Profile pictures and ID documents are uploaded via the `FileUpload` component (instantly compressed). Upon "Save", a POST request is sent, images hit R2, the DB saves the URLs, the local cache is invalidated, and the user is redirected to the list page where the new customer appears instantly.
 - **Viewing Details**: Clicking a customer name opens `/dashboard/customers/[id]`. This Server Component securely fetches the user profile, rendering a premium UI showing contact info, interactive previews for identity documents, and quick account statistics.
@@ -180,20 +186,21 @@ The **Customer Module** is a high-performance, fully integrated system for manag
 
 ### Category REST Endpoints
 
-| Method | Route | Description | Auth |
-|--------|-------|-------------|------|
-| `GET` | `/api/categories` | List all categories (ordered) | Public (RLS) |
-| `POST` | `/api/categories` | Create new category | Admin |
-| `GET` | `/api/categories/:id` | Fetch single category | Public (RLS) |
-| `PATCH` | `/api/categories/:id` | Update category (whitelisted fields) | Admin |
-| `DELETE` | `/api/categories/:id` | Delete with safety check (409 if blocked) | Admin |
-| `GET` | `/api/categories/:id/can-delete` | Pre-delete check (returns safety status) | Admin |
-| `GET` | `/api/categories/:id/children` | Get direct children + resolved level | Admin |
-| `POST` | `/api/upload` | Upload image to R2 (multipart/form-data) | Admin |
+| Method   | Route                            | Description                               | Auth         |
+| -------- | -------------------------------- | ----------------------------------------- | ------------ |
+| `GET`    | `/api/categories`                | List all categories (ordered)             | Public (RLS) |
+| `POST`   | `/api/categories`                | Create new category                       | Admin        |
+| `GET`    | `/api/categories/:id`            | Fetch single category                     | Public (RLS) |
+| `PATCH`  | `/api/categories/:id`            | Update category (whitelisted fields)      | Admin        |
+| `DELETE` | `/api/categories/:id`            | Delete with safety check (409 if blocked) | Admin        |
+| `GET`    | `/api/categories/:id/can-delete` | Pre-delete check (returns safety status)  | Admin        |
+| `GET`    | `/api/categories/:id/children`   | Get direct children + resolved level      | Admin        |
+| `POST`   | `/api/upload`                    | Upload image to R2 (multipart/form-data)  | Admin        |
 
 #### Request/Response Examples
 
 **Create Category**
+
 ```bash
 curl -X POST http://localhost:3001/api/categories \
   -H "Content-Type: application/json" \
@@ -209,12 +216,14 @@ curl -X POST http://localhost:3001/api/categories \
 ```
 
 **Get Children**
+
 ```bash
 curl http://localhost:3001/api/categories/[main-id]/children
 # Returns: { parent: Category, children: Category[], level: "main"|"sub"|"variant" }
 ```
 
 **Delete Safety Check**
+
 ```bash
 curl http://localhost:3001/api/categories/[id]/can-delete
 # Returns: { canDelete: boolean, productCount: number, childCount: number, reason?: string }
@@ -229,11 +238,13 @@ curl http://localhost:3001/api/categories/[id]/can-delete
 Two comprehensive PowerShell test scripts validate the entire category system:
 
 #### 1. Basic CRUD Tests (`scripts/test-categories-api.ps1`)
+
 - 12 test cases covering happy-path CRUD operations
 - Validates create → read → update → delete lifecycle
 - Tests delete safety checks and cascade behavior
 
 #### 2. Comprehensive Edge Cases (`scripts/test-categories-hierarchy.ps1`)
+
 - **30 test cases** covering:
   - Full 3-level hierarchy creation
   - Validation errors (missing fields, malformed JSON, duplicates)
@@ -262,12 +273,14 @@ powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1
 ## 🎨 UI Components
 
 ### Category Tree (`CategoryTree.tsx`)
+
 - Interactive collapsible tree with smooth animations
 - Expand/collapse state managed per category
 - Visual hierarchy with indentation and icons
 - Responsive design with hover states
 
 ### Category Form (`CategoryForm.tsx`)
+
 - Unified create/edit form with validation
 - Real-time slug generation from name
 - Parent category selection with hierarchy display
@@ -275,6 +288,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1
 - Error handling with inline banners
 
 ### Category Actions (`CategoryTreeActions.tsx`)
+
 - View (eye) → detail page
 - Edit → edit form
 - Delete → safety-checked modal with detailed reasons
@@ -305,16 +319,16 @@ All required environment variables are validated on startup:
 
 ```typescript
 // Supabase
-NEXT_PUBLIC_SUPABASE_URL          // Required
-NEXT_PUBLIC_SUPABASE_ANON_KEY     // Required  
-SUPABASE_SERVICE_ROLE_KEY         // Required for admin operations
+NEXT_PUBLIC_SUPABASE_URL; // Required
+NEXT_PUBLIC_SUPABASE_ANON_KEY; // Required
+SUPABASE_SERVICE_ROLE_KEY; // Required for admin operations
 
 // Cloudflare R2
-R2_ENDPOINT                       // Required for image uploads
-R2_ACCESS_KEY_ID                  // Required
-R2_SECRET_ACCESS_KEY              // Required
-R2_BUCKET_NAME                    // Required
-R2_PUBLIC_URL                     // Required
+R2_ENDPOINT; // Required for image uploads
+R2_ACCESS_KEY_ID; // Required
+R2_SECRET_ACCESS_KEY; // Required
+R2_BUCKET_NAME; // Required
+R2_PUBLIC_URL; // Required
 ```
 
 ---
@@ -352,6 +366,7 @@ pnpm build
 ### v1.2.0 - Category Management Overhaul
 
 #### New Features
+
 - **Category Detail Pages**: `/dashboard/categories/[id]` with breadcrumbs and child management
 - **Collapsible Tree View**: Interactive expand/collapse for better navigation
 - **Smart Child Creation**: Pre-filled parent selection via `?parent=` query parameter
@@ -359,12 +374,14 @@ pnpm build
 - **Enhanced Delete Safety**: Detailed reasons and counts in delete modals
 
 #### Improvements
+
 - **Security**: Removed all hardcoded secrets, strict environment validation
 - **UX**: Auto-redirect to parent detail page after child creation
 - **Testing**: Comprehensive 30-case test suite covering all edge cases
 - **Documentation**: Complete API documentation and development guidelines
 
 #### Technical Changes
+
 - **Client-Server Boundary**: Clear separation between client REST calls and server data access
 - **Field Whitelisting**: PATCH endpoints prevent mass assignment vulnerabilities
 - **Error Handling**: Consistent error responses with detailed messages

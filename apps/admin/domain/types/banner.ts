@@ -113,7 +113,10 @@ export const BANNER_TYPE_LIMITS = {
 } as const;
 
 // Validate banner position based on type
-export function validateBannerPosition(bannerType: BannerType, position: string | null): { valid: boolean; error?: string } {
+export function validateBannerPosition(
+  bannerType: BannerType,
+  position: string | null
+): { valid: boolean; error?: string } {
   if (bannerType === BannerType.HERO) {
     if (!position) {
       return { valid: false, error: 'Position is required for hero banners' };

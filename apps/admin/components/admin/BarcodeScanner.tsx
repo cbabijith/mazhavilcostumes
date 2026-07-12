@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Inline Barcode Scanner Component
@@ -10,8 +10,8 @@
  * @module components/admin/BarcodeScanner
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Loader2, ScanBarcode, CheckCircle2, Timer, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Camera, Loader2, ScanBarcode, CheckCircle2, Timer, X } from 'lucide-react';
 
 const SCAN_COOLDOWN_MS = 3000;
 
@@ -32,7 +32,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
   // Refs to avoid stale closures inside decode callback
   const lastScanTimeRef = useRef<number>(0);
   const onScanRef = useRef(onScan);
-  
+
   useEffect(() => {
     onScanRef.current = onScan;
   }, [onScan]);
@@ -43,7 +43,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
   useEffect(() => {
     if (cooldownRemaining <= 0) return;
     const timer = setInterval(() => {
-      setCooldownRemaining(prev => Math.max(0, prev - 100));
+      setCooldownRemaining((prev) => Math.max(0, prev - 100));
     }, 100);
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
@@ -51,11 +51,13 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
   // Stop scanner and release camera
   const stopScanner = useCallback(() => {
     if (controlsRef.current) {
-      try { controlsRef.current.stop(); } catch {}
+      try {
+        controlsRef.current.stop();
+      } catch {}
       controlsRef.current = null;
     }
     if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
       videoRef.current.srcObject = null;
     }
   }, []);
@@ -69,7 +71,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
       setError(null);
 
       try {
-        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const { BrowserMultiFormatReader } = await import('@zxing/browser');
         if (cancelled) return;
 
         const reader = new BrowserMultiFormatReader();
@@ -79,7 +81,7 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
         const constraints: MediaStreamConstraints = {
           audio: false,
           video: {
-            facingMode: "environment",
+            facingMode: 'environment',
             width: { ideal: 1920, min: 1280 },
             height: { ideal: 1080, min: 720 },
           },
@@ -96,14 +98,17 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
 
               lastScanTimeRef.current = now;
               setLastScannedCode(code);
-              setScanCount(prev => prev + 1);
+              setScanCount((prev) => prev + 1);
               setCooldownRemaining(SCAN_COOLDOWN_MS);
               onScanRef.current(code);
             }
           }
         );
 
-        if (cancelled) { controls.stop(); return; }
+        if (cancelled) {
+          controls.stop();
+          return;
+        }
         controlsRef.current = controls;
 
         // Apply autofocus + optimal focus distance for 15-20cm scanning
@@ -130,18 +135,23 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
       } catch (err: any) {
         if (cancelled) return;
         setIsStarting(false);
-        if (err.name === "NotAllowedError") {
-          setError("Camera permission denied. Please allow camera access in your browser settings (click the lock icon in the address bar), then try again.");
-        } else if (err.name === "NotFoundError") {
-          setError("No camera found on this device.");
+        if (err.name === 'NotAllowedError') {
+          setError(
+            'Camera permission denied. Please allow camera access in your browser settings (click the lock icon in the address bar), then try again.'
+          );
+        } else if (err.name === 'NotFoundError') {
+          setError('No camera found on this device.');
         } else {
-          setError(err.message || "Failed to start camera.");
+          setError(err.message || 'Failed to start camera.');
         }
       }
     };
 
     start();
-    return () => { cancelled = true; stopScanner(); };
+    return () => {
+      cancelled = true;
+      stopScanner();
+    };
   }, [stopScanner]);
 
   const cooldownPercent = isCoolingDown ? (cooldownRemaining / SCAN_COOLDOWN_MS) * 100 : 0;
@@ -160,7 +170,10 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
           )}
         </div>
         <button
-          onClick={() => { stopScanner(); onClose(); }}
+          onClick={() => {
+            stopScanner();
+            onClose();
+          }}
           className="p-1 rounded hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
         >
           <X className="w-4 h-4" />
@@ -175,7 +188,10 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
         {!isStarting && !error && !isCoolingDown && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-4/5 h-3/5 border-2 border-white/50 rounded-lg" />
-            <div className="absolute left-[10%] right-[10%] h-0.5 bg-red-400/60 animate-pulse" style={{ top: "50%" }} />
+            <div
+              className="absolute left-[10%] right-[10%] h-0.5 bg-red-400/60 animate-pulse"
+              style={{ top: '50%' }}
+            />
           </div>
         )}
 
@@ -206,7 +222,10 @@ export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps)
               <span>Next scan in {Math.ceil(cooldownRemaining / 1000)}s</span>
             </div>
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-900/50">
-              <div className="h-full bg-emerald-400 transition-all duration-100" style={{ width: `${100 - cooldownPercent}%` }} />
+              <div
+                className="h-full bg-emerald-400 transition-all duration-100"
+                style={{ width: `${100 - cooldownPercent}%` }}
+              />
             </div>
           </div>
         )}

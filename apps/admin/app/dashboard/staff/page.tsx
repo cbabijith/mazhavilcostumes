@@ -11,11 +11,11 @@
  * @module app/dashboard/staff/page
  */
 
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Edit,
@@ -28,34 +28,34 @@ import {
   UserCircle,
   UserCheck,
   UserX,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import Modal from "@/components/admin/Modal";
-import { useStaff, useSimpleBranches as useBranches, useToggleStaffStatus } from "@/hooks";
-import type { StaffWithBranch, StaffRole } from "@/domain/types/branch";
+} from '@/components/ui/select';
+import Modal from '@/components/admin/Modal';
+import { useStaff, useSimpleBranches as useBranches, useToggleStaffStatus } from '@/hooks';
+import type { StaffWithBranch, StaffRole } from '@/domain/types/branch';
 
 const roleColors: Record<StaffRole, string> = {
-  super_admin: "bg-purple-100 text-purple-700",
-  admin: "bg-red-100 text-red-700",
-  manager: "bg-amber-100 text-amber-700",
-  staff: "bg-blue-100 text-blue-700",
+  super_admin: 'bg-purple-100 text-purple-700',
+  admin: 'bg-red-100 text-red-700',
+  manager: 'bg-amber-100 text-amber-700',
+  staff: 'bg-blue-100 text-blue-700',
 };
 
 export default function StaffPage() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterBranch, setFilterBranch] = useState("all");
-  const [filterRole, setFilterRole] = useState("all");
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterBranch, setFilterBranch] = useState('all');
+  const [filterRole, setFilterRole] = useState('all');
   const [deleteTarget, setDeleteTarget] = useState<StaffWithBranch | null>(null);
 
   const { staff, isLoading } = useStaff();
@@ -69,9 +69,8 @@ export default function StaffPage() {
         !searchQuery ||
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.email.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchBranch =
-        filterBranch === "all" || s.branch_id === filterBranch;
-      const matchRole = filterRole === "all" || s.role === filterRole;
+      const matchBranch = filterBranch === 'all' || s.branch_id === filterBranch;
+      const matchRole = filterRole === 'all' || s.role === filterRole;
       return matchQuery && matchBranch && matchRole;
     });
   }, [staff, searchQuery, filterBranch, filterRole]);
@@ -82,12 +81,9 @@ export default function StaffPage() {
     const active = staff.filter((s: StaffWithBranch) => s.is_active).length;
     const inactive = total - active;
     const admins = staff.filter(
-      (s: StaffWithBranch) =>
-        s.role === "admin" || s.role === "super_admin"
+      (s: StaffWithBranch) => s.role === 'admin' || s.role === 'super_admin'
     ).length;
-    const managers = staff.filter(
-      (s: StaffWithBranch) => s.role === "manager"
-    ).length;
+    const managers = staff.filter((s: StaffWithBranch) => s.role === 'manager').length;
     return { total, active, inactive, admins, managers };
   }, [staff]);
 
@@ -110,9 +106,7 @@ export default function StaffPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Staff Management
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Staff Management</h1>
           <p className="text-sm text-slate-500 mt-1">
             Manage staff accounts and permissions ({stats.total} total)
           </p>
@@ -143,9 +137,7 @@ export default function StaffPage() {
         />
         <StatCard
           label="Admins & Managers"
-          value={
-            isLoading ? null : String(stats.admins + stats.managers)
-          }
+          value={isLoading ? null : String(stats.admins + stats.managers)}
           subtext="Full or elevated access"
         />
         <StatCard
@@ -175,10 +167,7 @@ export default function StaffPage() {
                 <SelectValue placeholder="All Branches" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 shadow-lg">
-                <SelectItem
-                  value="all"
-                  className="hover:bg-slate-100 focus:bg-slate-100"
-                >
+                <SelectItem value="all" className="hover:bg-slate-100 focus:bg-slate-100">
                   All Branches
                 </SelectItem>
                 {branches.map((b: any) => (
@@ -197,28 +186,16 @@ export default function StaffPage() {
                 <SelectValue placeholder="All Roles" />
               </SelectTrigger>
               <SelectContent className="bg-white border border-slate-200 shadow-lg">
-                <SelectItem
-                  value="all"
-                  className="hover:bg-slate-100 focus:bg-slate-100"
-                >
+                <SelectItem value="all" className="hover:bg-slate-100 focus:bg-slate-100">
                   All Roles
                 </SelectItem>
-                <SelectItem
-                  value="admin"
-                  className="hover:bg-slate-100 focus:bg-slate-100"
-                >
+                <SelectItem value="admin" className="hover:bg-slate-100 focus:bg-slate-100">
                   Admin
                 </SelectItem>
-                <SelectItem
-                  value="manager"
-                  className="hover:bg-slate-100 focus:bg-slate-100"
-                >
+                <SelectItem value="manager" className="hover:bg-slate-100 focus:bg-slate-100">
                   Manager
                 </SelectItem>
-                <SelectItem
-                  value="staff"
-                  className="hover:bg-slate-100 focus:bg-slate-100"
-                >
+                <SelectItem value="staff" className="hover:bg-slate-100 focus:bg-slate-100">
                   Staff
                 </SelectItem>
               </SelectContent>
@@ -256,19 +233,19 @@ export default function StaffPage() {
           <div className="p-16 text-center">
             <UserCircle className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-slate-900 mb-1">
-              {searchQuery || filterBranch !== "all" || filterRole !== "all"
-                ? "No Staff Found"
-                : "No Staff Yet"}
+              {searchQuery || filterBranch !== 'all' || filterRole !== 'all'
+                ? 'No Staff Found'
+                : 'No Staff Yet'}
             </h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
-              {searchQuery || filterBranch !== "all" || filterRole !== "all"
-                ? "Try adjusting your search or filters."
-                : "Add your first staff member to get started."}
+              {searchQuery || filterBranch !== 'all' || filterRole !== 'all'
+                ? 'Try adjusting your search or filters.'
+                : 'Add your first staff member to get started.'}
             </p>
-            {!searchQuery && filterBranch === "all" && filterRole === "all" && (
+            {!searchQuery && filterBranch === 'all' && filterRole === 'all' && (
               <Button
                 className="mt-6 bg-slate-900 text-white hover:bg-slate-800"
-                onClick={() => router.push("/dashboard/staff/create")}
+                onClick={() => router.push('/dashboard/staff/create')}
               >
                 Add Staff Member
               </Button>
@@ -290,15 +267,9 @@ export default function StaffPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.map((s: StaffWithBranch) => (
-                  <tr
-                    key={s.id}
-                    className="hover:bg-slate-50 transition-colors group"
-                  >
+                  <tr key={s.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-4 py-4">
-                      <Link
-                        href={`/dashboard/staff/${s.id}`}
-                        className="flex items-center gap-3"
-                      >
+                      <Link href={`/dashboard/staff/${s.id}`} className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center text-sm font-bold text-violet-600 shrink-0">
                           {s.name.charAt(0).toUpperCase()}
                         </div>
@@ -316,7 +287,7 @@ export default function StaffPage() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1.5 text-sm text-slate-600">
                         <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        {s.branch?.name || "—"}
+                        {s.branch?.name || '—'}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -330,11 +301,11 @@ export default function StaffPage() {
                         variant="secondary"
                         className={`text-xs font-medium px-2 py-0.5 ${
                           s.is_active
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
                         }`}
                       >
-                        {s.is_active ? "Active" : "Inactive"}
+                        {s.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </td>
                     <td className="px-4 py-4 text-right">
@@ -350,31 +321,31 @@ export default function StaffPage() {
                           </Link>
                         </Button>
                         {s.role !== 'super_admin' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                          asChild
-                        >
-                          <Link href={`/dashboard/staff/${s.id}/edit`}>
-                            <Edit className="w-4 h-4" />
-                          </Link>
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                            asChild
+                          >
+                            <Link href={`/dashboard/staff/${s.id}/edit`}>
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                          </Button>
                         )}
                         {s.role !== 'super_admin' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteTarget(s)}
-                          className={`w-8 h-8 text-slate-400 ${s.is_active ? "hover:text-amber-600 hover:bg-amber-50" : "hover:text-emerald-600 hover:bg-emerald-50"}`}
-                          title={s.is_active ? "Deactivate" : "Activate"}
-                        >
-                          {s.is_active ? (
-                            <UserX className="w-4 h-4" />
-                          ) : (
-                            <UserCheck className="w-4 h-4" />
-                          )}
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeleteTarget(s)}
+                            className={`w-8 h-8 text-slate-400 ${s.is_active ? 'hover:text-amber-600 hover:bg-amber-50' : 'hover:text-emerald-600 hover:bg-emerald-50'}`}
+                            title={s.is_active ? 'Deactivate' : 'Activate'}
+                          >
+                            {s.is_active ? (
+                              <UserX className="w-4 h-4" />
+                            ) : (
+                              <UserCheck className="w-4 h-4" />
+                            )}
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -390,12 +361,14 @@ export default function StaffPage() {
       <Modal
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title={deleteTarget?.is_active ? "Deactivate Staff Member" : "Activate Staff Member"}
+        title={deleteTarget?.is_active ? 'Deactivate Staff Member' : 'Activate Staff Member'}
         maxWidth="max-w-md"
       >
         <div className="p-6">
           <div className="flex items-start gap-4 mb-6">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${deleteTarget?.is_active ? "bg-amber-50" : "bg-emerald-50"}`}>
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${deleteTarget?.is_active ? 'bg-amber-50' : 'bg-emerald-50'}`}
+            >
               {deleteTarget?.is_active ? (
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
               ) : (
@@ -404,19 +377,22 @@ export default function StaffPage() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">
-                {deleteTarget?.is_active ? "Confirm Deactivation" : "Confirm Activation"}
+                {deleteTarget?.is_active ? 'Confirm Deactivation' : 'Confirm Activation'}
               </h4>
               <p className="text-sm text-slate-600 leading-relaxed">
                 {deleteTarget?.is_active ? (
-                  <>Are you sure you want to deactivate{" "}
-                  <span className="font-semibold text-slate-900">{deleteTarget?.name}</span>
-                  ? This will revoke their login access immediately. Their data
-                  will be preserved for historical records.</>
+                  <>
+                    Are you sure you want to deactivate{' '}
+                    <span className="font-semibold text-slate-900">{deleteTarget?.name}</span>? This
+                    will revoke their login access immediately. Their data will be preserved for
+                    historical records.
+                  </>
                 ) : (
-                  <>Are you sure you want to activate{" "}
-                  <span className="font-semibold text-slate-900">{deleteTarget?.name}</span>
-                  ? This will restore their login access and they will be able to
-                  use the system again.</>
+                  <>
+                    Are you sure you want to activate{' '}
+                    <span className="font-semibold text-slate-900">{deleteTarget?.name}</span>? This
+                    will restore their login access and they will be able to use the system again.
+                  </>
                 )}
               </p>
             </div>
@@ -433,15 +409,19 @@ export default function StaffPage() {
               variant="outline"
               onClick={handleConfirmToggle}
               disabled={toggleStatus.isPending}
-              className={deleteTarget?.is_active
-                ? "bg-amber-600 text-white hover:bg-amber-700 border-transparent"
-                : "bg-emerald-600 text-white hover:bg-emerald-700 border-transparent"
+              className={
+                deleteTarget?.is_active
+                  ? 'bg-amber-600 text-white hover:bg-amber-700 border-transparent'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700 border-transparent'
               }
             >
               {toggleStatus.isPending
-                ? (deleteTarget?.is_active ? "Deactivating..." : "Activating...")
-                : (deleteTarget?.is_active ? "Deactivate Staff" : "Activate Staff")
-              }
+                ? deleteTarget?.is_active
+                  ? 'Deactivating...'
+                  : 'Activating...'
+                : deleteTarget?.is_active
+                  ? 'Deactivate Staff'
+                  : 'Activate Staff'}
             </Button>
           </div>
         </div>
@@ -466,12 +446,8 @@ function StatCard({
     <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {label}
-          </p>
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+          {alert && <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />}
         </div>
         <div className="space-y-1">
           {value === null ? (
@@ -479,15 +455,13 @@ function StatCard({
           ) : (
             <p
               className={`text-2xl font-bold tracking-tight ${
-                alert ? "text-red-600" : "text-slate-900"
+                alert ? 'text-red-600' : 'text-slate-900'
               }`}
             >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

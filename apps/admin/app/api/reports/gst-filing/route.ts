@@ -8,7 +8,7 @@ import { ReportFilters } from '@/domain';
 
 /**
  * GET /api/reports/gst-filing
- * 
+ *
  * Fetches the GST filing report (R12) for a given period.
  */
 export async function GET(request: NextRequest) {
@@ -24,13 +24,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    
+
     const statusParam = searchParams.get('status');
     const filters: ReportFilters = {
       from_date: searchParams.get('from_date') || undefined,
       to_date: searchParams.get('to_date') || undefined,
       period: (searchParams.get('period') as any) || 'month',
-      status: statusParam ? statusParam.split(',') : undefined
+      status: statusParam ? statusParam.split(',') : undefined,
     };
 
     const report = await reportService.getGSTFilingReport(filters);

@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import Image from "next/image";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { Heart, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { useState, useEffect } from 'react';
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import Image from 'next/image';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { Button } from '@/components/ui/button';
+import { Heart, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 
 interface WishlistItem {
   id: string;
@@ -29,7 +29,7 @@ export default function WishlistPage() {
     loadStore();
 
     // Load wishlist from localStorage
-    const saved = localStorage.getItem("paris_wishlist");
+    const saved = localStorage.getItem('paris_wishlist');
     if (saved) {
       setWishlistItems(JSON.parse(saved));
     }
@@ -39,8 +39,8 @@ export default function WishlistPage() {
   const removeFromWishlist = (id: string) => {
     const updated = wishlistItems.filter((item) => item.id !== id);
     setWishlistItems(updated);
-    localStorage.setItem("paris_wishlist", JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent("paris_wishlist_updated", { detail: updated.length }));
+    localStorage.setItem('paris_wishlist', JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('paris_wishlist_updated', { detail: updated.length }));
   };
 
   if (!mounted) return null;
@@ -55,7 +55,8 @@ export default function WishlistPage() {
             <div className="section-eyebrow justify-center">Your Collection</div>
             <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">Saved Treasures</h1>
             <p className="text-body font-light">
-              {wishlistItems.length} {wishlistItems.length === 1 ? "piece" : "pieces"} in your wishlist
+              {wishlistItems.length} {wishlistItems.length === 1 ? 'piece' : 'pieces'} in your
+              wishlist
             </p>
           </div>
 
@@ -100,10 +101,15 @@ export default function WishlistPage() {
                     </button>
                   </div>
                   <div className="p-5">
-                    <h3 className="font-sans text-heading text-lg mb-2 line-clamp-2">{item.name}</h3>
+                    <h3 className="font-sans text-heading text-lg mb-2 line-clamp-2">
+                      {item.name}
+                    </h3>
                     <div className="flex gap-2">
-                       <Link href={`/product/${item.id}`} className="flex-1">
-                        <Button variant="outline" className="w-full py-3 rounded-full text-[10px] uppercase tracking-widest font-bold border-rosegold text-rosegold hover:bg-rosegold hover:text-white transition-all">
+                      <Link href={`/product/${item.id}`} className="flex-1">
+                        <Button
+                          variant="outline"
+                          className="w-full py-3 rounded-full text-[10px] uppercase tracking-widest font-bold border-rosegold text-rosegold hover:bg-rosegold hover:text-white transition-all"
+                        >
                           View
                         </Button>
                       </Link>

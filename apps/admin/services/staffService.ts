@@ -12,9 +12,7 @@
 import { staffRepository } from '@/repository/staffRepository';
 import { CreateStaffSchema, UpdateStaffSchema } from '@/domain/schemas/branch.schema';
 import { createAdminClient } from '@/lib/supabase/server';
-import type {
-  Staff, StaffWithBranch, CreateStaffDTO, UpdateStaffDTO,
-} from '@/domain/types/branch';
+import type { Staff, StaffWithBranch, CreateStaffDTO, UpdateStaffDTO } from '@/domain/types/branch';
 import type { RepositoryResult } from '@/repository/supabaseClient';
 
 function validationError(message: string, code = 'VALIDATION'): RepositoryResult<any> {
@@ -68,7 +66,7 @@ export class StaffService {
     const payload = { ...data, store_id: this.currentStoreId || '' };
     const validation = CreateStaffSchema.safeParse(payload);
     if (!validation.success) {
-      return validationError(validation.error.issues.map(i => i.message).join(', '));
+      return validationError(validation.error.issues.map((i) => i.message).join(', '));
     }
 
     // Check unique email in staff table
@@ -117,7 +115,7 @@ export class StaffService {
   async updateStaff(id: string, data: UpdateStaffDTO): Promise<RepositoryResult<Staff>> {
     const validation = UpdateStaffSchema.safeParse(data);
     if (!validation.success) {
-      return validationError(validation.error.issues.map(i => i.message).join(', '));
+      return validationError(validation.error.issues.map((i) => i.message).join(', '));
     }
 
     // Check email uniqueness if changing email

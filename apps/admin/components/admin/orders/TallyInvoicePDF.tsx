@@ -8,13 +8,7 @@
  */
 
 import React from 'react';
-import {
-  Document,
-  Page,
-  View,
-  Text,
-  StyleSheet,
-} from '@react-pdf/renderer';
+import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -96,22 +90,44 @@ export interface TallyInvoiceProps {
 // ─── Number to Words (Indian system) ────────────────────────────────────────
 
 const ones = [
-  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
-  'Seventeen', 'Eighteen', 'Nineteen',
+  '',
+  'One',
+  'Two',
+  'Three',
+  'Four',
+  'Five',
+  'Six',
+  'Seven',
+  'Eight',
+  'Nine',
+  'Ten',
+  'Eleven',
+  'Twelve',
+  'Thirteen',
+  'Fourteen',
+  'Fifteen',
+  'Sixteen',
+  'Seventeen',
+  'Eighteen',
+  'Nineteen',
 ];
-const tens = [
-  '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety',
-];
+const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
 function toWords(n: number): string {
   if (n === 0) return '';
   if (n < 20) return ones[n];
   if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
-  if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + toWords(n % 100) : '');
-  if (n < 100000) return toWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + toWords(n % 1000) : '');
-  if (n < 10000000) return toWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + toWords(n % 100000) : '');
-  return toWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + toWords(n % 10000000) : '');
+  if (n < 1000)
+    return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + toWords(n % 100) : '');
+  if (n < 100000)
+    return toWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + toWords(n % 1000) : '');
+  if (n < 10000000)
+    return (
+      toWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + toWords(n % 100000) : '')
+    );
+  return (
+    toWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + toWords(n % 10000000) : '')
+  );
 }
 
 function numberToWords(num: number): string {
@@ -125,7 +141,9 @@ function numberToWords(num: number): string {
 
 /** Format number with Rs. prefix and Indian locale */
 function rs(val: number): string {
-  return 'Rs. ' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    'Rs. ' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  );
 }
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
@@ -247,12 +265,53 @@ const s = StyleSheet.create({
   },
 
   // Column widths — Description gets the lion's share
-  colSno:  { width: '6%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
-  colDesc: { width: '44%', textAlign: 'left' as const,   borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
-  colQty:  { width: '8%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
-  colRate: { width: '13%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
-  colGst:  { width: '10%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 4, fontSize: 8 },
-  colAmt:  { width: '19%', textAlign: 'right' as const,  paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colSno: {
+    width: '6%',
+    textAlign: 'center' as const,
+    borderRight: THIN,
+    paddingVertical: 4,
+    paddingHorizontal: 3,
+    fontSize: 8,
+  },
+  colDesc: {
+    width: '44%',
+    textAlign: 'left' as const,
+    borderRight: THIN,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    fontSize: 8,
+  },
+  colQty: {
+    width: '8%',
+    textAlign: 'center' as const,
+    borderRight: THIN,
+    paddingVertical: 4,
+    paddingHorizontal: 3,
+    fontSize: 8,
+  },
+  colRate: {
+    width: '13%',
+    textAlign: 'right' as const,
+    borderRight: THIN,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    fontSize: 8,
+  },
+  colGst: {
+    width: '10%',
+    textAlign: 'right' as const,
+    borderRight: THIN,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    fontSize: 8,
+  },
+  colAmt: {
+    width: '19%',
+    textAlign: 'right' as const,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    fontSize: 8,
+  },
 
   thText: { fontFamily: 'Helvetica-Bold', fontSize: 9 },
 
@@ -388,16 +447,43 @@ const s = StyleSheet.create({
 
 export function TallyInvoicePDF(props: TallyInvoiceProps) {
   const {
-    companyName, companyAddress, companyPhone, companyEmail, companyGstin,
-    invoiceNumber, invoiceDate, invoiceType, orderId, paymentMode,
-    buyerName, buyerPhone, buyerAltPhone, buyerEmail,
-    rentalStart, rentalEnd, eventDate,
+    companyName,
+    companyAddress,
+    companyPhone,
+    companyEmail,
+    companyGstin,
+    invoiceNumber,
+    invoiceDate,
+    invoiceType,
+    orderId,
+    paymentMode,
+    buyerName,
+    buyerPhone,
+    buyerAltPhone,
+    buyerEmail,
+    rentalStart,
+    rentalEnd,
+    eventDate,
     items,
-    subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
-    totalAmount, totalPaid, advancePaid, balanceDue,
-    itemDiscountsTotal, orderDiscount, returnDiscount,
-    initialLateFee, additionalLateFee, damageChargesBreakdown, paymentsList,
-    termsAndConditions, authorizedSignature,
+    subtotal,
+    gstAmount,
+    discount,
+    lateFee,
+    damageCharges,
+    securityDeposit,
+    totalAmount,
+    totalPaid,
+    advancePaid,
+    balanceDue,
+    itemDiscountsTotal,
+    orderDiscount,
+    returnDiscount,
+    initialLateFee,
+    additionalLateFee,
+    damageChargesBreakdown,
+    paymentsList,
+    termsAndConditions,
+    authorizedSignature,
   } = props;
 
   const hasGst = items.some((item) => (item.gstRate || 0) > 0) || (gstAmount || 0) > 0;
@@ -460,7 +546,9 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
 
             <View style={s.halfRightPadded}>
               <Text style={s.sectionLabel}>Rental Details</Text>
-              <Text style={s.infoText}>Period: {rentalStart} to {rentalEnd}</Text>
+              <Text style={s.infoText}>
+                Period: {rentalStart} to {rentalEnd}
+              </Text>
               {eventDate ? <Text style={s.infoText}>Event Date: {eventDate}</Text> : null}
             </View>
           </View>
@@ -484,11 +572,9 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
                 <View style={{ flexDirection: 'row' as const, gap: 4 }}>
                   {item.discount && item.discount > 0 ? (
                     <Text style={s.itemSubText}>
-                      {item.discountType === 'percent' ? (
-                        `[Disc: ${item.discount}% (-${rs(item.discountTotal || 0)})]`
-                      ) : (
-                        `[Disc: ${rs(item.discount)} x ${item.quantity} = -${rs(item.discountTotal || (item.discount * item.quantity))}]`
-                      )}
+                      {item.discountType === 'percent'
+                        ? `[Disc: ${item.discount}% (-${rs(item.discountTotal || 0)})]`
+                        : `[Disc: ${rs(item.discount)} x ${item.quantity} = -${rs(item.discountTotal || item.discount * item.quantity)}]`}
                     </Text>
                   ) : null}
                 </View>
@@ -499,11 +585,30 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
                 <View style={colGstStyle}>
                   {item.gstRate && item.gstRate > 0 ? (
                     <>
-                      <Text style={{ fontSize: 7, textAlign: 'right' as const, fontFamily: 'Helvetica-Bold' }}>{item.gstRate}%</Text>
-                      <Text style={{ fontSize: 6.5, color: '#444', textAlign: 'right' as const, marginTop: 1 }}>{rs(item.gstAmount || 0)}</Text>
+                      <Text
+                        style={{
+                          fontSize: 7,
+                          textAlign: 'right' as const,
+                          fontFamily: 'Helvetica-Bold',
+                        }}
+                      >
+                        {item.gstRate}%
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 6.5,
+                          color: '#444',
+                          textAlign: 'right' as const,
+                          marginTop: 1,
+                        }}
+                      >
+                        {rs(item.gstAmount || 0)}
+                      </Text>
                     </>
                   ) : (
-                    <Text style={{ fontSize: 7, color: '#888', textAlign: 'right' as const }}>0%</Text>
+                    <Text style={{ fontSize: 7, color: '#888', textAlign: 'right' as const }}>
+                      0%
+                    </Text>
                   )}
                 </View>
               ) : null}
@@ -513,7 +618,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
 
           {/* ── Totals ── */}
           <View style={s.totalsBlock}>
-            {items.map((item) => (
+            {items.map((item) =>
               item.discountTotal && item.discountTotal > 0 ? (
                 <View key={`disc-${item.sno}`} style={s.totalRow}>
                   <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>
@@ -522,7 +627,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
                   <Text style={s.totalValue}>(-) {rs(item.discountTotal)}</Text>
                 </View>
               ) : null
-            ))}
+            )}
 
             {orderDiscount && orderDiscount > 0 ? (
               <View style={s.totalRow}>
@@ -538,7 +643,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               </View>
             ) : null}
 
-            {(!orderDiscount && !returnDiscount && discount > 0) ? (
+            {!orderDiscount && !returnDiscount && discount > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Discount</Text>
                 <Text style={s.totalValue}>(-) {rs(discount)}</Text>
@@ -559,7 +664,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               </View>
             ) : null}
 
-            {(!initialLateFee && !additionalLateFee && lateFee > 0) ? (
+            {!initialLateFee && !additionalLateFee && lateFee > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Late Fee</Text>
                 <Text style={s.totalValue}>{rs(lateFee)}</Text>
@@ -569,16 +674,18 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
             {damageChargesBreakdown && damageChargesBreakdown.length > 0 ? (
               damageChargesBreakdown.map((dmg, idx) => (
                 <View key={`dmg-${idx}`} style={s.totalRow}>
-                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>Damage Fee: {dmg.productName}</Text>
+                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>
+                    Damage Fee: {dmg.productName}
+                  </Text>
                   <Text style={s.totalValue}>{rs(dmg.charges)}</Text>
                 </View>
               ))
-            ) : (damageCharges > 0 ? (
+            ) : damageCharges > 0 ? (
               <View style={s.totalRow}>
                 <Text style={s.totalLabel}>Damage Charges</Text>
                 <Text style={s.totalValue}>{rs(damageCharges)}</Text>
               </View>
-            ) : null)}
+            ) : null}
 
             {securityDeposit > 0 ? (
               <View style={s.totalRow}>
@@ -597,20 +704,24 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               paymentsList.map((payment, idx) => {
                 let dateStr = '';
                 try {
-                  dateStr = new Date(payment.created_at).toLocaleDateString('en-IN', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                  }).replace(/ /g, '-');
+                  dateStr = new Date(payment.created_at)
+                    .toLocaleDateString('en-IN', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                    .replace(/ /g, '-');
                 } catch {
                   dateStr = String(payment.created_at || '').slice(0, 10);
                 }
-                
+
                 const label = `${dateStr} | ${payment.payment_type?.toUpperCase() === 'DEPOSIT' || payment.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} (${payment.payment_mode})`;
                 return (
                   <View key={payment.id || idx} style={s.totalRow}>
                     <Text style={{ ...s.totalLabel, fontSize: 8, color: '#444' }}>{label}</Text>
-                    <Text style={{ ...s.totalValue, fontSize: 8, color: '#444' }}>(-) {rs(payment.amount)}</Text>
+                    <Text style={{ ...s.totalValue, fontSize: 8, color: '#444' }}>
+                      (-) {rs(payment.amount)}
+                    </Text>
                   </View>
                 );
               })
@@ -645,13 +756,14 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
             ) : null}
           </View>
 
-
           {/* Push everything below to the bottom */}
           <View style={s.spacer} />
 
           {/* ── Amount in Words ── */}
           <View style={s.wordsRow}>
-            <View style={{ flexDirection: 'row' as const, justifyContent: 'space-between' as const }}>
+            <View
+              style={{ flexDirection: 'row' as const, justifyContent: 'space-between' as const }}
+            >
               <Text style={s.wordsLabel}>Amount Chargeable (in words)</Text>
               <Text style={s.eoe}>E. & O.E</Text>
             </View>
@@ -664,9 +776,14 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               <Text style={s.footerLabel}>Terms & Conditions</Text>
               <Text style={s.footerTerms}>1) Rent will be charged on daily basis.</Text>
               <Text style={s.footerTerms}>2) Damages / shortages will be charged extra.</Text>
-              <Text style={s.footerTerms}>3) Advance paid will not be refunded on cancellation of order.</Text>
-              <Text style={s.footerTerms}>4) While taking delivery of goods security deposits and copy of ID card is mandatory.</Text>
-              
+              <Text style={s.footerTerms}>
+                3) Advance paid will not be refunded on cancellation of order.
+              </Text>
+              <Text style={s.footerTerms}>
+                4) While taking delivery of goods security deposits and copy of ID card is
+                mandatory.
+              </Text>
+
               {termsAndConditions ? (
                 <View style={{ marginTop: 4 }}>
                   <Text style={s.footerTerms}>{termsAndConditions}</Text>

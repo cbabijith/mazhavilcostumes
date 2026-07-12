@@ -1,15 +1,15 @@
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { Ruler, Circle, HelpCircle } from "lucide-react";
-import { buildWhatsAppUrl } from "@/lib/whatsapp";
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { Button } from '@/components/ui/button';
+import { Ruler, Circle, HelpCircle } from 'lucide-react';
+import { buildWhatsAppUrl } from '@/lib/whatsapp';
 
 export default async function SizeGuidePage() {
   const store = await getParisBridalsStore();
   if (!store) return null;
 
-  const whatsappMessage = "Hi, I need help with sizing for my costumes.";
+  const whatsappMessage = 'Hi, I need help with sizing for my costumes.';
   const whatsappUrl = buildWhatsAppUrl(whatsappMessage);
 
   return (
@@ -46,7 +46,9 @@ export default async function SizeGuidePage() {
                     <tr className="border-b border-[var(--border-silk)]">
                       <th className="text-left py-3 px-4 font-serif text-heading">Indian Size</th>
                       <th className="text-left py-3 px-4 font-serif text-heading">Diameter (mm)</th>
-                      <th className="text-left py-3 px-4 font-serif text-heading">Circumference (mm)</th>
+                      <th className="text-left py-3 px-4 font-serif text-heading">
+                        Circumference (mm)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -66,7 +68,10 @@ export default async function SizeGuidePage() {
                       { size: 22, diameter: 21.0, circumference: 66.0 },
                       { size: 23, diameter: 21.4, circumference: 67.3 },
                     ].map((row) => (
-                      <tr key={row.size} className="border-b border-[var(--border-silk)] last:border-0">
+                      <tr
+                        key={row.size}
+                        className="border-b border-[var(--border-silk)] last:border-0"
+                      >
                         <td className="py-3 px-4 text-heading font-medium">{row.size}</td>
                         <td className="py-3 px-4 text-body">{row.diameter}</td>
                         <td className="py-3 px-4 text-body">{row.circumference}</td>
@@ -105,21 +110,26 @@ export default async function SizeGuidePage() {
                   <thead>
                     <tr className="border-b border-[var(--border-silk)]">
                       <th className="text-left py-3 px-4 font-serif text-heading">Bangle Size</th>
-                      <th className="text-left py-3 px-4 font-serif text-heading">Diameter (inches)</th>
+                      <th className="text-left py-3 px-4 font-serif text-heading">
+                        Diameter (inches)
+                      </th>
                       <th className="text-left py-3 px-4 font-serif text-heading">Diameter (mm)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[
-                      { size: "2-2", inches: "2.125", mm: 54.0 },
-                      { size: "2-4", inches: "2.25", mm: 57.2 },
-                      { size: "2-6", inches: "2.375", mm: 60.3 },
-                      { size: "2-8", inches: "2.5", mm: 63.5 },
-                      { size: "2-10", inches: "2.625", mm: 66.7 },
-                      { size: "2-12", inches: "2.75", mm: 69.9 },
-                      { size: "2-14", inches: "2.875", mm: 73.0 },
+                      { size: '2-2', inches: '2.125', mm: 54.0 },
+                      { size: '2-4', inches: '2.25', mm: 57.2 },
+                      { size: '2-6', inches: '2.375', mm: 60.3 },
+                      { size: '2-8', inches: '2.5', mm: 63.5 },
+                      { size: '2-10', inches: '2.625', mm: 66.7 },
+                      { size: '2-12', inches: '2.75', mm: 69.9 },
+                      { size: '2-14', inches: '2.875', mm: 73.0 },
                     ].map((row) => (
-                      <tr key={row.size} className="border-b border-[var(--border-silk)] last:border-0">
+                      <tr
+                        key={row.size}
+                        className="border-b border-[var(--border-silk)] last:border-0"
+                      >
                         <td className="py-3 px-4 text-heading font-medium">{row.size}</td>
                         <td className="py-3 px-4 text-body">{row.inches}</td>
                         <td className="py-3 px-4 text-body">{row.mm}</td>

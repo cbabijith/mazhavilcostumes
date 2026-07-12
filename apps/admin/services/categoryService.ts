@@ -6,29 +6,22 @@
  * @module services/categoryService
  */
 
-import { 
-  categoryRepository,
-  productRepository,
-  RepositoryResult
-} from '@/repository';
-import { 
-  Category, 
-  CreateCategoryDTO, 
-  UpdateCategoryDTO, 
+import { categoryRepository, productRepository, RepositoryResult } from '@/repository';
+import {
+  Category,
+  CreateCategoryDTO,
+  UpdateCategoryDTO,
   CategoryWithRelations,
-  CategoryLevel 
+  CategoryLevel,
 } from '@/domain';
-import { 
-  CategoryValidationResult,
-  CategoryValidationError
-} from '@/domain';
+import { CategoryValidationResult, CategoryValidationError } from '@/domain';
 import { generateSlug } from '@/lib/shared-utils';
 
 export class CategoryService {
   private currentUserId: string | null = null;
   private currentStoreId: string | null = null;
   private currentBranchId: string | null = null;
- 
+
   /**
    * Set current user context for audit fields and multi-tenancy
    */
@@ -51,14 +44,14 @@ export class CategoryService {
    */
   async getCategoryHierarchy(): Promise<RepositoryResult<Category[]>> {
     const result = await categoryRepository.findAll();
-    
+
     if (!result.success || !result.data) {
       return result;
     }
-    
+
     // Build hierarchy tree from flat list
     const hierarchy = this.buildHierarchyTree(result.data);
-    
+
     return {
       success: true,
       data: hierarchy,
@@ -74,12 +67,12 @@ export class CategoryService {
     const rootCategories: (Category & { children?: Category[] })[] = [];
 
     // First pass: create map and identify roots
-    categories.forEach(cat => {
+    categories.forEach((cat) => {
       categoryMap.set(cat.id, { ...cat, children: [] });
     });
 
     // Second pass: build tree structure
-    categories.forEach(cat => {
+    categories.forEach((cat) => {
       if (cat.parent_id && categoryMap.has(cat.parent_id)) {
         const parent = categoryMap.get(cat.parent_id)!;
         parent.children!.push(categoryMap.get(cat.id)!);
@@ -117,7 +110,7 @@ export class CategoryService {
         error: {
           message: 'Validation failed',
           details: validation.errors,
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -135,7 +128,7 @@ export class CategoryService {
         data: null,
         error: {
           message: 'Category slug already exists',
-          code: 'SLUG_EXISTS'
+          code: 'SLUG_EXISTS',
         } as any,
         success: false,
       };
@@ -149,7 +142,7 @@ export class CategoryService {
           data: null,
           error: {
             message: 'Invalid parent category ID',
-            code: 'INVALID_PARENT'
+            code: 'INVALID_PARENT',
           } as any,
           success: false,
         };
@@ -161,7 +154,7 @@ export class CategoryService {
           data: null,
           error: {
             message: 'Cannot create subcategory under a variant category',
-            code: 'INVALID_PARENT_LEVEL'
+            code: 'INVALID_PARENT_LEVEL',
           } as any,
           success: false,
         };
@@ -170,12 +163,12 @@ export class CategoryService {
 
     // Create category
     const createResult = await categoryRepository.create(data);
-    
+
     if (!createResult.success || !createResult.data) {
       return {
         success: false,
         data: null,
-        error: createResult.error
+        error: createResult.error,
       };
     }
 
@@ -187,7 +180,10 @@ export class CategoryService {
   /**
    * Update an existing category with validation
    */
-  async updateCategory(id: string, data: UpdateCategoryDTO): Promise<RepositoryResult<CategoryWithRelations>> {
+  async updateCategory(
+    id: string,
+    data: UpdateCategoryDTO
+  ): Promise<RepositoryResult<CategoryWithRelations>> {
     // Check if category exists
     const existingCategory = await categoryRepository.findById(id);
     if (!existingCategory.success || !existingCategory.data) {
@@ -195,7 +191,7 @@ export class CategoryService {
         data: null,
         error: {
           message: 'Category not found',
-          code: 'CATEGORY_NOT_FOUND'
+          code: 'CATEGORY_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -209,7 +205,7 @@ export class CategoryService {
         error: {
           message: 'Validation failed',
           details: validation.errors,
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -228,7 +224,7 @@ export class CategoryService {
           data: null,
           error: {
             message: 'Category slug already exists',
-            code: 'SLUG_EXISTS'
+            code: 'SLUG_EXISTS',
           } as any,
           success: false,
         };
@@ -245,7 +241,7 @@ export class CategoryService {
             data: null,
             error: {
               message: 'Invalid parent category ID',
-              code: 'INVALID_PARENT'
+              code: 'INVALID_PARENT',
             } as any,
             success: false,
           };
@@ -257,7 +253,7 @@ export class CategoryService {
             data: null,
             error: {
               message: 'Cannot set variant category as parent',
-              code: 'INVALID_PARENT_LEVEL'
+              code: 'INVALID_PARENT_LEVEL',
             } as any,
             success: false,
           };
@@ -269,7 +265,7 @@ export class CategoryService {
             data: null,
             error: {
               message: 'Category cannot be its own parent',
-              code: 'CIRCULAR_REFERENCE'
+              code: 'CIRCULAR_REFERENCE',
             } as any,
             success: false,
           };
@@ -282,7 +278,7 @@ export class CategoryService {
             data: null,
             error: {
               message: 'Would create circular reference in category hierarchy',
-              code: 'CIRCULAR_REFERENCE'
+              code: 'CIRCULAR_REFERENCE',
             } as any,
             success: false,
           };
@@ -292,12 +288,12 @@ export class CategoryService {
 
     // Update category
     const updateResult = await categoryRepository.update(id, data);
-    
+
     if (!updateResult.success || !updateResult.data) {
       return {
         success: false,
         data: null,
-        error: updateResult.error
+        error: updateResult.error,
       };
     }
 
@@ -312,7 +308,7 @@ export class CategoryService {
   async deleteCategory(id: string): Promise<RepositoryResult<void>> {
     // Check if category can be deleted
     const canDeleteResult = await categoryRepository.canDelete(id);
-    
+
     if (!canDeleteResult.success) {
       return {
         success: false,
@@ -326,7 +322,7 @@ export class CategoryService {
         data: null,
         error: {
           message: canDeleteResult.data?.reason || 'Cannot delete category',
-          code: 'CANNOT_DELETE'
+          code: 'CANNOT_DELETE',
         } as any,
         success: false,
       };
@@ -346,21 +342,26 @@ export class CategoryService {
   /**
    * Check if category can be deleted
    */
-  async canDeleteCategory(id: string): Promise<RepositoryResult<{
-    canDelete: boolean;
-    reason?: string;
-    relatedData?: {
-      productCount: number;
-      childCount: number;
-    };
-  }>> {
+  async canDeleteCategory(id: string): Promise<
+    RepositoryResult<{
+      canDelete: boolean;
+      reason?: string;
+      relatedData?: {
+        productCount: number;
+        childCount: number;
+      };
+    }>
+  > {
     return await categoryRepository.canDelete(id);
   }
 
   /**
    * Move category to new parent
    */
-  async moveCategory(id: string, newParentId: string | null): Promise<RepositoryResult<CategoryWithRelations>> {
+  async moveCategory(
+    id: string,
+    newParentId: string | null
+  ): Promise<RepositoryResult<CategoryWithRelations>> {
     return await this.updateCategory(id, { parent_id: newParentId });
   }
 
@@ -374,7 +375,7 @@ export class CategoryService {
     for (let i = 0; i < categoryIds.length; i++) {
       const categoryId = categoryIds[i];
       const updateResult = await categoryRepository.update(categoryId, { sort_order: i });
-      
+
       if (updateResult.success && updateResult.data) {
         results.push(updateResult.data);
       } else {
@@ -481,23 +482,31 @@ export class CategoryService {
   /**
    * Check if slug is available
    */
-  private async checkSlugAvailability(slug: string, excludeId?: string): Promise<RepositoryResult<boolean>> {
+  private async checkSlugAvailability(
+    slug: string,
+    excludeId?: string
+  ): Promise<RepositoryResult<boolean>> {
     return await categoryRepository.slugExists(slug, excludeId);
   }
 
   /**
    * Check if moving category would create circular reference
    */
-  private async wouldCreateCircularReference(categoryId: string, newParentId: string): Promise<boolean> {
+  private async wouldCreateCircularReference(
+    categoryId: string,
+    newParentId: string
+  ): Promise<boolean> {
     // Get all descendants of the category being moved
     const descendants = await this.getAllDescendants(categoryId);
-    
+
     if (!descendants.success) {
       return true; // Assume circular reference on error
     }
 
     // Check if new parent is in the descendants
-    return descendants.data ? descendants.data.some(descendant => descendant.id === newParentId) : true;
+    return descendants.data
+      ? descendants.data.some((descendant) => descendant.id === newParentId)
+      : true;
   }
 
   /**
@@ -505,10 +514,10 @@ export class CategoryService {
    */
   private async getAllDescendants(categoryId: string): Promise<RepositoryResult<Category[]>> {
     const allDescendants: Category[] = [];
-    
+
     const getDescendantsRecursive = async (parentId: string): Promise<void> => {
       const childrenResult = await categoryRepository.findChildren(parentId);
-      
+
       if (childrenResult.success && childrenResult.data) {
         for (const child of childrenResult.data) {
           allDescendants.push(child);
@@ -518,7 +527,7 @@ export class CategoryService {
     };
 
     await getDescendantsRecursive(categoryId);
-    
+
     return {
       data: allDescendants,
       error: null,
@@ -529,4 +538,3 @@ export class CategoryService {
 
 // Export singleton instance
 export const categoryService = new CategoryService();
-

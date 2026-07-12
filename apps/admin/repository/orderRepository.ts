@@ -7,8 +7,8 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Order, 
+import {
+  Order,
   OrderWithRelations,
   OrderItem,
   OrderStatusHistory,
@@ -17,7 +17,7 @@ import {
   OrderSearchParams,
   ReturnOrderDTO,
   ConditionRating,
-  OrderSearchResult
+  OrderSearchResult,
 } from '@/domain/types/order';
 
 /** Buffer days for cleaning/prep before and after each rental (in milliseconds) */
@@ -61,19 +61,20 @@ export class OrderRepository extends BaseRepository {
       if (customerError) {
         console.error('[OrderRepository.findAll] Customer search error:', customerError);
       }
-      customerIds = matchingCustomers?.map(c => c.id) || [];
+      customerIds = matchingCustomers?.map((c) => c.id) || [];
     }
 
-    let query = this.client
-      .from(this.tableName)
-      .select(`
+    let query = this.client.from(this.tableName).select(
+      `
         id, status, start_date, end_date,
         total_amount, amount_paid, payment_status,
         has_priority_cleaning, has_stock_conflict,
         is_late, invoice_number, created_at,
         customer:customer_id(name, phone),
         branch:branch_id(name)
-      `, { count: 'exact' });
+      `,
+      { count: 'exact' }
+    );
 
     // Handle server-side sorting
     if (params?.sort_by && params?.sort_order) {
@@ -97,25 +98,33 @@ export class OrderRepository extends BaseRepository {
     if (params?.status) {
       if ((params.status as string) === 'action_needed') {
         // Virtual status: scheduled orders whose pickup date has passed
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+          new Date()
+        );
         query = query.eq('status', 'scheduled').lte('start_date', todayStr);
       } else if ((params.status as string) === 'priority_cleaning') {
         // Virtual status: active orders that need priority cleaning
-        query = query.eq('has_priority_cleaning', true)
+        query = query
+          .eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
       } else if ((params.status as string) === 'revenue_due') {
         // Virtual status: returned/partial/flagged but not fully paid
-        query = query.in('status', ['returned', 'partial', 'flagged'])
+        query = query
+          .in('status', ['returned', 'partial', 'flagged'])
           .neq('payment_status', 'paid');
       } else if ((params.status as string) === 'pending') {
         // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+          new Date()
+        );
         query = query.or(`status.eq.pending,and(status.eq.scheduled,start_date.lte.${todayStr})`);
       } else if ((params.status as string) === 'partial') {
         // Virtual status: orders with outstanding balance
         // We look for orders explicitly marked as partial OR where paid < total
         // Using .or() for a more robust "partial" check
-        query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
+        query = query.or(
+          'payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)'
+        );
       } else if ((params.status as string) === 'damaged') {
         // Virtual status: orders currently flagged OR that have damage charges total > 0
         query = query.or('status.eq.flagged,damage_charges_total.gt.0');
@@ -170,7 +179,10 @@ export class OrderRepository extends BaseRepository {
     if (params?.date_filter || params?.date_from || params?.date_to) {
       const dateCol = params?.date_field || 'created_at';
       const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
-      if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
+      if (
+        params?.date_filter === 'custom' ||
+        (!params?.date_filter && (params?.date_from || params?.date_to))
+      ) {
         if (params?.date_from) query = query.gte(dateCol, params.date_from);
         if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
@@ -179,7 +191,7 @@ export class OrderRepository extends BaseRepository {
             timeZone: 'Asia/Kolkata',
             year: 'numeric',
             month: '2-digit',
-            day: '2-digit'
+            day: '2-digit',
           }).format(date);
         };
 
@@ -189,7 +201,9 @@ export class OrderRepository extends BaseRepository {
             if (isDateOnly) {
               query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
             } else {
-              query = query.gte(dateCol, `${todayStr}T00:00:00+05:30`).lte(dateCol, `${todayStr}T23:59:59+05:30`);
+              query = query
+                .gte(dateCol, `${todayStr}T00:00:00+05:30`)
+                .lte(dateCol, `${todayStr}T23:59:59+05:30`);
             }
             break;
           }
@@ -199,7 +213,9 @@ export class OrderRepository extends BaseRepository {
             if (isDateOnly) {
               query = query.gte(dateCol, yStr).lte(dateCol, yStr);
             } else {
-              query = query.gte(dateCol, `${yStr}T00:00:00+05:30`).lte(dateCol, `${yStr}T23:59:59+05:30`);
+              query = query
+                .gte(dateCol, `${yStr}T00:00:00+05:30`)
+                .lte(dateCol, `${yStr}T23:59:59+05:30`);
             }
             break;
           }
@@ -260,7 +276,7 @@ export class OrderRepository extends BaseRepository {
 
     // Batch-fetch item counts for all returned orders (single query, no joins)
     if (result.data.length > 0) {
-      const orderIds = result.data.map(o => o.id);
+      const orderIds = result.data.map((o) => o.id);
       const { data: itemCounts, error: countError } = await this.client
         .from('order_items')
         .select('order_id')
@@ -276,7 +292,7 @@ export class OrderRepository extends BaseRepository {
           countMap.set(row.order_id, (countMap.get(row.order_id) || 0) + 1);
         }
       }
-      result.data = result.data.map(o => ({
+      result.data = result.data.map((o) => ({
         ...o,
         item_count: countMap.get(o.id) || 0,
       }));
@@ -308,10 +324,15 @@ export class OrderRepository extends BaseRepository {
   /**
    * Fetch active orders overlapping a specific date range for the calendar view.
    */
-  async getCalendarOrders(branchId: string, startDate: string, endDate: string): Promise<RepositoryResult<OrderWithRelations[]>> {
+  async getCalendarOrders(
+    branchId: string,
+    startDate: string,
+    endDate: string
+  ): Promise<RepositoryResult<OrderWithRelations[]>> {
     const response = await this.client
       .from(this.tableName)
-      .select(`
+      .select(
+        `
         id, store_id, customer_id, branch_id, status, start_date, end_date,
         event_date, total_amount, subtotal, gst_amount, advance_amount,
         advance_collected, advance_payment_method, advance_collected_at,
@@ -326,9 +347,19 @@ export class OrderRepository extends BaseRepository {
           product:product_id(id, name, images, category:category_id(has_buffer))
         ),
         branch:branch_id(id, name)
-      `)
+      `
+      )
       .eq('branch_id', branchId)
-      .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+      .in('status', [
+        'pending',
+        'confirmed',
+        'scheduled',
+        'ongoing',
+        'in_use',
+        'partial',
+        'flagged',
+        'returned',
+      ])
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .order('start_date', { ascending: true });
@@ -352,26 +383,28 @@ export class OrderRepository extends BaseRepository {
    * Get product total quantity and category buffer setting.
    * Used for internal calculations.
    */
-  async getProductBufferInfo(productId: string): Promise<RepositoryResult<{ quantity: number; has_buffer: boolean }>> {
+  async getProductBufferInfo(
+    productId: string
+  ): Promise<RepositoryResult<{ quantity: number; has_buffer: boolean }>> {
     const response = await this.client
       .from('products')
       .select('quantity, category:category_id(has_buffer)')
       .eq('id', productId)
       .single();
-      
+
     if (response.error) return this.handleResponse(response as any);
-    
+
     const data = response.data as any;
     const categoryData = data.category;
     const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
-    
+
     return {
       success: true,
       error: null,
       data: {
         quantity: data.quantity || 0,
-        has_buffer: category?.has_buffer ?? true
-      }
+        has_buffer: category?.has_buffer ?? true,
+      },
     };
   }
 
@@ -380,8 +413,18 @@ export class OrderRepository extends BaseRepository {
     startDate: string,
     endDate: string,
     branchId?: string,
-    excludeOrderId?: string,
-  ): Promise<RepositoryResult<{ available: number; availableWithPriority: number; total: number; peakReserved: number; overlappingOrders: any[]; priorityCleaningNeeded: boolean; priorityCleaningInfo: any[] }>> {
+    excludeOrderId?: string
+  ): Promise<
+    RepositoryResult<{
+      available: number;
+      availableWithPriority: number;
+      total: number;
+      peakReserved: number;
+      overlappingOrders: any[];
+      priorityCleaningNeeded: boolean;
+      priorityCleaningInfo: any[];
+    }>
+  > {
     const DAY_MS = 86400000;
     const reqStart = Math.floor(new Date(startDate).getTime() / DAY_MS) * DAY_MS;
     const reqEnd = Math.floor(new Date(endDate).getTime() / DAY_MS) * DAY_MS;
@@ -394,24 +437,37 @@ export class OrderRepository extends BaseRepository {
     const [productResponse, ordersResponse] = await Promise.all([
       this.client
         .from('products')
-        .select(`
+        .select(
+          `
           quantity, 
           name, 
           branch_id, 
           category:category_id(has_buffer),
           product_inventory(quantity, branch_id)
-        `)
+        `
+        )
         .eq('id', productId)
         .single(),
       (() => {
         let query = this.client
           .from('order_items')
-          .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))')
+          .select(
+            'quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))'
+          )
           .eq('product_id', productId)
-          .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+          .in('orders.status', [
+            'pending',
+            'confirmed',
+            'scheduled',
+            'ongoing',
+            'in_use',
+            'partial',
+            'flagged',
+            'returned',
+          ])
           .gte('orders.end_date', searchStart)
           .lte('orders.start_date', searchEnd);
-        
+
         if (branchId) {
           query = query.eq('orders.branch_id', branchId);
         }
@@ -438,7 +494,7 @@ export class OrderRepository extends BaseRepository {
         totalQuantity = branchInv.quantity || 0;
       } else if (productBranchId) {
         // Product is tied to a specific branch and has no product_inventory records
-        totalQuantity = productBranchId === branchId ? (dbProduct.quantity || 0) : 0;
+        totalQuantity = productBranchId === branchId ? dbProduct.quantity || 0 : 0;
       } else {
         // Product is global, but has no inventory record for this branch
         totalQuantity = 0;
@@ -449,17 +505,26 @@ export class OrderRepository extends BaseRepository {
     }
 
     const productName = dbProduct?.name || 'Unknown';
-    
+
     // Handle Supabase join ambiguity (could be object or array)
     const categoryData = dbProduct?.category;
     const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
     const categoryHasBuffer = category?.has_buffer ?? true;
-    
+
     // The cleaning buffer is 1 day (BUFFER_MS) unless disabled at category level
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Collect bookings into categories
-    type BookingInfo = { start: number; end: number; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string };
+    type BookingInfo = {
+      start: number;
+      end: number;
+      quantity: number;
+      orderId: string;
+      customerName: string;
+      startDate: string;
+      endDate: string;
+      status: string;
+    };
     const actualOverlaps: BookingInfo[] = [];
     const bufferOnlyOverlaps: BookingInfo[] = [];
 
@@ -492,7 +557,8 @@ export class OrderRepository extends BaseRepository {
       const bookingBuffer = !categoryHasBuffer ? 0 : effectiveBuffer;
       const effectiveStart = ordStart - bookingBuffer;
       const effectiveEnd = ordEnd + bookingBuffer;
-      const hasBufferOverlap = effectiveStart <= (reqEnd + effectiveBuffer) && effectiveEnd >= (reqStart - effectiveBuffer);
+      const hasBufferOverlap =
+        effectiveStart <= reqEnd + effectiveBuffer && effectiveEnd >= reqStart - effectiveBuffer;
 
       if (hasActualOverlap) {
         actualOverlaps.push(bookingInfo);
@@ -529,7 +595,7 @@ export class OrderRepository extends BaseRepository {
           blockedBookingIds.add(booking.orderId);
           unionBlocked += booking.quantity;
           // Track if this was a buffer-only booking (not an actual overlap)
-          if (bufferOnlyOverlaps.some(b => b.orderId === booking.orderId)) {
+          if (bufferOnlyOverlaps.some((b) => b.orderId === booking.orderId)) {
             blockedBufferOrderIds.add(booking.orderId);
           }
         }
@@ -558,7 +624,8 @@ export class OrderRepository extends BaseRepository {
 
     // Priority cleaning is available when buffer-only overlaps exist and
     // removing them would free up additional units
-    const priorityCleaningNeeded = blockedBufferOrderIds.size > 0 && availableWithPriority > availableQuantity;
+    const priorityCleaningNeeded =
+      blockedBufferOrderIds.size > 0 && availableWithPriority > availableQuantity;
 
     // ─── Build Priority Cleaning Info ─────────────────────────────────────
     // Only include buffer-only bookings that ACTUALLY blocked a day in the
@@ -587,8 +654,10 @@ export class OrderRepository extends BaseRepository {
       // Sort: returning_before first (by end date asc), then starting_after (by start date asc)
       priorityCleaningInfo.sort((a: any, b: any) => {
         if (a.direction !== b.direction) return a.direction === 'returning_before' ? -1 : 1;
-        const dateA = a.direction === 'returning_before' ? a.returningOrderEndDate : a.returningOrderStartDate;
-        const dateB = b.direction === 'returning_before' ? b.returningOrderEndDate : b.returningOrderStartDate;
+        const dateA =
+          a.direction === 'returning_before' ? a.returningOrderEndDate : a.returningOrderStartDate;
+        const dateB =
+          b.direction === 'returning_before' ? b.returningOrderEndDate : b.returningOrderStartDate;
         return new Date(dateA).getTime() - new Date(dateB).getTime();
       });
     }
@@ -596,10 +665,10 @@ export class OrderRepository extends BaseRepository {
     // Build the overlapping orders response — combine actual + buffer-only with flags
     // Sort by start date for chronological display
     const allOverlapping = [
-      ...actualOverlaps.map(b => ({ ...b, bufferOnly: false })),
+      ...actualOverlaps.map((b) => ({ ...b, bufferOnly: false })),
       ...bufferOnlyOverlaps
-        .filter(b => blockedBufferOrderIds.has(b.orderId))
-        .map(b => ({ ...b, bufferOnly: true })),
+        .filter((b) => blockedBufferOrderIds.has(b.orderId))
+        .map((b) => ({ ...b, bufferOnly: true })),
     ].sort((a, b) => a.start - b.start);
 
     return {
@@ -608,10 +677,14 @@ export class OrderRepository extends BaseRepository {
         availableWithPriority,
         total: totalQuantity,
         peakReserved: unionBlocked,
-        overlappingOrders: allOverlapping.map(b => {
-          const potentialBufferStart = categoryHasBuffer ? new Date(b.start - DAY_MS).toISOString().split('T')[0] : null;
-          const potentialBufferEnd = categoryHasBuffer ? new Date(b.end + DAY_MS).toISOString().split('T')[0] : null;
-          
+        overlappingOrders: allOverlapping.map((b) => {
+          const potentialBufferStart = categoryHasBuffer
+            ? new Date(b.start - DAY_MS).toISOString().split('T')[0]
+            : null;
+          const potentialBufferEnd = categoryHasBuffer
+            ? new Date(b.end + DAY_MS).toISOString().split('T')[0]
+            : null;
+
           return {
             orderId: b.orderId,
             customerName: b.customerName,
@@ -641,14 +714,18 @@ export class OrderRepository extends BaseRepository {
   async validateOrderStockConflicts(orderId: string): Promise<RepositoryResult<boolean>> {
     // 1. Fetch the order with its items
     const orderRes = await this.findById(orderId);
-    if (!orderRes.success || !orderRes.data) return { data: false, error: orderRes.error, success: false };
+    if (!orderRes.success || !orderRes.data)
+      return { data: false, error: orderRes.error, success: false };
     const order = orderRes.data;
 
     // Only active orders awaiting fulfillment can have conflicts
     const activeStatuses = ['pending', 'confirmed', 'scheduled'];
     if (!activeStatuses.includes(order.status)) {
       if (order.has_stock_conflict) {
-        await this.client.from(this.tableName).update({ has_stock_conflict: false, conflict_details: [] }).eq('id', orderId);
+        await this.client
+          .from(this.tableName)
+          .update({ has_stock_conflict: false, conflict_details: [] })
+          .eq('id', orderId);
       }
       return { data: false, error: null, success: true };
     }
@@ -657,38 +734,40 @@ export class OrderRepository extends BaseRepository {
     let hasConflict = false;
 
     // 2. Check each item in the order in parallel
-    await Promise.all((order.items || []).map(async (item) => {
-      if (!item.product_id) return;
-      
-      const availRes = await this.checkAvailability(
-        item.product_id, 
-        order.start_date, 
-        order.end_date, 
-        order.branch_id, 
-        orderId // Exclude self from the count
-      );
+    await Promise.all(
+      (order.items || []).map(async (item) => {
+        if (!item.product_id) return;
 
-      if (availRes.success && availRes.data) {
-        const available = availRes.data.availableWithPriority; // Be generous: if priority cleaning helps, it's not a hard conflict yet
-        if (available < item.quantity) {
-          hasConflict = true;
-          conflicts.push({
-            productId: item.product_id,
-            productName: (item as any).product?.name || 'Unknown Product',
-            requested: item.quantity,
-            available: available,
-            shortfall: item.quantity - available
-          });
+        const availRes = await this.checkAvailability(
+          item.product_id,
+          order.start_date,
+          order.end_date,
+          order.branch_id,
+          orderId // Exclude self from the count
+        );
+
+        if (availRes.success && availRes.data) {
+          const available = availRes.data.availableWithPriority; // Be generous: if priority cleaning helps, it's not a hard conflict yet
+          if (available < item.quantity) {
+            hasConflict = true;
+            conflicts.push({
+              productId: item.product_id,
+              productName: (item as any).product?.name || 'Unknown Product',
+              requested: item.quantity,
+              available: available,
+              shortfall: item.quantity - available,
+            });
+          }
         }
-      }
-    }));
+      })
+    );
 
     // 3. Update order flag and details
     const { error: updateError } = await this.client
       .from(this.tableName)
-      .update({ 
+      .update({
         has_stock_conflict: hasConflict,
-        conflict_details: conflicts
+        conflict_details: conflicts,
       })
       .eq('id', orderId);
 
@@ -706,23 +785,34 @@ export class OrderRepository extends BaseRepository {
    * @param productId - The product whose changes might cause conflicts
    */
   async syncProductConflicts(productId: string): Promise<void> {
-    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-    
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+      new Date()
+    );
+
     // Find all future active orders containing this product
     const { data: orderItems, error } = await this.client
       .from(this.orderItemsTable)
       .select('order_id, orders!inner(id, status, end_date)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+      .in('orders.status', [
+        'pending',
+        'confirmed',
+        'scheduled',
+        'ongoing',
+        'in_use',
+        'partial',
+        'flagged',
+        'returned',
+      ])
       .gte('orders.end_date', todayStr);
 
     if (error || !orderItems) return;
 
     // Deduplicate order IDs
-    const orderIds = Array.from(new Set(orderItems.map(item => item.order_id)));
+    const orderIds = Array.from(new Set(orderItems.map((item) => item.order_id)));
 
     // Run validation for each order in parallel
-    await Promise.all(orderIds.map(id => this.validateOrderStockConflicts(id)));
+    await Promise.all(orderIds.map((id) => this.validateOrderStockConflicts(id)));
   }
 
   /**
@@ -736,7 +826,7 @@ export class OrderRepository extends BaseRepository {
   async syncProductConflictsForRange(
     productId: string,
     startDate: string,
-    endDate: string,
+    endDate: string
   ): Promise<void> {
     const DAY_MS = 86400000;
     // Buffer is 1 day before/after to be safe about cleaning buffers
@@ -744,14 +834,25 @@ export class OrderRepository extends BaseRepository {
     const endMs = new Date(endDate).getTime() + DAY_MS;
     const startStr = new Date(startMs).toISOString().split('T')[0];
     const endStr = new Date(endMs).toISOString().split('T')[0];
-    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+      new Date()
+    );
 
     // Find all active orders containing this product that overlap with our range
     const { data: orderItems, error } = await this.client
       .from(this.orderItemsTable)
       .select('order_id, orders!inner(id, status, start_date, end_date)')
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+      .in('orders.status', [
+        'pending',
+        'confirmed',
+        'scheduled',
+        'ongoing',
+        'in_use',
+        'partial',
+        'flagged',
+        'returned',
+      ])
       .gte('orders.end_date', todayStr)
       .lte('orders.start_date', endStr)
       .gte('orders.end_date', startStr);
@@ -759,10 +860,10 @@ export class OrderRepository extends BaseRepository {
     if (error || !orderItems) return;
 
     // Deduplicate order IDs
-    const orderIds = Array.from(new Set(orderItems.map(item => item.order_id)));
+    const orderIds = Array.from(new Set(orderItems.map((item) => item.order_id)));
 
     // Run validation for each order in parallel
-    await Promise.all(orderIds.map(id => this.validateOrderStockConflicts(id)));
+    await Promise.all(orderIds.map((id) => this.validateOrderStockConflicts(id)));
   }
 
   /**
@@ -778,18 +879,22 @@ export class OrderRepository extends BaseRepository {
     productId: string,
     rangeStart: string,
     rangeEnd: string,
-    branchId?: string,
-  ): Promise<RepositoryResult<{ productId: string; productName: string; totalQuantity: number; days: any[] }>> {
+    branchId?: string
+  ): Promise<
+    RepositoryResult<{ productId: string; productName: string; totalQuantity: number; days: any[] }>
+  > {
     // Get product info and category buffer setting
     const productResponse = await this.client
       .from('products')
-      .select(`
+      .select(
+        `
         quantity, 
         name, 
         branch_id, 
         category:category_id(has_buffer),
         product_inventory(quantity, branch_id)
-      `)
+      `
+      )
       .eq('id', productId)
       .single();
 
@@ -808,7 +913,7 @@ export class OrderRepository extends BaseRepository {
         totalQuantity = branchInv.quantity || 0;
       } else if (productBranchId) {
         // Product is tied to a specific branch and has no product_inventory records
-        totalQuantity = productBranchId === branchId ? (dbProduct.quantity || 0) : 0;
+        totalQuantity = productBranchId === branchId ? dbProduct.quantity || 0 : 0;
       } else {
         // Product is global, but has no inventory record for this branch
         totalQuantity = 0;
@@ -818,20 +923,31 @@ export class OrderRepository extends BaseRepository {
     }
 
     const productName = dbProduct?.name || '';
-    
+
     // Handle Supabase join ambiguity (could be object or array)
     const categoryData = dbProduct?.category;
     const category = Array.isArray(categoryData) ? categoryData[0] : categoryData;
     const categoryHasBuffer = category?.has_buffer ?? true;
-    
+
     const effectiveBuffer = categoryHasBuffer ? BUFFER_MS : 0;
 
     // Fetch all active bookings that overlap with the view range
     let ordersQuery = this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))')
+      .select(
+        'quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, customer_id, branch_id, customer:customer_id(name))'
+      )
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned']);
+      .in('orders.status', [
+        'pending',
+        'confirmed',
+        'scheduled',
+        'ongoing',
+        'in_use',
+        'partial',
+        'flagged',
+        'returned',
+      ]);
 
     if (branchId) {
       ordersQuery = ordersQuery.eq('orders.branch_id', branchId);
@@ -847,7 +963,16 @@ export class OrderRepository extends BaseRepository {
     const viewEnd = new Date(rangeEnd);
 
     // Parse all bookings
-    const bookings: { start: Date; end: Date; quantity: number; orderId: string; customerName: string; startDate: string; endDate: string; status: string }[] = [];
+    const bookings: {
+      start: Date;
+      end: Date;
+      quantity: number;
+      orderId: string;
+      customerName: string;
+      startDate: string;
+      endDate: string;
+      status: string;
+    }[] = [];
     for (const item of (ordersResponse.data || []) as any[]) {
       const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
       if (!order) continue;
@@ -897,7 +1022,8 @@ export class OrderRepository extends BaseRepository {
           reserved += booking.quantity;
 
           // Determine if this day is a buffer day or an actual rental day
-          const isActualRentalDay = bookingStartTime <= currentTime && bookingEndTime >= currentTime;
+          const isActualRentalDay =
+            bookingStartTime <= currentTime && bookingEndTime >= currentTime;
           const isBuffer = !isActualRentalDay;
 
           if (isBuffer) {
@@ -923,7 +1049,15 @@ export class OrderRepository extends BaseRepository {
       else if (reserved > 0 && bufferReserved === reserved) status = 'buffer';
       else if (reserved > 0) status = 'partial';
 
-      days.push({ date: dateStr, total: totalQuantity, reserved, bufferReserved, available, status, bookings: dayBookings });
+      days.push({
+        date: dateStr,
+        total: totalQuantity,
+        reserved,
+        bufferReserved,
+        available,
+        status,
+        bookings: dayBookings,
+      });
       current.setDate(current.getDate() + 1);
     }
 
@@ -940,7 +1074,8 @@ export class OrderRepository extends BaseRepository {
   async findById(id: string): Promise<RepositoryResult<OrderWithRelations>> {
     const response = await this.client
       .from(this.tableName)
-      .select(`
+      .select(
+        `
         *,
         customer:customer_id(id, name, phone, alt_phone, email),
         items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
@@ -948,8 +1083,11 @@ export class OrderRepository extends BaseRepository {
           is_returned, returned_quantity, base_amount, gst_amount,
           product:product_id(id, name, images, category:category_id(has_buffer))
         ),
-        branch:branch_id(id, name)
-      `)
+        branch:branch_id(id, name),
+        creator:created_by(id, name, email),
+        updater:updated_by(id, name, email)
+      `
+      )
       .eq('id', id)
       .single();
 
@@ -963,12 +1101,14 @@ export class OrderRepository extends BaseRepository {
   async getOrderItems(orderId: string): Promise<RepositoryResult<any[]>> {
     const response = await this.client
       .from('order_items')
-      .select(`
+      .select(
+        `
         id, product_id, quantity, price_per_day, discount, discount_type,
         condition_rating, damage_description, damage_charges, damaged_quantity,
         is_returned, returned_quantity, base_amount, gst_amount,
         product:product_id(id, name, images)
-      `)
+      `
+      )
       .eq('order_id', orderId);
 
     return this.handleResponse<any[]>(response as any);
@@ -977,7 +1117,12 @@ export class OrderRepository extends BaseRepository {
   /**
    * Create a new order with items
    */
-  async create(data: CreateOrderDTO, isGstEnabled: boolean = false, perItemGstRates: Map<string, number> = new Map(), providedStoreId?: string): Promise<RepositoryResult<OrderWithRelations>> {
+  async create(
+    data: CreateOrderDTO,
+    isGstEnabled: boolean = false,
+    perItemGstRates: Map<string, number> = new Map(),
+    providedStoreId?: string
+  ): Promise<RepositoryResult<OrderWithRelations>> {
     // Parse rental dates — used for scheduling AND pricing
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
@@ -994,9 +1139,10 @@ export class OrderRepository extends BaseRepository {
     let itemDiscountTotal = 0;
     data.items.forEach((item: any) => {
       const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-      const itemDisc = item.discount_type === 'percent'
-        ? lineTotal * ((item.discount || 0) / 100)
-        : (item.discount || 0) * item.quantity;
+      const itemDisc =
+        item.discount_type === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * item.quantity;
       rawSubtotal += lineTotal;
       itemDiscountTotal += Math.min(itemDisc, lineTotal);
     });
@@ -1005,9 +1151,10 @@ export class OrderRepository extends BaseRepository {
     // Order-level discount
     const orderDiscountVal = (data as any).discount || 0;
     const orderDiscountType = (data as any).discount_type || 'flat';
-    const orderDiscAmt = orderDiscountType === 'percent'
-      ? afterItemDiscount * (orderDiscountVal / 100)
-      : orderDiscountVal;
+    const orderDiscAmt =
+      orderDiscountType === 'percent'
+        ? afterItemDiscount * (orderDiscountVal / 100)
+        : orderDiscountVal;
     const effectiveOrderDiscount = Math.min(orderDiscAmt, afterItemDiscount);
     const subtotal = afterItemDiscount - effectiveOrderDiscount;
 
@@ -1015,25 +1162,26 @@ export class OrderRepository extends BaseRepository {
     // Formula: base = amount / (1 + rate/100), gst = amount - base
     let totalGstAmount = 0;
     const itemGstDetails = new Map<string, { rate: number; base: number; gst: number }>();
-    
+
     if (isGstEnabled) {
       data.items.forEach((item: any) => {
         const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-        const itemDisc = item.discount_type === 'percent'
-          ? lineTotal * ((item.discount || 0) / 100)
-          : (item.discount || 0) * item.quantity;
+        const itemDisc =
+          item.discount_type === 'percent'
+            ? lineTotal * ((item.discount || 0) / 100)
+            : (item.discount || 0) * item.quantity;
         const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
         const gstRate = perItemGstRates.get(item.product_id) ?? 0;
-        
+
         let itemGst = 0;
         let itemBase = lineAfterDiscount;
-        
+
         if (gstRate > 0) {
-          itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+          itemGst = lineAfterDiscount - lineAfterDiscount / (1 + gstRate / 100);
           itemBase = lineAfterDiscount - itemGst;
           totalGstAmount += itemGst;
         }
-        
+
         itemGstDetails.set(item.product_id, { rate: gstRate, base: itemBase, gst: itemGst });
       });
 
@@ -1041,7 +1189,7 @@ export class OrderRepository extends BaseRepository {
       if (effectiveOrderDiscount > 0 && afterItemDiscount > 0) {
         const ratio = subtotal / afterItemDiscount;
         totalGstAmount = totalGstAmount * ratio;
-        
+
         // Also adjust individual item details for accurate reporting
         for (const [productId, details] of itemGstDetails.entries()) {
           const adjustedGst = details.gst * ratio;
@@ -1054,14 +1202,15 @@ export class OrderRepository extends BaseRepository {
       // If GST not enabled, still need base amounts (which is just the line total)
       data.items.forEach((item: any) => {
         const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-        const itemDisc = item.discount_type === 'percent'
-          ? lineTotal * ((item.discount || 0) / 100)
-          : (item.discount || 0) * item.quantity;
+        const itemDisc =
+          item.discount_type === 'percent'
+            ? lineTotal * ((item.discount || 0) / 100)
+            : (item.discount || 0) * item.quantity;
         const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
         itemGstDetails.set(item.product_id, { rate: 0, base: lineAfterDiscount, gst: 0 });
       });
     }
-    
+
     // Grand total = subtotal (GST is WITHIN, not added on top)
     const totalAmount = subtotal;
 
@@ -1073,12 +1222,12 @@ export class OrderRepository extends BaseRepository {
         .select('store_id')
         .eq('id', data.branch_id)
         .single();
-        
+
       if (branchResponse.error) {
         return {
           data: null,
           error: branchResponse.error,
-          success: false
+          success: false,
         };
       }
       storeId = branchResponse.data.store_id;
@@ -1128,7 +1277,9 @@ export class OrderRepository extends BaseRepository {
         invoice_number: invoiceNumber,
         start_date: startDateStr,
         end_date: endDate.toISOString().split('T')[0],
-        event_date: data.event_date ? new Date(data.event_date).toISOString().split('T')[0] : startDate.toISOString().split('T')[0],
+        event_date: data.event_date
+          ? new Date(data.event_date).toISOString().split('T')[0]
+          : startDate.toISOString().split('T')[0],
         delivery_method: data.delivery_method || 'pickup',
         delivery_address: data.delivery_address || null,
         pickup_address: data.pickup_address || null,
@@ -1148,9 +1299,12 @@ export class OrderRepository extends BaseRepository {
         deposit_returned_at: null,
         total_amount: totalAmount,
         amount_paid: data.advance_collected && data.advance_amount ? data.advance_amount : 0,
-        payment_status: data.advance_collected && data.advance_amount
-          ? (data.advance_amount >= totalAmount ? 'paid' : 'partial')
-          : 'pending',
+        payment_status:
+          data.advance_collected && data.advance_amount
+            ? data.advance_amount >= totalAmount
+              ? 'paid'
+              : 'partial'
+            : 'pending',
         notes: data.notes || null,
         ...this.getCreateAuditFields(),
       })
@@ -1203,14 +1357,12 @@ export class OrderRepository extends BaseRepository {
     // not here — OrderRepository must not write to the payments table directly.
     (async () => {
       // Create initial status history
-      await this.client
-        .from(this.orderStatusHistoryTable)
-        .insert({
-          order_id: order.id,
-          status: initialStatus,
-          changed_by: null,
-        });
-    })().catch(err => {
+      await this.client.from(this.orderStatusHistoryTable).insert({
+        order_id: order.id,
+        status: initialStatus,
+        changed_by: null,
+      });
+    })().catch((err) => {
       console.error('[OrderRepository.create] Background status history insert failed:', err);
     });
 
@@ -1219,13 +1371,13 @@ export class OrderRepository extends BaseRepository {
       ...order,
       items: items,
       customer: undefined as any,
-      branch: undefined as any
+      branch: undefined as any,
     };
 
     return {
       data: constructedOrder,
       error: null,
-      success: true
+      success: true,
     };
   }
 
@@ -1239,7 +1391,7 @@ export class OrderRepository extends BaseRepository {
       .select('status, branch_id, start_date, end_date')
       .eq('id', id)
       .single();
-      
+
     const oldStatus = oldOrderResponse.data?.status;
     const branchId = oldOrderResponse.data?.branch_id;
 
@@ -1256,7 +1408,10 @@ export class OrderRepository extends BaseRepository {
     }
 
     // If status is transitioning to a non-active state, clear stock conflict flags
-    if (normalizedData.status && !['pending', 'confirmed', 'scheduled'].includes(normalizedData.status)) {
+    if (
+      normalizedData.status &&
+      !['pending', 'confirmed', 'scheduled'].includes(normalizedData.status)
+    ) {
       normalizedData.has_stock_conflict = false;
       normalizedData.conflict_details = [];
     }
@@ -1266,7 +1421,10 @@ export class OrderRepository extends BaseRepository {
 
     const response = await this.client
       .from(this.tableName)
-      .update({ ...orderData })
+      .update({
+        ...orderData,
+        ...this.getUpdateAuditFields(),
+      })
       .eq('id', id)
       .select()
       .single();
@@ -1285,7 +1443,7 @@ export class OrderRepository extends BaseRepository {
         .from('products')
         .select('id, categories:category_id(gst_percentage)')
         .in('id', productIds);
-      
+
       const perItemGstRates = new Map<string, number>();
       if (products) {
         for (const p of products) {
@@ -1295,10 +1453,16 @@ export class OrderRepository extends BaseRepository {
       }
 
       // Fetch global GST setting
-      const { data: settings } = await this.client.from('settings').select('value').eq('key', 'is_gst_enabled').single();
+      const { data: settings } = await this.client
+        .from('settings')
+        .select('value')
+        .eq('key', 'is_gst_enabled')
+        .single();
       const isGstEnabled = settings?.value === 'true';
 
-      const finalStartDate = new Date(normalizedData.start_date || oldOrderResponse.data?.start_date);
+      const finalStartDate = new Date(
+        normalizedData.start_date || oldOrderResponse.data?.start_date
+      );
       const finalEndDate = new Date(normalizedData.end_date || oldOrderResponse.data?.end_date);
       const diffTime = Math.abs(finalEndDate.getTime() - finalStartDate.getTime());
       const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
@@ -1308,21 +1472,22 @@ export class OrderRepository extends BaseRepository {
       // because the update data might not include all order financial fields.
       // Ideally we should recalculate the whole order totals here.
       // For now, save the raw per-item GST breakdown.
-      
+
       await this.client.from(this.orderItemsTable).insert(
         items.map((item: any) => {
           const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-          const itemDisc = item.discount_type === 'percent'
-            ? lineTotal * ((item.discount || 0) / 100)
-            : (item.discount || 0) * item.quantity;
+          const itemDisc =
+            item.discount_type === 'percent'
+              ? lineTotal * ((item.discount || 0) / 100)
+              : (item.discount || 0) * item.quantity;
           const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
           const gstRate = perItemGstRates.get(item.product_id) ?? 0;
-          
+
           let itemGst = 0;
           let itemBase = lineAfterDiscount;
-          
+
           if (isGstEnabled && gstRate > 0) {
-            itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+            itemGst = lineAfterDiscount - lineAfterDiscount / (1 + gstRate / 100);
             itemBase = lineAfterDiscount - itemGst;
           }
 
@@ -1345,44 +1510,63 @@ export class OrderRepository extends BaseRepository {
 
     // If status changed to ongoing/in_use, decrement stock
     if (data.status && oldStatus && branchId) {
-      const isStarting = ['ongoing', 'in_use'].includes(data.status) &&
-                         !['ongoing', 'in_use', 'returned', 'completed'].includes(oldStatus);
-      const isCancelling = data.status === 'cancelled' && 
-                           ['ongoing', 'in_use'].includes(oldStatus);
-                           
+      const isStarting =
+        ['ongoing', 'in_use'].includes(data.status) &&
+        !['ongoing', 'in_use', 'returned', 'completed'].includes(oldStatus);
+      const isCancelling = data.status === 'cancelled' && ['ongoing', 'in_use'].includes(oldStatus);
+
       if (isStarting || isCancelling) {
-        const itemsRes = await this.client.from(this.orderItemsTable).select('product_id, quantity').eq('order_id', id);
+        const itemsRes = await this.client
+          .from(this.orderItemsTable)
+          .select('product_id, quantity')
+          .eq('order_id', id);
         if (itemsRes.data) {
-          await Promise.all(itemsRes.data.map(async (item) => {
-            const qtyChange = isStarting ? item.quantity : -item.quantity;
-            
-            const { data: inv } = await this.client.from('product_inventory').select('available_quantity').eq('product_id', item.product_id).eq('branch_id', branchId).single();
-            if (inv) {
-              await this.client.from('product_inventory').update({ available_quantity: Math.max(0, inv.available_quantity - qtyChange) }).eq('product_id', item.product_id).eq('branch_id', branchId);
-            }
-            
-            const { data: prod } = await this.client.from('products').select('available_quantity').eq('id', item.product_id).single();
-            if (prod) {
-              await this.client.from('products').update({ available_quantity: Math.max(0, prod.available_quantity - qtyChange) }).eq('id', item.product_id);
-            }
-          }));
+          await Promise.all(
+            itemsRes.data.map(async (item) => {
+              const qtyChange = isStarting ? item.quantity : -item.quantity;
+
+              const { data: inv } = await this.client
+                .from('product_inventory')
+                .select('available_quantity')
+                .eq('product_id', item.product_id)
+                .eq('branch_id', branchId)
+                .single();
+              if (inv) {
+                await this.client
+                  .from('product_inventory')
+                  .update({ available_quantity: Math.max(0, inv.available_quantity - qtyChange) })
+                  .eq('product_id', item.product_id)
+                  .eq('branch_id', branchId);
+              }
+
+              const { data: prod } = await this.client
+                .from('products')
+                .select('available_quantity')
+                .eq('id', item.product_id)
+                .single();
+              if (prod) {
+                await this.client
+                  .from('products')
+                  .update({ available_quantity: Math.max(0, prod.available_quantity - qtyChange) })
+                  .eq('id', item.product_id);
+              }
+            })
+          );
         }
       }
     }
 
     // If status changed, add to history
     if (data.status) {
-      await this.client
-        .from(this.orderStatusHistoryTable)
-        .insert({
-          order_id: id,
-          status: data.status,
-          changed_by: null,
-        });
+      await this.client.from(this.orderStatusHistoryTable).insert({
+        order_id: id,
+        status: data.status,
+        changed_by: null,
+      });
     }
 
     const result = this.handleResponse<Order>(response);
-    
+
     if (!result.success || !result.data) {
       return result;
     }
@@ -1406,7 +1590,7 @@ export class OrderRepository extends BaseRepository {
     if (orderResponse.data) {
       const status = orderResponse.data.status;
       const branchId = orderResponse.data.branch_id;
-      
+
       // These statuses mean the items have decremented the available_quantity
       if (['ongoing', 'in_use', 'partial', 'flagged'].includes(status)) {
         const itemsRes = await this.client
@@ -1425,7 +1609,7 @@ export class OrderRepository extends BaseRepository {
                 .eq('product_id', item.product_id)
                 .eq('branch_id', branchId)
                 .single();
-                
+
               if (inv) {
                 await this.client
                   .from('product_inventory')
@@ -1433,13 +1617,13 @@ export class OrderRepository extends BaseRepository {
                   .eq('product_id', item.product_id)
                   .eq('branch_id', branchId);
               }
-              
+
               const { data: prod } = await this.client
                 .from('products')
                 .select('available_quantity')
                 .eq('id', item.product_id)
                 .single();
-                
+
               if (prod) {
                 await this.client
                   .from('products')
@@ -1452,10 +1636,7 @@ export class OrderRepository extends BaseRepository {
       }
     }
 
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const response = await this.client.from(this.tableName).delete().eq('id', id);
 
     return this.handleResponse<void>(response);
   }
@@ -1486,23 +1667,40 @@ export class OrderRepository extends BaseRepository {
 
   async findActiveOrdersForProduct(
     productId: string,
-    branchId?: string,
-  ): Promise<RepositoryResult<{ 
-    orderId: string; 
-    startDate: string; 
-    endDate: string; 
-    quantity: number;
-    branchId: string;
-    storeId: string;
-    status: string;
-  }[]>> {
-    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    branchId?: string
+  ): Promise<
+    RepositoryResult<
+      {
+        orderId: string;
+        startDate: string;
+        endDate: string;
+        quantity: number;
+        branchId: string;
+        storeId: string;
+        status: string;
+      }[]
+    >
+  > {
+    const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+      new Date()
+    );
 
     const query = this.client
       .from('order_items')
-      .select('quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)')
+      .select(
+        'quantity, returned_quantity, order_id, orders!inner(id, start_date, end_date, status, branch_id, store_id)'
+      )
       .eq('product_id', productId)
-      .in('orders.status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
+      .in('orders.status', [
+        'pending',
+        'confirmed',
+        'scheduled',
+        'ongoing',
+        'in_use',
+        'partial',
+        'flagged',
+        'returned',
+      ])
       .gte('orders.end_date', todayStr);
 
     const response = await query;
@@ -1511,24 +1709,26 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<any>(response);
     }
 
-    let results = (response.data || []).map((item: any) => {
-      const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
-      const unreturned = item.quantity - (item.returned_quantity || 0);
-      return {
-        orderId: order.id,
-        startDate: order.start_date,
-        endDate: order.end_date,
-        quantity: unreturned,
-        branchId: order.branch_id,
-        storeId: order.store_id,
-        status: order.status
-      };
-    }).filter((r: any) => {
-      // Include if either:
-      // 1. Item is still with the customer (quantity > 0)
-      // 2. Order is in a status where items might be in the cleaning room
-      return r.quantity > 0 || ['returned', 'flagged', 'partial'].includes(r.status);
-    });
+    let results = (response.data || [])
+      .map((item: any) => {
+        const order = Array.isArray(item.orders) ? item.orders[0] : item.orders;
+        const unreturned = item.quantity - (item.returned_quantity || 0);
+        return {
+          orderId: order.id,
+          startDate: order.start_date,
+          endDate: order.end_date,
+          quantity: unreturned,
+          branchId: order.branch_id,
+          storeId: order.store_id,
+          status: order.status,
+        };
+      })
+      .filter((r: any) => {
+        // Include if either:
+        // 1. Item is still with the customer (quantity > 0)
+        // 2. Order is in a status where items might be in the cleaning room
+        return r.quantity > 0 || ['returned', 'flagged', 'partial'].includes(r.status);
+      });
 
     // Filter by branch if specified
     if (branchId) {
@@ -1573,12 +1773,10 @@ export class OrderRepository extends BaseRepository {
       if (customerError) {
         console.error('[OrderRepository.count] Customer search error:', customerError);
       }
-      customerIds = matchingCustomers?.map(c => c.id) || [];
+      customerIds = matchingCustomers?.map((c) => c.id) || [];
     }
 
-    let query = this.client
-      .from(this.tableName)
-      .select('*', { count: 'exact', head: true });
+    let query = this.client.from(this.tableName).select('*', { count: 'exact', head: true });
 
     if (params?.customer_id) {
       query = query.eq('customer_id', params.customer_id);
@@ -1591,23 +1789,31 @@ export class OrderRepository extends BaseRepository {
     if (params?.status) {
       if ((params.status as string) === 'action_needed') {
         // Virtual status: scheduled orders whose pickup date has passed
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+          new Date()
+        );
         query = query.eq('status', 'scheduled').lte('start_date', todayStr);
       } else if ((params.status as string) === 'priority_cleaning') {
         // Virtual status: active orders that need priority cleaning
-        query = query.eq('has_priority_cleaning', true)
+        query = query
+          .eq('has_priority_cleaning', true)
           .not('status', 'in', '(completed,cancelled)');
       } else if ((params.status as string) === 'revenue_due') {
         // Virtual status: returned/partial/flagged but not fully paid
-        query = query.in('status', ['returned', 'partial', 'flagged'])
+        query = query
+          .in('status', ['returned', 'partial', 'flagged'])
           .neq('payment_status', 'paid');
       } else if ((params.status as string) === 'pending') {
         // Virtual status: draft/enquiry OR scheduled orders whose pickup date has passed/today
-        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+        const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(
+          new Date()
+        );
         query = query.or(`status.eq.pending,and(status.eq.scheduled,start_date.lte.${todayStr})`);
       } else if ((params.status as string) === 'partial') {
         // Virtual status: orders with outstanding balance
-        query = query.or('payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)');
+        query = query.or(
+          'payment_status.eq.partial,and(payment_status.eq.pending,amount_paid.gt.0)'
+        );
       } else if ((params.status as string) === 'damaged') {
         // Virtual status: orders currently flagged OR that have damage charges total > 0
         query = query.or('status.eq.flagged,damage_charges_total.gt.0');
@@ -1630,9 +1836,6 @@ export class OrderRepository extends BaseRepository {
       query = query.gt('damage_charges_total', 0);
     }
 
-
-
-
     if (searchTerm) {
       const filters: string[] = [];
       if (customerIds.length > 0) {
@@ -1653,7 +1856,10 @@ export class OrderRepository extends BaseRepository {
     if (params?.date_filter || params?.date_from || params?.date_to) {
       const dateCol = params?.date_field || 'created_at';
       const isDateOnly = dateCol === 'start_date' || dateCol === 'end_date';
-      if (params?.date_filter === 'custom' || (!params?.date_filter && (params?.date_from || params?.date_to))) {
+      if (
+        params?.date_filter === 'custom' ||
+        (!params?.date_filter && (params?.date_from || params?.date_to))
+      ) {
         if (params?.date_from) query = query.gte(dateCol, params.date_from);
         if (params?.date_to) query = query.lte(dateCol, params.date_to);
       } else if (params?.date_filter) {
@@ -1662,7 +1868,7 @@ export class OrderRepository extends BaseRepository {
             timeZone: 'Asia/Kolkata',
             year: 'numeric',
             month: '2-digit',
-            day: '2-digit'
+            day: '2-digit',
           }).format(date);
         };
 
@@ -1672,7 +1878,9 @@ export class OrderRepository extends BaseRepository {
             if (isDateOnly) {
               query = query.gte(dateCol, todayStr).lte(dateCol, todayStr);
             } else {
-              query = query.gte(dateCol, `${todayStr}T00:00:00+05:30`).lte(dateCol, `${todayStr}T23:59:59+05:30`);
+              query = query
+                .gte(dateCol, `${todayStr}T00:00:00+05:30`)
+                .lte(dateCol, `${todayStr}T23:59:59+05:30`);
             }
             break;
           }
@@ -1682,7 +1890,9 @@ export class OrderRepository extends BaseRepository {
             if (isDateOnly) {
               query = query.gte(dateCol, yStr).lte(dateCol, yStr);
             } else {
-              query = query.gte(dateCol, `${yStr}T00:00:00+05:30`).lte(dateCol, `${yStr}T23:59:59+05:30`);
+              query = query
+                .gte(dateCol, `${yStr}T00:00:00+05:30`)
+                .lte(dateCol, `${yStr}T23:59:59+05:30`);
             }
             break;
           }
@@ -1715,7 +1925,7 @@ export class OrderRepository extends BaseRepository {
     }
 
     const response = await query;
-    
+
     if (response.error) {
       return {
         success: false,
@@ -1723,7 +1933,7 @@ export class OrderRepository extends BaseRepository {
         error: response.error,
       };
     }
-    
+
     return {
       success: true,
       data: response.count || 0,
@@ -1734,27 +1944,34 @@ export class OrderRepository extends BaseRepository {
   /**
    * Process order return with condition assessment
    */
-  async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
+  async processReturn(
+    orderId: string,
+    returnData: ReturnOrderDTO
+  ): Promise<RepositoryResult<Order>> {
     // Determine final status based on return condition
     let newStatus = 'returned';
 
     // Fetch order items being returned — includes branch_id via join for inventory updates
-    const itemIds = returnData.items.map(i => i.item_id);
+    const itemIds = returnData.items.map((i) => i.item_id);
     const { data: orderItems } = await this.client
       .from(this.orderItemsTable)
       .select('id, returned_quantity, product_id, orders(branch_id)')
       .in('id', itemIds);
 
     // Create a map for quick O(1) lookup
-    const orderItemsMap = new Map<string, { id: string; returned_quantity: number; product_id: string; branch_id: string }>();
+    const orderItemsMap = new Map<
+      string,
+      { id: string; returned_quantity: number; product_id: string; branch_id: string }
+    >();
     if (orderItems) {
       for (const item of orderItems) {
-        const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
+        const branchId =
+          (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
         orderItemsMap.set(item.id, {
           id: item.id,
           returned_quantity: item.returned_quantity || 0,
           product_id: item.product_id,
-          branch_id: branchId
+          branch_id: branchId,
         });
       }
     }
@@ -1764,7 +1981,10 @@ export class OrderRepository extends BaseRepository {
       returnData.items.map(async (item) => {
         const orderItem = orderItemsMap.get(item.item_id);
         const oldReturnedQuantity = orderItem?.returned_quantity || 0;
-        const quantityToIncrement = Math.max(0, (item.returned_quantity || 0) - oldReturnedQuantity);
+        const quantityToIncrement = Math.max(
+          0,
+          (item.returned_quantity || 0) - oldReturnedQuantity
+        );
 
         // Batch the database operations for this item
         const itemOperations: Promise<any>[] = [
@@ -1779,7 +1999,7 @@ export class OrderRepository extends BaseRepository {
               damage_charges: item.damage_charges || 0,
               damaged_quantity: item.damaged_quantity || 0,
             })
-            .eq('id', item.item_id) as any
+            .eq('id', item.item_id) as any,
         ];
 
         // Increment inventory in parallel if there is an increase in returned quantity
@@ -1795,7 +2015,7 @@ export class OrderRepository extends BaseRepository {
                 .eq('product_id', product_id)
                 .eq('branch_id', branch_id)
                 .single();
-                
+
               if (inv) {
                 await this.client
                   .from('product_inventory')
@@ -1814,7 +2034,7 @@ export class OrderRepository extends BaseRepository {
                 .select('available_quantity')
                 .eq('id', product_id)
                 .single();
-                
+
               if (prod) {
                 await this.client
                   .from('products')
@@ -1832,12 +2052,14 @@ export class OrderRepository extends BaseRepository {
     // 2. Now recalculate totals from source of truth
     const { data: allItems } = await this.client
       .from(this.orderItemsTable)
-      .select('damage_charges, condition_rating, quantity, returned_quantity, base_amount, gst_amount')
+      .select(
+        'damage_charges, condition_rating, quantity, returned_quantity, base_amount, gst_amount'
+      )
       .eq('order_id', orderId);
 
     const totalDamageCharges = allItems?.reduce((sum, i) => sum + (i.damage_charges || 0), 0) || 0;
-    const hasDamage = allItems?.some(i => i.condition_rating === 'damaged') || false;
-    const hasMissing = allItems?.some(i => (i.returned_quantity || 0) < i.quantity) || false;
+    const hasDamage = allItems?.some((i) => i.condition_rating === 'damaged') || false;
+    const hasMissing = allItems?.some((i) => (i.returned_quantity || 0) < i.quantity) || false;
 
     if (hasDamage) {
       newStatus = 'flagged';
@@ -1845,7 +2067,8 @@ export class OrderRepository extends BaseRepository {
       newStatus = 'partial';
     }
 
-    const itemTotalAfterDiscounts = allItems?.reduce((sum, i) => sum + (i.base_amount || 0) + (i.gst_amount || 0), 0) || 0;
+    const itemTotalAfterDiscounts =
+      allItems?.reduce((sum, i) => sum + (i.base_amount || 0) + (i.gst_amount || 0), 0) || 0;
 
     // 3. Fetch current order to get the clean base (original discount, amount paid)
     const { data: currentOrder } = await this.client
@@ -1859,23 +2082,24 @@ export class OrderRepository extends BaseRepository {
     const originalOrderDiscount = Number(currentOrder?.discount || 0);
 
     const newDiscountTotal = originalOrderDiscount + additionalDiscount;
-    
+
     // Total amount = Item Total After Item Discounts - Original Order Discount + Additional Late Fee + Total Item Damage - Additional Discount
-    const newTotalAmount = Math.max(0, 
-      itemTotalAfterDiscounts - 
-      originalOrderDiscount + 
-      additionalLateFee + 
-      totalDamageCharges - 
-      additionalDiscount
+    const newTotalAmount = Math.max(
+      0,
+      itemTotalAfterDiscounts -
+        originalOrderDiscount +
+        additionalLateFee +
+        totalDamageCharges -
+        additionalDiscount
     );
-    
+
     // Update payment status if the new total changed and is not fully paid anymore
     let paymentStatus = undefined;
     const amountPaid = Number(currentOrder?.amount_paid || 0);
     if (newTotalAmount > amountPaid) {
-       paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
+      paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
     } else {
-       paymentStatus = 'paid';
+      paymentStatus = 'paid';
     }
 
     // 4. Update order status and totals
@@ -1889,7 +2113,7 @@ export class OrderRepository extends BaseRepository {
         damage_charges_total: totalDamageCharges,
         payment_status: paymentStatus,
         has_stock_conflict: false,
-        conflict_details: []
+        conflict_details: [],
       })
       .eq('id', orderId)
       .select()
@@ -1900,14 +2124,12 @@ export class OrderRepository extends BaseRepository {
     }
 
     // Add to status history
-    await this.client
-      .from(this.orderStatusHistoryTable)
-      .insert({
-        order_id: orderId,
-        status: newStatus,
-        notes: returnData.notes || null,
-        changed_by: null,
-      });
+    await this.client.from(this.orderStatusHistoryTable).insert({
+      order_id: orderId,
+      status: newStatus,
+      notes: returnData.notes || null,
+      changed_by: null,
+    });
 
     // Returns bare Order (no joins). Hooks invalidate the detail cache
     // to trigger a fresh findById refetch with full relations.
@@ -1917,12 +2139,15 @@ export class OrderRepository extends BaseRepository {
   /**
    * Update damage details for a specific order item incrementally.
    */
-  async updateOrderItemDamage(itemId: string, data: {
-    condition_rating: ConditionRating;
-    damage_description: string | null;
-    damage_charges: number;
-    damaged_quantity: number;
-  }): Promise<RepositoryResult<OrderItem>> {
+  async updateOrderItemDamage(
+    itemId: string,
+    data: {
+      condition_rating: ConditionRating;
+      damage_description: string | null;
+      damage_charges: number;
+      damaged_quantity: number;
+    }
+  ): Promise<RepositoryResult<OrderItem>> {
     // 1. Update the order item
     const itemResponse = await this.client
       .from(this.orderItemsTable)
@@ -1948,8 +2173,11 @@ export class OrderRepository extends BaseRepository {
       .select('damage_charges, base_amount, gst_amount')
       .eq('order_id', orderId);
 
-    const totalDamageCharges = allItems?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0;
-    const itemTotalAfterDiscounts = allItems?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) || 0;
+    const totalDamageCharges =
+      allItems?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0;
+    const itemTotalAfterDiscounts =
+      allItems?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) ||
+      0;
 
     // 3. Fetch current order to recalculate total_amount
     const { data: order } = await this.client
@@ -1959,23 +2187,25 @@ export class OrderRepository extends BaseRepository {
       .single();
 
     if (order) {
-      const newTotalAmount = Math.max(0, 
-        itemTotalAfterDiscounts + 
-        Number(order.late_fee || 0) + 
-        totalDamageCharges - 
-        Number(order.discount || 0)
+      const newTotalAmount = Math.max(
+        0,
+        itemTotalAfterDiscounts +
+          Number(order.late_fee || 0) +
+          totalDamageCharges -
+          Number(order.discount || 0)
       );
 
       const amountPaid = Number(order.amount_paid || 0);
-      const paymentStatus = amountPaid >= newTotalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
+      const paymentStatus =
+        amountPaid >= newTotalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
 
       // 4. Update the order with new totals
       await this.client
         .from(this.tableName)
-        .update({ 
+        .update({
           damage_charges_total: totalDamageCharges,
           total_amount: newTotalAmount,
-          payment_status: paymentStatus
+          payment_status: paymentStatus,
         })
         .eq('id', orderId);
     }
@@ -2000,7 +2230,11 @@ export class OrderRepository extends BaseRepository {
     const result = this.handleResponse<Order>(response);
 
     if (!result.success || !result.data) {
-      return { data: null, error: result.error, success: false } as RepositoryResult<OrderWithRelations>;
+      return {
+        data: null,
+        error: result.error,
+        success: false,
+      } as RepositoryResult<OrderWithRelations>;
     }
 
     return this.findById(orderId);
@@ -2010,14 +2244,12 @@ export class OrderRepository extends BaseRepository {
    * Add a status history entry for an order
    */
   async addStatusHistory(orderId: string, status: string, notes?: string): Promise<void> {
-    await this.client
-      .from(this.orderStatusHistoryTable)
-      .insert({
-        order_id: orderId,
-        status,
-        notes: notes || null,
-        changed_by: null,
-      });
+    await this.client.from(this.orderStatusHistoryTable).insert({
+      order_id: orderId,
+      status,
+      notes: notes || null,
+      changed_by: null,
+    });
   }
 
   /**
@@ -2131,7 +2363,7 @@ export class OrderRepository extends BaseRepository {
     if (!cleaningRecords) return;
 
     const hasUrgentCleaning = cleaningRecords.some(
-      record => record.priority === 'urgent' && record.status !== 'completed'
+      (record) => record.priority === 'urgent' && record.status !== 'completed'
     );
 
     await this.client

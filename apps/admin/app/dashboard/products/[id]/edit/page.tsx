@@ -7,17 +7,13 @@
  * @route /dashboard/products/[id]/edit
  */
 
-import ProductForm from "@/components/admin/ProductForm";
-import { productService } from "@/services";
-import { notFound } from "next/navigation";
+import ProductForm from '@/components/admin/ProductForm';
+import { productService } from '@/services';
+import { notFound } from 'next/navigation';
 
-export default async function EditProductPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  
+
   const productResult = await productService.getProductById(id);
 
   if (!productResult.success || !productResult.data) {

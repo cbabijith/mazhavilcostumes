@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
-import { X, Minus, Plus } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { buildOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from "@/lib/whatsapp";
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
+import { X, Minus, Plus } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { buildOrderMessage, buildWhatsAppUrl, calculateRentalPrice } from '@/lib/whatsapp';
 
 interface ProductSummary {
   name: string;
@@ -19,23 +19,25 @@ interface WhatsAppOrderModalProps {
   product: ProductSummary;
 }
 
-export default function WhatsAppOrderModal({
-  open,
-  onClose,
-  product,
-}: WhatsAppOrderModalProps) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+export default function WhatsAppOrderModal({ open, onClose, product }: WhatsAppOrderModalProps) {
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; address?: string; startDate?: string; endDate?: string }>({});
+  const [errors, setErrors] = useState<{
+    name?: string;
+    phone?: string;
+    address?: string;
+    startDate?: string;
+    endDate?: string;
+  }>({});
 
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    document.body.style.overflow = open ? 'hidden' : '';
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = '';
     };
   }, [open]);
 
@@ -50,20 +52,20 @@ export default function WhatsAppOrderModal({
     e.preventDefault();
     const newErrors: typeof errors = {};
     if (!name.trim() || name.trim().length < 2) {
-      newErrors.name = "Please enter your full name";
+      newErrors.name = 'Please enter your full name';
     }
-    const cleanPhone = phone.replace(/\s|-/g, "");
+    const cleanPhone = phone.replace(/\s|-/g, '');
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      newErrors.phone = "Enter a valid 10-digit Indian mobile number";
+      newErrors.phone = 'Enter a valid 10-digit Indian mobile number';
     }
     if (!address.trim() || address.trim().length < 5) {
-      newErrors.address = "Please enter your delivery address";
+      newErrors.address = 'Please enter your delivery address';
     }
     if (!startDate) {
-      newErrors.startDate = "Select a start date";
+      newErrors.startDate = 'Select a start date';
     }
     if (!endDate) {
-      newErrors.endDate = "Select an end date";
+      newErrors.endDate = 'Select an end date';
     }
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
@@ -89,29 +91,26 @@ export default function WhatsAppOrderModal({
       totalRent,
     });
 
-    window.open(buildWhatsAppUrl(message), "_blank");
+    window.open(buildWhatsAppUrl(message), '_blank');
     onClose();
   };
 
   return (
     <div
       className={cn(
-        "fixed inset-0 z-[80] flex items-end sm:items-center justify-center transition-opacity duration-300",
-        open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        'fixed inset-0 z-[80] flex items-end sm:items-center justify-center transition-opacity duration-300',
+        open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
       )}
       aria-hidden={!open}
     >
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Modal */}
       <div
         className={cn(
-          "relative w-full sm:max-w-md mx-auto bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden transition-transform duration-300 flex flex-col max-h-[85vh] sm:max-h-[90vh]",
-          open ? "translate-y-0 sm:scale-100" : "translate-y-full sm:translate-y-0 sm:scale-95"
+          'relative w-full sm:max-w-md mx-auto bg-white rounded-t-2xl sm:rounded-2xl overflow-hidden transition-transform duration-300 flex flex-col max-h-[85vh] sm:max-h-[90vh]',
+          open ? 'translate-y-0 sm:scale-100' : 'translate-y-full sm:translate-y-0 sm:scale-95'
         )}
       >
         {/* Header */}
@@ -159,8 +158,10 @@ export default function WhatsAppOrderModal({
                   if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
                 }}
                 className={cn(
-                  "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50",
-                  errors.name ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                  'w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50',
+                  errors.name
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-[#EAEAEA] focus:border-rosegold'
                 )}
                 placeholder="Enter your full name"
               />
@@ -177,12 +178,14 @@ export default function WhatsAppOrderModal({
                   type="tel"
                   value={phone}
                   onChange={(e) => {
-                    setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                    setPhone(e.target.value.replace(/\D/g, '').slice(0, 10));
                     if (errors.phone) setErrors((p) => ({ ...p, phone: undefined }));
                   }}
                   className={cn(
-                    "flex-1 px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50",
-                    errors.phone ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                    'flex-1 px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50',
+                    errors.phone
+                      ? 'border-red-400 focus:border-red-500'
+                      : 'border-[#EAEAEA] focus:border-rosegold'
                   )}
                   placeholder="10-digit mobile number"
                   inputMode="numeric"
@@ -193,7 +196,9 @@ export default function WhatsAppOrderModal({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-body block mb-1.5">Delivery Address *</label>
+              <label className="text-xs font-medium text-body block mb-1.5">
+                Delivery Address *
+              </label>
               <textarea
                 value={address}
                 onChange={(e) => {
@@ -202,8 +207,10 @@ export default function WhatsAppOrderModal({
                 }}
                 rows={2}
                 className={cn(
-                  "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50 resize-none",
-                  errors.address ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                  'w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors placeholder:text-body/50 resize-none',
+                  errors.address
+                    ? 'border-red-400 focus:border-red-500'
+                    : 'border-[#EAEAEA] focus:border-rosegold'
                 )}
                 placeholder="Full address with pincode"
               />
@@ -222,11 +229,15 @@ export default function WhatsAppOrderModal({
                     if (errors.startDate) setErrors((p) => ({ ...p, startDate: undefined }));
                   }}
                   className={cn(
-                    "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors",
-                    errors.startDate ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                    'w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors',
+                    errors.startDate
+                      ? 'border-red-400 focus:border-red-500'
+                      : 'border-[#EAEAEA] focus:border-rosegold'
                   )}
                 />
-                {errors.startDate && <p className="text-xs text-red-500 mt-1">{errors.startDate}</p>}
+                {errors.startDate && (
+                  <p className="text-xs text-red-500 mt-1">{errors.startDate}</p>
+                )}
               </div>
               <div>
                 <label className="text-xs font-medium text-body block mb-1.5">End Date *</label>
@@ -239,8 +250,10 @@ export default function WhatsAppOrderModal({
                     if (errors.endDate) setErrors((p) => ({ ...p, endDate: undefined }));
                   }}
                   className={cn(
-                    "w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors",
-                    errors.endDate ? "border-red-400 focus:border-red-500" : "border-[#EAEAEA] focus:border-rosegold"
+                    'w-full px-3 py-2.5 bg-white border rounded-lg text-sm focus:outline-none transition-colors',
+                    errors.endDate
+                      ? 'border-red-400 focus:border-red-500'
+                      : 'border-[#EAEAEA] focus:border-rosegold'
                   )}
                 />
                 {errors.endDate && <p className="text-xs text-red-500 mt-1">{errors.endDate}</p>}
@@ -255,7 +268,7 @@ export default function WhatsAppOrderModal({
                 <div className="px-3 py-2.5 bg-gray-50 rounded-lg flex items-center justify-between text-sm">
                   <span className="text-body">Duration</span>
                   <span className="font-semibold text-heading">
-                    {rentalDays} {rentalDays === 1 ? "Day" : "Days"}
+                    {rentalDays} {rentalDays === 1 ? 'Day' : 'Days'}
                   </span>
                 </div>
               );
@@ -273,7 +286,9 @@ export default function WhatsAppOrderModal({
                 >
                   <Minus size={14} />
                 </button>
-                <span className="text-sm font-semibold text-heading w-8 text-center">{quantity}</span>
+                <span className="text-sm font-semibold text-heading w-8 text-center">
+                  {quantity}
+                </span>
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => q + 1)}

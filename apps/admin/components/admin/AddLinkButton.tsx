@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import AddButton from "./AddButton";
+import Link from 'next/link';
+import AddButton from './AddButton';
 
 interface AddLinkButtonProps {
   label: string;
@@ -13,7 +13,12 @@ interface AddLinkButtonProps {
 /**
  * AddButton wrapper with Next.js Link for server components
  */
-export default function AddLinkButton({ label, href, disabled = false, className }: AddLinkButtonProps) {
+export default function AddLinkButton({
+  label,
+  href,
+  disabled = false,
+  className,
+}: AddLinkButtonProps) {
   return (
     <Link href={href}>
       <AddButton label={label} onClick={() => {}} disabled={disabled} className={className} />
