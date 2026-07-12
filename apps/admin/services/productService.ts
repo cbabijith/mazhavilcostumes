@@ -191,7 +191,6 @@ export class ProductService {
     const { branchRepository } = await import('@/repository');
     const branchesResult = await branchRepository.findAllWithStaffCount(this.currentStoreId || '');
     const allBranches = branchesResult.success && branchesResult.data ? branchesResult.data : [];
-
     if (isGlobal) {
       if (allBranches.length > 0) {
         const inventoryPayload = allBranches.map((branch) => {
@@ -247,6 +246,15 @@ export class ProductService {
           },
         ]);
       }
+    }
+
+    // After creating inventory records, sync the product's total
+    // quantity/available_quantity from the actual branch inventory totals.
+    if (branch_inventory && branch_inventory.length > 0) {
+      const totalFromBranches = branch_inventory.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+      await adminClient.from('products')
+        .update({ quantity: totalFromBranches, available_quantity: totalFromBranches })
+        .eq('id', createResult.data!.id);
     }
 
     // Return product with relations

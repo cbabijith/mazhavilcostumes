@@ -72,21 +72,22 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
     );
   }
 
-  void _navigateToEdit() {
-    Navigator.of(context).push(
+  void _navigateToEdit() async {
+    final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => CategoryFormView(category: _category)),
-    ).then((_) {
-      // Refresh the list when coming back
-      ref.invalidate(categoriesProvider);
-      // Try to get updated data from the refreshed list
-      final allAsync = ref.read(categoriesProvider);
-      allAsync.whenData((all) {
-        final updated = all.where((c) => c.id == _category.id).firstOrNull;
-        if (updated != null && mounted) {
-          setState(() => _category = updated);
-        }
-      });
-    });
+    );
+    if (result != true || !mounted) return;
+
+    try {
+      await ref.read(categoriesProvider.notifier).refresh();
+      final all = ref.read(categoriesProvider).value ?? [];
+      final updated = all.where((c) => c.id == _category.id).firstOrNull;
+      if (updated != null && mounted) {
+        setState(() => _category = updated);
+      }
+    } catch (e) {
+      debugPrint('Error refreshing category after edit: $e');
+    }
   }
 
   Widget _buildCoverBanner() {
@@ -366,35 +367,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   ],
                 ),
 
-                // ── Edit Button ──
-                if (canManage) ...[
-                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                  SizedBox(
-                    width: double.infinity,
-                    height: Responsive.h(AppSizes.buttonMedium),
-                    child: OutlinedButton.icon(
-                      onPressed: () => _navigateToEdit(),
-                      icon: Icon(Icons.edit_rounded, size: Responsive.icon(AppSizes.iconSmall)),
-                      label: Text(
-                        'Edit Category Details',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontMedium),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(
-                          color: AppColors.primary.withValues(alpha: 0.5),
-                          width: AppSizes.spacingTiny / 2,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+
 
                 // ── Children Section ──
                 if (levelLabel != 'Variant') ...[
@@ -444,12 +417,13 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                               ),
                               if (canManage)
                                 TextButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
+                                  onPressed: () async {
+                                    final result = await Navigator.of(context).push<bool>(
                                       MaterialPageRoute(builder: (_) => CategoryFormView(initialParentId: _category.id)),
-                                    ).then((_) {
+                                    );
+                                    if (result == true && mounted) {
                                       ref.invalidate(categoriesProvider);
-                                    });
+                                    }
                                   },
                                   icon: Icon(Icons.add_rounded, size: Responsive.icon(AppSizes.iconSmall)),
                                   label: Text(

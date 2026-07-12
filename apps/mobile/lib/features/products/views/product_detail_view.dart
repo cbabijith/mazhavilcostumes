@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -12,6 +13,10 @@ import '../models/product.dart';
 import '../models/product_analytics.dart';
 import '../models/damage_record.dart';
 import '../models/product_availability.dart';
+import '../viewmodels/providers/product_provider.dart';
+import '../../orders/views/order_detail_view.dart';
+import '../../orders/viewmodels/providers/order_provider.dart';
+import 'product_form_view.dart';
 
 /// Product detail view — image carousel, pricing, stock, and quick actions.
 class ProductDetailView extends ConsumerStatefulWidget {
@@ -26,6 +31,36 @@ class ProductDetailView extends ConsumerStatefulWidget {
 class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   int _currentImageIndex = 0;
   final PageController _pageController = PageController();
+
+  Future<void> _navigateToOrder(BuildContext context, String orderId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final repo = ref.read(orderRepositoryProvider);
+      final order = await repo.getOrderById(orderId);
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Dismiss progress dialog
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OrderDetailView(order: order),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Dismiss progress dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load order: $e'),
+            backgroundColor: const Color(0xFFFF6B8A),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -107,10 +142,16 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 ],
                 _buildGeneralInfoCard(product),
                 SizedBox(height: Responsive.h(16)),
+                _buildProductIdentifiersCard(product),
+                SizedBox(height: Responsive.h(16)),
                 _buildBranchStockSection(state.branchInventory, product),
                 SizedBox(height: Responsive.h(16)),
                 _buildCalendarSection(state.availability),
                 SizedBox(height: Responsive.h(16)),
+                if (isAdminOrManager) ...[
+                  _buildMonthlyRevenueSection(state.analytics),
+                  SizedBox(height: Responsive.h(16)),
+                ],
                 if (state.analytics?.items.isNotEmpty ?? false) ...[
                   _buildRentalHistorySection(state.analytics!.items),
                   SizedBox(height: Responsive.h(16)),
@@ -152,6 +193,26 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             tooltip: 'Print Barcode',
             onPressed: () => _showBarcodeDialog(product),
           ),
+        if (isAdminOrManager) ...[
+          IconButton(
+            icon: Icon(Icons.edit_rounded, size: Responsive.icon(22)),
+            tooltip: 'Edit Product',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProductFormView(productId: product.id),
+                ),
+              ).then((_) {
+                ref.invalidate(productDetailsProvider(product.id));
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline_rounded, size: Responsive.icon(22), color: const Color(0xFFFF6B8A)),
+            tooltip: 'Delete Product',
+            onPressed: () => _confirmDeleteProduct(context, ref, product),
+          ),
+        ],
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
@@ -394,22 +455,156 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         icon: Icons.inventory_2_outlined,
       ),
     ];
-    return SizedBox(
-      height: Responsive.h(100),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (context, index) => SizedBox(width: Responsive.w(10)),
-        itemBuilder: (context, i) => SizedBox(
-          width: Responsive.w(140),
-          child: AppCard(
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: Responsive.w(10),
+        mainAxisSpacing: Responsive.h(10),
+        childAspectRatio: 1.6,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, i) => AppCard(
+        padding: Responsive.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(items[i].icon, size: Responsive.icon(20), color: items[i].color),
+                if (items[i].label == 'Active Rentals' && (analytics?.activeOrders ?? 0) > 0)
+                  Container(
+                    width: Responsive.w(8),
+                    height: Responsive.w(8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF2ECC71),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    items[i].value,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(18),
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                SizedBox(height: Responsive.h(2)),
+                Text(
+                  items[i].label,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(11),
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsSection(ProductAnalytics? analytics) {
+    if (analytics == null) return const SizedBox.shrink();
+    final roi = analytics.roi;
+
+    final items = [
+      _AnalyticsCardItem(
+        label: 'Purchase Price',
+        value: '₹${analytics.purchasePrice.toStringAsFixed(0)}',
+        subtext: 'Original cost',
+        color: Colors.grey[700]!,
+        icon: Icons.shopping_bag_outlined,
+      ),
+      _AnalyticsCardItem(
+        label: 'ROI',
+        value: roi != null ? '${roi >= 0 ? '+' : ''}$roi%' : 'N/A',
+        subtext: roi != null ? (roi > 0 ? 'Profitable' : 'Below cost') : 'Set purchase price',
+        color: roi != null && roi >= 100
+            ? const Color(0xFF2ECC71)
+            : roi != null && roi < 0
+                ? const Color(0xFFFF6B8A)
+                : const Color(0xFFF5A623),
+        icon: Icons.trending_up_rounded,
+      ),
+      _AnalyticsCardItem(
+        label: 'Usage Rate',
+        value: '${analytics.usageRate}%',
+        subtext: '${analytics.totalRentalDays} rental days',
+        color: const Color(0xFF3B82F6),
+        icon: Icons.bar_chart_rounded,
+      ),
+      _AnalyticsCardItem(
+        label: 'Avg Duration',
+        value: '${analytics.avgRentalDuration} days',
+        subtext: 'Per rental',
+        color: const Color(0xFF9B59B6),
+        icon: Icons.timelapse_rounded,
+      ),
+      _AnalyticsCardItem(
+        label: 'Cancelled',
+        value: '${analytics.cancelledOrders}',
+        subtext: 'Orders cancelled',
+        color: const Color(0xFFFF6B8A),
+        icon: Icons.cancel_presentation_outlined,
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Enhanced Analytics'),
+        SizedBox(height: Responsive.h(10)),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: Responsive.w(10),
+            mainAxisSpacing: Responsive.h(10),
+            childAspectRatio: 1.5,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, i) => AppCard(
             padding: Responsive.all(10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(items[i].icon,
-                    size: Responsive.icon(18), color: items[i].color),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        items[i].label,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(10),
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Icon(items[i].icon, size: Responsive.icon(16), color: items[i].color),
+                  ],
+                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -418,17 +613,19 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                       child: Text(
                         items[i].value,
                         style: TextStyle(
-                          fontSize: Responsive.sp(18),
+                          fontSize: Responsive.sp(16),
                           fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
+                          color: items[i].label == 'ROI' ? items[i].color : AppColors.primary,
                         ),
                       ),
                     ),
                     SizedBox(height: Responsive.h(2)),
                     Text(
-                      items[i].label,
+                      items[i].subtext,
                       style: TextStyle(
-                          fontSize: Responsive.sp(11), color: Colors.grey[600]),
+                        fontSize: Responsive.sp(9),
+                        color: Colors.grey[500],
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -438,75 +635,7 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildAnalyticsSection(ProductAnalytics? analytics) {
-    if (analytics == null) return const SizedBox.shrink();
-    final roi = analytics.roi;
-    final items = [
-      _AnalyticsRow(
-        label: 'Purchase Price',
-        value: '₹${analytics.purchasePrice.toStringAsFixed(0)}',
-        color: Colors.grey[700]!,
-      ),
-      _AnalyticsRow(
-        label: 'ROI',
-        value: roi != null ? '${roi >= 0 ? '+' : ''}$roi%' : 'N/A',
-        color: roi != null && roi >= 0
-            ? const Color(0xFF2ECC71)
-            : const Color(0xFFFF6B8A),
-      ),
-      _AnalyticsRow(
-        label: 'Usage Rate',
-        value: '${analytics.usageRate}%',
-        color: const Color(0xFF3B82F6),
-      ),
-      _AnalyticsRow(
-        label: 'Avg Duration',
-        value: '${analytics.avgRentalDuration} days',
-        color: const Color(0xFFF5A623),
-      ),
-      _AnalyticsRow(
-        label: 'Cancelled',
-        value: '${analytics.cancelledOrders}',
-        color: const Color(0xFFFF6B8A),
-      ),
-    ];
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionTitle('Analytics'),
-          SizedBox(height: Responsive.h(10)),
-          ...items.map((item) => Padding(
-                padding: EdgeInsets.only(bottom: Responsive.h(8)),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.label,
-                        style: TextStyle(
-                            fontSize: Responsive.sp(13),
-                            color: Colors.grey[600]),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      item.value,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(14),
-                        fontWeight: FontWeight.w700,
-                        color: item.color,
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-        ],
-      ),
+      ],
     );
   }
 
@@ -534,6 +663,32 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               ),
             ],
           ),
+          if (product.purchasePrice > 0 || product.gstPercentage > 0) ...[
+            SizedBox(height: Responsive.h(12)),
+            Row(
+              children: [
+                if (product.purchasePrice > 0)
+                  Expanded(
+                    child: _buildPriceItem(
+                        'Purchase Price',
+                        '₹${product.purchasePrice.toStringAsFixed(0)}',
+                        Colors.grey[700]!),
+                  )
+                else
+                  const Spacer(),
+                SizedBox(width: Responsive.w(12)),
+                if (product.gstPercentage > 0)
+                  Expanded(
+                    child: _buildPriceItem(
+                        'GST Rate',
+                        '${product.gstPercentage.toStringAsFixed(1)}%',
+                        const Color(0xFF3B82F6)),
+                  )
+                else
+                  const Spacer(),
+              ],
+            ),
+          ],
           if (product.minRentalDays != null ||
               product.maxRentalDays != null) ...[
             SizedBox(height: Responsive.h(12)),
@@ -584,6 +739,94 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildProductIdentifiersCard(Product product) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Product Identifiers'),
+          SizedBox(height: Responsive.h(12)),
+          _buildIdentifierRow('SKU', product.sku ?? 'N/A'),
+          Divider(color: Colors.grey[200], height: Responsive.h(16)),
+          _buildIdentifierRow('Barcode', product.barcode ?? 'N/A'),
+          Divider(color: Colors.grey[200], height: Responsive.h(16)),
+          _buildIdentifierRow(
+            'System ID',
+            product.id,
+            onCopy: () {
+              Clipboard.setData(ClipboardData(text: product.id));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('System ID copied to clipboard'),
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: AppColors.primary,
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIdentifierRow(String label, String value, {VoidCallback? onCopy}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Responsive.sp(12),
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[600],
+          ),
+        ),
+        SizedBox(width: Responsive.w(12)),
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Container(
+                  padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(Responsive.r(4)),
+                    border: Border.all(color: Colors.grey[300]!, width: 0.5),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        fontFamily: 'monospace',
+                        color: AppColors.primary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ),
+              if (onCopy != null) ...[
+                SizedBox(width: Responsive.w(6)),
+                InkWell(
+                  onTap: onCopy,
+                  borderRadius: BorderRadius.circular(Responsive.r(4)),
+                  child: Padding(
+                    padding: Responsive.all(4),
+                    child: Icon(Icons.copy_rounded, size: Responsive.icon(16), color: Colors.grey[500]),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1023,53 +1266,75 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   Widget _buildRentalHistoryRow(ProductOrderItem item) {
     final order = item.order;
     final customerName = order?.customer?.name ?? 'Unknown';
+    final customerPhone = order?.customer?.phone;
     final status = order?.status ?? 'unknown';
     final dateRange = (order?.startDate != null && order?.endDate != null)
         ? '${order!.startDate} → ${order.endDate}'
         : '';
-    return Padding(
-      padding: EdgeInsets.only(bottom: Responsive.h(8)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  customerName,
-                  style: TextStyle(
-                      fontSize: Responsive.sp(13),
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (dateRange.isNotEmpty)
+
+    return InkWell(
+      onTap: order != null ? () => _navigateToOrder(context, order.id) : null,
+      borderRadius: BorderRadius.circular(Responsive.r(8)),
+      child: Padding(
+        padding: Responsive.symmetric(vertical: 8, horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    dateRange,
-                    style:
-                        TextStyle(fontSize: Responsive.sp(11), color: Colors.grey[600]),
+                    customerName,
+                    style: TextStyle(
+                        fontSize: Responsive.sp(13),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                  if (customerPhone != null && customerPhone.isNotEmpty) ...[
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      customerPhone,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        color: Colors.grey[500],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (dateRange.isNotEmpty) ...[
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      dateRange,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        color: Colors.grey[600],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          Container(
-            padding: Responsive.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _statusColor(status).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(Responsive.r(6)),
+            Container(
+              padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: _statusColor(status).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(Responsive.r(6)),
+              ),
+              child: Text(
+                status.toUpperCase(),
+                style: TextStyle(
+                    fontSize: Responsive.sp(10),
+                    fontWeight: FontWeight.w700,
+                    color: _statusColor(status)),
+              ),
             ),
-            child: Text(
-              status.toUpperCase(),
-              style: TextStyle(
-                  fontSize: Responsive.sp(10),
-                  fontWeight: FontWeight.w700,
-                  color: _statusColor(status)),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1104,83 +1369,503 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         children: [
           _buildSectionTitle('Damage History'),
           SizedBox(height: Responsive.h(10)),
-          ...records.map((r) => Padding(
-                padding: EdgeInsets.only(bottom: Responsive.h(8)),
-                child: Row(
+          ...records.map((r) {
+            final dateStr = r.assessedAt ?? r.createdAt;
+            String dateFormatted = '';
+            try {
+              if (dateStr.isNotEmpty) {
+                dateFormatted = DateFormat('MMM d, yyyy').format(DateTime.parse(dateStr));
+              }
+            } catch (_) {}
+            
+            return InkWell(
+              onTap: () => _navigateToOrder(context, r.orderId),
+              borderRadius: BorderRadius.circular(Responsive.r(8)),
+              child: Padding(
+                padding: Responsive.symmetric(vertical: 8, horizontal: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            r.order?.customerName ?? 'Unknown',
-                            style: TextStyle(
-                                fontSize: Responsive.sp(13),
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                r.order?.customerName ?? 'Unknown',
+                                style: TextStyle(
+                                    fontSize: Responsive.sp(13),
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (dateFormatted.isNotEmpty) ...[
+                                SizedBox(height: Responsive.h(2)),
+                                Text(
+                                  dateFormatted,
+                                  style: TextStyle(
+                                      fontSize: Responsive.sp(11), color: Colors.grey[500]),
+                                ),
+                              ],
+                            ],
                           ),
-                          Text(
-                            'Decision: ${r.decision}',
-                            style: TextStyle(
-                                fontSize: Responsive.sp(11), color: Colors.grey[600]),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                        Container(
+                          padding: Responsive.symmetric(horizontal: 6, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(Responsive.r(6)),
+                            border: Border.all(color: Colors.grey[300]!, width: 0.5),
                           ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: Responsive.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: r.decision == 'reuse'
-                            ? const Color(0xFF2ECC71).withValues(alpha: 0.1)
-                            : r.decision == 'not_reuse'
-                                ? const Color(0xFFFF6B8A).withValues(alpha: 0.1)
-                                : const Color(0xFFF5A623).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(Responsive.r(6)),
-                      ),
-                      child: Text(
-                        r.decision.toUpperCase(),
-                        style: TextStyle(
-                            fontSize: Responsive.sp(10),
-                            fontWeight: FontWeight.w700,
+                          child: Text(
+                            'Unit ${r.unitIndex}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(10),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(8)),
+                        Container(
+                          padding: Responsive.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
                             color: r.decision == 'reuse'
-                                ? const Color(0xFF2ECC71)
+                                ? const Color(0xFF2ECC71).withValues(alpha: 0.1)
                                 : r.decision == 'not_reuse'
-                                    ? const Color(0xFFFF6B8A)
-                                    : const Color(0xFFF5A623)),
-                      ),
+                                    ? const Color(0xFFFF6B8A).withValues(alpha: 0.1)
+                                    : const Color(0xFFF5A623).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(Responsive.r(6)),
+                          ),
+                          child: Text(
+                            r.decision == 'not_reuse' ? 'WRITTEN OFF' : r.decision.toUpperCase(),
+                            style: TextStyle(
+                                fontSize: Responsive.sp(10),
+                                fontWeight: FontWeight.w700,
+                                color: r.decision == 'reuse'
+                                    ? const Color(0xFF2ECC71)
+                                    : r.decision == 'not_reuse'
+                                        ? const Color(0xFFFF6B8A)
+                                        : const Color(0xFFF5A623)),
+                          ),
+                        ),
+                      ],
                     ),
+                    if (r.notes != null && r.notes!.isNotEmpty) ...[
+                      SizedBox(height: Responsive.h(6)),
+                      Container(
+                        width: double.infinity,
+                        padding: Responsive.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(Responsive.r(6)),
+                          border: Border.all(color: Colors.grey[200]!, width: 0.5),
+                        ),
+                        child: Text(
+                          r.notes!,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(11),
+                            color: Colors.grey[600],
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-              )),
+              ),
+            );
+          }),
         ],
       ),
     );
   }
 
   void _showBarcodeDialog(Product product) {
+    final barcode = product.barcode ?? 'N/A';
+
+    final List<double> stripeWidths = [];
+    for (int i = 0; i < barcode.length; i++) {
+      final code = barcode.codeUnitAt(i);
+      stripeWidths.add((code % 3 + 1).toDouble());
+      stripeWidths.add((code % 2 + 1).toDouble());
+    }
+    while (stripeWidths.length < 30) {
+      stripeWidths.addAll([2.0, 1.0, 3.0, 2.0]);
+    }
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Barcode', style: TextStyle(fontSize: Responsive.sp(16))),
-        content: Text(product.barcode ?? 'N/A',
-            style: TextStyle(
-                fontSize: Responsive.sp(14),
-                fontFamily: 'monospace',
-                letterSpacing: 2)),
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Product Barcode',
+          style: TextStyle(
+            fontSize: Responsive.sp(16),
+            fontWeight: FontWeight.bold,
+            color: AppColors.primary,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: Responsive.symmetric(vertical: 24, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(Responsive.r(12)),
+                border: Border.all(color: Colors.grey[200]!),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: Responsive.r(10),
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(12),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (product.sku != null)
+                        Text(
+                          product.sku!,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(10),
+                            fontFamily: 'monospace',
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: Responsive.h(16)),
+                  SizedBox(
+                    height: Responsive.h(60),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(stripeWidths.length, (index) {
+                        final isBlack = index % 2 == 0;
+                        final width = stripeWidths[index];
+                        return Container(
+                          width: Responsive.w(width),
+                          color: isBlack ? Colors.black : Colors.transparent,
+                        );
+                      }),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(10)),
+                  Text(
+                    barcode,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(14),
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 4,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                fontSize: Responsive.sp(13),
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: barcode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Barcode copied to clipboard'),
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: AppColors.primary,
+                ),
+              );
+            },
+            icon: Icon(Icons.copy_rounded, size: Responsive.icon(16)),
+            label: Text(
+              'Copy',
+              style: TextStyle(fontSize: Responsive.sp(12)),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
     );
   }
 
+  Future<void> _confirmDeleteProduct(BuildContext context, WidgetRef ref, Product product) async {
+    // 1. Pre-delete check
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    final repo = ref.read(productRepositoryProvider);
+    final deleteCheck = await repo.canDeleteProduct(product.id);
+    
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Dismiss progress indicator
+    }
+    
+    final dataMap = deleteCheck['data'] as Map<String, dynamic>?;
+    final canDelete = deleteCheck['canDelete'] as bool? ?? dataMap?['canDelete'] as bool? ?? false;
+    final reason = deleteCheck['reason'] as String? ?? dataMap?['reason'] as String? ?? 'Cannot delete this product';
+    
+    if (!canDelete) {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.amber[700], size: Responsive.icon(24)),
+                SizedBox(width: Responsive.w(8)),
+                const Text('Cannot Delete Product'),
+              ],
+            ),
+            content: Text(reason),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+    
+    // 2. Confirmation dialog
+    if (context.mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete Product'),
+          content: Text('Are you sure you want to delete "${product.name}"? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B8A)),
+              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirm == true) {
+        // Show progress dialog
+        if (!context.mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+        );
+        
+        try {
+          await ref.read(productsProvider.notifier).deleteProduct(product.id);
+          if (context.mounted) {
+            Navigator.of(context).pop(); // Dismiss progress dialog
+            // Navigate back to the products list and show success
+            Navigator.of(context).pop(); 
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Product deleted successfully'),
+                backgroundColor: Color(0xFF2ECC71),
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Navigator.of(context).pop(); // Dismiss progress dialog
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Error'),
+                content: Text('Failed to delete product: $e'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Widget _buildMonthlyRevenueSection(ProductAnalytics? analytics) {
+    if (analytics == null || analytics.monthlyRevenue.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final list = analytics.monthlyRevenue;
+    final maxRevenue = list.map((e) => e.revenue).fold<double>(1.0, (m, e) => e > m ? e : m);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Monthly Revenue (Last 6 Months)'),
+          SizedBox(height: Responsive.h(12)),
+          Table(
+            columnWidths: const {
+              0: FlexColumnWidth(2),
+              1: FlexColumnWidth(1.2),
+              2: FlexColumnWidth(2.8),
+            },
+            children: [
+              TableRow(
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: Colors.grey[200]!, width: 1)),
+                ),
+                children: [
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 6),
+                    child: Text('Month', style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                  ),
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 6),
+                    child: Text('Rentals', textAlign: TextAlign.right, style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                  ),
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 6),
+                    child: Text('Revenue', textAlign: TextAlign.right, style: TextStyle(fontSize: Responsive.sp(11), fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                  ),
+                ],
+              ),
+              ...list.map((m) {
+                final ratio = maxRevenue > 0 ? m.revenue / maxRevenue : 0.0;
+                return TableRow(
+                  decoration: BoxDecoration(
+                    border: Border(bottom: BorderSide(color: Colors.grey[100]!, width: 0.5)),
+                  ),
+                  children: [
+                    Padding(
+                      padding: Responsive.symmetric(vertical: 8),
+                      child: Text(m.month, style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.w600, color: AppColors.primary)),
+                    ),
+                    Padding(
+                      padding: Responsive.symmetric(vertical: 8),
+                      child: Text('${m.rentals}', textAlign: TextAlign.right, style: TextStyle(fontSize: Responsive.sp(12), color: Colors.grey[700])),
+                    ),
+                    Padding(
+                      padding: Responsive.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Container(
+                            width: Responsive.w(40),
+                            height: Responsive.h(4),
+                            margin: EdgeInsets.only(right: Responsive.w(6)),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(Responsive.r(2)),
+                            ),
+                            child: FractionallySizedBox(
+                              alignment: Alignment.centerLeft,
+                              widthFactor: ratio.clamp(0.0, 1.0),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary,
+                                  borderRadius: BorderRadius.circular(Responsive.r(2)),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Text('₹${m.revenue.toStringAsFixed(0)}', style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              TableRow(
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                ),
+                children: [
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 8, horizontal: 4),
+                    child: Text('Total', style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  ),
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 8),
+                    child: Text(
+                      '${list.fold<int>(0, (sum, item) => sum + item.rentals)}',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                  ),
+                  Padding(
+                    padding: Responsive.symmetric(vertical: 8),
+                    child: Text(
+                      '₹${list.fold<double>(0.0, (sum, item) => sum + item.revenue).toStringAsFixed(0)}',
+                      textAlign: TextAlign.right,
+                      style: TextStyle(fontSize: Responsive.sp(12), fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+}
+
+class _AnalyticsCardItem {
+  final String label;
+  final String value;
+  final String subtext;
+  final Color color;
+  final IconData icon;
+
+  const _AnalyticsCardItem({
+    required this.label,
+    required this.value,
+    required this.subtext,
+    required this.color,
+    required this.icon,
+  });
 }
 
 class _MetricItem {
@@ -1197,14 +1882,3 @@ class _MetricItem {
   });
 }
 
-class _AnalyticsRow {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _AnalyticsRow({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-}

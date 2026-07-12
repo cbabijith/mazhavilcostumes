@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/widgets.dart';
@@ -94,7 +95,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: Image.asset(
-                        'assets/images/mazhavil.png',
+                        'assets/images/logo_paris.png',
                         fit: BoxFit.cover,
                       ),
                     ),

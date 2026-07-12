@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../features/auth/viewmodels/auth_provider.dart' as core_auth;
 import '../features/auth/viewmodels/providers/auth_provider.dart';
 import '../features/auth/views/login_view.dart';
@@ -67,7 +68,7 @@ class _MainLayoutState extends State<MainLayout> {
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Image.asset(
-                  'assets/images/mazhavil.png',
+                  'assets/images/logo_paris.png',
                   fit: BoxFit.cover,
                 ),
               ),
@@ -108,7 +109,7 @@ class _MainLayoutState extends State<MainLayout> {
               ),
               clipBehavior: Clip.antiAlias,
               child: Image.asset(
-                'assets/images/mazhavil.png',
+                'assets/images/logo_paris.png',
                 fit: BoxFit.cover,
               ),
             ),
@@ -157,7 +158,7 @@ class _MainLayoutState extends State<MainLayout> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Image.asset(
-                      'assets/images/mazhavil.png',
+                      'assets/images/logo_paris.png',
                       fit: BoxFit.cover,
                     ),
                   ),

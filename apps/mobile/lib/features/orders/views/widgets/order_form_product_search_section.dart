@@ -122,7 +122,14 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
       itemBuilder: (context, index) {
         final product = products[index];
         final sAvail = _searchAvailabilityMap[product.id];
-        bool isAvail = product.availableQuantity > 0;
+        
+        final hasBranchStock = _selectedBranchId != null &&
+            product.branchInventory.any((b) => b.branchId == _selectedBranchId);
+        final branchStock = hasBranchStock
+            ? product.branchInventory.firstWhere((b) => b.branchId == _selectedBranchId).stockCount
+            : (_selectedBranchId != null ? 0 : product.availableQuantity);
+
+        bool isAvail = branchStock > 0;
         if (sAvail != null) {
           final int availableWithPriority =
               (sAvail['availableWithPriority'] as num?)?.toInt() ?? 0;
@@ -204,7 +211,7 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
                               return Text('Unavailable', style: TextStyle(color: AppColors.error, fontSize: Responsive.sp(AppSizes.fontTiny), fontWeight: FontWeight.bold));
                             }
                           }
-                          return Text('Stock: ${product.availableQuantity}', style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(AppSizes.fontTiny)));
+                          return Text('Stock: $branchStock', style: TextStyle(color: Colors.grey[600], fontSize: Responsive.sp(AppSizes.fontTiny)));
                         },
                       ),
                     ],

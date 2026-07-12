@@ -756,27 +756,138 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
               );
             },
           ),
-          // Amount paid (edit mode only)
-          if (isEditing) ...[
-            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-            TextFormField(
-              controller: _amountPaidController,
-              keyboardType: TextInputType.number,
-              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
-              decoration: InputDecoration(
-                labelText: 'Total Amount Paid (₹)',
-                contentPadding: Responsive.symmetric(
-                  horizontal: AppSizes.spacingMedium,
-                  vertical: AppSizes.spacingSmall,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(
-                    Responsive.r(AppSizes.radiusSmall),
-                  ),
+          // Divider
+          Padding(
+            padding: Responsive.symmetric(vertical: AppSizes.spacingMedium),
+            child: Divider(height: 1, color: Colors.grey.shade100),
+          ),
+          // Security Deposit
+          Row(
+            children: [
+              Icon(
+                Icons.shield_outlined,
+                size: Responsive.icon(AppSizes.iconTiny),
+                color: Colors.grey[400],
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+              Text(
+                'Security Deposit',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[900],
                 ),
               ),
-            ),
-          ],
+              SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+              Text(
+                '(Optional)',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                  color: Colors.grey[400],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _securityDepositController,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontLarge),
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: InputDecoration(
+                    prefixText: '₹ ',
+                    prefixStyle: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[500],
+                    ),
+                    hintText: '0',
+                    contentPadding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingMedium,
+                      vertical: AppSizes.spacingSmall,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
+                    ),
+                  ),
+                  onTap: () {
+                    if (_securityDepositController.text == '0') {
+                      _securityDepositController.clear();
+                      _update(() {});
+                    }
+                  },
+                  onChanged: (val) {
+                    _update(() {});
+                  },
+                ),
+              ),
+              Builder(
+                builder: (context) {
+                  final amount = double.tryParse(_securityDepositController.text) ?? 0.0;
+                  if (amount <= 0) return const SizedBox.shrink();
+                  return Padding(
+                    padding: Responsive.only(left: AppSizes.spacingSmall),
+                    child: SizedBox(
+                      width: Responsive.w(110),
+                      child: DropdownButtonFormField<PaymentMethod>(
+                        initialValue: _depositPaymentMethod,
+                        isDense: true,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontSmall),
+                          color: Colors.grey[800],
+                        ),
+                        decoration: InputDecoration(
+                          contentPadding: Responsive.symmetric(
+                            horizontal: AppSizes.spacingSmall,
+                            vertical: AppSizes.spacingSmall,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
+                          ),
+                        ),
+                        items: PaymentMethod.values
+                            .where((m) => m != PaymentMethod.other)
+                            .map((method) {
+                          String label = '';
+                          if (method == PaymentMethod.cash) {
+                            label = 'Cash';
+                          } else if (method == PaymentMethod.upi) {
+                            label = 'UPI';
+                          } else if (method == PaymentMethod.gpay) {
+                            label = 'GPay';
+                          } else if (method == PaymentMethod.bankTransfer) {
+                            label = 'Bank';
+                          }
+                          return DropdownMenuItem(
+                            value: method,
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) => _update(() {
+                          _depositPaymentMethod = val;
+                        }),
+                      ),
+                    ),
+                  );
+                }
+              ),
+            ],
+          ),
+
         ],
       ),
     );
