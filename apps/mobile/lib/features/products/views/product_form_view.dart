@@ -48,6 +48,10 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
 
   // Pricing & Stock
   final _priceCtl = TextEditingController();
+  final _purchasePriceCtl = TextEditingController();
+  final _slugCtl = TextEditingController();
+  final _globalStockCtl = TextEditingController(text: '0');
+  bool _slugManuallyEdited = false;
   /// Branch stock map: branch_id → quantity
   final Map<String, int> _branchStocks = {};
   String _sku = '';
@@ -94,6 +98,9 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
         'name': _nameCtl.text,
         'description': _descCtl.text,
         'price': _priceCtl.text,
+        'purchase_price': _purchasePriceCtl.text,
+        'slug': _slugCtl.text,
+        'slug_manually_edited': _slugManuallyEdited,
         'branch_stocks': _branchStocks,
         'sku': _sku,
         'barcode': _barcode,
@@ -124,6 +131,9 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
           _nameCtl.text = draft['name'] ?? '';
           _descCtl.text = draft['description'] ?? '';
           _priceCtl.text = draft['price'] ?? '';
+          _purchasePriceCtl.text = draft['purchase_price'] ?? '';
+          _slugCtl.text = draft['slug'] ?? '';
+          _slugManuallyEdited = draft['slug_manually_edited'] ?? false;
           if (draft['branch_stocks'] != null) {
             _branchStocks.clear();
             (draft['branch_stocks'] as Map<String, dynamic>).forEach((k, v) {
@@ -164,6 +174,9 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
     _nameCtl.dispose();
     _descCtl.dispose();
     _priceCtl.dispose();
+    _purchasePriceCtl.dispose();
+    _slugCtl.dispose();
+    _globalStockCtl.dispose();
     super.dispose();
   }
 
@@ -236,7 +249,19 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
               children: [
                 _label('Product Name', required: true),
                 SizedBox(height: Responsive.h(6)),
-                _input(_nameCtl, 'e.g., Diamond Necklace Set'),
+                TextField(
+                  controller: _nameCtl,
+                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  onChanged: (val) {
+                    if (!_slugManuallyEdited) {
+                      _slugCtl.text = _generateSlug(val);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Diamond Necklace Set',
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
                 SizedBox(height: Responsive.h(14)),
                 _label('Description'),
                 SizedBox(height: Responsive.h(6)),
@@ -261,30 +286,81 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
             ),
             SizedBox(height: Responsive.h(12)),
 
-            // ── 4. Rent Price ──
+            // ── 4. Rent & Purchase Price ──
             _card(
               children: [
-                _label('Rent Price', required: true),
-                SizedBox(height: Responsive.h(6)),
-                TextField(
-                  controller: _priceCtl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  style: TextStyle(
-                    fontSize: Responsive.sp(22),
-                    fontWeight: FontWeight.w800,
-                    color: primary,
-                  ),
-                  decoration: InputDecoration(
-                    prefixText: '₹ ',
-                    prefixStyle: TextStyle(
-                      fontSize: Responsive.sp(22),
-                      fontWeight: FontWeight.w800,
-                      color: primary,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Rent Price', required: true),
+                          SizedBox(height: Responsive.h(6)),
+                          TextField(
+                            controller: _priceCtl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            style: TextStyle(
+                              fontSize: Responsive.sp(18),
+                              fontWeight: FontWeight.w800,
+                              color: primary,
+                            ),
+                            decoration: InputDecoration(
+                              prefixText: '₹ ',
+                              prefixStyle: TextStyle(
+                                fontSize: Responsive.sp(18),
+                                fontWeight: FontWeight.w800,
+                                color: primary,
+                              ),
+                              hintText: '0',
+                              contentPadding: Responsive.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(4)),
+                          Text(
+                            'Same price across all branches',
+                            style: TextStyle(fontSize: Responsive.sp(9), color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
                     ),
-                    hintText: '0',
-                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 14),
-                  ),
+                    SizedBox(width: Responsive.w(12)),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _label('Purchase Price'),
+                          SizedBox(height: Responsive.h(6)),
+                          TextField(
+                            controller: _purchasePriceCtl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            style: TextStyle(
+                              fontSize: Responsive.sp(18),
+                              fontWeight: FontWeight.w800,
+                              color: primary,
+                            ),
+                            decoration: InputDecoration(
+                              prefixText: '₹ ',
+                              prefixStyle: TextStyle(
+                                fontSize: Responsive.sp(18),
+                                fontWeight: FontWeight.w800,
+                                color: primary,
+                              ),
+                              hintText: '0',
+                              contentPadding: Responsive.symmetric(horizontal: 10, vertical: 10),
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(4)),
+                          Text(
+                            'Used for ROI calculation',
+                            style: TextStyle(fontSize: Responsive.sp(9), color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -391,6 +467,32 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
                     ),
                   ],
                 ),
+                SizedBox(height: Responsive.h(14)),
+
+                // URL Slug
+                Text('URL Slug',
+                    style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[500])),
+                SizedBox(height: Responsive.h(4)),
+                TextField(
+                  controller: _slugCtl,
+                  style: TextStyle(
+                      fontSize: Responsive.sp(13),
+                      fontWeight: FontWeight.w600,
+                      fontFamily: 'monospace',
+                      color: primary),
+                  onChanged: (val) {
+                    setState(() {
+                      _slugManuallyEdited = val.isNotEmpty;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'auto-generated',
+                    contentPadding: Responsive.symmetric(horizontal: 14, vertical: 10),
+                  ),
+                ),
               ],
             ),
             SizedBox(height: Responsive.h(12)),
@@ -464,6 +566,10 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
     _nameCtl.text = p.name;
     _descCtl.text = p.description ?? '';
     _priceCtl.text = p.pricePerDay > 0 ? p.pricePerDay.toStringAsFixed(0) : '';
+    _purchasePriceCtl.text = p.purchasePrice > 0 ? p.purchasePrice.toStringAsFixed(0) : '';
+    _slugCtl.text = p.slug;
+    _slugManuallyEdited = p.slug.isNotEmpty;
+    
     // Populate branch stocks from existing inventory
     _branchStocks.clear();
     for (final inv in p.branchInventory) {
@@ -475,6 +581,28 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
     _imageUrls
       ..clear()
       ..addAll(p.images.map((i) => i.url));
+
+    // Determine global stock value if all active inventories are equal
+    if (p.branchInventory.isNotEmpty) {
+      int? firstVal;
+      bool allEqual = true;
+      for (final inv in p.branchInventory) {
+        final qty = inv.stockCount;
+        if (firstVal == null) {
+          firstVal = qty;
+        } else if (qty != firstVal) {
+          allEqual = false;
+        }
+      }
+      if (allEqual && firstVal != null) {
+        _globalStockCtl.text = '$firstVal';
+      } else {
+        _globalStockCtl.text = '';
+      }
+    } else {
+      _globalStockCtl.text = '0';
+    }
+
     setState(() {});
   }
 
@@ -676,6 +804,22 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
     }
   }
 
+  int? get _inheritedGst {
+    final catId = _subvariantId ?? _subcategoryId ?? _categoryId;
+    if (catId == null) return null;
+    final allCats = ref.read(categoriesProvider).value ?? [];
+    final cat = allCats.where((c) => c.id == catId).firstOrNull;
+    return cat?.gstPercentage;
+  }
+
+  String? get _inheritedGstCategoryName {
+    final catId = _subvariantId ?? _subcategoryId ?? _categoryId;
+    if (catId == null) return null;
+    final allCats = ref.read(categoriesProvider).value ?? [];
+    final cat = allCats.where((c) => c.id == catId).firstOrNull;
+    return cat?.name;
+  }
+
   // ── Category Dropdowns ──
   Widget _buildCategoryDropdowns(List<Category> allCats, Color primary) {
     final mains = allCats.where((c) => c.parentId == null).toList();
@@ -686,7 +830,11 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
         ? allCats.where((c) => c.parentId == _subcategoryId).toList()
         : <Category>[];
 
+    final gst = _inheritedGst;
+    final gstCatName = _inheritedGstCategoryName;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _dropdown('Select category', mains, _categoryId, (v) {
           setState(() {
@@ -718,6 +866,45 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
             setState(() => _subvariantId = v);
           }),
         ],
+        if (gst != null && gstCatName != null) ...[
+          SizedBox(height: Responsive.h(12)),
+          Container(
+            padding: Responsive.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.blue[50]?.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(Responsive.r(8)),
+              border: Border.all(color: Colors.blue[100]!),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: Colors.blue[700], size: Responsive.icon(16)),
+                SizedBox(width: Responsive.w(8)),
+                Expanded(
+                  child: RichText(
+                    text: TextSpan(
+                      text: 'GST Rate: ',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        fontWeight: FontWeight.w600,
+                        color: Colors.blue[900],
+                      ),
+                      children: [
+                        TextSpan(
+                          text: '$gst% ',
+                          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.blue[900]),
+                        ),
+                        TextSpan(
+                          text: '(inherited from $gstCatName)',
+                          style: TextStyle(fontWeight: FontWeight.normal, fontSize: Responsive.sp(10), color: Colors.blue[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -740,6 +927,26 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
 
   // ── Branch Inventory (matches admin ProductForm) ──
   int get _totalQuantity => _branchStocks.values.fold(0, (a, b) => a + b);
+
+  void _updateGlobalStockTextFromBranches(List<Branch> visibleBranches) {
+    if (visibleBranches.isEmpty) return;
+    int? firstVal;
+    bool allEqual = true;
+    for (final b in visibleBranches) {
+      final qty = _branchStocks[b.id] ?? 0;
+      if (firstVal == null) {
+        firstVal = qty;
+      } else if (qty != firstVal) {
+        allEqual = false;
+      }
+    }
+    
+    if (allEqual && firstVal != null) {
+      _globalStockCtl.text = '$firstVal';
+    } else {
+      _globalStockCtl.text = '';
+    }
+  }
 
   Widget _buildBranchInventory(Color primary) {
     final branchesAsync = ref.watch(branchesProvider);
@@ -778,7 +985,50 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
         }
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (authUser?.isAdmin == true) ...[
+              Text(
+                'Global Stock (sets all branches)',
+                style: TextStyle(
+                  fontSize: Responsive.sp(11),
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[500],
+                ),
+              ),
+              SizedBox(height: Responsive.h(6)),
+              TextField(
+                controller: _globalStockCtl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: Responsive.sp(18),
+                  fontWeight: FontWeight.w800,
+                  color: primary,
+                ),
+                onChanged: (val) {
+                  final qty = int.tryParse(val) ?? 0;
+                  setState(() {
+                    for (final b in visibleBranches) {
+                      _branchStocks[b.id] = qty;
+                    }
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: '0',
+                  contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              SizedBox(height: Responsive.h(4)),
+              Text(
+                'Type stock here to apply to all branches below, or edit branch stock individually.',
+                style: TextStyle(fontSize: Responsive.sp(9), color: Colors.grey[400]),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: Responsive.h(14)),
+            ],
+
             // Total badge
             Container(
               width: double.infinity,
@@ -815,14 +1065,14 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
               ),
             ),
             // Per-branch rows
-            ...visibleBranches.map((branch) => _branchRow(branch, primary)),
+            ...visibleBranches.map((branch) => _branchRow(branch, primary, visibleBranches)),
           ],
         );
       },
     );
   }
 
-  Widget _branchRow(Branch branch, Color primary) {
+  Widget _branchRow(Branch branch, Color primary, List<Branch> visibleBranches) {
     final qty = _branchStocks[branch.id] ?? 0;
     return Padding(
       padding: EdgeInsets.only(bottom: Responsive.h(8)),
@@ -849,7 +1099,10 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
             // Minus
             _stepperBtn(Icons.remove_rounded, primary, () {
               if (qty > 0) {
-                setState(() => _branchStocks[branch.id] = qty - 1);
+                setState(() {
+                  _branchStocks[branch.id] = qty - 1;
+                  _updateGlobalStockTextFromBranches(visibleBranches);
+                });
               }
             }, size: 34),
             SizedBox(width: Responsive.w(8)),
@@ -866,7 +1119,10 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
             SizedBox(width: Responsive.w(8)),
             // Plus
             _stepperBtn(Icons.add_rounded, primary, () {
-              setState(() => _branchStocks[branch.id] = qty + 1);
+              setState(() {
+                _branchStocks[branch.id] = qty + 1;
+                _updateGlobalStockTextFromBranches(visibleBranches);
+              });
             }, size: 34),
           ],
         ),
@@ -943,15 +1199,24 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
 
       // 3. Build payload — slug is REQUIRED by the server's Zod schema
       final name = _nameCtl.text.trim();
-      final slug = _generateSlug(name);
-      final totalQty = _totalQuantity;
+      final slug = _slugCtl.text.trim().isNotEmpty ? _slugCtl.text.trim() : _generateSlug(name);
+      final purchasePrice = double.tryParse(_purchasePriceCtl.text) ?? 0.0;
+
+      // Build per-branch inventory payload (always include all branches).
+      // quantity/available_quantity on the products table row are set to 0
+      // because the server will populate actual stock from branch_inventory.
+      final branchInventory = _branchStocks.entries
+          .map((e) => {'branch_id': e.key, 'quantity': e.value})
+          .toList();
+
       final body = <String, dynamic>{
         'name': name,
         'slug': slug,
         'price_per_day': price,
+        'purchase_price': purchasePrice,
         'security_deposit': 0,
-        'quantity': totalQty,
-        'available_quantity': totalQty,
+        'quantity': 0,
+        'available_quantity': 0,
         'images': images,
         'is_active': _isActive,
         'is_featured': false,
@@ -959,16 +1224,8 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
         'low_stock_threshold': 0,
         'sku': _sku,
         'barcode': _barcode,
+        'branch_inventory': branchInventory,
       };
-
-      // Add branch_inventory for per-branch stock
-      final branchInventory = _branchStocks.entries
-          .where((e) => e.value > 0)
-          .map((e) => {'branch_id': e.key, 'quantity': e.value})
-          .toList();
-      if (branchInventory.isNotEmpty) {
-        body['branch_inventory'] = branchInventory;
-      }
 
       final desc = _descCtl.text.trim();
       if (desc.isNotEmpty) body['description'] = desc;

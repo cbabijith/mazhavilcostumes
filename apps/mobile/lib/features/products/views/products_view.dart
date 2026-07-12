@@ -13,6 +13,7 @@ import '../repositories/product_repository.dart';
 import '../models/product.dart';
 import 'product_detail_view.dart';
 import 'qr_scanner_dialog.dart';
+import 'product_form_view.dart';
 
 class ProductsView extends ConsumerStatefulWidget {
   const ProductsView({super.key});
@@ -90,6 +91,24 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
           ),
         ],
       ),
+      floatingActionButton: canManage
+          ? FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              onPressed: () {
+                Navigator.of(context)
+                    .push(
+                  MaterialPageRoute(
+                    builder: (_) => const ProductFormView(),
+                  ),
+                )
+                    .then((_) {
+                  ref.invalidate(productsProvider);
+                });
+              },
+              child: Icon(Icons.add_rounded, size: Responsive.icon(24)),
+            )
+          : null,
     );
   }
 

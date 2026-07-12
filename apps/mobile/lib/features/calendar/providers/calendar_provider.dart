@@ -71,18 +71,22 @@ final calendarSelectedDateProvider =
 );
 
 /// Helper to parse ISO date strings safely
-DateTime _parseDateString(String dateStr) {
-  if (dateStr.length >= 10) {
-    final parts = dateStr.substring(0, 10).split('-');
-    if (parts.length == 3) {
-      return DateTime(
-        int.parse(parts[0]),
-        int.parse(parts[1]),
-        int.parse(parts[2]),
-      );
+DateTime? _parseDateStringSafe(String dateStr) {
+  try {
+    if (dateStr.length >= 10) {
+      final parts = dateStr.substring(0, 10).split('-');
+      if (parts.length == 3) {
+        return DateTime(
+          int.parse(parts[0]),
+          int.parse(parts[1]),
+          int.parse(parts[2]),
+        );
+      }
     }
+    return DateTime.parse(dateStr);
+  } catch (e) {
+    return null;
   }
-  return DateTime.parse(dateStr);
 }
 
 /// Provider for raw calendar orders from the backend
@@ -149,8 +153,12 @@ final calendarDaySummaryProvider =
 
   // Distribute bookings across the month
   for (final order in orders) {
-    final start = _parseDateString(order.startDate);
-    final end = _parseDateString(order.endDate);
+    final start = _parseDateStringSafe(order.startDate);
+    final end = _parseDateStringSafe(order.endDate);
+
+    if (start == null || end == null) {
+      continue; // Skip invalid or unparseable dates to avoid crash
+    }
 
     final cleanStart = DateTime(start.year, start.month, start.day);
     final cleanEnd = DateTime(end.year, end.month, end.day);

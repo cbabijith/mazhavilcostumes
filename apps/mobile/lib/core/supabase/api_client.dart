@@ -115,6 +115,11 @@ class ApiClient {
     ));
   }
 
+  void updateBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+    print('[ApiClient] Base URL updated to: $url');
+  }
+
   /// GET request
   Future<Response> get(
     String path, {

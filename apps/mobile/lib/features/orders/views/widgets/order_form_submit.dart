@@ -264,11 +264,23 @@ extension _OrderFormSubmit on _OrderFormViewState {
     final double advanceAmount =
         double.tryParse(_advanceAmountController.text) ?? 0.0;
 
+    final String paymentStatus = advanceAmount > 0
+        ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
+        : 'pending';
+
+    final double securityDeposit =
+        double.tryParse(_securityDepositController.text) ?? 0.0;
+
     final Map<String, dynamic> body = {
-      'customer_id': _selectedCustomerId,
-      'branch_id': _selectedBranchId,
-      'rental_start_date': _toIsoDate(_startDateController.text),
-      'rental_end_date': _toIsoDate(_endDateController.text),
+      if (widget.order == null) ...{
+        'customer_id': _selectedCustomerId,
+        'branch_id': _selectedBranchId,
+        'rental_start_date': _toIsoDate(_startDateController.text),
+        'rental_end_date': _toIsoDate(_endDateController.text),
+      } else ...{
+        'start_date': _toIsoDate(_startDateController.text),
+        'end_date': _toIsoDate(_endDateController.text),
+      },
       'event_date': _toIsoDate(_startDateController.text),
       if (_selectedDeliveryMethod != null)
         'delivery_method': _selectedDeliveryMethod!.name,
@@ -278,15 +290,15 @@ extension _OrderFormSubmit on _OrderFormViewState {
       'advance_collected': advanceAmount > 0,
       if (advanceAmount > 0 && _advancePaymentMethod != null)
         'advance_payment_method': _advancePaymentMethod!.toJsonValue(),
+      'security_deposit': securityDeposit,
+      'deposit_collected': securityDeposit > 0,
+      if (securityDeposit > 0 && _depositPaymentMethod != null)
+        'deposit_payment_method': _depositPaymentMethod!.toJsonValue(),
       'subtotal': _subtotal,
       'gst_amount': _gstAmount,
       'total_amount': _totalAmount,
-      'amount_paid': widget.order != null
-          ? (double.tryParse(_amountPaidController.text) ?? advanceAmount)
-          : advanceAmount,
-      'payment_status': advanceAmount > 0
-          ? (advanceAmount >= _totalAmount ? 'paid' : 'partial')
-          : 'pending',
+      'amount_paid': advanceAmount,
+      'payment_status': paymentStatus,
       'items': _items
           .where((item) => item.productId.isNotEmpty)
           .map(

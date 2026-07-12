@@ -1,16 +1,19 @@
+import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:auto_size_text/auto_size_text.dart';
-import '../../../core/utils/responsive.dart';
-import '../../../core/utils/currency_formatter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../../core/constants/app_constants.dart';
-import '../../auth/viewmodels/providers/auth_provider.dart';
-import '../viewmodels/providers/dashboard_provider.dart';
-import '../domain/operational_card.dart';
-import 'widgets/analytics_section.dart';
-import '../../customers/viewmodels/providers/customer_provider.dart';
 import '../../../core/providers/navigation_provider.dart';
+import '../../../core/utils/currency_formatter.dart';
+import '../../../core/utils/responsive.dart';
+import '../../auth/viewmodels/providers/auth_provider.dart';
+import '../../customers/viewmodels/providers/customer_provider.dart';
+import '../domain/operational_card.dart';
+import '../viewmodels/providers/dashboard_provider.dart';
+import 'widgets/analytics_section.dart';
 
 class DashboardView extends ConsumerStatefulWidget {
   const DashboardView({super.key});
@@ -52,9 +55,15 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primary.withValues(alpha: DashboardConstants.gradientTopLeftOpacity),
-              AppColors.primary.withValues(alpha: DashboardConstants.gradientMidOpacity),
-              AppColors.primary.withValues(alpha: DashboardConstants.gradientBottomOpacity),
+              AppColors.primary.withValues(
+                alpha: DashboardConstants.gradientTopLeftOpacity,
+              ),
+              AppColors.primary.withValues(
+                alpha: DashboardConstants.gradientMidOpacity,
+              ),
+              AppColors.primary.withValues(
+                alpha: DashboardConstants.gradientBottomOpacity,
+              ),
               Colors.white,
             ],
             stops: const [0.0, 0.2, 0.5, 1.0],
@@ -66,9 +75,10 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final screenWidth = constraints.maxWidth;
-                final padding = screenWidth * DashboardConstants.screenPaddingPercent;
+                final padding =
+                    screenWidth * DashboardConstants.screenPaddingPercent;
                 final bottomPadding = MediaQuery.of(context).padding.bottom;
-                
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -82,10 +92,14 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildPageHeader(screenWidth),
-                          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                          SizedBox(
+                            height: Responsive.h(AppSizes.spacingMedium),
+                          ),
                           if (isAdmin) ...[
                             _buildTabBar(screenWidth),
-                            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                            SizedBox(
+                              height: Responsive.h(AppSizes.spacingMedium),
+                            ),
                           ],
                         ],
                       ),
@@ -105,13 +119,26 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                       padding: EdgeInsets.only(
                                         left: padding,
                                         right: padding,
-                                        bottom: padding + bottomPadding + screenWidth * 0.02,
+                                        bottom:
+                                            padding +
+                                            bottomPadding +
+                                            screenWidth * 0.02,
                                       ),
                                       child: operationalAsync.when(
                                         skipLoadingOnReload: true,
-                                        data: (metrics) => _buildDashboardContent(metrics, screenWidth),
-                                        loading: () => _buildLoadingState(screenWidth),
-                                        error: (error, stack) => _buildErrorState(error, stack, screenWidth),
+                                        data: (metrics) =>
+                                            _buildDashboardContent(
+                                              metrics,
+                                              screenWidth,
+                                            ),
+                                        loading: () =>
+                                            _buildLoadingState(screenWidth),
+                                        error: (error, stack) =>
+                                            _buildErrorState(
+                                              error,
+                                              stack,
+                                              screenWidth,
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -140,13 +167,26 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                           padding: EdgeInsets.only(
                                             left: padding,
                                             right: padding,
-                                            bottom: padding + bottomPadding + screenWidth * 0.02,
+                                            bottom:
+                                                padding +
+                                                bottomPadding +
+                                                screenWidth * 0.02,
                                           ),
                                           child: operationalAsync.when(
                                             skipLoadingOnReload: true,
-                                            data: (metrics) => _buildDashboardContent(metrics, screenWidth),
-                                            loading: () => _buildLoadingState(screenWidth),
-                                            error: (error, stack) => _buildErrorState(error, stack, screenWidth),
+                                            data: (metrics) =>
+                                                _buildDashboardContent(
+                                                  metrics,
+                                                  screenWidth,
+                                                ),
+                                            loading: () =>
+                                                _buildLoadingState(screenWidth),
+                                            error: (error, stack) =>
+                                                _buildErrorState(
+                                                  error,
+                                                  stack,
+                                                  screenWidth,
+                                                ),
                                           ),
                                         ),
                                       ),
@@ -169,7 +209,10 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                           padding: EdgeInsets.only(
                                             left: padding,
                                             right: padding,
-                                            bottom: padding + bottomPadding + screenWidth * 0.02,
+                                            bottom:
+                                                padding +
+                                                bottomPadding +
+                                                screenWidth * 0.02,
                                           ),
                                           child: const AnalyticsSection(),
                                         ),
@@ -219,7 +262,106 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     );
   }
 
-  Widget _buildDashboardContent(OperationalMetrics metrics, double screenWidth) {
+  Widget _buildPlayStoreBanner(double screenWidth) {
+    return Container(
+      margin: Responsive.only(bottom: AppSizes.spacingMedium),
+      padding: Responsive.all(AppSizes.spacingMedium),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.15),
+          width: AppSizes.spacingTiny / 4,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: Responsive.r(AppSizes.spacingSmall),
+            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: Responsive.all(AppSizes.spacingSmall),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              shape: BoxShape.circle,
+            ),
+            child: SvgPicture.asset(
+              'assets/images/playstore.svg',
+              width: Responsive.icon(AppSizes.iconMedium),
+              height: Responsive.icon(AppSizes.iconMedium),
+            ),
+          ),
+          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Need to update the app?',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontMedium),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                Text(
+                  'Easily update or reinstall directly from the Google Play Store.',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+          ElevatedButton(
+            onPressed: () async {
+              final Uri url = Uri.parse(
+                'https://play.google.com/store/apps/details?id=com.parisbridals.app',
+              );
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: Responsive.symmetric(
+                horizontal: AppSizes.spacingMedium,
+                vertical: AppSizes.spacingSmall,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+              ),
+              elevation: AppSizes.spacingTiny / 2,
+            ),
+            child: Text(
+              'Open',
+              style: TextStyle(
+                fontSize: Responsive.sp(AppSizes.fontSmall),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardContent(
+    OperationalMetrics metrics,
+    double screenWidth,
+  ) {
     final pendingCards = metrics.cards.where((c) => c.hasWarning).toList();
     final clearCards = metrics.cards.where((c) => !c.hasWarning).toList();
 
@@ -227,12 +369,24 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (pendingCards.isNotEmpty) ...[
-          _buildSectionHeader(AppStrings.pendingTasks, Icons.warning_amber_rounded, AppColors.warning, screenWidth),
+          _buildSectionHeader(
+            AppStrings.pendingTasks,
+            Icons.warning_amber_rounded,
+            AppColors.warning,
+            screenWidth,
+          ),
           SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-          ...pendingCards.map((card) => _buildWarningActionCard(card, screenWidth)),
+          ...pendingCards.map(
+            (card) => _buildWarningActionCard(card, screenWidth),
+          ),
           SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
         ],
-        _buildSectionHeader(AppStrings.allOperations, Icons.dashboard_rounded, AppColors.text, screenWidth),
+        _buildSectionHeader(
+          AppStrings.allOperations,
+          Icons.dashboard_rounded,
+          AppColors.text,
+          screenWidth,
+        ),
         SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
         GridView.builder(
           shrinkWrap: true,
@@ -248,11 +402,18 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
             return _buildGridActionCard(clearCards[index], screenWidth);
           },
         ),
+        SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+        _buildPlayStoreBanner(screenWidth),
       ],
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, Color color, double screenWidth) {
+  Widget _buildSectionHeader(
+    String title,
+    IconData icon,
+    Color color,
+    double screenWidth,
+  ) {
     return Row(
       children: [
         Icon(icon, size: Responsive.icon(AppSizes.iconSmall), color: color),
@@ -275,16 +436,19 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
 
   Widget _buildWarningActionCard(OperationalCard card, double screenWidth) {
     final color = _getColorForCard(card.color);
-    final hasValue = card.orderCount > 0 ||
-                     (card.isProgressCard && card.totalCount! > 0) ||
-                     (card.amount != null && card.amount! > 0);
-    
+    final hasValue =
+        card.orderCount > 0 ||
+        (card.isProgressCard && card.totalCount! > 0) ||
+        (card.amount != null && card.amount! > 0);
+
     return Container(
       margin: EdgeInsets.only(bottom: Responsive.h(AppSizes.spacingSmall)),
       height: Responsive.h(85),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.04),
@@ -298,23 +462,26 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
         ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Left status highlight stripe
-            Container(
-              width: Responsive.w(4),
-              color: color,
-            ),
+            Container(width: Responsive.w(4), color: color),
             Expanded(
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => navigateToOrdersWithUrl(ref, card.filterUrl),
                   borderRadius: BorderRadius.only(
-                    topRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
-                    bottomRight: Radius.circular(Responsive.r(AppSizes.radiusMedium)),
+                    topRight: Radius.circular(
+                      Responsive.r(AppSizes.radiusMedium),
+                    ),
+                    bottomRight: Radius.circular(
+                      Responsive.r(AppSizes.radiusMedium),
+                    ),
                   ),
                   child: Padding(
                     padding: Responsive.symmetric(
@@ -327,7 +494,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                           height: Responsive.h(AppSizes.spacingXXLarge * 1.5),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
                           ),
                           child: Icon(
                             _getIconForCard(card.icon),
@@ -351,7 +520,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                              SizedBox(
+                                height: Responsive.h(AppSizes.spacingTiny / 2),
+                              ),
                               AutoSizeText(
                                 card.statusText,
                                 style: TextStyle(
@@ -374,14 +545,16 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                             ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
                             ),
                             child: Text(
                               card.isProgressCard
                                   ? '${card.completedCount}/${card.totalCount}'
                                   : card.amount != null
-                                      ? CurrencyFormatter.formatINR(card.amount!)
-                                      : card.orderCount.toString(),
+                                  ? CurrencyFormatter.formatINR(card.amount!)
+                                  : card.orderCount.toString(),
                               style: TextStyle(
                                 fontSize: Responsive.sp(AppSizes.fontMedium),
                                 fontWeight: FontWeight.w900,
@@ -409,14 +582,17 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
 
   Widget _buildGridActionCard(OperationalCard card, double screenWidth) {
     final color = _getColorForCard(card.color);
-    final hasValue = card.orderCount > 0 ||
-                     (card.isProgressCard && card.totalCount! > 0) ||
-                     (card.amount != null && card.amount! > 0);
-    
+    final hasValue =
+        card.orderCount > 0 ||
+        (card.isProgressCard && card.totalCount! > 0) ||
+        (card.amount != null && card.amount! > 0);
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -433,7 +609,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => navigateToOrdersWithUrl(ref, card.filterUrl),
-          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+          borderRadius: BorderRadius.circular(
+            Responsive.r(AppSizes.radiusMedium),
+          ),
           child: Padding(
             padding: Responsive.all(AppSizes.spacingMedium),
             child: Column(
@@ -448,7 +626,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                       height: Responsive.h(AppSizes.spacingXXLarge * 1.5),
                       decoration: BoxDecoration(
                         color: color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
                       ),
                       child: Icon(
                         _getIconForCard(card.icon),
@@ -464,14 +644,16 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                         ),
                         decoration: BoxDecoration(
                           color: AppColors.scaffoldBackground,
-                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusSmall),
+                          ),
                         ),
                         child: Text(
                           card.isProgressCard
                               ? '${card.completedCount}/${card.totalCount}'
                               : card.amount != null
-                                  ? CurrencyFormatter.formatINR(card.amount!)
-                                  : card.orderCount.toString(),
+                              ? CurrencyFormatter.formatINR(card.amount!)
+                              : card.orderCount.toString(),
                           style: TextStyle(
                             fontSize: Responsive.sp(AppSizes.fontSmall),
                             fontWeight: FontWeight.bold,
@@ -523,27 +705,43 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
 
   Color _getColorForCard(String colorName) {
     switch (colorName) {
-      case 'blue': return Colors.blue;
-      case 'emerald': return Colors.green;
-      case 'violet': return Colors.purple;
-      case 'amber': return Colors.amber;
-      case 'rose': return Colors.red;
-      case 'red': return Colors.red;
-      case 'indigo': return Colors.indigo;
-      default: return AppColors.primary;
+      case 'blue':
+        return Colors.blue;
+      case 'emerald':
+        return Colors.green;
+      case 'violet':
+        return Colors.purple;
+      case 'amber':
+        return Colors.amber;
+      case 'rose':
+        return Colors.red;
+      case 'red':
+        return Colors.red;
+      case 'indigo':
+        return Colors.indigo;
+      default:
+        return AppColors.primary;
     }
   }
 
   IconData _getIconForCard(String iconName) {
     switch (iconName) {
-      case 'calendar-plus': return Icons.calendar_today;
-      case 'truck': return Icons.local_shipping;
-      case 'package-check': return Icons.inventory_2;
-      case 'boxes': return Icons.inventory;
-      case 'alert-triangle': return Icons.warning;
-      case 'clock-alert': return Icons.access_time;
-      case 'banknote': return Icons.account_balance_wallet;
-      default: return Icons.info;
+      case 'calendar-plus':
+        return Icons.calendar_today;
+      case 'truck':
+        return Icons.local_shipping;
+      case 'package-check':
+        return Icons.inventory_2;
+      case 'boxes':
+        return Icons.inventory;
+      case 'alert-triangle':
+        return Icons.warning;
+      case 'clock-alert':
+        return Icons.access_time;
+      case 'banknote':
+        return Icons.account_balance_wallet;
+      default:
+        return Icons.info;
     }
   }
 
@@ -597,7 +795,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
       height: Responsive.h(85),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
       ),
     );
   }
@@ -606,7 +806,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
       ),
     );
   }
@@ -614,12 +816,16 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   Widget _buildErrorState(Object error, StackTrace? stack, double screenWidth) {
     debugPrint('[DashboardView] Error: $error');
     debugPrint('[DashboardView] Stack: $stack');
-    
+
     return Container(
       padding: EdgeInsets.all(screenWidth * 0.06),
       child: Column(
         children: [
-          Icon(Icons.error_outline, size: screenWidth * 0.12, color: AppColors.error),
+          Icon(
+            Icons.error_outline,
+            size: screenWidth * 0.12,
+            color: AppColors.error,
+          ),
           SizedBox(height: screenWidth * 0.04),
           AutoSizeText(
             AppStrings.unableToLoadDashboard,
@@ -676,7 +882,9 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
       padding: Responsive.all(AppSizes.spacingTiny),
       decoration: BoxDecoration(
         color: AppColors.scaffoldBackground,
-        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        borderRadius: BorderRadius.circular(
+          Responsive.r(AppSizes.radiusMedium),
+        ),
         border: Border.all(
           color: AppColors.border,
           width: AppSizes.spacingTiny / 4,
@@ -695,11 +903,11 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: Responsive.symmetric(
-                  vertical: AppSizes.spacingSmall,
-                ),
+                padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
                 decoration: BoxDecoration(
-                  color: _activeTab == 0 ? AppColors.primary : Colors.transparent,
+                  color: _activeTab == 0
+                      ? AppColors.primary
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(
                     Responsive.r(AppSizes.radiusSmall),
                   ),
@@ -708,8 +916,11 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                           BoxShadow(
                             color: AppColors.primary.withValues(alpha: 0.2),
                             blurRadius: Responsive.r(AppSizes.spacingTiny),
-                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
-                          )
+                            offset: Offset(
+                              0,
+                              Responsive.h(AppSizes.spacingTiny / 2),
+                            ),
+                          ),
                         ]
                       : null,
                 ),
@@ -719,15 +930,21 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                     Icon(
                       Icons.dashboard_rounded,
                       size: Responsive.icon(AppSizes.iconTiny),
-                      color: _activeTab == 0 ? Colors.white : AppColors.secondaryText,
+                      color: _activeTab == 0
+                          ? Colors.white
+                          : AppColors.secondaryText,
                     ),
                     SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     Text(
                       'Operations',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
-                        fontWeight: _activeTab == 0 ? FontWeight.bold : FontWeight.w500,
-                        color: _activeTab == 0 ? Colors.white : AppColors.secondaryText,
+                        fontWeight: _activeTab == 0
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: _activeTab == 0
+                            ? Colors.white
+                            : AppColors.secondaryText,
                       ),
                     ),
                   ],
@@ -746,11 +963,11 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: Responsive.symmetric(
-                  vertical: AppSizes.spacingSmall,
-                ),
+                padding: Responsive.symmetric(vertical: AppSizes.spacingSmall),
                 decoration: BoxDecoration(
-                  color: _activeTab == 1 ? AppColors.primary : Colors.transparent,
+                  color: _activeTab == 1
+                      ? AppColors.primary
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(
                     Responsive.r(AppSizes.radiusSmall),
                   ),
@@ -759,8 +976,11 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                           BoxShadow(
                             color: AppColors.primary.withValues(alpha: 0.2),
                             blurRadius: Responsive.r(AppSizes.spacingTiny),
-                            offset: Offset(0, Responsive.h(AppSizes.spacingTiny / 2)),
-                          )
+                            offset: Offset(
+                              0,
+                              Responsive.h(AppSizes.spacingTiny / 2),
+                            ),
+                          ),
                         ]
                       : null,
                 ),
@@ -770,15 +990,21 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                     Icon(
                       Icons.bar_chart_rounded,
                       size: Responsive.icon(AppSizes.iconTiny),
-                      color: _activeTab == 1 ? Colors.white : AppColors.secondaryText,
+                      color: _activeTab == 1
+                          ? Colors.white
+                          : AppColors.secondaryText,
                     ),
                     SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     Text(
                       'Analytics',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
-                        fontWeight: _activeTab == 1 ? FontWeight.bold : FontWeight.w500,
-                        color: _activeTab == 1 ? Colors.white : AppColors.secondaryText,
+                        fontWeight: _activeTab == 1
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        color: _activeTab == 1
+                            ? Colors.white
+                            : AppColors.secondaryText,
                       ),
                     ),
                   ],
@@ -801,18 +1027,20 @@ class MeshGradientPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = baseColor.withValues(alpha: DashboardConstants.meshPaintOpacity);
+      ..color = baseColor.withValues(
+        alpha: DashboardConstants.meshPaintOpacity,
+      );
 
     // Draw mesh-like pattern
     final path = Path();
     final gridSize = DashboardConstants.meshGridSize;
-    
+
     for (double y = 0; y < size.height; y += gridSize) {
       for (double x = 0; x < size.width; x += gridSize) {
         // Create subtle wave pattern
         final offsetX = x + (y % (gridSize * 2) == 0 ? 0 : gridSize / 2);
         final offsetY = y;
-        
+
         // Draw diamond shapes
         path.moveTo(offsetX + gridSize / 2, offsetY);
         path.lineTo(offsetX + gridSize, offsetY + gridSize / 2);
@@ -821,17 +1049,23 @@ class MeshGradientPainter extends CustomPainter {
         path.close();
       }
     }
-    
+
     canvas.drawPath(path, paint);
 
     // Add subtle dots
     final dotPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = baseColor.withValues(alpha: DashboardConstants.meshDotPaintOpacity);
+      ..color = baseColor.withValues(
+        alpha: DashboardConstants.meshDotPaintOpacity,
+      );
 
     for (double y = 0; y < size.height; y += gridSize * 2) {
       for (double x = 0; x < size.width; x += gridSize * 2) {
-        canvas.drawCircle(Offset(x, y), DashboardConstants.meshDotRadius, dotPaint);
+        canvas.drawCircle(
+          Offset(x, y),
+          DashboardConstants.meshDotRadius,
+          dotPaint,
+        );
       }
     }
   }

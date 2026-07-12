@@ -39,6 +39,13 @@ class AuthService {
     ));
   }
 
+  void updateBaseUrl(String url) {
+    _dio.options.baseUrl = url;
+    if (kDebugMode) {
+      print('[AuthService] Base URL updated to: $url');
+    }
+  }
+
   // In-memory cache of the access token so isAuthenticated() can be synchronous.
   String? _cachedToken;
 

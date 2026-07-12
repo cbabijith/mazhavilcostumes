@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/utils/responsive.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/main_layout.dart';
@@ -105,7 +106,7 @@ class _SplashViewState extends ConsumerState<SplashView> with SingleTickerProvid
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Image.asset(
-                      'assets/images/mazhavil.png',
+                      'assets/images/logo_paris.png',
                       fit: BoxFit.cover,
                     ),
                   ),
