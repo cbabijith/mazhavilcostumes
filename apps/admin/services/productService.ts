@@ -194,13 +194,23 @@ export class ProductService {
 
     if (isGlobal) {
       if (allBranches.length > 0) {
-        const inventoryPayload = allBranches.map((branch) => ({
-          product_id: createResult.data!.id,
-          branch_id: branch.id,
-          quantity: data.quantity || 0,
-          available_quantity: data.quantity || 0,
-          low_stock_threshold: data.low_stock_threshold ?? 5,
-        }));
+        const inventoryPayload = allBranches.map((branch) => {
+          // Use per-branch quantity from branch_inventory if provided,
+          // otherwise fall back to data.quantity (for backward compat)
+          let qty = data.quantity || 0;
+          if (branch_inventory && branch_inventory.length > 0) {
+            const match = branch_inventory.find((inv) => inv.branch_id === branch.id);
+            qty = match !== undefined ? (match.quantity || 0) : 0;
+          }
+
+          return {
+            product_id: createResult.data!.id,
+            branch_id: branch.id,
+            quantity: qty,
+            available_quantity: qty,
+            low_stock_threshold: data.low_stock_threshold ?? 5,
+          };
+        });
         await adminClient.from('product_inventory').insert(inventoryPayload);
       }
     } else {
@@ -270,8 +280,59 @@ export class ProductService {
       const isUserBranchMain = branchRes.success && branchRes.data ? branchRes.data.is_main : false;
 
       if (!isUserBranchMain) {
-        // Sub-branch user: can only edit products belonging to their branch
+        // Sub-branch user editing a product from another branch:
+        // Allow inventory-only updates for their own branch (cross_branch_stock_only mode)
         if (existingProduct.data.branch_id !== this.currentBranchId) {
+          if ((data as any).cross_branch_stock_only && (data as any).branch_inventory) {
+            // Only upsert this user's branch inventory — skip all product-level updates
+            const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
+            const branchInventory = (data as any).branch_inventory as Array<{
+              branch_id: string;
+              quantity: number;
+              id?: string;
+            }>;
+
+            // Filter to only allow updating their own branch's inventory
+            const ownBranchInv = branchInventory.filter(
+              (inv) => inv.branch_id === this.currentBranchId
+            );
+
+            if (ownBranchInv.length > 0) {
+              const upsertPayload = ownBranchInv.map((inv) => ({
+                product_id: id,
+                branch_id: inv.branch_id,
+                quantity: inv.quantity || 0,
+                available_quantity: inv.quantity || 0,
+                low_stock_threshold: existingProduct.data!.low_stock_threshold ?? 5,
+                ...(inv.id ? { id: inv.id } : {}),
+              }));
+
+              await adminClient
+                .from('product_inventory')
+                .upsert(upsertPayload, { onConflict: 'product_id, branch_id' });
+            }
+
+            // Recalculate total product quantity from all branch inventories
+            const { data: allInv } = await adminClient
+              .from('product_inventory')
+              .select('quantity')
+              .eq('product_id', id);
+
+            if (allInv) {
+              const totalQty = allInv.reduce((sum, row) => sum + (row.quantity || 0), 0);
+              await adminClient
+                .from('products')
+                .update({ quantity: totalQty, available_quantity: totalQty })
+                .eq('id', id);
+            }
+
+            // Sync conflicts if quantity changed
+            await orderService.syncProductConflicts(id);
+
+            return await productRepository.findById(id);
+          }
+
+          // Not a stock-only update — block it
           return {
             data: null,
             error: {
@@ -718,7 +779,7 @@ export class ProductService {
       // Use exact slug match instead of search query
       const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
 
-      let query = adminClient.from('products').select('id').eq('slug', slug);
+      let query = adminClient.from('products').select('id').eq('slug', slug).is('deleted_at', null);
 
       // Exclude current product when editing
       if (excludeId) {

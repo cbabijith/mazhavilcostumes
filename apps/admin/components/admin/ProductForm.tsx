@@ -71,6 +71,10 @@ export default function ProductForm({ product }: ProductFormProps) {
   // Can manage all branch stock if they are a global admin or assigned to the main branch AND have not selected a sub-branch
   const isMainBranchContext = !activeBranchId || activeBranch?.is_main === true;
 
+  // Cross-branch edit: sub-branch user editing a product owned by another branch
+  // They can ONLY edit their own branch's stock quantity
+  const isCrossBranchEdit = isEdit && !isMainBranchContext && !!product && product.branch_id !== activeBranchId;
+
   // Handle global stock changes and propagate to all branches
   const handleGlobalStockChange = (val: string) => {
     const qty = val === '' ? '' : parseInt(val, 10);
@@ -129,13 +133,8 @@ export default function ProductForm({ product }: ProductFormProps) {
     }
   }, [isEdit, user?.role, product?.id, router]);
 
-  // ── Branch Context Guard: sub-branch users can only edit their own products ────────
-  useEffect(() => {
-    if (isEdit && !isMainBranchContext && product && product.branch_id !== activeBranchId) {
-      showError('You are not authorized to edit products belonging to other branches.');
-      router.push(`/dashboard/products/${product.id}`);
-    }
-  }, [isEdit, isMainBranchContext, product, activeBranchId, router, showError]);
+  // Cross-branch edit note: sub-branch users CAN open the edit form for products
+  // from other branches, but only their own branch stock is editable (enforced in UI + server).
 
   // ── Async-Resilience Guard ──────────────────────────────────────
   // Block submission until all async dependencies are resolved.
@@ -351,6 +350,24 @@ export default function ProductForm({ product }: ProductFormProps) {
           ? Object.values(branchStocks).reduce((sum, qty) => sum + (qty || 0), 0)
           : otherBranchesQty + subBranchQty;
 
+        // ── Cross-branch edit: only send inventory update for user's branch ──
+        if (isCrossBranchEdit && activeBranchId) {
+          const inv = product?.product_inventory?.find((i: any) => i.branch_id === activeBranchId);
+          const crossBranchPayload = {
+            quantity: totalQuantity,
+            available_quantity: totalQuantity,
+            branch_inventory: [{
+              branch_id: activeBranchId,
+              quantity: subBranchQty,
+              id: inv?.id,
+            }],
+            cross_branch_stock_only: true,
+          };
+          await updateProduct({ id: product!.id, data: crossBranchPayload as any });
+          router.push('/dashboard/products');
+          return;
+        }
+
         if (pricePerDay <= 0) {
           showError('Rent amount is required and must be greater than 0');
           setLoading(false);
@@ -454,6 +471,7 @@ export default function ProductForm({ product }: ProductFormProps) {
       selectedBranchId,
       branchStocks,
       isMainBranchContext,
+      isCrossBranchEdit,
       user,
       barcodeError,
       createProduct,
@@ -501,6 +519,16 @@ export default function ProductForm({ product }: ProductFormProps) {
         </div>
       )}
 
+      {/* Cross-branch edit info banner */}
+      {isCrossBranchEdit && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+          <Info className="w-4 h-4 text-amber-600 shrink-0" />
+          <p className="text-sm font-medium text-amber-800">
+            This product belongs to another branch. You can only update the stock quantity for your branch ({activeBranch?.name || 'your branch'}).
+          </p>
+        </div>
+      )}
+
       {/* ═══ Two-column layout ═══ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── LEFT COLUMN (2/3) ────────────────────────────────────── */}
@@ -525,6 +553,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                 placeholder="e.g., Diamond Necklace Set"
                 className="h-11 border-slate-200 focus:border-slate-900 text-base"
                 autoFocus
+                disabled={isCrossBranchEdit}
               />
             </div>
 
@@ -536,11 +565,13 @@ export default function ProductForm({ product }: ProductFormProps) {
                 placeholder="Materials, occasion, style details... (optional)"
                 rows={3}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none resize-y"
+                disabled={isCrossBranchEdit}
               />
             </div>
           </div>
 
           {/* Media */}
+          {!isCrossBranchEdit && (
           <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
             <h3 className="text-sm font-semibold text-slate-900">Images</h3>
             <FileUpload
@@ -554,6 +585,7 @@ export default function ProductForm({ product }: ProductFormProps) {
               helperText={`Drag & drop up to ${MAX_IMAGES} images. First image = primary.`}
             />
           </div>
+          )}
 
           {/* Rent Price + Purchase Price — side by side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -578,6 +610,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                   required
                   placeholder="0"
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
+                  disabled={isCrossBranchEdit}
                 />
               </div>
               <p className="text-xs text-slate-400">Same price across all branches</p>
@@ -601,6 +634,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                   }
                   placeholder="0"
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
+                  disabled={isCrossBranchEdit}
                 />
               </div>
               <p className="text-xs text-slate-400">Original cost — used for ROI calculation</p>
@@ -615,6 +649,7 @@ export default function ProductForm({ product }: ProductFormProps) {
                 value={formData.category_id}
                 onChange={(e) => handleMainCategoryChange(e.target.value)}
                 required
+                disabled={isCrossBranchEdit}
                 className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
               >
                 <option value="">Select category</option>
@@ -804,6 +839,7 @@ export default function ProductForm({ product }: ProductFormProps) {
               <Switch
                 checked={formData.is_active}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                disabled={isCrossBranchEdit}
               />
             </div>
           </div>

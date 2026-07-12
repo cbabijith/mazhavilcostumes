@@ -192,3 +192,53 @@ Updated order details view and order editing form headers to dynamically display
   );
 }
 ```
+
+---
+
+# Product Slug Uniqueness Fix (Soft-Deleted Products)
+
+## The Problem
+
+When a product is deleted and a user tries to re-add a product with the same name (and therefore the same slug), they get: **"Product slug already exists"** or **"duplicate key value violates unique constraint products_store_id_slug_key"**.
+
+**Root cause (two layers):**
+
+1. **Service layer:** `checkSlugAvailability()` was querying ALL products including soft-deleted ones.
+2. **Database layer:** The DB unique constraint `products_store_id_slug_key` doesn't exclude soft-deleted rows, so even if the service check passes, the DB blocks the insert.
+
+## The Solution
+
+### Fix 1: Service-level slug check — exclude soft-deleted products
+
+### File: `apps/admin/services/productService.ts`
+
+```diff
+ private async checkSlugAvailability(slug: string, excludeId?: string) {
+   const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
+-  let query = adminClient.from('products').select('id').eq('slug', slug);
++  let query = adminClient.from('products').select('id').eq('slug', slug).is('deleted_at', null);
+   // ...
+ }
+```
+
+### Fix 2: Repository-level soft-delete — mangle slug and barcode to free DB constraints
+
+### File: `apps/admin/repository/productRepository.ts`
+
+```diff
+   async delete(id: string): Promise<RepositoryResult<void>> {
++    const deletedSuffix = `-deleted-${Date.now()}`;
+     const response = await this.client
+       .from(this.tableName)
+-      .update({ deleted_at: new Date().toISOString(), is_active: false })
++      .update({
++        deleted_at: new Date().toISOString(),
++        is_active: false,
++        slug: `${id}${deletedSuffix}`,
++        barcode: `DEL-${id.slice(0, 8)}-${Date.now()}`,
++      })
+       .eq('id', id);
+
+     return this.handleResponse<void>(response);
+   }
+```
