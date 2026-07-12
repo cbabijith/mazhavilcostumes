@@ -21,7 +21,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     pathnameRef.current = pathname;
   }, [pathname]);
 
+  const routerRef = useRef(router);
   useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
     async function initAuth() {
       try {
         // Skip if already authenticated and user data exists
@@ -38,18 +45,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           data: { session },
         } = await supabase.auth.getSession();
 
+        if (isCancelled) return;
+
         if (!session) {
           setAuthenticated(false);
           setUser(null);
           // Only redirect to login if not already on an auth page
           if (!pathnameRef.current.startsWith('/auth')) {
-            router.push('/auth/login');
+            routerRef.current.push('/auth/login');
           }
           return;
         }
 
         // 2. Fetch full user profile from our API (which includes store_id)
         const response = await fetch('/api/auth/me');
+
+        if (isCancelled) return;
+
         if (response.ok) {
           const json = await response.json();
           const authUser = json.data?.user || json.user;
@@ -65,7 +77,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setAuthenticated(false);
           setUser(null);
           if (!pathnameRef.current.startsWith('/auth')) {
-            router.push('/auth/login');
+            routerRef.current.push('/auth/login');
           }
           return;
         } else {
@@ -85,8 +97,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       } catch (error) {
         console.error('Auth initialization failed:', error);
       } finally {
-        setLoading(false);
-        setInitialized(true);
+        if (!isCancelled) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
     }
 
@@ -102,7 +116,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (!url.includes('/api/auth/me') && !url.includes('/auth/')) {
           setAuthenticated(false);
           setUser(null);
-          router.push('/auth/login');
+          routerRef.current.push('/auth/login');
         }
       }
       return response;
@@ -115,17 +129,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setAuthenticated(false);
-        router.push('/auth/login');
+        routerRef.current.push('/auth/login');
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session) initAuth();
       }
     });
 
     return () => {
+      isCancelled = true;
       window.fetch = originalFetch; // Cleanup
       subscription.unsubscribe();
     };
-  }, [setUser, setAuthenticated, setLoading, router, supabase]);
+  }, [setUser, setAuthenticated, setLoading, supabase]);
 
   return (
     <>

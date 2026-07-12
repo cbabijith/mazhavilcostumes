@@ -322,12 +322,19 @@ export class ProductRepository extends BaseRepository {
   }
 
   /**
-   * Soft-delete a product (sets deleted_at timestamp)
+   * Soft-delete a product (sets deleted_at timestamp).
+   * Also mangles slug and barcode to free up unique constraints for reuse.
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
+    const deletedSuffix = `-deleted-${Date.now()}`;
     const response = await this.client
       .from(this.tableName)
-      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+        slug: `${id}${deletedSuffix}`,
+        barcode: `DEL-${id.slice(0, 8)}-${Date.now()}`,
+      })
       .eq('id', id);
 
     return this.handleResponse<void>(response);

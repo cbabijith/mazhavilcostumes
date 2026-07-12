@@ -147,6 +147,7 @@ export const UpdateProductSchema = z
       .optional(),
     branch_id: z.string().optional().nullable(),
     removed_inventory_ids: z.array(z.string()).optional(),
+    cross_branch_stock_only: z.boolean().optional(),
   })
   .refine(
     (data) => {
