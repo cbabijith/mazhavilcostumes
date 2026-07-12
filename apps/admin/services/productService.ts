@@ -187,13 +187,20 @@ export class ProductService {
 
     if (isGlobal) {
       if (allBranches.length > 0) {
-        const inventoryPayload = allBranches.map(branch => ({
-          product_id: createResult.data!.id,
-          branch_id: branch.id,
-          quantity: data.quantity || 0,
-          available_quantity: data.quantity || 0,
-          low_stock_threshold: data.low_stock_threshold ?? 5,
-        }));
+        const inventoryPayload = allBranches.map(branch => {
+          let qty = data.quantity || 0;
+          if (branch_inventory && branch_inventory.length > 0) {
+            const match = branch_inventory.find(inv => inv.branch_id === branch.id);
+            qty = match ? (match.quantity || 0) : 0;
+          }
+          return {
+            product_id: createResult.data!.id,
+            branch_id: branch.id,
+            quantity: qty,
+            available_quantity: qty,
+            low_stock_threshold: data.low_stock_threshold ?? 5,
+          };
+        });
         await adminClient.from('product_inventory').insert(inventoryPayload);
       }
     } else {
@@ -228,6 +235,15 @@ export class ProductService {
           low_stock_threshold: data.low_stock_threshold ?? 5,
         }]);
       }
+    }
+
+    // After creating inventory records, sync the product's total
+    // quantity/available_quantity from the actual branch inventory totals.
+    if (branch_inventory && branch_inventory.length > 0) {
+      const totalFromBranches = branch_inventory.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+      await adminClient.from('products')
+        .update({ quantity: totalFromBranches, available_quantity: totalFromBranches })
+        .eq('id', createResult.data!.id);
     }
 
     // Return product with relations

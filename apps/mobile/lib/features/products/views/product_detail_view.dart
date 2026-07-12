@@ -12,6 +12,8 @@ import '../models/product.dart';
 import '../models/product_analytics.dart';
 import '../models/damage_record.dart';
 import '../models/product_availability.dart';
+import '../viewmodels/providers/product_provider.dart';
+import 'product_form_view.dart';
 
 /// Product detail view — image carousel, pricing, stock, and quick actions.
 class ProductDetailView extends ConsumerStatefulWidget {
@@ -152,6 +154,26 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
             tooltip: 'Print Barcode',
             onPressed: () => _showBarcodeDialog(product),
           ),
+        if (isAdminOrManager) ...[
+          IconButton(
+            icon: Icon(Icons.edit_rounded, size: Responsive.icon(22)),
+            tooltip: 'Edit Product',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ProductFormView(productId: product.id),
+                ),
+              ).then((_) {
+                ref.invalidate(productDetailsProvider(product.id));
+              });
+            },
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline_rounded, size: Responsive.icon(22), color: const Color(0xFFFF6B8A)),
+            tooltip: 'Delete Product',
+            onPressed: () => _confirmDeleteProduct(context, ref, product),
+          ),
+        ],
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
@@ -1179,6 +1201,115 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteProduct(BuildContext context, WidgetRef ref, Product product) async {
+    // 1. Pre-delete check
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    final repo = ref.read(productRepositoryProvider);
+    final deleteCheck = await repo.canDeleteProduct(product.id);
+    
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Dismiss progress indicator
+    }
+    
+    final dataMap = deleteCheck['data'] as Map<String, dynamic>?;
+    final canDelete = deleteCheck['canDelete'] as bool? ?? dataMap?['canDelete'] as bool? ?? false;
+    final reason = deleteCheck['reason'] as String? ?? dataMap?['reason'] as String? ?? 'Cannot delete this product';
+    
+    if (!canDelete) {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.amber[700], size: Responsive.icon(24)),
+                SizedBox(width: Responsive.w(8)),
+                const Text('Cannot Delete Product'),
+              ],
+            ),
+            content: Text(reason),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+      return;
+    }
+    
+    // 2. Confirmation dialog
+    if (context.mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Delete Product'),
+          content: Text('Are you sure you want to delete "${product.name}"? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF6B8A)),
+              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirm == true) {
+        // Show progress dialog
+        if (!context.mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+        );
+        
+        try {
+          await ref.read(productsProvider.notifier).deleteProduct(product.id);
+          if (context.mounted) {
+            Navigator.of(context).pop(); // Dismiss progress dialog
+            // Navigate back to the products list and show success
+            Navigator.of(context).pop(); 
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Product deleted successfully'),
+                backgroundColor: Color(0xFF2ECC71),
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Navigator.of(context).pop(); // Dismiss progress dialog
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Error'),
+                content: Text('Failed to delete product: $e'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+      }
+    }
   }
 
 }
