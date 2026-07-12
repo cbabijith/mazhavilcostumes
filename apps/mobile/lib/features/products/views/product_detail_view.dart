@@ -178,6 +178,12 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
       expandedHeight: Responsive.h(220),
       pinned: true,
       backgroundColor: AppColors.primary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(Responsive.r(24)),
+          bottomRight: Radius.circular(Responsive.r(24)),
+        ),
+      ),
       leading: IconButton(
         icon: Container(
           padding: Responsive.all(6),
@@ -218,65 +224,71 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         ],
       ],
       flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          children: [
-            if (product.images.isNotEmpty)
-              PageView.builder(
-                controller: _pageController,
-                onPageChanged: (i) => setState(() => _currentImageIndex = i),
-                itemCount: product.images.length,
-                itemBuilder: (context, i) {
-                  final img = product.images[i];
-                  return CachedNetworkImage(
-                    imageUrl: img.url,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: AppColors.primary.withValues(alpha: 0.1)),
-                    errorWidget: (context, url, error) => _buildPlaceholderImage(),
-                  );
-                },
-              )
-            else
-              _buildPlaceholderImage(),
-            if (product.images.length > 1)
-              Positioned(
-                bottom: Responsive.h(12),
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(product.images.length, (i) {
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      margin:
-                          EdgeInsets.symmetric(horizontal: Responsive.w(3)),
-                      width: i == _currentImageIndex
-                          ? Responsive.w(20)
-                          : Responsive.w(7),
-                      height: Responsive.h(6),
-                      decoration: BoxDecoration(
-                        color: i == _currentImageIndex
-                            ? Colors.white
-                            : Colors.white.withValues(alpha: 0.4),
-                        borderRadius: BorderRadius.circular(Responsive.r(3)),
-                      ),
+        background: ClipRRect(
+          borderRadius: BorderRadius.only(
+            bottomLeft: Radius.circular(Responsive.r(24)),
+            bottomRight: Radius.circular(Responsive.r(24)),
+          ),
+          child: Stack(
+            children: [
+              if (product.images.isNotEmpty)
+                PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (i) => setState(() => _currentImageIndex = i),
+                  itemCount: product.images.length,
+                  itemBuilder: (context, i) {
+                    final img = product.images[i];
+                    return CachedNetworkImage(
+                      imageUrl: img.url,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) =>
+                          Container(color: AppColors.primary.withValues(alpha: 0.1)),
+                      errorWidget: (context, url, error) => _buildPlaceholderImage(),
                     );
-                  }),
+                  },
+                )
+              else
+                _buildPlaceholderImage(),
+              if (product.images.length > 1)
+                Positioned(
+                  bottom: Responsive.h(12),
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(product.images.length, (i) {
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 250),
+                        margin:
+                            EdgeInsets.symmetric(horizontal: Responsive.w(3)),
+                        width: i == _currentImageIndex
+                            ? Responsive.w(20)
+                            : Responsive.w(7),
+                        height: Responsive.h(6),
+                        decoration: BoxDecoration(
+                          color: i == _currentImageIndex
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(Responsive.r(3)),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              Positioned(
+                top: Responsive.h(50),
+                right: Responsive.w(12),
+                child: Wrap(
+                  spacing: Responsive.w(6),
+                  children: [
+                    _buildStatusBadge(product, selectedBranchId, branchInventory),
+                    if (product.isFeatured)
+                      _buildPillBadge('Featured', const Color(0xFFF5A623)),
+                  ],
                 ),
               ),
-            Positioned(
-              top: Responsive.h(50),
-              right: Responsive.w(12),
-              child: Wrap(
-                spacing: Responsive.w(6),
-                children: [
-                  _buildStatusBadge(product, selectedBranchId, branchInventory),
-                  if (product.isFeatured)
-                    _buildPillBadge('Featured', const Color(0xFFF5A623)),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
