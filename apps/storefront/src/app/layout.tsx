@@ -19,15 +19,15 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: `${BRAND_CONFIG.name} — Premium Costumes Rental`,
+  title: `${BRAND_CONFIG.name} — Premium Jewellery Rental`,
   description:
-    'Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.',
+    'Luxury bridal jewellery rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.',
   keywords: [
-    'bridal costumes rental',
-    'wedding costumes',
-    'Kerala costumes rental',
+    'bridal jewellery rental',
+    'wedding jewellery',
+    'Kerala jewellery rental',
     BRAND_CONFIG.name,
-    'premium costumes',
+    'premium jewellery',
   ],
   icons: {
     icon: BRAND_CONFIG.defaultLogo,
