@@ -29,6 +29,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
   bool _isGlobal = false;
   String? _parentId;
   int _gstPercentage = 5;
+  bool _hasBuffer = true;
   bool _isLoading = false;
   bool _isUploading = false;
 
@@ -53,6 +54,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
     _isActive = c?.isActive ?? true;
     _isGlobal = c?.isGlobal ?? true;
     _gstPercentage = c?.gstPercentage ?? 5;
+    _hasBuffer = c?.hasBuffer ?? false;
     _parentId = c?.parentId ?? widget.initialParentId;
     _uploadedImageUrl = c?.imageUrl;
 
@@ -228,6 +230,7 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
         'is_active': _isActive,
         'is_global': _isGlobal,
         'gst_percentage': _gstPercentage,
+        'has_buffer': _hasBuffer,
       };
 
       debugPrint('[CategoryForm] Submitting body: $body');
@@ -260,98 +263,162 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
     }
   }
 
+  String _getFormTitle(List<Category> categories) {
+    if (isEditing) return 'Edit Category';
+    if (_parentId == null) return 'New Main Category';
+    
+    final parent = categories.cast<Category?>().firstWhere((c) => c?.id == _parentId, orElse: () => null);
+    if (parent == null) return 'New Category';
+    if (parent.parentId == null) return 'New Sub Category';
+    return 'New Variant';
+  }
+
   @override
   Widget build(BuildContext context) {
     Responsive.init(context);
+    final categories = ref.watch(categoriesProvider).value ?? [];
+    final title = _getFormTitle(categories);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Category' : 'New Category', style: TextStyle(fontSize: Responsive.sp(18))),
+        title: Text(title, style: TextStyle(fontSize: Responsive.sp(18))),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: Responsive.all(16),
           children: [
-            // ── Image Section ──
-            _buildImageSection(),
-            SizedBox(height: Responsive.h(20)),
-
-            // Name
-            _buildLabel('Category Name *'),
-            SizedBox(height: Responsive.h(6)),
-            _buildTextField(_nameController, 'e.g. Bridal Wear',
-              validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null),
-            SizedBox(height: Responsive.h(16)),
-
-            // Slug
-            _buildLabel('Slug *'),
-            SizedBox(height: Responsive.h(6)),
-            _buildTextField(_slugController, 'auto-generated-slug',
-              validator: (v) => v == null || v.trim().isEmpty ? 'Slug is required' : null),
-            SizedBox(height: Responsive.h(16)),
-
-            
-
-            // Description
-            _buildLabel('Description'),
-            SizedBox(height: Responsive.h(6)),
-            _buildTextField(_descriptionController, 'Optional description...', maxLines: 3),
-            SizedBox(height: Responsive.h(16)),
-
-            // Sort Order
-            _buildLabel('Sort Order'),
-            SizedBox(height: Responsive.h(6)),
-            _buildTextField(_sortOrderController, '0', keyboardType: TextInputType.number),
-            SizedBox(height: Responsive.h(16)),
-
-            // GST Rate
-            _buildLabel('GST Rate *'),
-            SizedBox(height: Responsive.h(6)),
-            DropdownButtonFormField<int>(
-              initialValue: _gstPercentage,
-              style: TextStyle(fontSize: Responsive.sp(15), color: Colors.black87),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: Responsive.symmetric(horizontal: 16, vertical: 12),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Responsive.r(12)),
-                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Responsive.r(12)),
-                  borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(Responsive.r(12)),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 5, child: Text('5%')),
-                DropdownMenuItem(value: 12, child: Text('12%')),
-                DropdownMenuItem(value: 18, child: Text('18%')),
+            // Panel 1: Details
+            _buildFormPanel(
+              title: 'Category Details',
+              description: 'Name, slug, and customer-facing description',
+              icon: Icon(Icons.edit_note_rounded, size: Responsive.icon(22), color: Colors.grey[400]),
+              children: [
+                _buildLabel('Category Name *'),
+                SizedBox(height: Responsive.h(6)),
+                _buildTextField(_nameController, 'e.g. Bridal Wear',
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Name is required' : null),
+                SizedBox(height: Responsive.h(16)),
+                _buildLabel('Slug *'),
+                SizedBox(height: Responsive.h(6)),
+                _buildTextField(_slugController, 'auto-generated-slug',
+                  validator: (v) => v == null || v.trim().isEmpty ? 'Slug is required' : null),
+                SizedBox(height: Responsive.h(16)),
+                _buildLabel('Description'),
+                SizedBox(height: Responsive.h(6)),
+                _buildTextField(_descriptionController, 'Optional description...', maxLines: 3),
               ],
-              onChanged: (val) {
-                if (val != null) {
-                  setState(() => _gstPercentage = val);
-                }
-              },
             ),
-            SizedBox(height: Responsive.h(20)),
 
-            // Toggles
-            Container(
-              padding: Responsive.all(16),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(Responsive.r(14))),
-              child: Column(
+            // Panel 2: Image
+            _buildFormPanel(
+              title: 'Category Image',
+              description: 'Use a clean image that makes the category easy to recognise',
+              icon: Icon(Icons.image_outlined, size: Responsive.icon(20), color: Colors.grey[400]),
+              children: [
+                _buildImageSection(),
+              ],
+            ),
+
+            // Panel 3: Hierarchy
+            if (isEditing || _parentId != null)
+              _buildFormPanel(
+                title: 'Hierarchy',
+                description: 'Placement controls where this category appears',
+                icon: Icon(Icons.account_tree_outlined, size: Responsive.icon(20), color: Colors.grey[400]),
                 children: [
-                  _buildToggleRow('Active', _isActive, (v) => setState(() => _isActive = v)),
+                  _buildLabel('Parent Category'),
+                  SizedBox(height: Responsive.h(6)),
+                  isEditing ? _buildParentSelector() : _buildReadOnlyParent(),
+                  SizedBox(height: Responsive.h(16)),
+                  _buildLabel('Sort Order'),
+                  SizedBox(height: Responsive.h(6)),
+                  _buildTextField(_sortOrderController, '0', keyboardType: TextInputType.number),
                 ],
               ),
+
+            // Panel 4: Settings
+            _buildFormPanel(
+              title: 'Operational Settings',
+              description: 'Control tax rates and booking behaviors',
+              icon: Icon(Icons.settings_outlined, size: Responsive.icon(20), color: Colors.grey[400]),
+              children: [
+                _buildLabel('GST Rate *'),
+                SizedBox(height: Responsive.h(6)),
+                DropdownButtonFormField<int>(
+                  initialValue: _gstPercentage,
+                  style: TextStyle(fontSize: Responsive.sp(15), color: Colors.black87),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: Responsive.symmetric(horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Responsive.r(12)),
+                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Responsive.r(12)),
+                      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(Responsive.r(12)),
+                      borderSide: BorderSide(color: AppColors.primary, width: 2),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('0%')),
+                    DropdownMenuItem(value: 5, child: Text('5%')),
+                    DropdownMenuItem(value: 12, child: Text('12%')),
+                    DropdownMenuItem(value: 18, child: Text('18%')),
+                    DropdownMenuItem(value: 28, child: Text('28%')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _gstPercentage = val);
+                    }
+                  },
+                ),
+                SizedBox(height: Responsive.h(16)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Cleaning Buffer Required',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(13),
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(4)),
+                          Text(
+                            'Enforces a mandatory 1-day cleaning gap between rentals. Disable for items like ornaments.',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(10),
+                              color: Colors.grey[500],
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(width: Responsive.w(12)),
+                    Switch(
+                      value: _hasBuffer,
+                      onChanged: (v) => setState(() => _hasBuffer = v),
+                      activeTrackColor: AppColors.primary,
+                    ),
+                  ],
+                ),
+              ],
             ),
-            SizedBox(height: Responsive.h(28)),
+
+            SizedBox(height: Responsive.h(12)),
 
             // Submit Button
             SizedBox(
@@ -388,73 +455,67 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
   Widget _buildImageSection() {
     final bool hasImage = _pickedFile != null || (_uploadedImageUrl != null && !_imageRemoved);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(Responsive.r(16)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: Responsive.r(10), offset: Offset(0, Responsive.h(3)))],
-      ),
-      child: Column(
-        children: [
-          // Image preview
-          GestureDetector(
-            onTap: hasImage ? null : _showImagePicker,
-            child: Container(
-              width: double.infinity,
-              height: Responsive.h(200),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8F8FC),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(Responsive.r(16))),
-              ),
-              child: hasImage ? _buildImagePreview() : _buildImagePlaceholder(),
+    return Column(
+      children: [
+        // Image preview
+        GestureDetector(
+          onTap: hasImage ? null : _showImagePicker,
+          child: Container(
+            width: double.infinity,
+            height: Responsive.h(200),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F8FC),
+              borderRadius: BorderRadius.circular(Responsive.r(12)),
+              border: Border.all(color: const Color(0xFFF1F5F9)),
             ),
+            child: hasImage ? _buildImagePreview() : _buildImagePlaceholder(),
           ),
+        ),
 
-          // Action buttons
-          Padding(
-            padding: Responsive.all(12),
-            child: Row(
-              children: [
+        // Action buttons
+        Padding(
+          padding: Responsive.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _showImagePicker,
+                  icon: Icon(Icons.camera_alt_outlined, size: Responsive.icon(16)),
+                  label: Text(hasImage ? 'Change' : 'Add Image', style: TextStyle(fontSize: Responsive.sp(12))),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
+                    padding: Responsive.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
+                  ),
+                ),
+              ),
+              if (hasImage) ...[
+                SizedBox(width: Responsive.w(10)),
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _showImagePicker,
-                    icon: Icon(Icons.camera_alt_outlined, size: Responsive.icon(16)),
-                    label: Text(hasImage ? 'Change' : 'Add Image', style: TextStyle(fontSize: Responsive.sp(12))),
+                    onPressed: _removeImage,
+                    icon: Icon(Icons.delete_outline, size: Responsive.icon(16)),
+                    label: Text('Remove', style: TextStyle(fontSize: Responsive.sp(12))),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primary,
-                      side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
-                      padding: Responsive.symmetric(vertical: 10),
+                      foregroundColor: const Color(0xFFFF6B8A),
+                      side: BorderSide(color: const Color(0xFFFF6B8A).withValues(alpha: 0.3)),
+                      padding: Responsive.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
                     ),
                   ),
                 ),
-                if (hasImage) ...[
-                  SizedBox(width: Responsive.w(10)),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _removeImage,
-                      icon: Icon(Icons.delete_outline, size: Responsive.icon(16)),
-                      label: Text('Remove', style: TextStyle(fontSize: Responsive.sp(12))),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFFFF6B8A),
-                        side: BorderSide(color: const Color(0xFFFF6B8A).withValues(alpha: 0.3)),
-                        padding: Responsive.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Responsive.r(8))),
-                      ),
-                    ),
-                  ),
-                ],
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildImagePreview() {
     return ClipRRect(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(Responsive.r(16))),
+      borderRadius: BorderRadius.circular(Responsive.r(12)),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -538,17 +599,180 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
     );
   }
 
-  Widget _buildToggleRow(String label, bool value, ValueChanged<bool> onChanged) {
-    return Row(
-      children: [
-        Text(label, style: TextStyle(fontSize: Responsive.sp(13))),
-        const Spacer(),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeTrackColor: AppColors.primary,
-        ),
-      ],
+
+
+  Widget _buildParentSelector() {
+    final categoriesAsync = ref.watch(categoriesProvider);
+    return categoriesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Failed to load parent categories: $e', style: TextStyle(fontSize: Responsive.sp(13), color: Colors.red)),
+      data: (categories) {
+        final c = widget.category;
+        bool isDescendant(String id) {
+          if (c == null) return false;
+          final p = categories.cast<Category?>().firstWhere((cat) => cat?.id == id, orElse: () => null);
+          if (p == null) return false;
+          if (p.parentId == c.id) return true;
+          if (p.parentId == null) return false;
+          return isDescendant(p.parentId!);
+        }
+
+        final allowed = categories.where((item) {
+          if (c != null && item.id == c.id) return false;
+          if (c != null && isDescendant(item.id)) return false;
+          return true;
+        }).toList();
+
+        final mains = allowed.where((cat) => cat.parentId == null).toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+        final subs = allowed.where((cat) {
+          final parent = allowed.cast<Category?>().firstWhere((p) => p?.id == cat.parentId, orElse: () => null);
+          return parent != null && parent.parentId == null;
+        }).toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+        return DropdownButtonFormField<String?>(
+          initialValue: _parentId,
+          style: TextStyle(fontSize: Responsive.sp(14), color: Colors.black87),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: Responsive.symmetric(horizontal: 16, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(Responsive.r(12)),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(Responsive.r(12)),
+              borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(Responsive.r(12)),
+              borderSide: BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('None (Main Category)'),
+            ),
+            ...mains.map((m) => DropdownMenuItem<String?>(
+              value: m.id,
+              child: Text(m.name),
+            )),
+            ...subs.map((s) {
+              final parent = mains.cast<Category?>().firstWhere((m) => m?.id == s.parentId, orElse: () => null);
+              final prefix = parent != null ? '${parent.name} > ' : '';
+              return DropdownMenuItem<String?>(
+                value: s.id,
+                child: Text('$prefix${s.name}'),
+              );
+            }),
+          ],
+          onChanged: (val) {
+            setState(() => _parentId = val);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildReadOnlyParent() {
+    final categoriesAsync = ref.watch(categoriesProvider);
+    return categoriesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Error: $e', style: TextStyle(fontSize: Responsive.sp(12), color: Colors.red)),
+      data: (categories) {
+        final parent = categories.cast<Category?>().firstWhere((c) => c?.id == _parentId, orElse: () => null);
+        return Container(
+          padding: Responsive.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(Responsive.r(8)),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.folder_open_rounded, size: Responsive.icon(16), color: AppColors.primary),
+              SizedBox(width: Responsive.w(8)),
+              Expanded(
+                child: Text(
+                  'Creating inside: ${parent?.name ?? 'Unknown'}',
+                  style: TextStyle(
+                    fontSize: Responsive.sp(12),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFormPanel({
+    required String title,
+    required String description,
+    required List<Widget> children,
+    Widget? icon,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: Responsive.h(16)),
+      padding: Responsive.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(Responsive.r(16)),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: Responsive.r(10),
+            offset: Offset(0, Responsive.h(2)),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(15),
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(2)),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        color: Colors.grey[500],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (icon != null) ...[
+                SizedBox(width: Responsive.w(8)),
+                icon,
+              ],
+            ],
+          ),
+          const Divider(height: 24, color: Color(0xFFF1F5F9)),
+          ...children,
+        ],
+      ),
     );
   }
 }

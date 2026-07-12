@@ -16,6 +16,7 @@ class Category extends Equatable {
   final bool isActive;
   final bool isGlobal;
   final int gstPercentage;
+  final bool hasBuffer;
   final String createdAt;
   final String? updatedAt;
 
@@ -35,6 +36,7 @@ class Category extends Equatable {
     this.isActive = true,
     this.isGlobal = false,
     this.gstPercentage = 5,
+    this.hasBuffer = true,
     required this.createdAt,
     this.updatedAt,
     this.parent,
@@ -56,6 +58,7 @@ class Category extends Equatable {
     bool? isActive,
     bool? isGlobal,
     int? gstPercentage,
+    bool? hasBuffer,
     String? createdAt,
     String? updatedAt,
     Category? parent,
@@ -73,6 +76,7 @@ class Category extends Equatable {
       isActive: isActive ?? this.isActive,
       isGlobal: isGlobal ?? this.isGlobal,
       gstPercentage: gstPercentage ?? this.gstPercentage,
+      hasBuffer: hasBuffer ?? this.hasBuffer,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       parent: parent ?? this.parent,
@@ -93,6 +97,7 @@ class Category extends Equatable {
         isActive,
         isGlobal,
         gstPercentage,
+        hasBuffer,
         createdAt,
         updatedAt,
         parent,
@@ -112,6 +117,7 @@ class Category extends Equatable {
       isActive: json['is_active'] as bool? ?? true,
       isGlobal: json['is_global'] as bool? ?? true,
       gstPercentage: (json['gst_percentage'] as num?)?.toInt() ?? 5,
+      hasBuffer: json['has_buffer'] as bool? ?? true,
       createdAt: json['created_at'] as String? ?? '',
       updatedAt: json['updated_at'] as String?,
       parent: json['parent'] != null && json['parent'] is Map
@@ -138,6 +144,7 @@ class Category extends Equatable {
       'is_active': isActive,
       'is_global': isGlobal,
       'gst_percentage': gstPercentage,
+      'has_buffer': hasBuffer,
       'created_at': createdAt,
       'updated_at': updatedAt,
     };

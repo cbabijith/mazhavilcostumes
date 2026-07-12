@@ -374,7 +374,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                   ref.watch(categoriesProvider).when(
                     data: (all) {
                       final children = all.where((c) => c.parentId == _category.id).toList();
-                      final sortedChildren = children..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+                      final sortedChildren = children..sort((a, b) => b.createdAt.compareTo(a.createdAt));
                       final hasChildren = sortedChildren.isNotEmpty;
 
                       return Column(

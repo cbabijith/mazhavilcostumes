@@ -7,6 +7,7 @@ import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../models/category.dart';
 import '../viewmodels/providers/category_provider.dart';
 import 'category_detail_view.dart';
+import 'category_form_view.dart';
 
 /// Categories listing view – hierarchical tree: Main → Sub → Variant.
 class CategoriesView extends ConsumerStatefulWidget {
@@ -41,6 +42,24 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
           ],
         ),
       ),
+      floatingActionButton: canManage
+          ? FloatingActionButton(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              onPressed: () {
+                Navigator.of(context)
+                    .push(
+                  MaterialPageRoute(
+                    builder: (_) => const CategoryFormView(),
+                  ),
+                )
+                    .then((_) {
+                  ref.invalidate(categoriesProvider);
+                });
+              },
+              child: Icon(Icons.add_rounded, size: Responsive.icon(24)),
+            )
+          : null,
     );
   }
 
@@ -54,7 +73,7 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
             (c.description ?? '').toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
     final allMainCats = categories.where((c) => c.parentId == null).toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     final filteredMainCats = filtered.where((c) => c.parentId == null).toList();
 
     // When searching, also show parents of matching sub/variants
@@ -210,7 +229,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       },
                       itemBuilder: (context, index) {
                         final main = displayMainCats[index];
-                        final subs = categories.where((c) => c.parentId == main.id).toList();
+                        final subs = categories.where((c) => c.parentId == main.id).toList()
+                          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
                         return _buildMainCategoryCard(
                           context,
                           main,
@@ -237,7 +257,8 @@ class _CategoriesViewState extends ConsumerState<CategoriesView> {
                       itemCount: displayMainCats.length,
                       itemBuilder: (context, index) {
                         final main = displayMainCats[index];
-                        final subs = categories.where((c) => c.parentId == main.id).toList();
+                        final subs = categories.where((c) => c.parentId == main.id).toList()
+                          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
                         return _buildMainCategoryCard(context, main, subs, categories, canManage);
                       },
                     ),
