@@ -45,6 +45,7 @@ import {
   useUpdateOrder,
   useCreateCustomer,
   useIsGSTEnabled,
+  useDefaultRentalDuration,
   useCheckOrderAvailability,
   useLookupProductByBarcode,
 } from '@/hooks';
@@ -79,6 +80,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     isGstEnabledResult?.success && isGstEnabledResult.data !== null
       ? isGstEnabledResult.data
       : false;
+
+  const { data: defaultRentalDurationResult } = useDefaultRentalDuration();
+  const defaultRentalDuration = useMemo(() => {
+    if (defaultRentalDurationResult?.success && defaultRentalDurationResult.data?.value) {
+      const val = parseInt(defaultRentalDurationResult.data.value, 10);
+      return isNaN(val) || val < 1 ? 3 : val;
+    }
+    return 3;
+  }, [defaultRentalDurationResult]);
 
   // Data Fetching for comboboxes
   const [customerSearch, setCustomerSearch] = useState('');
@@ -148,6 +158,14 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       : addDays(new Date(), 2)
   );
 
+  const hasInitializedDateRef = useRef(false);
+  useEffect(() => {
+    if (!initialData && defaultRentalDuration && !hasInitializedDateRef.current) {
+      setEndDate(addDays(startDate, defaultRentalDuration - 1));
+      hasInitializedDateRef.current = true;
+    }
+  }, [defaultRentalDuration, initialData, startDate]);
+
   // Notes
   const [notes, setNotes] = useState(initialData?.notes || '');
 
@@ -210,8 +228,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     return Math.max(1, diffDays + 1); // +1 for inclusive counting (pickup day + return day)
   }, [startDate, endDate]);
 
-  // Pricing multiplier: base price covers first 3 days, each extra day adds 1×
-  const pricingMultiplier = useMemo(() => Math.max(1, rentalDays - 2), [rentalDays]);
+  // Pricing multiplier: base price covers first D days, each extra day adds 1×
+  const pricingMultiplier = useMemo(
+    () => Math.max(1, rentalDays - (defaultRentalDuration - 1)),
+    [rentalDays, defaultRentalDuration]
+  );
 
   // Date validation: return date must be on or after pickup date
   const isDateInvalid = useMemo(() => {
@@ -963,7 +984,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                 Rental Period
               </h3>
               <div className="flex flex-wrap gap-1.5">
-                {[1, 2].map((extraDays) => (
+                {[1, 2, 3, 4, 5].map((extraDays) => (
                   <Button
                     key={extraDays}
                     type="button"
@@ -988,7 +1009,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                       const newDate = new Date(e.target.value);
                       if (!isNaN(newDate.getTime())) {
                         setStartDate(newDate);
-                        setEndDate(addDays(newDate, 2));
+                        setEndDate(addDays(newDate, defaultRentalDuration - 1));
                       }
                     }}
                   />
@@ -1724,7 +1745,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 {item.quantity === 1 ? 'unit' : 'units'} ×{' '}
                                 {pricingMultiplier === 1
                                   ? `base (${rentalDays} days)`
-                                  : `${pricingMultiplier} (${rentalDays} days − 2 free)`}
+                                  : `${pricingMultiplier} (${rentalDays} days − ${defaultRentalDuration - 1} free)`}
                               </span>
                               <span className="font-semibold text-slate-600">
                                 ={' '}

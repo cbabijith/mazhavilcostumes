@@ -18,6 +18,7 @@ const queryKeys = {
   invoicePrefix: ['settings', 'invoice_prefix'] as const,
   paymentTerms: ['settings', 'payment_terms'] as const,
   authorizedSignature: ['settings', 'authorized_signature'] as const,
+  defaultRentalDuration: ['settings', 'default_rental_duration'] as const,
 };
 
 /**
@@ -117,6 +118,19 @@ export function useAuthorizedSignature() {
     queryKey: queryKeys.authorizedSignature,
     queryFn: async () => {
       const value = await fetchSettingValue('authorized_signature');
+      return { success: true, data: value != null ? { value } : null };
+    },
+  });
+}
+
+/**
+ * Get default rental duration
+ */
+export function useDefaultRentalDuration() {
+  return useQuery({
+    queryKey: queryKeys.defaultRentalDuration,
+    queryFn: async () => {
+      const value = await fetchSettingValue('default_rental_duration');
       return { success: true, data: value != null ? { value } : null };
     },
   });
