@@ -116,6 +116,10 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       }
       // Prefetch customer cache to ensure it is warm/warming up
       ref.read(customersCacheProvider);
+
+      if (widget.order != null) {
+        _initOrderData();
+      }
     });
 
     if (widget.order != null) {
@@ -166,6 +170,74 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _calculateTotals();
     }
     _fetchGstSettings();
+  }
+
+  Future<void> _initOrderData() async {
+    // If we already have items populated, we don't need to force fetch again
+    if (widget.order!.items != null && widget.order!.items!.isNotEmpty) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      final fullOrder = await ref
+          .read(orderRepositoryProvider)
+          .getOrderById(widget.order!.id);
+
+      if (mounted) {
+        setState(() {
+          _selectedCustomerId = fullOrder.customerId;
+          _selectedCustomerName = fullOrder.customer?.name ?? 'Linked Customer';
+          _phoneSearchController.text = fullOrder.customer?.phone ?? '';
+          _selectedBranchId = fullOrder.branchId;
+
+          _startDateController.text = _formatDisplayDate(fullOrder.startDate);
+          _endDateController.text = _formatDisplayDate(fullOrder.endDate);
+          _eventDateController.text = _formatDisplayDate(fullOrder.eventDate);
+          _notesController.text = fullOrder.notes ?? '';
+          _deliveryAddressController.text = fullOrder.deliveryAddress ?? '';
+          _pickupAddressController.text = fullOrder.pickupAddress ?? '';
+          _advanceAmountController.text =
+              fullOrder.advanceAmount.toStringAsFixed(0);
+          _discountController.text = fullOrder.discount.toStringAsFixed(0);
+          _selectedDeliveryMethod = fullOrder.deliveryMethod;
+          _orderDiscountType = fullOrder.discountType;
+          _advancePaymentMethod =
+              fullOrder.advancePaymentMethod ?? PaymentMethod.cash;
+
+          if (fullOrder.items != null) {
+            _items.clear();
+            _items.addAll(
+              fullOrder.items!.map(
+                (item) => OrderItemInput(
+                  productId: item.productId,
+                  productName: item.product?.name ?? 'Linked Product',
+                  quantity: item.quantity,
+                  pricePerDay: item.pricePerDay,
+                  originalPricePerDay:
+                      item.originalPricePerDay ?? item.pricePerDay,
+                  gstPercentage: item.gstPercentage,
+                  isAvailable: true,
+                  discount: item.discount,
+                  discountType: item.discountType,
+                ),
+              ),
+            );
+          }
+          _calculateTotals();
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load order items: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

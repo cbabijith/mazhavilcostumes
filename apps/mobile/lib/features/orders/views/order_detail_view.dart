@@ -822,8 +822,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       OrderStatus.cancelled,
       OrderStatus.completed,
       OrderStatus.returned,
-      OrderStatus.ongoing,
-      OrderStatus.inUse,
     ].contains(_currentOrder.status);
 
     return Scaffold(
