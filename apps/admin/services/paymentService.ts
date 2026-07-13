@@ -307,7 +307,7 @@ export class PaymentService {
   async syncOrderPaymentStatus(orderId: string): Promise<void> {
     const { orderRepository } = await import('@/repository');
     orderRepository.setUserContext(this.currentUserId, this.currentBranchId);
-    
+
     const paymentsResult = await paymentRepository.findByOrderId(orderId);
     const orderResult = await orderRepository.findById(orderId);
     if (paymentsResult.success && paymentsResult.data && orderResult.success && orderResult.data) {

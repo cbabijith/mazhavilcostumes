@@ -27,11 +27,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Modal from '@/components/admin/Modal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import ProductAvailabilityCalendar from '@/components/admin/ProductAvailabilityCalendar';
 import { useProduct, useDeleteProduct } from '@/hooks';
 import { useProductStore, useAppStore, useAppSelectors } from '@/stores';
 import { formatCurrency } from '@/lib/shared-utils';
-import { downloadBarcode, printBarcode } from '@/lib/barcode';
+import { downloadBarcode, printBarcode, printBarcodeSingleSheet } from '@/lib/barcode';
 import Image from 'next/image';
 
 interface BranchInventoryRow {
@@ -264,15 +270,59 @@ export default function ProductDetailPage() {
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Download Barcode</span>
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => printBarcode(product.barcode!, product.name)}
-                className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
-              >
-                <Printer className="h-4 w-4" />
-                <span className="hidden sm:inline">Print Barcode</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span className="hidden sm:inline">Print Barcode</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem
+                    onClick={() => printBarcode(product.barcode!, product.name)}
+                    className="cursor-pointer"
+                  >
+                    Print A4 Sheet
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 50,
+                        labelHeight_mm: 30,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (50x30mm)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 40,
+                        labelHeight_mm: 30,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (40x30mm)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 32,
+                        labelHeight_mm: 20,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (32x20mm)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
           {canEdit && (

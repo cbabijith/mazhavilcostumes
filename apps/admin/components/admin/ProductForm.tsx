@@ -73,7 +73,8 @@ export default function ProductForm({ product }: ProductFormProps) {
 
   // Cross-branch edit: sub-branch user editing a product owned by another branch
   // They can ONLY edit their own branch's stock quantity
-  const isCrossBranchEdit = isEdit && !isMainBranchContext && !!product && product.branch_id !== activeBranchId;
+  const isCrossBranchEdit =
+    isEdit && !isMainBranchContext && !!product && product.branch_id !== activeBranchId;
 
   // Handle global stock changes and propagate to all branches
   const handleGlobalStockChange = (val: string) => {
@@ -356,11 +357,13 @@ export default function ProductForm({ product }: ProductFormProps) {
           const crossBranchPayload = {
             quantity: totalQuantity,
             available_quantity: totalQuantity,
-            branch_inventory: [{
-              branch_id: activeBranchId,
-              quantity: subBranchQty,
-              id: inv?.id,
-            }],
+            branch_inventory: [
+              {
+                branch_id: activeBranchId,
+                quantity: subBranchQty,
+                id: inv?.id,
+              },
+            ],
             cross_branch_stock_only: true,
           };
           await updateProduct({ id: product!.id, data: crossBranchPayload as any });
@@ -524,7 +527,8 @@ export default function ProductForm({ product }: ProductFormProps) {
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
           <Info className="w-4 h-4 text-amber-600 shrink-0" />
           <p className="text-sm font-medium text-amber-800">
-            This product belongs to another branch. You can only update the stock quantity for your branch ({activeBranch?.name || 'your branch'}).
+            This product belongs to another branch. You can only update the stock quantity for your
+            branch ({activeBranch?.name || 'your branch'}).
           </p>
         </div>
       )}
@@ -572,19 +576,19 @@ export default function ProductForm({ product }: ProductFormProps) {
 
           {/* Media */}
           {!isCrossBranchEdit && (
-          <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-slate-900">Images</h3>
-            <FileUpload
-              accept="image/*"
-              multiple={true}
-              maxFiles={MAX_IMAGES}
-              maxSize={20 * 1024 * 1024}
-              folder="products"
-              value={imageUrls}
-              onChange={setImageUrls}
-              helperText={`Drag & drop up to ${MAX_IMAGES} images. First image = primary.`}
-            />
-          </div>
+            <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-900">Images</h3>
+              <FileUpload
+                accept="image/*"
+                multiple={true}
+                maxFiles={MAX_IMAGES}
+                maxSize={20 * 1024 * 1024}
+                folder="products"
+                value={imageUrls}
+                onChange={setImageUrls}
+                helperText={`Drag & drop up to ${MAX_IMAGES} images. First image = primary.`}
+              />
+            </div>
           )}
 
           {/* Rent Price + Purchase Price — side by side */}

@@ -1159,7 +1159,8 @@ export class OrderRepository extends BaseRepository {
       .maybeSingle();
 
     const defaultDuration = durationSetting?.value ? parseInt(durationSetting.value, 10) : 3;
-    const effectiveDefaultDuration = isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
+    const effectiveDefaultDuration =
+      isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
 
     // Pricing multiplier: base price covers first D days, each extra day adds 1×
     const pricingMultiplier = Math.max(1, rentalDays - (effectiveDefaultDuration - 1));
@@ -1492,7 +1493,8 @@ export class OrderRepository extends BaseRepository {
           .maybeSingle();
 
         const defaultDuration = durationSetting?.value ? parseInt(durationSetting.value, 10) : 3;
-        effectiveDefaultDuration = isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
+        effectiveDefaultDuration =
+          isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
       }
 
       const pricingMultiplier = Math.max(1, rentalDays - (effectiveDefaultDuration - 1));

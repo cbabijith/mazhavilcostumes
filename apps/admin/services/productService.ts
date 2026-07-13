@@ -199,7 +199,7 @@ export class ProductService {
           let qty = data.quantity || 0;
           if (branch_inventory && branch_inventory.length > 0) {
             const match = branch_inventory.find((inv) => inv.branch_id === branch.id);
-            qty = match !== undefined ? (match.quantity || 0) : 0;
+            qty = match !== undefined ? match.quantity || 0 : 0;
           }
 
           return {
@@ -252,7 +252,8 @@ export class ProductService {
     // quantity/available_quantity from the actual branch inventory totals.
     if (branch_inventory && branch_inventory.length > 0) {
       const totalFromBranches = branch_inventory.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
-      await adminClient.from('products')
+      await adminClient
+        .from('products')
         .update({ quantity: totalFromBranches, available_quantity: totalFromBranches })
         .eq('id', createResult.data!.id);
     }
