@@ -1117,7 +1117,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       </div>
                       {payment.updater?.name && payment.updater.id !== payment.staff?.id && (
                         <div className="text-[10px] text-slate-400">
-                          Originally: {payment.staff?.name || `Staff #${payment.created_by?.slice(0, 6)}`}
+                          Originally:{' '}
+                          {payment.staff?.name || `Staff #${payment.created_by?.slice(0, 6)}`}
                         </div>
                       )}
                     </td>

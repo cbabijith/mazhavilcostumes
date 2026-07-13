@@ -39,6 +39,12 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Modal from '@/components/admin/Modal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useProducts, useDeleteProduct, useBulkProductOperation, useCategories } from '@/hooks';
 import { useProductStore, useAppStore, useAppSelectors } from '@/stores';
 import { formatCurrency } from '@/lib/shared-utils';
@@ -70,6 +76,13 @@ export default function ProductsPage() {
     </Suspense>
   );
 }
+
+const SINGLE_LABEL_SIZES = {
+  '50x30': { width: 50, height: 30, label: '50mm × 30mm (Standard Roll)' },
+  '40x30': { width: 40, height: 30, label: '40mm × 30mm (Medium Roll)' },
+  '32x20': { width: 32, height: 20, label: '32mm × 20mm (Small Roll)' },
+};
+type SingleLabelSizeKey = keyof typeof SINGLE_LABEL_SIZES;
 
 function ProductsContent() {
   const router = useRouter();
@@ -160,6 +173,8 @@ function ProductsContent() {
   const [exporting, setExporting] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
+  const [selectedSingleLabelSize, setSelectedSingleLabelSize] =
+    useState<SingleLabelSizeKey>('50x30');
   const [printingBarcodes, setPrintingBarcodes] = useState(false);
   const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
   const [printMode, setPrintMode] = useState<'a4' | 'single'>('a4');
@@ -362,11 +377,12 @@ function ProductsContent() {
     setPrintingBarcodes(true);
     try {
       if (printMode === 'single') {
+        const sizeObj = SINGLE_LABEL_SIZES[selectedSingleLabelSize];
         await bulkPrintBarcodesSingleSheet(
           list.map((p) => ({ barcode: p.barcode!, name: p.name })),
-          { labelWidth_mm: 32, labelHeight_mm: 20 }
+          { labelWidth_mm: sizeObj.width, labelHeight_mm: sizeObj.height }
         );
-        showSuccess('Print Ready', `Sending ${list.length} barcodes to print (Single Sheet mode)`);
+        showSuccess('Print Ready', `Sending ${list.length} barcodes to print (${sizeObj.label})`);
       } else {
         await bulkPrintBarcodes(
           list.map((p) => ({ barcode: p.barcode!, name: p.name })),
@@ -791,19 +807,69 @@ function ProductsContent() {
                               >
                                 <Download className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                                onClick={() =>
-                                  product.barcode
-                                    ? printBarcode(product.barcode, product.name)
-                                    : undefined
-                                }
-                                title="Print Barcode"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                                    title="Print Barcode Options"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-white">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcode(product.barcode, product.name)
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print A4 Sheet
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 50,
+                                            labelHeight_mm: 30,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (50x30mm)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 40,
+                                            labelHeight_mm: 30,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (40x30mm)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 32,
+                                            labelHeight_mm: 20,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (32x20mm)
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           )}
                           <Button
@@ -964,7 +1030,10 @@ function ProductsContent() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setPrintMode('a4')}
+                    onClick={() => {
+                      setPrintMode('a4');
+                      setShowLabelSizeOptions(false);
+                    }}
                     disabled={printingBarcodes}
                     className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
                       printMode === 'a4'
@@ -981,7 +1050,10 @@ function ProductsContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPrintMode('single')}
+                    onClick={() => {
+                      setPrintMode('single');
+                      setShowLabelSizeOptions(false);
+                    }}
                     disabled={printingBarcodes}
                     className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
                       printMode === 'single'
@@ -1060,6 +1132,61 @@ function ProductsContent() {
                                 </span>
                               )}
                             </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {printMode === 'single' && (
+                <>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Label Size (Thermal Roll)
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">
+                          {SINGLE_LABEL_SIZES[selectedSingleLabelSize].label}
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-500 font-medium">
+                          Matches thermal roll width × height
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowLabelSizeOptions(!showLabelSizeOptions)}
+                        disabled={printingBarcodes}
+                        className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  </div>
+
+                  {showLabelSizeOptions && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
+                      {(Object.keys(SINGLE_LABEL_SIZES) as SingleLabelSizeKey[]).map((key) => {
+                        const size = SINGLE_LABEL_SIZES[key];
+                        const isSelected = selectedSingleLabelSize === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSingleLabelSize(key);
+                              setShowLabelSizeOptions(false);
+                            }}
+                            disabled={printingBarcodes}
+                            className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
+                              isSelected
+                                ? 'bg-slate-900 text-white'
+                                : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="font-semibold">{size.label}</div>
                           </button>
                         );
                       })}

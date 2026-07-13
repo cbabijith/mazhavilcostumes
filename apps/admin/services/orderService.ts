@@ -859,9 +859,7 @@ export class OrderService {
     ) {
       const paymentsRes = await paymentRepository.findByOrderId(id);
       if (paymentsRes.success && paymentsRes.data) {
-        const depositPayment = paymentsRes.data.find(
-          (p) => p.payment_type === PaymentType.DEPOSIT
-        );
+        const depositPayment = paymentsRes.data.find((p) => p.payment_type === PaymentType.DEPOSIT);
         if (depositPayment) {
           const deleteRes = await paymentRepository.delete(depositPayment.id);
           if (deleteRes.success) {
@@ -869,7 +867,10 @@ export class OrderService {
               const { paymentService } = await import('./paymentService');
               await paymentService.syncOrderPaymentStatus(id);
             } catch (err) {
-              console.error('[OrderService.updateOrder] Failed to sync order payment status on delete:', err);
+              console.error(
+                '[OrderService.updateOrder] Failed to sync order payment status on delete:',
+                err
+              );
             }
           }
         }
@@ -899,7 +900,10 @@ export class OrderService {
                 const { paymentService } = await import('./paymentService');
                 await paymentService.syncOrderPaymentStatus(id);
               } catch (err) {
-                console.error('[OrderService.updateOrder] Failed to sync order payment status on update:', err);
+                console.error(
+                  '[OrderService.updateOrder] Failed to sync order payment status on update:',
+                  err
+                );
               }
             }
           }

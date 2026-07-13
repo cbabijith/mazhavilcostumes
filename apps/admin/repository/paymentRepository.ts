@@ -71,7 +71,9 @@ export class PaymentRepository extends BaseRepository {
    * Find all payments with search parameters
    */
   async findAll(params: PaymentSearchParams = {}): Promise<RepositoryResult<Payment[]>> {
-    let query = this.client.from(this.tableName).select('*, staff:created_by(id, name), updater:updated_by(id, name)');
+    let query = this.client
+      .from(this.tableName)
+      .select('*, staff:created_by(id, name), updater:updated_by(id, name)');
 
     if (params.order_id) {
       query = query.eq('order_id', params.order_id);

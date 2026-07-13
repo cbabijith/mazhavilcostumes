@@ -70,7 +70,10 @@ export default function SettingsPage() {
     try {
       const durationVal = parseInt(defaultRentalDuration, 10);
       if (isNaN(durationVal) || durationVal < 1) {
-        showError('Validation Error', 'Default rental duration must be a number greater than or equal to 1.');
+        showError(
+          'Validation Error',
+          'Default rental duration must be a number greater than or equal to 1.'
+        );
         return;
       }
       await updateSetting({ key: 'default_rental_duration', value: defaultRentalDuration });
@@ -143,7 +146,9 @@ export default function SettingsPage() {
         <CardContent className="pt-6">
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700">Default Rental Duration (Days)</label>
+              <label className="text-sm font-semibold text-slate-700">
+                Default Rental Duration (Days)
+              </label>
               <Input
                 type="number"
                 min="1"
@@ -153,7 +158,8 @@ export default function SettingsPage() {
                 placeholder="3"
               />
               <p className="text-xs text-slate-500 mt-1">
-                The default rental duration in days. The base price of costumes covers this duration, and any additional days will increase/multiply the rental price.
+                The default rental duration in days. The base price of costumes covers this
+                duration, and any additional days will increase/multiply the rental price.
               </p>
             </div>
 
