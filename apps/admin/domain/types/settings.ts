@@ -12,6 +12,7 @@ export enum SettingKey {
   INVOICE_PREFIX = 'invoice_prefix',
   PAYMENT_TERMS = 'payment_terms',
   AUTHORIZED_SIGNATURE = 'authorized_signature',
+  DEFAULT_RENTAL_DURATION = 'default_rental_duration',
 }
 
 // Setting Entity

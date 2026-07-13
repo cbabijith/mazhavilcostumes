@@ -1123,6 +1123,25 @@ export class OrderRepository extends BaseRepository {
     perItemGstRates: Map<string, number> = new Map(),
     providedStoreId?: string
   ): Promise<RepositoryResult<OrderWithRelations>> {
+    let storeId = providedStoreId;
+    if (!storeId) {
+      // Fetch store_id from branch if not provided
+      const branchResponse = await this.client
+        .from('branches')
+        .select('store_id')
+        .eq('id', data.branch_id)
+        .single();
+
+      if (branchResponse.error) {
+        return {
+          data: null,
+          error: branchResponse.error,
+          success: false,
+        };
+      }
+      storeId = branchResponse.data.store_id;
+    }
+
     // Parse rental dates — used for scheduling AND pricing
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
@@ -1131,8 +1150,19 @@ export class OrderRepository extends BaseRepository {
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // Pricing multiplier: base price covers first 3 days, each extra day adds 1×
-    const pricingMultiplier = Math.max(1, rentalDays - 2);
+    // Fetch default rental duration from settings (default to 3)
+    const { data: durationSetting } = await this.client
+      .from('settings')
+      .select('value')
+      .eq('store_id', storeId)
+      .eq('key', 'default_rental_duration')
+      .maybeSingle();
+
+    const defaultDuration = durationSetting?.value ? parseInt(durationSetting.value, 10) : 3;
+    const effectiveDefaultDuration = isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
+
+    // Pricing multiplier: base price covers first D days, each extra day adds 1×
+    const pricingMultiplier = Math.max(1, rentalDays - (effectiveDefaultDuration - 1));
 
     // Calculate subtotal — rent price × quantity × pricingMultiplier, with per-item discounts
     let rawSubtotal = 0;
@@ -1214,24 +1244,7 @@ export class OrderRepository extends BaseRepository {
     // Grand total = subtotal (GST is WITHIN, not added on top)
     const totalAmount = subtotal;
 
-    let storeId = providedStoreId;
-    if (!storeId) {
-      // Fetch store_id from branch if not provided
-      const branchResponse = await this.client
-        .from('branches')
-        .select('store_id')
-        .eq('id', data.branch_id)
-        .single();
-
-      if (branchResponse.error) {
-        return {
-          data: null,
-          error: branchResponse.error,
-          success: false,
-        };
-      }
-      storeId = branchResponse.data.store_id;
-    }
+    // storeId is already resolved at the top of the function
 
     const todayStr = new Date().toISOString().split('T')[0];
     const startDateStr = startDate.toISOString().split('T')[0];
@@ -1388,7 +1401,7 @@ export class OrderRepository extends BaseRepository {
     // Fetch existing order to check status transitions
     const oldOrderResponse = await this.client
       .from(this.tableName)
-      .select('status, branch_id, start_date, end_date')
+      .select('status, store_id, branch_id, start_date, end_date')
       .eq('id', id)
       .single();
 
@@ -1466,7 +1479,23 @@ export class OrderRepository extends BaseRepository {
       const finalEndDate = new Date(normalizedData.end_date || oldOrderResponse.data?.end_date);
       const diffTime = Math.abs(finalEndDate.getTime() - finalStartDate.getTime());
       const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
-      const pricingMultiplier = Math.max(1, rentalDays - 2);
+
+      // Fetch default rental duration from settings (default to 3)
+      const storeId = oldOrderResponse.data?.store_id;
+      let effectiveDefaultDuration = 3;
+      if (storeId) {
+        const { data: durationSetting } = await this.client
+          .from('settings')
+          .select('value')
+          .eq('store_id', storeId)
+          .eq('key', 'default_rental_duration')
+          .maybeSingle();
+
+        const defaultDuration = durationSetting?.value ? parseInt(durationSetting.value, 10) : 3;
+        effectiveDefaultDuration = isNaN(defaultDuration) || defaultDuration < 1 ? 3 : defaultDuration;
+      }
+
+      const pricingMultiplier = Math.max(1, rentalDays - (effectiveDefaultDuration - 1));
 
       // We don't adjust per-item GST for order-level discount during update yet
       // because the update data might not include all order financial fields.

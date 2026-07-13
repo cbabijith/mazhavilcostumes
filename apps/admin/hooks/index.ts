@@ -123,6 +123,7 @@ export {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useDefaultRentalDuration,
   useUpdateSetting,
 } from './useSettings';
 

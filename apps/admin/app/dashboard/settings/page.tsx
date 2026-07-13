@@ -11,6 +11,7 @@ import {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useDefaultRentalDuration,
   useUpdateSetting,
 } from '@/hooks';
 import { useAppStore } from '@/stores';
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const { data: invoicePrefixResult, isLoading: loadingPrefix } = useInvoicePrefix();
   const { data: paymentTermsResult, isLoading: loadingTerms } = usePaymentTerms();
   const { data: signatureResult, isLoading: loadingSig } = useAuthorizedSignature();
+  const { data: durationResult, isLoading: loadingDuration } = useDefaultRentalDuration();
 
   // Derive GST enabled from query result
   const isGstEnabled =
@@ -37,8 +39,9 @@ export default function SettingsPage() {
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [authorizedSignature, setAuthorizedSignature] = useState('');
+  const [defaultRentalDuration, setDefaultRentalDuration] = useState('3');
 
-  // Sync invoice hooks with state when data loads
+  // Sync invoice & rental hooks with state when data loads
   useEffect(() => {
     if (invoicePrefixResult?.success && invoicePrefixResult.data)
       setInvoicePrefix(invoicePrefixResult.data.value);
@@ -46,7 +49,9 @@ export default function SettingsPage() {
       setPaymentTerms(paymentTermsResult.data.value);
     if (signatureResult?.success && signatureResult.data)
       setAuthorizedSignature(signatureResult.data.value);
-  }, [invoicePrefixResult, paymentTermsResult, signatureResult]);
+    if (durationResult?.success && durationResult.data)
+      setDefaultRentalDuration(durationResult.data.value);
+  }, [invoicePrefixResult, paymentTermsResult, signatureResult, durationResult]);
 
   const handleSaveInvoiceSettings = async () => {
     try {
@@ -56,6 +61,20 @@ export default function SettingsPage() {
         updateSetting({ key: 'authorized_signature', value: authorizedSignature }),
       ]);
       showSuccess('Invoice settings saved successfully');
+    } catch (err) {
+      // updateSetting hook will handle showing the error toast
+    }
+  };
+
+  const handleSaveRentalSettings = async () => {
+    try {
+      const durationVal = parseInt(defaultRentalDuration, 10);
+      if (isNaN(durationVal) || durationVal < 1) {
+        showError('Validation Error', 'Default rental duration must be a number greater than or equal to 1.');
+        return;
+      }
+      await updateSetting({ key: 'default_rental_duration', value: defaultRentalDuration });
+      showSuccess('Rental settings saved successfully');
     } catch (err) {
       // updateSetting hook will handle showing the error toast
     }
@@ -112,6 +131,39 @@ export default function SettingsPage() {
                 </p>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Rental Settings */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="border-b border-slate-100">
+          <CardTitle className="text-xl text-slate-900">Rental Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Default Rental Duration (Days)</label>
+              <Input
+                type="number"
+                min="1"
+                value={defaultRentalDuration}
+                onChange={(e) => setDefaultRentalDuration(e.target.value)}
+                className="bg-slate-50 border-slate-200 focus:border-primary max-w-xs"
+                placeholder="3"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                The default rental duration in days. The base price of costumes covers this duration, and any additional days will increase/multiply the rental price.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleSaveRentalSettings}
+              disabled={updatingSettings || loadingDuration}
+              className="shadow-lg shadow-primary/25 bg-slate-900 text-white hover:bg-slate-800"
+            >
+              {updatingSettings ? 'Saving...' : 'Save Rental Settings'}
+            </Button>
           </div>
         </CardContent>
       </Card>

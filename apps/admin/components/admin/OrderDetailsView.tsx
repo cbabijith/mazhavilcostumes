@@ -153,6 +153,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     order?.status === OrderStatus.PARTIAL;
   const isFinalized =
     order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
+  const isProductReturned =
+    order?.status === OrderStatus.RETURNED ||
+    order?.status === OrderStatus.COMPLETED ||
+    order?.status === OrderStatus.CANCELLED;
 
   // Signature to detect when order items actually change (not just order refetch)
   const itemsSignature =
@@ -2039,21 +2043,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             order.security_deposit > 0 &&
             order.deposit_collected &&
             !order.deposit_returned && (
-              <Button
-                onClick={() => {
-                  setIsCancellationRefund(false);
-                  setRefundForm({
-                    paymentMode: PaymentMode.CASH,
-                    notes: 'Security Deposit Refund',
-                    amount: order.security_deposit.toString(),
-                  });
-                  setIsRefundModalOpen(true);
-                }}
-                className="w-full mt-3 h-12 bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <Banknote className="w-4 h-4" /> Refund Security Deposit (
-                {formatCurrency(order.security_deposit)})
-              </Button>
+              <div className="space-y-1.5 mt-3">
+                <Button
+                  disabled={!isProductReturned}
+                  onClick={() => {
+                    setIsCancellationRefund(false);
+                    setRefundForm({
+                      paymentMode: PaymentMode.CASH,
+                      notes: 'Security Deposit Refund',
+                      amount: order.security_deposit.toString(),
+                    });
+                    setIsRefundModalOpen(true);
+                  }}
+                  className={`w-full h-12 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 ${
+                    !isProductReturned
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                      : 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4" /> Refund Security Deposit (
+                  {formatCurrency(order.security_deposit)})
+                </Button>
+                {!isProductReturned && (
+                  <p className="text-xs text-amber-600 font-semibold text-center flex items-center justify-center gap-1">
+                    <span>⚠️ Security deposit can be returned once the product is returned.</span>
+                  </p>
+                )}
+              </div>
             )}
 
           {/* Cancellation Refund — for cancelled orders */}
