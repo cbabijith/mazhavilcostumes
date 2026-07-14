@@ -38,22 +38,13 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     ref.keepAlive();
     _currentPage = 1;
     _currentBranchId = ref.watch(effectiveBranchIdProvider);
-    final categoryName = ref.watch(productCategoryFilterProvider);
+    final categoryIdVal = ref.watch(productCategoryFilterProvider);
 
     final cancelToken = CancelToken();
     ref.onDispose(cancelToken.cancel);
     final repo = ref.read(productRepositoryProvider);
     
-    // Map category name to ID for API call
-    String? categoryId;
-    if (categoryName != 'All') {
-      final categories = ref.read(categoriesProvider).value ?? [];
-      final category = categories.firstWhere(
-        (c) => c.name == categoryName,
-        orElse: () => categories.first,
-      );
-      categoryId = category.id;
-    }
+    final categoryId = categoryIdVal == 'All' ? null : categoryIdVal;
     
     return repo.getProducts(
       page: _currentPage,
@@ -70,17 +61,9 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
-      final categoryName = ref.read(productCategoryFilterProvider);
+      final categoryIdVal = ref.read(productCategoryFilterProvider);
       
-      String? categoryId;
-      if (categoryName != 'All') {
-        final categories = ref.read(categoriesProvider).value ?? [];
-        final category = categories.firstWhere(
-          (c) => c.name == categoryName,
-          orElse: () => categories.first,
-        );
-        categoryId = category.id;
-      }
+      final categoryId = categoryIdVal == 'All' ? null : categoryIdVal;
       
       return repo.getProducts(
         page: _currentPage,
@@ -97,17 +80,9 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final repo = ref.read(productRepositoryProvider);
-      final categoryName = ref.read(productCategoryFilterProvider);
+      final categoryIdVal = ref.read(productCategoryFilterProvider);
       
-      String? categoryId;
-      if (categoryName != 'All') {
-        final categories = ref.read(categoriesProvider).value ?? [];
-        final category = categories.firstWhere(
-          (c) => c.name == categoryName,
-          orElse: () => categories.first,
-        );
-        categoryId = category.id;
-      }
+      final categoryId = categoryIdVal == 'All' ? null : categoryIdVal;
       
       return repo.getProducts(
         page: _currentPage,
@@ -127,17 +102,9 @@ class ProductsNotifier extends AsyncNotifier<PaginatedProducts> {
     _isLoadingMore = true;
     try {
       final repo = ref.read(productRepositoryProvider);
-      final categoryName = ref.read(productCategoryFilterProvider);
+      final categoryIdVal = ref.read(productCategoryFilterProvider);
       
-      String? categoryId;
-      if (categoryName != 'All') {
-        final categories = ref.read(categoriesProvider).value ?? [];
-        final category = categories.firstWhere(
-          (c) => c.name == categoryName,
-          orElse: () => categories.first,
-        );
-        categoryId = category.id;
-      }
+      final categoryId = categoryIdVal == 'All' ? null : categoryIdVal;
       
       final nextPageData = await repo.getProducts(
         page: _currentPage + 1,

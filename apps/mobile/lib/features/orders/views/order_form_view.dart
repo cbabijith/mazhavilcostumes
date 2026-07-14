@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/supabase/api_client.dart';
 import '../../../core/utils/responsive.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../customers/models/customer.dart';
@@ -93,6 +92,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   // Parity with website settings and discount types
   bool _isGstEnabled = false;
+  int _defaultRentalDays = 3;
   String _orderDiscountType = 'flat'; // 'flat' | 'percent'
   PaymentMethod? _advancePaymentMethod = PaymentMethod.cash;
   PaymentMethod? _depositPaymentMethod = PaymentMethod.cash;
@@ -103,22 +103,14 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
+  bool _isInitialized = false;
 
-    // Default branch ID from provider
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final currentBranchId = ref.read(effectiveBranchIdProvider);
-      if (currentBranchId != null && _selectedBranchId == null) {
-        setState(() {
-          _selectedBranchId = currentBranchId;
-        });
-      }
-      // Prefetch customer cache to ensure it is warm/warming up
-      ref.read(customersCacheProvider);
-    });
+  void _initializeFormOnce(OrderSettings settings) {
+    if (_isInitialized) return;
+    _isInitialized = true;
+
+    _defaultRentalDays = settings.defaultRentalDays;
+    _isGstEnabled = settings.isGstEnabled;
 
     if (widget.order != null) {
       _selectedCustomerId = widget.order!.customerId;
@@ -132,17 +124,13 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
       _notesController.text = widget.order!.notes ?? '';
       _deliveryAddressController.text = widget.order!.deliveryAddress ?? '';
       _pickupAddressController.text = widget.order!.pickupAddress ?? '';
-      _advanceAmountController.text = widget.order!.advanceAmount
-          .toStringAsFixed(0);
-      _securityDepositController.text = widget.order!.securityDeposit
-          .toStringAsFixed(0);
+      _advanceAmountController.text = widget.order!.advanceAmount.toStringAsFixed(0);
+      _securityDepositController.text = widget.order!.securityDeposit.toStringAsFixed(0);
       _discountController.text = widget.order!.discount.toStringAsFixed(0);
       _selectedDeliveryMethod = widget.order!.deliveryMethod;
       _orderDiscountType = widget.order!.discountType;
-      _advancePaymentMethod =
-          widget.order!.advancePaymentMethod ?? PaymentMethod.cash;
-      _depositPaymentMethod =
-          widget.order!.depositPaymentMethod ?? PaymentMethod.cash;
+      _advancePaymentMethod = widget.order!.advancePaymentMethod ?? PaymentMethod.cash;
+      _depositPaymentMethod = widget.order!.depositPaymentMethod ?? PaymentMethod.cash;
 
       if (widget.order!.items != null) {
         _items.addAll(
@@ -165,13 +153,30 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     } else {
       // Default dates for new order matching web
       final today = DateTime.now();
-      final twoDaysLater = today.add(const Duration(days: 2));
+      final twoDaysLater = today.add(Duration(days: _defaultRentalDays - 1));
       _startDateController.text = DateFormat('dd/MM/yyyy').format(today);
       _endDateController.text = DateFormat('dd/MM/yyyy').format(twoDaysLater);
       _eventDateController.text = DateFormat('dd/MM/yyyy').format(today);
       _calculateTotals();
     }
-    _fetchGstSettings();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+
+    // Default branch ID from provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentBranchId = ref.read(effectiveBranchIdProvider);
+      if (currentBranchId != null && _selectedBranchId == null) {
+        setState(() {
+          _selectedBranchId = currentBranchId;
+        });
+      }
+      // Prefetch customer cache to ensure it is warm/warming up
+      ref.read(customersCacheProvider);
+    });
   }
 
   @override
@@ -203,6 +208,26 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
     Responsive.init(context);
     final isEditing = widget.order != null;
 
+    final settingsAsync = ref.watch(orderSettingsProvider);
+
+    return settingsAsync.when(
+      data: (settings) {
+        _initializeFormOnce(settings);
+        return _buildScaffoldContent(context, isEditing);
+      },
+      loading: () => const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      ),
+      error: (error, stack) {
+        _initializeFormOnce(const OrderSettings(isGstEnabled: false, defaultRentalDays: 3));
+        return _buildScaffoldContent(context, isEditing);
+      },
+    );
+  }
+
+  Widget _buildScaffoldContent(BuildContext context, bool isEditing) {
     // Synchronize selected branch ID from effectiveBranchIdProvider for new orders
     final currentBranchId = ref.watch(effectiveBranchIdProvider);
     if (!isEditing && _selectedBranchId != currentBranchId) {
@@ -452,11 +477,13 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
         ),
         _buildCard(
           children: [
+            _buildQuickDateButtons(),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
             Row(
               children: [
                 Expanded(
                   child: _buildDateField(
-                    label: 'Start Date',
+                    label: 'Pickup Date',
                     controller: _startDateController,
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Required' : null,
@@ -465,7 +492,7 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                 SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                 Expanded(
                   child: _buildDateField(
-                    label: 'End Date',
+                    label: 'Return Date',
                     controller: _endDateController,
                     validator: (v) =>
                         v == null || v.isEmpty ? 'Required' : null,
@@ -473,8 +500,6 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
                 ),
               ],
             ),
-            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-            _buildQuickDateButtons(),
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
             Container(
               padding: Responsive.symmetric(
@@ -713,11 +738,64 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
 
   Widget _buildFormContent(bool isEditing) {
     if (isEditing) {
+      String? createdByText;
+      final createdAt = DateTime.tryParse(widget.order!.createdAt);
+      if (createdAt != null) {
+        final formattedDate = DateFormat('dd MMM, yyyy • h:mm a').format(createdAt.toLocal());
+        final creatorName = widget.order!.creator?.name ?? 'Admin';
+        createdByText = 'Created on $formattedDate by $creatorName';
+      }
+
+      String? updatedByText;
+      if (widget.order!.updatedAt != null && widget.order!.updater != null) {
+        final updatedAt = DateTime.tryParse(widget.order!.updatedAt!);
+        if (updatedAt != null) {
+          final formattedDate = DateFormat('dd MMM, yyyy • h:mm a').format(updatedAt.toLocal());
+          final updaterName = widget.order!.updater!.name;
+          updatedByText = 'Last updated on $formattedDate by $updaterName';
+        }
+      }
+
       return SingleChildScrollView(
         padding: Responsive.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (createdByText != null) ...[
+              Container(
+                padding: Responsive.all(12),
+                margin: Responsive.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.grey.shade200),
+                  borderRadius: BorderRadius.circular(Responsive.r(8)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      createdByText,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(11),
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (updatedByText != null) ...[
+                      SizedBox(height: Responsive.h(4)),
+                      Text(
+                        updatedByText,
+                        style: TextStyle(
+                          fontSize: Responsive.sp(11),
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             _buildSetupSection(isEditing),
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
             ..._buildCostumesSection(isEditing),

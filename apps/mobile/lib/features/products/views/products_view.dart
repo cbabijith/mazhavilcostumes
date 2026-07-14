@@ -8,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../categories/viewmodels/providers/category_provider.dart';
+import '../../categories/models/category.dart';
 import '../viewmodels/providers/product_provider.dart';
 import '../repositories/product_repository.dart';
 import '../models/product.dart';
@@ -26,6 +27,26 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
+
+  Category? _findCategoryById(String id, List<Category> categories) {
+    try {
+      return categories.firstWhere((c) => c.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Category _getRootCategory(Category category, List<Category> categories) {
+    Category current = category;
+    int guard = 0;
+    while (current.parentId != null && guard < 10) {
+      final parent = _findCategoryById(current.parentId!, categories);
+      if (parent == null) break;
+      current = parent;
+      guard++;
+    }
+    return current;
+  }
 
   @override
   void initState() {
@@ -122,22 +143,69 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         final totalCount = totalCountAsync.value ?? 0;
         final categoryCounts = categoryCountsAsync.value ?? {};
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: Responsive.symmetric(horizontal: 16, vertical: 4),
-          child: Row(
-            children: [
-              _buildCategoryChip('All', totalCount, currentCategory),
-              SizedBox(width: Responsive.w(8)),
-              ...categories.map((cat) {
-                final count = categoryCounts[cat.id] ?? 0;
+        // Separate main categories (where parentId is null)
+        final mainCategories = categories.where((c) => c.parentId == null).toList();
+
+        // Find selected category object
+        Category? selectedCat;
+        if (currentCategory != 'All') {
+          selectedCat = _findCategoryById(currentCategory, categories);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Row 1: All + Main Categories
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  _buildCategoryChip('All', 'All', totalCount, currentCategory, false),
+                  SizedBox(width: Responsive.w(8)),
+                  ...mainCategories.map((cat) {
+                    final count = categoryCounts[cat.id] ?? 0;
+                    // If selected category belongs to this root category, highlight it
+                    final isParentActive = selectedCat != null && _getRootCategory(selectedCat, categories).id == cat.id;
+                    return Padding(
+                      padding: Responsive.only(right: 8),
+                      child: _buildCategoryChip(cat.name, cat.id, count, currentCategory, isParentActive),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            // Row 2: Subcategories (only if a category with children is active)
+            if (selectedCat != null) ...[
+              (() {
+                final rootCat = _getRootCategory(selectedCat!, categories);
+                final subCats = categories.where((c) => c.parentId == rootCat.id).toList();
+                if (subCats.isEmpty) return const SizedBox.shrink();
+
                 return Padding(
-                  padding: Responsive.only(right: 8),
-                  child: _buildCategoryChip(cat.name, count, currentCategory),
+                  padding: Responsive.only(top: 6),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: Responsive.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(
+                      children: [
+                        _buildSubcategoryChip('All ${rootCat.name}', rootCat.id, categoryCounts[rootCat.id] ?? 0, currentCategory),
+                        SizedBox(width: Responsive.w(8)),
+                        ...subCats.map((sub) {
+                          final count = categoryCounts[sub.id] ?? 0;
+                          return Padding(
+                            padding: Responsive.only(right: 8),
+                            child: _buildSubcategoryChip(sub.name, sub.id, count, currentCategory),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
                 );
-              }),
+              })(),
             ],
-          ),
+          ],
         );
       },
       loading: () => SingleChildScrollView(
@@ -145,7 +213,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         padding: Responsive.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
-            _buildCategoryChip('All', 0, currentCategory),
+            _buildCategoryChip('All', 'All', 0, currentCategory, false),
             SizedBox(width: Responsive.w(8)),
             const SizedBox(
               width: 16,
@@ -226,14 +294,16 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
 
   // ── Filter Chip ──
   Widget _buildCategoryChip(
-    String categoryName,
+    String label,
+    String categoryId,
     int count,
     String currentCategory,
+    bool isParentActive,
   ) {
-    final isActive = categoryName == currentCategory;
+    final isActive = categoryId == currentCategory || isParentActive;
     return GestureDetector(
       onTap: () =>
-          ref.read(productCategoryFilterProvider.notifier).set(categoryName),
+          ref.read(productCategoryFilterProvider.notifier).set(categoryId),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: Responsive.symmetric(horizontal: 14, vertical: 8),
@@ -256,7 +326,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              categoryName,
+              label,
               style: TextStyle(
                 fontSize: Responsive.sp(12),
                 fontWeight: FontWeight.w600,
@@ -278,6 +348,60 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                   fontSize: Responsive.sp(10),
                   fontWeight: FontWeight.w700,
                   color: isActive ? Colors.white : AppColors.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubcategoryChip(
+    String label,
+    String categoryId,
+    int count,
+    String currentCategory,
+  ) {
+    final isActive = categoryId == currentCategory;
+    return GestureDetector(
+      onTap: () =>
+          ref.read(productCategoryFilterProvider.notifier).set(categoryId),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: Responsive.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isActive ? AppColors.primary.withValues(alpha: 0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(Responsive.r(16)),
+          border:
+              Border.all(color: isActive ? AppColors.primary : Colors.grey.shade200),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: Responsive.sp(11),
+                fontWeight: FontWeight.w600,
+                color: isActive ? AppColors.primary : Colors.grey[700],
+              ),
+            ),
+            SizedBox(width: Responsive.w(4)),
+            Container(
+              padding: Responsive.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? AppColors.primary.withValues(alpha: 0.15)
+                    : Colors.grey[100],
+                borderRadius: BorderRadius.circular(Responsive.r(8)),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: Responsive.sp(9),
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? AppColors.primary : Colors.grey[600],
                 ),
               ),
             ),

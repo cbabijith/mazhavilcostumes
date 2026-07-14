@@ -117,7 +117,7 @@ extension _OrderFormCalculation on _OrderFormViewState {
       _update(() {
         controller.text = DateFormat('dd/MM/yyyy').format(picked);
         if (controller == _startDateController) {
-          final returnDate = picked.add(const Duration(days: 2));
+          final returnDate = picked.add(Duration(days: _defaultRentalDays - 1));
           _endDateController.text = DateFormat('dd/MM/yyyy').format(returnDate);
         }
       });

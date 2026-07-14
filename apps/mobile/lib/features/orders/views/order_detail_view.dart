@@ -997,6 +997,38 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
               color: Colors.white.withValues(alpha: 0.95),
             ),
           ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+          () {
+            final createdAt = DateTime.tryParse(_currentOrder.createdAt);
+            if (createdAt == null) return const SizedBox.shrink();
+            final formattedDate = DateFormat('dd MMM, yyyy • h:mm a').format(createdAt.toLocal());
+            final creatorName = _currentOrder.creator?.name ?? 'Admin';
+            return Text(
+              'Created on $formattedDate by $creatorName',
+              style: TextStyle(
+                fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                color: Colors.white.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w500,
+              ),
+            );
+          }(),
+          if (_currentOrder.updatedAt != null && _currentOrder.updater != null) ...[
+            SizedBox(height: Responsive.h(2)),
+            () {
+              final updatedAt = DateTime.tryParse(_currentOrder.updatedAt!);
+              if (updatedAt == null) return const SizedBox.shrink();
+              final formattedDate = DateFormat('dd MMM, yyyy • h:mm a').format(updatedAt.toLocal());
+              final updaterName = _currentOrder.updater!.name;
+              return Text(
+                'Last updated on $formattedDate by $updaterName',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                  color: Colors.white.withValues(alpha: 0.75),
+                  fontWeight: FontWeight.w500,
+                ),
+              );
+            }(),
+          ],
           SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
           const Divider(color: Colors.white24, height: 1),
           SizedBox(height: Responsive.h(AppSizes.spacingMedium)),

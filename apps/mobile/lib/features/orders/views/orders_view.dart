@@ -48,6 +48,8 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
+    // Pre-fetch order settings in the background so they are cached for the create order form
+    ref.watch(orderSettingsProvider);
     _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
 
     final currentSearch = ref.read(ordersProvider.notifier).currentSearch;

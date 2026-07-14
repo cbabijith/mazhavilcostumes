@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
 import '../../../branches/viewmodels/providers/branch_provider.dart';
+import 'package:mobile/core/supabase/api_client.dart';
 
 // Repository provider
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
@@ -436,6 +437,54 @@ final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, St
     print('[orderPaymentsProvider] Error fetching payments for order ID $id: $e');
     print(stack);
     rethrow;
+  }
+});
+
+class OrderSettings {
+  final bool isGstEnabled;
+  final int defaultRentalDays;
+
+  const OrderSettings({
+    required this.isGstEnabled,
+    required this.defaultRentalDays,
+  });
+}
+
+final orderSettingsProvider = FutureProvider<OrderSettings>((ref) async {
+  try {
+    final futures = await Future.wait([
+      apiClient.get('/settings?key=is_gst_enabled'),
+      apiClient.get('/settings?key=default_rental_duration'),
+    ]);
+
+    bool isGstEnabled = false;
+    final gstResponse = futures[0];
+    if (gstResponse.statusCode == 200 && gstResponse.data != null) {
+      final val = gstResponse.data['data']?['value'];
+      isGstEnabled = val == true || val == 'true';
+    }
+
+    int defaultRentalDays = 3;
+    final periodResponse = futures[1];
+    if (periodResponse.statusCode == 200 && periodResponse.data != null) {
+      final val = periodResponse.data['data']?['value'];
+      if (val != null) {
+        final parsed = int.tryParse(val.toString());
+        if (parsed != null && parsed > 0) {
+          defaultRentalDays = parsed;
+        }
+      }
+    }
+
+    return OrderSettings(
+      isGstEnabled: isGstEnabled,
+      defaultRentalDays: defaultRentalDays,
+    );
+  } catch (_) {
+    return const OrderSettings(
+      isGstEnabled: false,
+      defaultRentalDays: 3,
+    );
   }
 });
 

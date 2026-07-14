@@ -1707,16 +1707,6 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
   void _showBarcodeDialog(Product product) {
     final barcode = product.barcode ?? 'N/A';
 
-    final List<double> stripeWidths = [];
-    for (int i = 0; i < barcode.length; i++) {
-      final code = barcode.codeUnitAt(i);
-      stripeWidths.add((code % 3 + 1).toDouble());
-      stripeWidths.add((code % 2 + 1).toDouble());
-    }
-    while (stripeWidths.length < 30) {
-      stripeWidths.addAll([2.0, 1.0, 3.0, 2.0]);
-    }
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1747,57 +1737,39 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               ),
               child: Column(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(12),
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (product.sku != null)
-                        Text(
-                          product.sku!,
-                          style: TextStyle(
-                            fontSize: Responsive.sp(10),
-                            fontFamily: 'monospace',
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                    ],
+                  // 1. Product name: bold, centered at top, matching web printer layout
+                  Text(
+                    product.name,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(14),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: Responsive.h(16)),
+                  // 2. Barcode bars (Code 128): centered, high-DPI scaling using CustomPaint
                   SizedBox(
+                    width: Responsive.w(200),
                     height: Responsive.h(60),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(stripeWidths.length, (index) {
-                        final isBlack = index % 2 == 0;
-                        final width = stripeWidths[index];
-                        return Container(
-                          width: Responsive.w(width),
-                          color: isBlack ? Colors.black : Colors.transparent,
-                        );
-                      }),
+                    child: CustomPaint(
+                      painter: BarcodePainter(barcode),
                     ),
                   ),
-                  SizedBox(height: Responsive.h(10)),
+                  SizedBox(height: Responsive.h(12)),
+                  // 3. Barcode value: bold, centered below bars
                   Text(
                     barcode,
                     style: TextStyle(
-                      fontSize: Responsive.sp(14),
+                      fontSize: Responsive.sp(13),
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 4,
-                      color: AppColors.primary,
+                      letterSpacing: 2,
+                      color: Colors.black,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -2110,5 +2082,82 @@ class _MetricItem {
     required this.color,
     required this.icon,
   });
+}
+
+const List<String> _code128Patterns = [
+  "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213", // 0-9
+  "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132", // 10-19
+  "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211", // 20-29
+  "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313", // 30-39
+  "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331", // 40-49
+  "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111", // 50-59
+  "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214", // 60-69
+  "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111", // 70-79
+  "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141", // 80-89
+  "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141", // 90-99
+  "114131", "311141", "411131" // 100-102
+];
+
+List<int> encodeCode128B(String text) {
+  final List<int> symbolValues = [];
+  symbolValues.add(104); // Start B
+  
+  int checksum = 104;
+  for (int i = 0; i < text.length; i++) {
+    final code = text.codeUnitAt(i);
+    final val = code - 32;
+    if (val >= 0 && val <= 94) {
+      symbolValues.add(val);
+      checksum += val * (i + 1);
+    }
+  }
+  
+  final checkDigit = checksum % 103;
+  symbolValues.add(checkDigit);
+  symbolValues.add(106); // Stop
+  
+  return symbolValues;
+}
+
+class BarcodePainter extends CustomPainter {
+  final String text;
+  
+  BarcodePainter(this.text);
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.black
+      ..style = PaintingStyle.fill;
+      
+    final symbolValues = encodeCode128B(text);
+    
+    // Calculate total modules
+    int totalModules = 0;
+    for (final val in symbolValues) {
+      final pattern = val == 106 ? "2331112" : (val == 104 ? "211214" : _code128Patterns[val]);
+      for (int i = 0; i < pattern.length; i++) {
+        totalModules += int.parse(pattern[i]);
+      }
+    }
+    
+    final moduleWidth = size.width / totalModules;
+    
+    double currentX = 0;
+    for (final val in symbolValues) {
+      final pattern = val == 106 ? "2331112" : (val == 104 ? "211214" : _code128Patterns[val]);
+      for (int i = 0; i < pattern.length; i++) {
+        final width = int.parse(pattern[i]) * moduleWidth;
+        final isBar = i % 2 == 0;
+        if (isBar) {
+          canvas.drawRect(Rect.fromLTWH(currentX, 0, width, size.height), paint);
+        }
+        currentX += width;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant BarcodePainter oldDelegate) => oldDelegate.text != text;
 }
 

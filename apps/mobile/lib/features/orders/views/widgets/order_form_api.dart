@@ -1,20 +1,7 @@
 part of '../order_form_view.dart';
 
 extension _OrderFormApi on _OrderFormViewState {
-  Future<void> _fetchGstSettings() async {
-    try {
-      final response = await apiClient.get('/settings?key=is_gst_enabled');
-      if (response.statusCode == 200 && response.data != null) {
-        final val = response.data['data']?['value'];
-        _update(() {
-          _isGstEnabled = val == true || val == 'true';
-        });
-        _calculateTotals();
-      }
-    } catch (e) {
-      print('Error fetching GST settings: $e');
-    }
-  }
+
 
   void _searchProducts(String query) async {
     if (query.trim().isEmpty) {

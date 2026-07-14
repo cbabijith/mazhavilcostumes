@@ -16,6 +16,23 @@ extension _OrderFormSubmit on _OrderFormViewState {
     }
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate price overrides (prices cannot be lower than original)
+    for (final item in _items) {
+      if (item.productId.isNotEmpty) {
+        if (item.pricePerDay < item.originalPricePerDay) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Price Override: Price for "${item.productName}" cannot be lower than the original price of ₹${item.originalPricePerDay.toStringAsFixed(2)}.',
+              ),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     // Date validation: return date cannot be before pickup date
     final startVal = _parseDisplayDate(_startDateController.text);
     final endVal = _parseDisplayDate(_endDateController.text);

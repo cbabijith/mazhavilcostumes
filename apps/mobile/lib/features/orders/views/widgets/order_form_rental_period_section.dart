@@ -25,25 +25,25 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
   }
 
   Widget _buildQuickDateButtons() {
-    return Row(
-      children: [
-        Text(
-          'Quick End Date: ',
-          style: TextStyle(
-            fontSize: Responsive.sp(12),
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[600],
-          ),
-        ),
-        SizedBox(width: Responsive.w(8)),
-        _buildQuickDateButton(label: '+1 Day', days: 1),
-        SizedBox(width: Responsive.w(8)),
-        _buildQuickDateButton(label: '+2 Days', days: 2),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _buildQuickDateButton(label: '1 Day', totalDays: 1),
+          SizedBox(width: Responsive.w(6)),
+          _buildQuickDateButton(label: '2 Days', totalDays: 2),
+          SizedBox(width: Responsive.w(6)),
+          _buildQuickDateButton(label: '3 Days', totalDays: 3),
+          SizedBox(width: Responsive.w(6)),
+          _buildQuickDateButton(label: '4 Days', totalDays: 4),
+          SizedBox(width: Responsive.w(6)),
+          _buildQuickDateButton(label: '5 Days', totalDays: 5),
+        ],
+      ),
     );
   }
 
-  Widget _buildQuickDateButton({required String label, required int days}) {
+  Widget _buildQuickDateButton({required String label, required int totalDays}) {
     final startText = _startDateController.text;
     final bool isEnabled = startText.isNotEmpty;
 
@@ -53,7 +53,7 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
         final start = _parseDisplayDate(startText);
         final end = _parseDisplayDate(_endDateController.text);
         if (start != null && end != null) {
-          final expectedEnd = start.add(Duration(days: days));
+          final expectedEnd = start.add(Duration(days: totalDays - 1));
           isSelected =
               end.year == expectedEnd.year &&
               end.month == expectedEnd.month &&
@@ -65,13 +65,13 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         side: BorderSide(
-          color: isSelected ? AppColors.primary : Colors.grey.shade300,
+          color: isSelected ? const Color(0xFF0F172A) : Colors.grey.shade300,
         ),
         backgroundColor: isSelected
-            ? AppColors.primary.withValues(alpha: 0.1)
+            ? const Color(0xFF0F172A)
             : Colors.transparent,
-        foregroundColor: isSelected ? AppColors.primary : Colors.grey[700],
-        padding: Responsive.symmetric(horizontal: 12, vertical: 6),
+        foregroundColor: isSelected ? Colors.white : Colors.grey[700],
+        padding: Responsive.symmetric(horizontal: 10, vertical: 6),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
@@ -81,7 +81,7 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
               try {
                 final start = _parseDisplayDate(startText);
                 if (start != null) {
-                  final end = start.add(Duration(days: days));
+                  final end = start.add(Duration(days: totalDays - 1));
                   _update(() {
                     _endDateController.text = DateFormat(
                       'dd/MM/yyyy',
@@ -96,7 +96,7 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: Responsive.sp(12),
+          fontSize: Responsive.sp(11),
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),

@@ -335,6 +335,10 @@ class Order extends Equatable {
   final CustomerInfo? customer;
   final List<OrderItem>? items;
   final BranchInfo? branch;
+  final String? createdBy;
+  final String? updatedBy;
+  final CreatorUpdaterInfo? creator;
+  final CreatorUpdaterInfo? updater;
 
   const Order({
     required this.id,
@@ -381,6 +385,10 @@ class Order extends Equatable {
     this.customer,
     this.items,
     this.branch,
+    this.createdBy,
+    this.updatedBy,
+    this.creator,
+    this.updater,
   });
 
   @override
@@ -429,6 +437,10 @@ class Order extends Equatable {
         customer,
         items,
         branch,
+        createdBy,
+        updatedBy,
+        creator,
+        updater,
       ];
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -491,6 +503,14 @@ class Order extends Equatable {
           ?.map((e) => OrderItem.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       branch: json['branch'] != null ? BranchInfo.fromJson(json['branch']) : null,
+      createdBy: json['created_by']?.toString(),
+      updatedBy: json['updated_by']?.toString(),
+      creator: json['creator'] != null && json['creator'] is Map
+          ? CreatorUpdaterInfo.fromJson(Map<String, dynamic>.from(json['creator']))
+          : null,
+      updater: json['updater'] != null && json['updater'] is Map
+          ? CreatorUpdaterInfo.fromJson(Map<String, dynamic>.from(json['updater']))
+          : null,
     );
   }
 
@@ -610,6 +630,10 @@ class Order extends Equatable {
       'customer': customer?.toJson(),
       'items': items?.map((e) => e.toJson()).toList(),
       'branch': branch?.toJson(),
+      'created_by': createdBy,
+      'updated_by': updatedBy,
+      'creator': creator?.toJson(),
+      'updater': updater?.toJson(),
     };
   }
 }
@@ -680,6 +704,37 @@ class BranchInfo extends Equatable {
     return {
       'id': id,
       'name': name,
+    };
+  }
+}
+
+class CreatorUpdaterInfo extends Equatable {
+  final String id;
+  final String name;
+  final String email;
+
+  const CreatorUpdaterInfo({
+    required this.id,
+    required this.name,
+    required this.email,
+  });
+
+  @override
+  List<Object?> get props => [id, name, email];
+
+  factory CreatorUpdaterInfo.fromJson(Map<String, dynamic> json) {
+    return CreatorUpdaterInfo(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
     };
   }
 }
