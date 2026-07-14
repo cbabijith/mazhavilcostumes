@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Image from "next/image";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
-import { type GalleryItem } from "@/lib/supabase/queries";
+import { useState } from 'react';
+import Image from 'next/image';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { type GalleryItem } from '@/lib/supabase/queries';
 
 interface GalleryClientProps {
   initialItems: GalleryItem[];
@@ -39,14 +39,17 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
           Our Gallery
         </h1>
         <p className="text-sm text-body mt-3 max-w-lg mx-auto leading-relaxed">
-          Step into a world of shared celebrations. Beautiful moments captured by our clients, showcasing the elegance of our rental dance costumes in action.
+          Step into a world of shared celebrations. Beautiful moments captured by our clients,
+          showcasing the elegance of our bridal jewelry rentals in action.
         </p>
       </div>
 
       {/* Gallery Grid */}
       {items.length === 0 ? (
         <div className="text-center py-20 border border-dashed border-[#EAEAEA] rounded-2xl bg-white max-w-lg mx-auto">
-          <p className="text-sm text-body">Our gallery is being curated. Check back soon for client diaries.</p>
+          <p className="text-sm text-body">
+            Our gallery is being curated. Check back soon for client diaries.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
@@ -58,7 +61,7 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
             >
               <Image
                 src={item.image_url}
-                alt="Client shared costume photo"
+                alt="Client shared jewelry photo"
                 fill
                 sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
@@ -97,7 +100,7 @@ export default function GalleryClient({ initialItems }: GalleryClientProps) {
           >
             <Image
               src={items[selectedIdx].image_url}
-              alt="Client costume photo"
+              alt="Client jewelry photo"
               fill
               className="object-contain"
               priority

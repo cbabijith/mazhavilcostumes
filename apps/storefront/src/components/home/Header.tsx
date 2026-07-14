@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { ShoppingBag, ChevronLeft, ChevronRight, Search } from "lucide-react";
-import { Store, Category } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
-import { useRouter, usePathname } from "next/navigation";
-import ActionSearchBar from "@/components/ui/action-search-bar";
-import { BRAND_CONFIG } from "shared-utils";
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { ShoppingBag, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Store, Category } from '@/lib/supabase/queries';
+import { cn } from '@/lib/utils';
+import { useRouter, usePathname } from 'next/navigation';
+import ActionSearchBar from '@/components/ui/action-search-bar';
+import { BRAND_CONFIG } from 'shared-utils';
 
 interface HeaderProps {
   store: Store | null;
@@ -21,7 +21,7 @@ export default function Header({ store, categories }: HeaderProps) {
   const [showCategoryBar, setShowCategoryBar] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-  const isHomePage = pathname === "/";
+  const isHomePage = pathname === '/';
 
   const lastScrollY = useRef(0);
   const toggleLock = useRef(false);
@@ -74,20 +74,20 @@ export default function Header({ store, categories }: HeaderProps) {
     };
 
     const loadCounts = () => {
-      const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+      const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
       setCartCount(cart.length);
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
     loadCounts();
 
     const handleCartUpdate = (e: any) => setCartCount(e.detail);
 
-    window.addEventListener("paris_cart_updated", handleCartUpdate);
+    window.addEventListener('paris_cart_updated', handleCartUpdate);
 
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("paris_cart_updated", handleCartUpdate);
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('paris_cart_updated', handleCartUpdate);
     };
   }, [isHomePage]);
 
@@ -109,48 +109,50 @@ export default function Header({ store, categories }: HeaderProps) {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) {
-      el.addEventListener("scroll", checkScroll);
+      el.addEventListener('scroll', checkScroll);
       // Wait a moment for layout to compute and set initial visibility
       const timer = setTimeout(checkScroll, 100);
-      window.addEventListener("resize", checkScroll);
+      window.addEventListener('resize', checkScroll);
       return () => {
-        el.removeEventListener("scroll", checkScroll);
-        window.removeEventListener("resize", checkScroll);
+        el.removeEventListener('scroll', checkScroll);
+        window.removeEventListener('resize', checkScroll);
         clearTimeout(timer);
       };
     }
   }, [displayCategories]);
 
-  const scroll = (direction: "left" | "right") => {
+  const scroll = (direction: 'left' | 'right') => {
     if (scrollRef.current) {
       const { clientWidth } = scrollRef.current;
       const scrollAmount = clientWidth * 0.75;
       scrollRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
       });
     }
   };
 
   const navLinks = [
-    { label: "Collections", href: "/collections" },
-    { label: "Gallery", href: "/gallery" },
-    { label: "About Us", href: "/about" },
+    { label: 'Collections', href: '/collections' },
+    { label: 'Gallery', href: '/gallery' },
+    { label: 'About Us', href: '/about' },
   ];
-
 
   return (
     <>
       <nav
         className={cn(
-          "sticky top-0 z-50 transition-all duration-300 border-b py-4",
-          isScrolled ? "border-[var(--border-silk)] bg-silk" : "border-transparent bg-transparent"
+          'sticky top-0 z-50 transition-all duration-300 border-b py-4',
+          isScrolled ? 'border-[var(--border-silk)] bg-silk' : 'border-transparent bg-transparent'
         )}
       >
         <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12">
           <div className="flex items-center justify-between gap-4 sm:gap-10">
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-2 group shrink-0 transition-all duration-500">
+            <Link
+              href="/"
+              className="flex items-center gap-2 group shrink-0 transition-all duration-500"
+            >
               <div className="relative overflow-hidden rounded-full">
                 <Image
                   src={logoUrl}
@@ -165,10 +167,8 @@ export default function Header({ store, categories }: HeaderProps) {
                 <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-lg lg:text-xl font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
                   {BRAND_CONFIG.name}
                 </span>
-                <span 
-                  className="text-[6px] min-[380px]:text-[8px] sm:text-[10px] md:text-[11px] tracking-[0.05em] min-[380px]:tracking-[0.1em] sm:tracking-[0.15em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold block whitespace-nowrap"
-                >
-                  Karamana | Trivandrum
+                <span className="text-[6px] min-[380px]:text-[8px] sm:text-[10px] md:text-[11px] tracking-[0.05em] min-[380px]:tracking-[0.1em] sm:tracking-[0.15em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold block whitespace-nowrap">
+                  Kayamkulam, Kerala
                 </span>
               </div>
             </Link>
@@ -222,16 +222,14 @@ export default function Header({ store, categories }: HeaderProps) {
 
         {/* Category Bar — homepage only, hides on scroll down */}
         {isHomePage && displayCategories.length > 0 && showCategoryBar && (
-          <div 
-            className="border-t border-[var(--border-silk)] mt-2"
-          >
+          <div className="border-t border-[var(--border-silk)] mt-2">
             <div className="w-full lg:max-w-[1600px] lg:mx-auto relative group/nav">
               {/* Left Arrow & Gradient Overlay */}
               {showLeftArrow && (
                 <>
                   <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-r from-silk via-silk/90 to-transparent pointer-events-none z-10" />
                   <button
-                    onClick={() => scroll("left")}
+                    onClick={() => scroll('left')}
                     className="hidden sm:flex absolute left-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-silk/95 border border-[var(--border-silk)] hover:border-rosegold flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
                     aria-label="Scroll left"
                   >
@@ -245,7 +243,7 @@ export default function Header({ store, categories }: HeaderProps) {
                 <>
                   <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-l from-silk via-silk/90 to-transparent pointer-events-none z-10" />
                   <button
-                    onClick={() => scroll("right")}
+                    onClick={() => scroll('right')}
                     className="hidden sm:flex absolute right-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-silk/95 border border-[var(--border-silk)] hover:border-rosegold flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
                     aria-label="Scroll right"
                   >
@@ -264,7 +262,9 @@ export default function Header({ store, categories }: HeaderProps) {
                   className="flex items-center gap-2 shrink-0 transition-all duration-300 luxury-link flex-col h-20 justify-center"
                 >
                   <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white border-2 border-white transition-all duration-300 group-hover:-translate-y-0.5 group-active:scale-95">
-                    <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight font-sans">Home</span>
+                    <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight font-sans">
+                      Home
+                    </span>
                   </div>
                 </Link>
 
@@ -275,7 +275,7 @@ export default function Header({ store, categories }: HeaderProps) {
                     className="flex items-center snap-start group shrink-0 transition-all duration-300 luxury-link flex-col gap-2 h-20 justify-center"
                   >
                     <div className="relative size-12 sm:size-14 rounded-full overflow-hidden bg-white border border-[var(--border-silk)] group-hover:border-rosegold transition-all duration-300 group-hover:-translate-y-0.5 group-active:scale-95">
-                      {category.image_url && category.image_url.trim() !== "" ? (
+                      {category.image_url && category.image_url.trim() !== '' ? (
                         <Image
                           src={category.image_url}
                           alt={category.name}
@@ -284,7 +284,9 @@ export default function Header({ store, categories }: HeaderProps) {
                           className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-silk text-rosegold/30 text-lg">👗</div>
+                        <div className="w-full h-full flex items-center justify-center bg-silk text-rosegold/30 text-lg">
+                          👗
+                        </div>
                       )}
                     </div>
                     <span className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-heading group-hover:text-rosegold transition-all leading-none truncate max-w-[70px]">

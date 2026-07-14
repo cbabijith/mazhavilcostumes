@@ -1,15 +1,15 @@
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { Droplets, Sun, Sparkles, Shield, HelpCircle } from "lucide-react";
-import { buildWhatsAppUrl } from "@/lib/whatsapp";
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { Button } from '@/components/ui/button';
+import { Droplets, Sun, Sparkles, Shield, HelpCircle } from 'lucide-react';
+import { buildWhatsAppUrl } from '@/lib/whatsapp';
 
 export default async function CarePage() {
   const store = await getParisBridalsStore();
   if (!store) return null;
 
-  const whatsappMessage = "Hi, I have a question about costumes care.";
+  const whatsappMessage = 'Hi, I have a question about jewelry and accessories care.';
   const whatsappUrl = buildWhatsAppUrl(whatsappMessage);
 
   return (
@@ -20,9 +20,12 @@ export default async function CarePage() {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-16">
             <div className="section-eyebrow justify-center">Preservation</div>
-            <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">Care Instructions</h1>
+            <h1 className="text-4xl sm:text-5xl font-serif text-heading mb-4">
+              Jewelry Care Instructions
+            </h1>
             <p className="text-body font-light max-w-2xl mx-auto">
-              Keep your rented treasures looking beautiful with these simple care guidelines.
+              Keep your rented bridal jewelry and accessories looking pristine with these simple
+              care guidelines.
             </p>
           </div>
 
@@ -35,9 +38,9 @@ export default async function CarePage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Avoid Water & Moisture</h2>
                   <p className="text-body text-sm leading-relaxed">
-                    Remove costumes before showering, swimming, or washing hands. Water can cause 
-                    tarnishing and weaken adhesives. If costumes gets wet, pat dry immediately with 
-                    a soft cloth.
+                    Remove jewelry and accessories before showering, swimming, or washing hands.
+                    Moisture can cause tarnishing, discolouration, and weaken gemstone adhesives or
+                    settings. If any piece gets wet, pat dry immediately with a clean, soft cloth.
                   </p>
                 </div>
               </div>
@@ -51,24 +54,25 @@ export default async function CarePage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Avoid Chemicals</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Chemicals can damage metals and gemstones. Avoid contact with:
+                    Chemicals can severely damage delicate metal platings and precious gemstones.
+                    Avoid contact with:
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Perfumes and body sprays
+                      Perfumes, body sprays, and colognes
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Hairsprays and styling products
+                      Hairsprays, styling gels, and setting sprays
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Lotions, creams, and oils
+                      Lotions, makeup, moisturizers, and body oils
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Cleaning products and bleach
+                      Sanitizers, soaps, and household bleach
                     </li>
                   </ul>
                 </div>
@@ -81,26 +85,28 @@ export default async function CarePage() {
                   <Sparkles size={24} strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="font-serif text-heading text-xl mb-2">Cleaning Tips</h2>
+                  <h2 className="font-serif text-heading text-xl mb-2">Cleaning & Maintenance</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
                     For light cleaning during your rental period:
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Use a soft, lint-free cloth to gently wipe
+                      Gently wipe pieces with a soft, lint-free polishing cloth
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Avoid harsh chemicals or abrasive materials
+                      Never use abrasive materials, paper towels, or tissues (they can scratch the
+                      plating)
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Don't use paper towels (can scratch)
+                      Do not use liquid jewelry cleaners or harsh chemicals
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      For stubborn spots, contact us for guidance
+                      If a gemstone or hook loosens, do not attempt to glue it yourself; contact us
+                      immediately
                     </li>
                   </ul>
                 </div>
@@ -113,26 +119,23 @@ export default async function CarePage() {
                   <Shield size={24} strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="font-serif text-heading text-xl mb-2">Storage</h2>
+                  <h2 className="font-serif text-heading text-xl mb-2">Safe Storage</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    When not wearing, store costumes properly:
+                    When not wearing, store jewelry safely:
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Keep in the provided packaging
+                      Always keep pieces inside the provided padded boxes or pouches
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Store pieces separately to avoid scratching
+                      Store necklaces, earrings, and bangles separately to prevent tangling or
+                      scratching
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Keep away from direct sunlight
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Store in a cool, dry place
+                      Keep in a dry, cool environment away from direct sunlight and heat sources
                     </li>
                   </ul>
                 </div>
@@ -145,23 +148,24 @@ export default async function CarePage() {
                   <HelpCircle size={24} strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="font-serif text-heading text-xl mb-2">During Your Event</h2>
+                  <h2 className="font-serif text-heading text-xl mb-2">
+                    During Your Wedding & Events
+                  </h2>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Put costumes on last, after makeup and hair
+                      Put jewelry on last, after your bridal makeup, hairspray, and perfume have
+                      completely dried
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Remove first when changing clothes
+                      Remove jewelry first before changing outfits or clothes to avoid snagging
+                      delicate fabrics
                     </li>
                     <li className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Avoid vigorous activities that could dislodge pieces
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-rosegold rounded-full"></span>
-                      Check clasps and settings periodically
+                      Double check clasps, safety latches, and earring backings to ensure they are
+                      securely fastened
                     </li>
                   </ul>
                 </div>
@@ -172,7 +176,8 @@ export default async function CarePage() {
           <div className="bg-rosegold/5 rounded-3xl p-8 text-center">
             <h2 className="font-serif text-heading text-xl mb-3">Need Care Advice?</h2>
             <p className="text-body text-sm mb-6 max-w-md mx-auto">
-              Have questions about caring for your rented pieces? Contact us on WhatsApp.
+              Have questions about handling, cleaning, or storing your rented bridal jewelry?
+              Contact our team on WhatsApp.
             </p>
             <a
               href={whatsappUrl}

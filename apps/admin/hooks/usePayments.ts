@@ -10,11 +10,11 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Payment, 
-  CreatePaymentDTO, 
+import {
+  Payment,
+  CreatePaymentDTO,
   UpdatePaymentDTO,
-  PaymentSearchParams 
+  PaymentSearchParams,
 } from '@/domain/types/payment';
 import { queryUtils } from '@/lib/query-client';
 import { useAppStore } from '@/stores';
@@ -52,7 +52,9 @@ export function usePayments(params: PaymentSearchParams = {}) {
       if (params.payment_mode) qs.set('payment_mode', params.payment_mode);
       if (params.limit) qs.set('limit', String(params.limit));
       if (params.offset) qs.set('offset', String(params.offset));
-      const response = await apiFetch<ApiSuccessResponse<Payment[]>>(`/api/payments?${qs.toString()}`);
+      const response = await apiFetch<ApiSuccessResponse<Payment[]>>(
+        `/api/payments?${qs.toString()}`
+      );
       return response.data;
     },
   });
@@ -79,7 +81,9 @@ export function useOrderPayments(orderId: string) {
   return useQuery({
     queryKey: queryKeys.orderPayments(orderId),
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<Payment[]>>(`/api/payments?order_id=${orderId}`);
+      const response = await apiFetch<ApiSuccessResponse<Payment[]>>(
+        `/api/payments?order_id=${orderId}`
+      );
       return response.data;
     },
     enabled: !!orderId,
@@ -95,7 +99,10 @@ export function useCreatePayment() {
 
   const mutation = useMutation({
     mutationFn: async (data: CreatePaymentDTO) => {
-      const response = await apiFetch<ApiSuccessResponse<Payment>>('/api/payments', { method: 'POST', body: JSON.stringify(data) });
+      const response = await apiFetch<ApiSuccessResponse<Payment>>('/api/payments', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
       return response.data;
     },
     onSuccess: (result) => {
@@ -128,7 +135,10 @@ export function useUpdatePayment() {
 
   const mutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: UpdatePaymentDTO }) => {
-      const response = await apiFetch<ApiSuccessResponse<Payment>>(`/api/payments/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+      const response = await apiFetch<ApiSuccessResponse<Payment>>(`/api/payments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
       return response.data;
     },
     onSuccess: (result) => {
@@ -166,9 +176,13 @@ export function useDeletePayment() {
 
   const mutation = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/payments/${id}`, { method: 'DELETE' }),
-    onSuccess: () => {
+      apiFetch<ApiSuccessResponse<Payment>>(`/api/payments/${id}`, { method: 'DELETE' }),
+    onSuccess: (result) => {
       queryUtils.invalidatePayments();
+      if (result.data?.order_id) {
+        queryUtils.invalidateOrderPayments(result.data.order_id);
+        queryUtils.invalidateOrder(result.data.order_id);
+      }
       showSuccess('Payment deleted successfully');
     },
     onError: (error) => {

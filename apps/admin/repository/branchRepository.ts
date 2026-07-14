@@ -7,7 +7,12 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { Branch, BranchWithStaffCount, CreateBranchDTO, UpdateBranchDTO } from '@/domain/types/branch';
+import {
+  Branch,
+  BranchWithStaffCount,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+} from '@/domain/types/branch';
 
 export class BranchRepository extends BaseRepository {
   private readonly tableName = 'branches';
@@ -106,10 +111,7 @@ export class BranchRepository extends BaseRepository {
   }
 
   async delete(id: string): Promise<RepositoryResult<boolean>> {
-    const { error } = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const { error } = await this.client.from(this.tableName).delete().eq('id', id);
 
     if (error) return { data: null, error, success: false };
     return { data: true, error: null, success: true };
@@ -124,7 +126,14 @@ export class BranchRepository extends BaseRepository {
     if (error) return { data: null, error, success: false };
 
     if ((count ?? 0) > 0) {
-      return { data: { canDelete: false, reason: `Branch has ${count} staff member(s). Remove or reassign them first.` }, error: null, success: true };
+      return {
+        data: {
+          canDelete: false,
+          reason: `Branch has ${count} staff member(s). Remove or reassign them first.`,
+        },
+        error: null,
+        success: true,
+      };
     }
 
     return { data: { canDelete: true }, error: null, success: true };

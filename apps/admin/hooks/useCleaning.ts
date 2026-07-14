@@ -5,12 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  CleaningRecord, 
-  CleaningStatus, 
-  CleaningPriority,
-  CleaningSearchParams 
-} from '@/domain';
+import { CleaningRecord, CleaningStatus, CleaningPriority, CleaningSearchParams } from '@/domain';
 import { useAppStore } from '@/stores';
 
 const cleaningKeys = {
@@ -30,7 +25,10 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function useCleaningQueue(branchId: string | null, params?: { status?: CleaningStatus; sort_by?: string; sort_order?: string }) {
+export function useCleaningQueue(
+  branchId: string | null,
+  params?: { status?: CleaningStatus; sort_by?: string; sort_order?: string }
+) {
   return useQuery({
     queryKey: [...cleaningKeys.queue(branchId || 'all'), params],
     queryFn: async () => {
@@ -55,9 +53,9 @@ export function useStartCleaning() {
 
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/cleaning/${id}`, { 
-        method: 'PATCH', 
-        body: JSON.stringify({ status: CleaningStatus.IN_PROGRESS }) 
+      apiFetch(`/api/cleaning/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: CleaningStatus.IN_PROGRESS }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: cleaningKeys.all });
@@ -73,9 +71,9 @@ export function useCompleteCleaning() {
 
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/cleaning/${id}`, { 
-        method: 'PATCH', 
-        body: JSON.stringify({ status: CleaningStatus.COMPLETED }) 
+      apiFetch(`/api/cleaning/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: CleaningStatus.COMPLETED }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: cleaningKeys.all });

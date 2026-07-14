@@ -17,14 +17,10 @@ export async function GET(request: NextRequest) {
     if (guard.error) return guard.error;
 
     // Set user context in service to ensure store-scoped fetch
-    branchService.setUserContext(
-      guard.user.staff_id, 
-      guard.user.branch_id, 
-      guard.user.store_id
-    );
+    branchService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const simple = request.nextUrl.searchParams.get('simple') === 'true';
-    const result = simple 
+    const result = simple
       ? await branchService.getSimpleBranches()
       : await branchService.getBranches();
 
@@ -43,13 +39,9 @@ export async function POST(request: NextRequest) {
     // Super Admin and Admin only — managers and staff cannot create branches
     const guard = await adminOnly(request);
     if (guard.error) return guard.error;
-    
+
     // Set user context in service
-    branchService.setUserContext(
-      guard.user.staff_id, 
-      guard.user.branch_id, 
-      guard.user.store_id
-    );
+    branchService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const body = await request.json();
     const result = await branchService.createBranch(body);

@@ -22,10 +22,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { apiGuard } from '@/lib/apiGuard';
 import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'products');
     if (guard.error) return guard.error;
@@ -146,7 +143,10 @@ export async function GET(
       if (order.start_date && order.end_date) {
         const start = new Date(order.start_date);
         const end = new Date(order.end_date);
-        const diffDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+        const diffDays = Math.max(
+          1,
+          Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+        );
         totalRentalDays += diffDays;
         rentalDaysCount += 1;
       }
@@ -155,12 +155,16 @@ export async function GET(
     // Calculate usage rate
     let usageRate = 0;
     if (productCreatedAt) {
-      const daysSinceCreation = Math.max(1, Math.ceil((now.getTime() - productCreatedAt.getTime()) / (1000 * 60 * 60 * 24)));
+      const daysSinceCreation = Math.max(
+        1,
+        Math.ceil((now.getTime() - productCreatedAt.getTime()) / (1000 * 60 * 60 * 24))
+      );
       usageRate = Math.min(100, Math.round((totalRentalDays / daysSinceCreation) * 100));
     }
 
     // Calculate average rental duration
-    const avgRentalDuration = rentalDaysCount > 0 ? Math.round(totalRentalDays / rentalDaysCount) : 0;
+    const avgRentalDuration =
+      rentalDaysCount > 0 ? Math.round(totalRentalDays / rentalDaysCount) : 0;
 
     // Calculate ROI
     let roi: number | null = null;
@@ -186,7 +190,10 @@ export async function GET(
         purchasePrice,
         totalRentalDays,
         daysSinceCreation: productCreatedAt
-          ? Math.max(1, Math.ceil((now.getTime() - productCreatedAt.getTime()) / (1000 * 60 * 60 * 24)))
+          ? Math.max(
+              1,
+              Math.ceil((now.getTime() - productCreatedAt.getTime()) / (1000 * 60 * 60 * 24))
+            )
           : 0,
       },
     });

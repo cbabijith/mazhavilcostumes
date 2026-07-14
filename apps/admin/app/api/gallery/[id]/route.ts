@@ -9,11 +9,11 @@
  * @module app/api/gallery/[id]/route
  */
 
-import { NextRequest } from "next/server";
-import { galleryService } from "@/services/galleryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { galleryService } from '@/services/galleryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -43,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const authUser = await getAuthUser(request);
     galleryService.setUserContext(
-      authUser?.staff_id || null, 
+      authUser?.staff_id || null,
       authUser?.branch_id || null,
       authUser?.store_id || null
     );
@@ -69,7 +69,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     const authUser = await getAuthUser(request);
     galleryService.setUserContext(
-      authUser?.staff_id || null, 
+      authUser?.staff_id || null,
       authUser?.branch_id || null,
       authUser?.store_id || null
     );

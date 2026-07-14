@@ -6,7 +6,7 @@
  * @route /dashboard/customers/create
  */
 
-import CustomerForm from "@/components/admin/CustomerForm";
+import CustomerForm from '@/components/admin/CustomerForm';
 
 export default function CreateCustomerPage() {
   return (

@@ -34,13 +34,13 @@ URL-friendly slugs, and blocks unsafe deletions.
 
 ### Key Constraints
 
-| Rule | Enforcement |
-|------|-------------|
-| Max depth = 3 levels | Service layer blocks children under Variants |
-| No circular references | DFS traversal before every parent change |
-| Unique slugs | Repository `slugExists()` check before create/update |
-| Safe deletes only | Repository `canDelete()` checks children + products |
-| Slug format `^[a-z0-9-]+$` | Service-layer regex validation |
+| Rule                       | Enforcement                                          |
+| -------------------------- | ---------------------------------------------------- |
+| Max depth = 3 levels       | Service layer blocks children under Variants         |
+| No circular references     | DFS traversal before every parent change             |
+| Unique slugs               | Repository `slugExists()` check before create/update |
+| Safe deletes only          | Repository `canDelete()` checks children + products  |
+| Slug format `^[a-z0-9-]+$` | Service-layer regex validation                       |
 
 ---
 
@@ -91,25 +91,25 @@ Domain → Repository → Service → Hooks → Components/Pages
 
 ### Category Module Files
 
-| Layer | File | Purpose |
-|-------|------|---------|
-| **Domain** | `domain/types/category.ts` | Types, DTOs, enums, type guards |
-| **Repository** | `repository/categoryRepository.ts` | Raw Supabase CRUD, hierarchy helpers |
-| **Service** | `services/categoryService.ts` | Validation, slug gen, cycle detection |
-| **Hooks** | `hooks/useCategories.ts` | TanStack Query hooks, client-side tree builder |
-| **API Routes** | `app/api/categories/route.ts` | REST endpoints (GET, POST) |
-| **API Routes** | `app/api/categories/[id]/route.ts` | REST endpoints (GET, PATCH, DELETE) |
-| **API Routes** | `app/api/categories/[id]/children/route.ts` | Children endpoint |
-| **API Routes** | `app/api/categories/[id]/can-delete/route.ts` | Safety check endpoint |
-| **Components** | `components/admin/CategoryForm.tsx` | Create/Edit form with image upload |
-| **Components** | `components/admin/CategoryTree.tsx` | Collapsible tree viewer |
-| **Components** | `components/admin/CategoryTreeActions.tsx` | Action buttons (View, Edit, Delete) |
-| **Pages** | `app/dashboard/categories/page.tsx` | List page |
-| **Pages** | `app/dashboard/categories/create/page.tsx` | Create page |
-| **Pages** | `app/dashboard/categories/[id]/page.tsx` | Detail page |
-| **Pages** | `app/dashboard/categories/edit/[id]/page.tsx` | Edit page |
-| **Tests** | `scripts/test-categories-api.ps1` | 12 basic CRUD tests |
-| **Tests** | `scripts/test-categories-hierarchy.ps1` | 30 hierarchy edge-case tests |
+| Layer          | File                                          | Purpose                                        |
+| -------------- | --------------------------------------------- | ---------------------------------------------- |
+| **Domain**     | `domain/types/category.ts`                    | Types, DTOs, enums, type guards                |
+| **Repository** | `repository/categoryRepository.ts`            | Raw Supabase CRUD, hierarchy helpers           |
+| **Service**    | `services/categoryService.ts`                 | Validation, slug gen, cycle detection          |
+| **Hooks**      | `hooks/useCategories.ts`                      | TanStack Query hooks, client-side tree builder |
+| **API Routes** | `app/api/categories/route.ts`                 | REST endpoints (GET, POST)                     |
+| **API Routes** | `app/api/categories/[id]/route.ts`            | REST endpoints (GET, PATCH, DELETE)            |
+| **API Routes** | `app/api/categories/[id]/children/route.ts`   | Children endpoint                              |
+| **API Routes** | `app/api/categories/[id]/can-delete/route.ts` | Safety check endpoint                          |
+| **Components** | `components/admin/CategoryForm.tsx`           | Create/Edit form with image upload             |
+| **Components** | `components/admin/CategoryTree.tsx`           | Collapsible tree viewer                        |
+| **Components** | `components/admin/CategoryTreeActions.tsx`    | Action buttons (View, Edit, Delete)            |
+| **Pages**      | `app/dashboard/categories/page.tsx`           | List page                                      |
+| **Pages**      | `app/dashboard/categories/create/page.tsx`    | Create page                                    |
+| **Pages**      | `app/dashboard/categories/[id]/page.tsx`      | Detail page                                    |
+| **Pages**      | `app/dashboard/categories/edit/[id]/page.tsx` | Edit page                                      |
+| **Tests**      | `scripts/test-categories-api.ps1`             | 12 basic CRUD tests                            |
+| **Tests**      | `scripts/test-categories-hierarchy.ps1`       | 30 hierarchy edge-case tests                   |
 
 ### Data Flow Diagram
 
@@ -160,23 +160,23 @@ CREATE TABLE categories (
 
 ### How It Looks in the Database
 
-| id | name | slug | parent_id |
-|----|------|------|-----------|
-| `aaa` | Necklaces | necklaces | `NULL` |
-| `bbb` | Gold Necklaces | gold-necklaces | `aaa` |
-| `ccc` | Diamond Necklaces | diamond-necklaces | `aaa` |
-| `ddd` | 22K Gold Choker | 22k-gold-choker | `bbb` |
-| `eee` | 18K Gold Chain | 18k-gold-chain | `bbb` |
-| `fff` | Solitaire Pendant | solitaire-pendant | `ccc` |
-| `ggg` | Earrings | earrings | `NULL` |
+| id    | name              | slug              | parent_id |
+| ----- | ----------------- | ----------------- | --------- |
+| `aaa` | Necklaces         | necklaces         | `NULL`    |
+| `bbb` | Gold Necklaces    | gold-necklaces    | `aaa`     |
+| `ccc` | Diamond Necklaces | diamond-necklaces | `aaa`     |
+| `ddd` | 22K Gold Choker   | 22k-gold-choker   | `bbb`     |
+| `eee` | 18K Gold Chain    | 18k-gold-chain    | `bbb`     |
+| `fff` | Solitaire Pendant | solitaire-pendant | `ccc`     |
+| `ggg` | Earrings          | earrings          | `NULL`    |
 
 ### Pros and Cons
 
-| Advantage | Disadvantage |
-|-----------|-------------|
-| Simple schema, easy INSERT/UPDATE | Finding all descendants requires recursion |
-| Standard SQL, works with any ORM | Determining depth requires traversal |
-| Each row is self-contained | Building the full tree requires app-level logic |
+| Advantage                         | Disadvantage                                    |
+| --------------------------------- | ----------------------------------------------- |
+| Simple schema, easy INSERT/UPDATE | Finding all descendants requires recursion      |
+| Standard SQL, works with any ORM  | Determining depth requires traversal            |
+| Each row is self-contained        | Building the full tree requires app-level logic |
 
 > **Why we chose this:** For a 3-level-max hierarchy with fewer than 1,000 categories,
 > the simplicity of an adjacency list far outweighs the cost of recursive lookups.
@@ -214,8 +214,8 @@ Forest
 // domain/types/category.ts
 interface CategoryTreeNode {
   category: Category;
-  children: CategoryTreeNode[];  // N children
-  level: number;                 // 0, 1, or 2
+  children: CategoryTreeNode[]; // N children
+  level: number; // 0, 1, or 2
   isExpanded: boolean;
   productCount: number;
 }
@@ -263,10 +263,10 @@ Given this flat input array:
 
 ```json
 [
-  { "id": "aaa", "name": "Necklaces",       "parent_id": null  },
-  { "id": "bbb", "name": "Gold Necklaces",  "parent_id": "aaa" },
-  { "id": "ccc", "name": "22K Gold Choker",  "parent_id": "bbb" },
-  { "id": "ddd", "name": "Earrings",        "parent_id": null  }
+  { "id": "aaa", "name": "Necklaces", "parent_id": null },
+  { "id": "bbb", "name": "Gold Necklaces", "parent_id": "aaa" },
+  { "id": "ccc", "name": "22K Gold Choker", "parent_id": "bbb" },
+  { "id": "ddd", "name": "Earrings", "parent_id": null }
 ]
 ```
 
@@ -284,12 +284,12 @@ roots = []
 
 **Pass 2 — Wire Links:**
 
-| Category | parent_id | Action |
-|----------|-----------|--------|
-| Necklaces | `null` | Push to `roots[]` |
-| Gold Necklaces | `aaa` | Lookup `aaa` in map, push into its `children` |
-| 22K Gold Choker | `bbb` | Lookup `bbb` in map, push into its `children` |
-| Earrings | `null` | Push to `roots[]` |
+| Category        | parent_id | Action                                        |
+| --------------- | --------- | --------------------------------------------- |
+| Necklaces       | `null`    | Push to `roots[]`                             |
+| Gold Necklaces  | `aaa`     | Lookup `aaa` in map, push into its `children` |
+| 22K Gold Choker | `bbb`     | Lookup `bbb` in map, push into its `children` |
+| Earrings        | `null`    | Push to `roots[]`                             |
 
 **Result:**
 
@@ -300,9 +300,7 @@ roots = []
     "children": [
       {
         "name": "Gold Necklaces",
-        "children": [
-          { "name": "22K Gold Choker", "children": [] }
-        ]
+        "children": [{ "name": "22K Gold Choker", "children": [] }]
       }
     ]
   },
@@ -315,11 +313,11 @@ roots = []
 
 ### Complexity Analysis
 
-| Metric | Value |
-|--------|-------|
-| **Time** | O(N) — two linear passes |
-| **Space** | O(N) — one Map entry per category |
-| **Lookups** | O(1) per parent_id (Hash Map) |
+| Metric      | Value                             |
+| ----------- | --------------------------------- |
+| **Time**    | O(N) — two linear passes          |
+| **Space**   | O(N) — one Map entry per category |
+| **Lookups** | O(1) per parent_id (Hash Map)     |
 
 ---
 
@@ -389,11 +387,11 @@ Descendants = [bbb, ccc]
 
 ### Complexity
 
-| Metric | Value |
-|--------|-------|
-| **Time** | O(D) where D = number of descendants |
-| **Space** | O(D) for the collected array + O(L) call stack where L = depth |
-| **Worst case** | O(N) if the category is the root of a very wide tree |
+| Metric         | Value                                                          |
+| -------------- | -------------------------------------------------------------- |
+| **Time**       | O(D) where D = number of descendants                           |
+| **Space**      | O(D) for the collected array + O(L) call stack where L = depth |
+| **Worst case** | O(N) if the category is the root of a very wide tree           |
 
 > **Note:** With a max depth of 3, the DFS never goes deeper than 2 recursive
 > calls, making this effectively O(1) in practice.
@@ -452,10 +450,10 @@ Result: "Necklaces > Gold Necklaces > 22K Gold Choker"
 
 ### Complexity
 
-| Metric | Value |
-|--------|-------|
-| **Time** | O(L) where L = depth of the node (max 3) |
-| **Space** | O(L) for the path array |
+| Metric    | Value                                    |
+| --------- | ---------------------------------------- |
+| **Time**  | O(L) where L = depth of the node (max 3) |
+| **Space** | O(L) for the path array                  |
 
 ---
 
@@ -464,19 +462,20 @@ Result: "Necklaces > Gold Necklaces > 22K Gold Choker"
 ### What Is a DAG?
 
 A **Directed Acyclic Graph** is a graph where:
+
 - **Directed:** Edges have a direction (Parent to Child)
 - **Acyclic:** There are no cycles (no path leads back to itself)
 
 Our category hierarchy is a special case of a DAG — specifically, a **Forest
 of Rooted Trees**. Every DAG invariant we enforce:
 
-| Property | How We Enforce It |
-|----------|------------------|
-| Directed | `parent_id` always points from child to parent |
-| Acyclic | DFS cycle detection before every `parent_id` update |
-| Max depth = 3 | Service blocks children under Variants (`INVALID_PARENT_LEVEL`) |
-| Each node has at most 1 parent | Database schema: single `parent_id` column |
-| No self-loops | Service check: `parent_id !== id` (`CIRCULAR_REFERENCE`) |
+| Property                       | How We Enforce It                                               |
+| ------------------------------ | --------------------------------------------------------------- |
+| Directed                       | `parent_id` always points from child to parent                  |
+| Acyclic                        | DFS cycle detection before every `parent_id` update             |
+| Max depth = 3                  | Service blocks children under Variants (`INVALID_PARENT_LEVEL`) |
+| Each node has at most 1 parent | Database schema: single `parent_id` column                      |
+| No self-loops                  | Service check: `parent_id !== id` (`CIRCULAR_REFERENCE`)        |
 
 ---
 
@@ -484,16 +483,16 @@ of Rooted Trees**. Every DAG invariant we enforce:
 
 ### Service-Layer Validation (categoryService.ts)
 
-| Field | Rule | Error Code |
-|-------|------|-----------|
-| `name` | Required, max 100 chars | `NAME_REQUIRED`, `NAME_TOO_LONG` |
-| `slug` | Regex `/^[a-z0-9-]+$/` | `INVALID_SLUG_FORMAT` |
-| `slug` | Must be unique across all categories | `SLUG_EXISTS` |
-| `description` | Max 1,000 chars | `DESCRIPTION_TOO_LONG` |
-| `sort_order` | Must be >= 0 | `INVALID_SORT_ORDER` |
-| `parent_id` | Must reference a valid category | `INVALID_PARENT` |
-| `parent_id` | Cannot point to a Variant | `INVALID_PARENT_LEVEL` |
-| `parent_id` | Cannot create a cycle | `CIRCULAR_REFERENCE` |
+| Field         | Rule                                 | Error Code                       |
+| ------------- | ------------------------------------ | -------------------------------- |
+| `name`        | Required, max 100 chars              | `NAME_REQUIRED`, `NAME_TOO_LONG` |
+| `slug`        | Regex `/^[a-z0-9-]+$/`               | `INVALID_SLUG_FORMAT`            |
+| `slug`        | Must be unique across all categories | `SLUG_EXISTS`                    |
+| `description` | Max 1,000 chars                      | `DESCRIPTION_TOO_LONG`           |
+| `sort_order`  | Must be >= 0                         | `INVALID_SORT_ORDER`             |
+| `parent_id`   | Must reference a valid category      | `INVALID_PARENT`                 |
+| `parent_id`   | Cannot point to a Variant            | `INVALID_PARENT_LEVEL`           |
+| `parent_id`   | Cannot create a cycle                | `CIRCULAR_REFERENCE`             |
 
 ### Delete Safety Check (categoryRepository.ts canDelete)
 
@@ -503,12 +502,12 @@ Before any deletion, the system checks:
 Can Delete? = (childCount === 0) AND (productCount === 0)
 ```
 
-| Condition | HTTP Response | Error Code |
-|-----------|--------------|-----------|
-| Has child categories | 409 Conflict | `CANNOT_DELETE` |
-| Has linked products | 409 Conflict | `CANNOT_DELETE` |
-| Both children + products | 409 Conflict | `CANNOT_DELETE` |
-| Neither | 200 OK | Proceeds with delete |
+| Condition                | HTTP Response | Error Code           |
+| ------------------------ | ------------- | -------------------- |
+| Has child categories     | 409 Conflict  | `CANNOT_DELETE`      |
+| Has linked products      | 409 Conflict  | `CANNOT_DELETE`      |
+| Both children + products | 409 Conflict  | `CANNOT_DELETE`      |
+| Neither                  | 200 OK        | Proceeds with delete |
 
 ### Slug Auto-Generation
 
@@ -528,15 +527,15 @@ Steps:
 
 ## 11. API Endpoints
 
-| Method | Endpoint | Purpose | Service Method |
-|--------|----------|---------|----------------|
-| `GET` | `/api/categories` | List all categories | `getAllCategories()` |
-| `POST` | `/api/categories` | Create category | `createCategory()` |
-| `GET` | `/api/categories/:id` | Get by ID with relations | `getCategoryById()` |
-| `PATCH` | `/api/categories/:id` | Update category | `updateCategory()` |
-| `DELETE` | `/api/categories/:id` | Delete with safety check | `deleteCategory()` |
-| `GET` | `/api/categories/:id/children` | Get direct children | `getCategoryChildren()` |
-| `GET` | `/api/categories/:id/can-delete` | Pre-delete safety check | `canDeleteCategory()` |
+| Method   | Endpoint                         | Purpose                  | Service Method          |
+| -------- | -------------------------------- | ------------------------ | ----------------------- |
+| `GET`    | `/api/categories`                | List all categories      | `getAllCategories()`    |
+| `POST`   | `/api/categories`                | Create category          | `createCategory()`      |
+| `GET`    | `/api/categories/:id`            | Get by ID with relations | `getCategoryById()`     |
+| `PATCH`  | `/api/categories/:id`            | Update category          | `updateCategory()`      |
+| `DELETE` | `/api/categories/:id`            | Delete with safety check | `deleteCategory()`      |
+| `GET`    | `/api/categories/:id/children`   | Get direct children      | `getCategoryChildren()` |
+| `GET`    | `/api/categories/:id/can-delete` | Pre-delete safety check  | `canDeleteCategory()`   |
 
 ### PATCH Field Whitelist
 
@@ -544,8 +543,13 @@ Only these fields can be updated via PATCH:
 
 ```typescript
 const allowedFields = [
-  'name', 'slug', 'description', 'image_url',
-  'parent_id', 'sort_order', 'is_active'
+  'name',
+  'slug',
+  'description',
+  'image_url',
+  'parent_id',
+  'sort_order',
+  'is_active',
 ];
 ```
 
@@ -553,17 +557,18 @@ const allowedFields = [
 
 ## 12. Complexity Summary
 
-| Operation | Algorithm | Time | Space |
-|-----------|-----------|------|-------|
-| Build tree from flat list | Two-Pass Hash Map | **O(N)** | O(N) |
-| Check circular reference | DFS traversal | **O(D)** | O(D) |
-| Generate breadcrumb path | Linked-list walk | **O(L)** | O(L) |
-| Find category by ID | Supabase `.eq('id')` | **O(1)** indexed | O(1) |
-| Check slug uniqueness | Supabase `.eq('slug')` | **O(1)** indexed | O(1) |
-| Delete safety check | Two COUNT queries | **O(1)** indexed | O(1) |
-| Build hierarchy (mains/subs/variants) | Three filter passes | **O(N)** | O(N) |
+| Operation                             | Algorithm              | Time             | Space |
+| ------------------------------------- | ---------------------- | ---------------- | ----- |
+| Build tree from flat list             | Two-Pass Hash Map      | **O(N)**         | O(N)  |
+| Check circular reference              | DFS traversal          | **O(D)**         | O(D)  |
+| Generate breadcrumb path              | Linked-list walk       | **O(L)**         | O(L)  |
+| Find category by ID                   | Supabase `.eq('id')`   | **O(1)** indexed | O(1)  |
+| Check slug uniqueness                 | Supabase `.eq('slug')` | **O(1)** indexed | O(1)  |
+| Delete safety check                   | Two COUNT queries      | **O(1)** indexed | O(1)  |
+| Build hierarchy (mains/subs/variants) | Three filter passes    | **O(N)**         | O(N)  |
 
 Where:
+
 - **N** = total number of categories
 - **D** = number of descendants of a specific category (worst case N)
 - **L** = depth of a category in the tree (max 3)

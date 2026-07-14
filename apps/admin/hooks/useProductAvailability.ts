@@ -8,17 +8,22 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import type {
-  AvailabilityCalendarResponse,
-  BatchAvailabilityResponse,
-} from '@/domain/types/order';
+import type { AvailabilityCalendarResponse, BatchAvailabilityResponse } from '@/domain/types/order';
 
 const availabilityKeys = {
   all: ['availability'] as const,
   calendar: (productId: string, start: string, end: string, branchId?: string) =>
     [...availabilityKeys.all, 'calendar', productId, start, end, branchId] as const,
   check: (items: any[], start: string, end: string, branchId?: string, excludeOrderId?: string) =>
-    [...availabilityKeys.all, 'check', JSON.stringify(items), start, end, branchId, excludeOrderId] as const,
+    [
+      ...availabilityKeys.all,
+      'check',
+      JSON.stringify(items),
+      start,
+      end,
+      branchId,
+      excludeOrderId,
+    ] as const,
 };
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -42,7 +47,7 @@ export function useProductAvailabilityCalendar(
   startDate: string,
   endDate: string,
   branchId?: string,
-  enabled: boolean = true,
+  enabled: boolean = true
 ) {
   return useQuery<{ success: boolean; data: AvailabilityCalendarResponse }>({
     queryKey: availabilityKeys.calendar(productId, startDate, endDate, branchId),
@@ -68,7 +73,7 @@ export function useCheckOrderAvailability(
   endDate: string,
   branchId?: string,
   excludeOrderId?: string,
-  enabled: boolean = true,
+  enabled: boolean = true
 ) {
   return useQuery<{ success: boolean; data: BatchAvailabilityResponse }>({
     queryKey: availabilityKeys.check(items, startDate, endDate, branchId, excludeOrderId),

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const params: any = {};
-    
+
     if (searchParams.get('order_id')) params.order_id = searchParams.get('order_id');
     if (searchParams.get('payment_type')) params.payment_type = searchParams.get('payment_type');
     if (searchParams.get('payment_mode')) params.payment_mode = searchParams.get('payment_mode');
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const result = await paymentService.createPayment(body);
-    
+
     if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to create payment');
     }

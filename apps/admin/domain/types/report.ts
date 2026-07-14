@@ -7,19 +7,19 @@
  */
 
 export type ReportType =
-  | 'day-wise-booking'    // R1
-  | 'due-overdue'         // R2
-  | 'revenue'             // R3
-  | 'top-costumes'        // R4
-  | 'top-customers'       // R5
-  | 'rental-frequency'    // R6
-  | 'roi'                 // R7
-  | 'dead-stock'          // R8
-  | 'sales-by-staff'      // R9
-  | 'inventory-revenue'   // R10
-  | 'enquiry-log'         // R11
-  | 'gst-filing'          // R12
-  | 'todays-revenue';     // R13 — staff/manager only
+  | 'day-wise-booking' // R1
+  | 'due-overdue' // R2
+  | 'revenue' // R3
+  | 'top-costumes' // R4
+  | 'top-customers' // R5
+  | 'rental-frequency' // R6
+  | 'roi' // R7
+  | 'dead-stock' // R8
+  | 'sales-by-staff' // R9
+  | 'inventory-revenue' // R10
+  | 'enquiry-log' // R11
+  | 'gst-filing' // R12
+  | 'todays-revenue'; // R13 — staff/manager only
 
 export type StaffRole = 'super_admin' | 'admin' | 'manager' | 'staff';
 
@@ -34,19 +34,105 @@ export interface ReportMeta {
 }
 
 export const REPORT_LIST: ReportMeta[] = [
-  { id: 'day-wise-booking', name: 'Day-wise Booking', description: 'Daily pickups and deliveries schedule', category: 'booking', icon: 'CalendarDays' },
-  { id: 'due-overdue', name: 'Due / Overdue Report', description: 'Overdue returns as of today', category: 'due', icon: 'AlertTriangle' },
-  { id: 'todays-revenue', name: "Today's Revenue", description: "Today's revenue snapshot", category: 'sale', icon: 'TrendingUp', roles: ['manager', 'staff'] },
-  { id: 'top-costumes', name: 'Top Costumes', description: 'Most rented or highest earning', category: 'sale', icon: 'Trophy' },
-  { id: 'dead-stock', name: 'Dead Stock / No-Sale', description: 'Products with zero rentals', category: 'sale', icon: 'PackageX' },
-  { id: 'enquiry-log', name: 'Customer Enquiry Log', description: 'Manual enquiry entries', category: 'reminder', icon: 'MessageSquare' },
-  { id: 'revenue', name: 'Revenue Report', description: 'Revenue by status and period', category: 'sale', icon: 'TrendingUp', roles: ['super_admin', 'admin'] },
-  { id: 'top-customers', name: 'Top Customers', description: 'Customers ranked by spend', category: 'sale', icon: 'Users', roles: ['super_admin', 'admin'] },
-  { id: 'rental-frequency', name: 'Rental Frequency', description: 'Products by rental count', category: 'sale', icon: 'BarChart3', roles: ['super_admin', 'admin'] },
-  { id: 'roi', name: 'ROI / Profit per Costume', description: 'Return on investment per product', category: 'sale', icon: 'PiggyBank', roles: ['super_admin', 'admin'] },
-  { id: 'sales-by-staff', name: 'Sales by Staff', description: 'Staff ranked by order revenue', category: 'sale', icon: 'UserCheck', roles: ['super_admin', 'admin'] },
-  { id: 'inventory-revenue', name: 'Inventory + Revenue', description: 'Stock levels and lifetime revenue', category: 'inventory', icon: 'Boxes', roles: ['super_admin', 'admin'] },
-  { id: 'gst-filing', name: 'GST Filing Report', description: 'GSTR-1 friendly tax breakdown', category: 'sale', icon: 'FileText', roles: ['super_admin', 'admin'] },
+  {
+    id: 'day-wise-booking',
+    name: 'Day-wise Booking',
+    description: 'Daily pickups and deliveries schedule',
+    category: 'booking',
+    icon: 'CalendarDays',
+  },
+  {
+    id: 'due-overdue',
+    name: 'Due / Overdue Report',
+    description: 'Overdue returns as of today',
+    category: 'due',
+    icon: 'AlertTriangle',
+  },
+  {
+    id: 'todays-revenue',
+    name: "Today's Revenue",
+    description: "Today's revenue snapshot",
+    category: 'sale',
+    icon: 'TrendingUp',
+    roles: ['manager', 'staff'],
+  },
+  {
+    id: 'top-costumes',
+    name: 'Top Costumes',
+    description: 'Most rented or highest earning',
+    category: 'sale',
+    icon: 'Trophy',
+  },
+  {
+    id: 'dead-stock',
+    name: 'Dead Stock / No-Sale',
+    description: 'Products with zero rentals',
+    category: 'sale',
+    icon: 'PackageX',
+  },
+  {
+    id: 'enquiry-log',
+    name: 'Customer Enquiry Log',
+    description: 'Manual enquiry entries',
+    category: 'reminder',
+    icon: 'MessageSquare',
+  },
+  {
+    id: 'revenue',
+    name: 'Revenue Report',
+    description: 'Revenue by status and period',
+    category: 'sale',
+    icon: 'TrendingUp',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'top-customers',
+    name: 'Top Customers',
+    description: 'Customers ranked by spend',
+    category: 'sale',
+    icon: 'Users',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'rental-frequency',
+    name: 'Rental Frequency',
+    description: 'Products by rental count',
+    category: 'sale',
+    icon: 'BarChart3',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'roi',
+    name: 'ROI / Profit per Costume',
+    description: 'Return on investment per product',
+    category: 'sale',
+    icon: 'PiggyBank',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'sales-by-staff',
+    name: 'Sales by Staff',
+    description: 'Staff ranked by order revenue',
+    category: 'sale',
+    icon: 'UserCheck',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'inventory-revenue',
+    name: 'Inventory + Revenue',
+    description: 'Stock levels and lifetime revenue',
+    category: 'inventory',
+    icon: 'Boxes',
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    id: 'gst-filing',
+    name: 'GST Filing Report',
+    description: 'GSTR-1 friendly tax breakdown',
+    category: 'sale',
+    icon: 'FileText',
+    roles: ['super_admin', 'admin'],
+  },
 ];
 
 /** R1: Day-wise booking row */
@@ -78,12 +164,12 @@ export interface DueOverdueRow {
 /** R3: Revenue row (Summary) */
 export interface RevenueRow {
   period: string;
-  booking_sales: number;      // Total value of orders booked (Sales)
-  cash_collection: number;    // Actual cash collected (Cash Flow)
-  amount_collection: number;  // Unified collection (renamed label)
-  net_revenue: number;        // Revenue excluding GST
-  gst_collected: number;      // GST portion
-  revenue_due: number;        // Outstanding balance for orders in this period
+  booking_sales: number; // Total value of orders booked (Sales)
+  cash_collection: number; // Actual cash collected (Cash Flow)
+  amount_collection: number; // Unified collection (renamed label)
+  net_revenue: number; // Revenue excluding GST
+  gst_collected: number; // GST portion
+  revenue_due: number; // Outstanding balance for orders in this period
   completed_revenue: number;
   ongoing_revenue: number;
   scheduled_revenue: number;
@@ -94,7 +180,7 @@ export interface RevenueRow {
   gpay_revenue: number;
   bank_transfer_revenue: number;
   other_revenue: number;
-  total_revenue: number;      // Gross collected
+  total_revenue: number; // Gross collected
   order_count: number;
 }
 

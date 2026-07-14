@@ -15,10 +15,7 @@ import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@
  * GET /api/branch-inventory/[id]
  * Get branch inventory by ID
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'dashboard');
     if (guard.error) return guard.error;
@@ -40,10 +37,7 @@ export async function GET(
  * PATCH /api/branch-inventory/[id]
  * Update branch inventory
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'products');
     if (guard.error) return guard.error;

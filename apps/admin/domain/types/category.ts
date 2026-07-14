@@ -112,10 +112,12 @@ export interface CategoryValidationResult {
 
 // Type Guards
 export const isValidCategory = (obj: any): obj is Category => {
-  return obj && 
-         typeof obj.id === 'string' &&
-         typeof obj.name === 'string' &&
-         typeof obj.slug === 'string';
+  return (
+    obj &&
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.slug === 'string'
+  );
 };
 
 export const isMainCategory = (category: Category): boolean => {
@@ -124,12 +126,12 @@ export const isMainCategory = (category: Category): boolean => {
 
 export const isSubCategory = (category: Category, allCategories: Category[]): boolean => {
   if (!category.parent_id) return false;
-  const parent = allCategories.find(c => c.id === category.parent_id);
+  const parent = allCategories.find((c) => c.id === category.parent_id);
   return parent ? !parent.parent_id : false;
 };
 
 export const isVariantCategory = (category: Category, allCategories: Category[]): boolean => {
   if (!category.parent_id) return false;
-  const parent = allCategories.find(c => c.id === category.parent_id);
+  const parent = allCategories.find((c) => c.id === category.parent_id);
   return parent ? !!parent.parent_id : false;
 };

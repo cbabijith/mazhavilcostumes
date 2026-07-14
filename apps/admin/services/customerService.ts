@@ -7,12 +7,12 @@
  */
 
 import { RepositoryResult, customerRepository } from '@/repository';
-import { 
+import {
   Customer,
-  CreateCustomerDTO, 
+  CreateCustomerDTO,
   UpdateCustomerDTO,
   CustomerSearchParams,
-  CustomerSearchResult
+  CustomerSearchResult,
 } from '@/domain';
 
 export class CustomerService {
@@ -31,7 +31,9 @@ export class CustomerService {
   /**
    * Get all customers
    */
-  async getAllCustomers(params?: CustomerSearchParams): Promise<RepositoryResult<CustomerSearchResult>> {
+  async getAllCustomers(
+    params?: CustomerSearchParams
+  ): Promise<RepositoryResult<CustomerSearchResult>> {
     return await customerRepository.findAll(params);
   }
 
@@ -59,7 +61,7 @@ export class CustomerService {
         data: null,
         error: {
           message: 'Customer name is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -70,7 +72,7 @@ export class CustomerService {
         data: null,
         error: {
           message: 'Customer phone is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -83,7 +85,7 @@ export class CustomerService {
         data: null,
         error: {
           message: 'A customer with this phone number already exists',
-          code: 'PHONE_EXISTS'
+          code: 'PHONE_EXISTS',
         } as any,
         success: false,
       };
@@ -103,7 +105,7 @@ export class CustomerService {
         data: null,
         error: {
           message: 'Customer not found',
-          code: 'CUSTOMER_NOT_FOUND'
+          code: 'CUSTOMER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -117,7 +119,7 @@ export class CustomerService {
           data: null,
           error: {
             message: 'A customer with this phone number already exists',
-            code: 'PHONE_EXISTS'
+            code: 'PHONE_EXISTS',
           } as any,
           success: false,
         };
@@ -138,7 +140,7 @@ export class CustomerService {
         data: null,
         error: {
           message: 'Customer not found',
-          code: 'CUSTOMER_NOT_FOUND'
+          code: 'CUSTOMER_NOT_FOUND',
         } as any,
         success: false,
       };

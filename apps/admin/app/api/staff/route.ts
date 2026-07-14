@@ -20,11 +20,7 @@ export async function GET(request: NextRequest) {
     if (guard.error) return guard.error;
 
     // Set user context for multi-tenancy
-    staffService.setUserContext(
-      guard.user.staff_id,
-      guard.user.branch_id,
-      guard.user.store_id
-    );
+    staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const branchId = request.nextUrl.searchParams.get('branch');
 
@@ -54,18 +50,17 @@ export async function POST(request: NextRequest) {
     if (guard.error) return guard.error;
 
     // Set user context in service
-    staffService.setUserContext(
-      guard.user.staff_id, 
-      guard.user.branch_id, 
-      guard.user.store_id
-    );
+    staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
     const body = await request.json();
 
     // Managers can only create 'staff' role — prevent role escalation
     if (guard.user.role === 'manager' && body.role && body.role !== 'staff') {
       return NextResponse.json(
-        { success: false, error: { message: 'Managers can only create staff accounts.', code: 'FORBIDDEN' } },
+        {
+          success: false,
+          error: { message: 'Managers can only create staff accounts.', code: 'FORBIDDEN' },
+        },
         { status: 403 }
       );
     }

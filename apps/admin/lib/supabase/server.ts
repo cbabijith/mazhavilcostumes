@@ -23,7 +23,7 @@ export function createClient(): SupabaseClient {
   if (!url || !anonKey) {
     throw new Error(
       'Missing Supabase environment variables. Check .env.local for: ' +
-      'NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY'
+        'NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY'
     );
   }
 
@@ -50,7 +50,7 @@ export function createAdminClient(): SupabaseClient {
   if (!key) {
     throw new Error(
       'Missing both SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
-      'At least one must be set.'
+        'At least one must be set.'
     );
   }
 

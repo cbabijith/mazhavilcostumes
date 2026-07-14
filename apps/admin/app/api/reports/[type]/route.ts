@@ -16,16 +16,22 @@ import { reportService } from '@/services/reportService';
 import type { ReportType, ReportFilters } from '@/domain';
 
 const VALID_TYPES: ReportType[] = [
-  'day-wise-booking', 'due-overdue', 'revenue', 'top-costumes',
-  'top-customers', 'rental-frequency', 'roi', 'dead-stock',
-  'sales-by-staff', 'inventory-revenue', 'enquiry-log', 'gst-filing',
-  'todays-revenue'
+  'day-wise-booking',
+  'due-overdue',
+  'revenue',
+  'top-costumes',
+  'top-customers',
+  'rental-frequency',
+  'roi',
+  'dead-stock',
+  'sales-by-staff',
+  'inventory-revenue',
+  'enquiry-log',
+  'gst-filing',
+  'todays-revenue',
 ];
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ type: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ type: string }> }) {
   try {
     const guard = await apiGuard(request, 'reports');
     if (guard.error) return guard.error;
@@ -62,18 +68,42 @@ export async function GET(
       data = await reportService.getStaffOrderHistory(staffId, filters);
     } else {
       switch (type as ReportType) {
-        case 'day-wise-booking': data = await reportService.getDayWiseBooking(filters); break;
-        case 'due-overdue': data = await reportService.getDueOverdue(filters); break;
-        case 'revenue': data = await reportService.getRevenue(filters); break;
-        case 'top-costumes': data = await reportService.getTopCostumes(filters); break;
-        case 'top-customers': data = await reportService.getTopCustomers(filters); break;
-        case 'rental-frequency': data = await reportService.getRentalFrequency(filters); break;
-        case 'roi': data = await reportService.getROI(filters); break;
-        case 'dead-stock': data = await reportService.getDeadStock(filters); break;
-        case 'sales-by-staff': data = await reportService.getSalesByStaff(filters); break;
-        case 'inventory-revenue': data = await reportService.getInventoryRevenue(filters); break;
-        case 'enquiry-log': data = await reportService.getEnquiries(filters); break;
-        case 'gst-filing': data = await reportService.getGSTFilingReport(filters); break;
+        case 'day-wise-booking':
+          data = await reportService.getDayWiseBooking(filters);
+          break;
+        case 'due-overdue':
+          data = await reportService.getDueOverdue(filters);
+          break;
+        case 'revenue':
+          data = await reportService.getRevenue(filters);
+          break;
+        case 'top-costumes':
+          data = await reportService.getTopCostumes(filters);
+          break;
+        case 'top-customers':
+          data = await reportService.getTopCustomers(filters);
+          break;
+        case 'rental-frequency':
+          data = await reportService.getRentalFrequency(filters);
+          break;
+        case 'roi':
+          data = await reportService.getROI(filters);
+          break;
+        case 'dead-stock':
+          data = await reportService.getDeadStock(filters);
+          break;
+        case 'sales-by-staff':
+          data = await reportService.getSalesByStaff(filters);
+          break;
+        case 'inventory-revenue':
+          data = await reportService.getInventoryRevenue(filters);
+          break;
+        case 'enquiry-log':
+          data = await reportService.getEnquiries(filters);
+          break;
+        case 'gst-filing':
+          data = await reportService.getGSTFilingReport(filters);
+          break;
         case 'todays-revenue': {
           const now = new Date();
           const istOffset = 5.5 * 60 * 60 * 1000;

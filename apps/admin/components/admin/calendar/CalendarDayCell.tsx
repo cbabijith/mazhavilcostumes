@@ -7,11 +7,11 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { format, isToday, isSameMonth } from "date-fns";
-import { OrderStatus, type DaySummary } from "@/domain";
+import { useMemo } from 'react';
+import { format, isToday, isSameMonth } from 'date-fns';
+import { OrderStatus, type DaySummary } from '@/domain';
 
 interface CalendarDayCellProps {
   date: Date;
@@ -22,31 +22,31 @@ interface CalendarDayCellProps {
 }
 
 const statusColors: Record<string, string> = {
-  [OrderStatus.ONGOING]: "bg-purple-500",
-  [OrderStatus.IN_USE]: "bg-purple-500",
-  [OrderStatus.SCHEDULED]: "bg-blue-500",
-  [OrderStatus.CONFIRMED]: "bg-blue-500",
+  [OrderStatus.ONGOING]: 'bg-purple-500',
+  [OrderStatus.IN_USE]: 'bg-purple-500',
+  [OrderStatus.SCHEDULED]: 'bg-blue-500',
+  [OrderStatus.CONFIRMED]: 'bg-blue-500',
   // LATE_RETURN removed - now handled by is_late boolean flag
-  [OrderStatus.FLAGGED]: "bg-red-500",
-  [OrderStatus.RETURNED]: "bg-emerald-500",
-  [OrderStatus.COMPLETED]: "bg-emerald-500",
-  [OrderStatus.PARTIAL]: "bg-amber-500",
-  [OrderStatus.CANCELLED]: "bg-slate-400",
-  [OrderStatus.PENDING]: "bg-slate-400",
+  [OrderStatus.FLAGGED]: 'bg-red-500',
+  [OrderStatus.RETURNED]: 'bg-emerald-500',
+  [OrderStatus.COMPLETED]: 'bg-emerald-500',
+  [OrderStatus.PARTIAL]: 'bg-amber-500',
+  [OrderStatus.CANCELLED]: 'bg-slate-400',
+  [OrderStatus.PENDING]: 'bg-slate-400',
 };
 
 const statusTextColors: Record<string, string> = {
-  [OrderStatus.ONGOING]: "text-purple-700 bg-purple-50",
-  [OrderStatus.IN_USE]: "text-purple-700 bg-purple-50",
-  [OrderStatus.SCHEDULED]: "text-blue-700 bg-blue-50",
-  [OrderStatus.CONFIRMED]: "text-blue-700 bg-blue-50",
+  [OrderStatus.ONGOING]: 'text-purple-700 bg-purple-50',
+  [OrderStatus.IN_USE]: 'text-purple-700 bg-purple-50',
+  [OrderStatus.SCHEDULED]: 'text-blue-700 bg-blue-50',
+  [OrderStatus.CONFIRMED]: 'text-blue-700 bg-blue-50',
   // LATE_RETURN removed - now handled by is_late boolean flag
-  [OrderStatus.FLAGGED]: "text-red-700 bg-red-50",
-  [OrderStatus.RETURNED]: "text-emerald-700 bg-emerald-50",
-  [OrderStatus.COMPLETED]: "text-emerald-700 bg-emerald-50",
-  [OrderStatus.PARTIAL]: "text-amber-700 bg-amber-50",
-  [OrderStatus.CANCELLED]: "text-slate-600 bg-slate-50",
-  [OrderStatus.PENDING]: "text-slate-600 bg-slate-50",
+  [OrderStatus.FLAGGED]: 'text-red-700 bg-red-50',
+  [OrderStatus.RETURNED]: 'text-emerald-700 bg-emerald-50',
+  [OrderStatus.COMPLETED]: 'text-emerald-700 bg-emerald-50',
+  [OrderStatus.PARTIAL]: 'text-amber-700 bg-amber-50',
+  [OrderStatus.CANCELLED]: 'text-slate-600 bg-slate-50',
+  [OrderStatus.PENDING]: 'text-slate-600 bg-slate-50',
 };
 
 export default function CalendarDayCell({
@@ -58,7 +58,7 @@ export default function CalendarDayCell({
 }: CalendarDayCellProps) {
   const isCurrentMonth = isSameMonth(date, currentMonth);
   const isCurrentDay = isToday(date);
-  const dayNum = format(date, "d");
+  const dayNum = format(date, 'd');
   const totalOrders = summary?.totalOrders || 0;
 
   // Show up to 2 events, sorted by status priority (late > ongoing > scheduled > rest)
@@ -102,20 +102,22 @@ export default function CalendarDayCell({
       type="button"
       onClick={onClick}
       className={`p-1.5 text-left transition-all border-b border-r border-slate-100 group flex flex-col overflow-hidden
-        ${isSelected
-          ? "bg-slate-900/[0.03] ring-2 ring-inset ring-slate-900"
-          : "bg-white hover:bg-slate-50"
+        ${
+          isSelected
+            ? 'bg-slate-900/[0.03] ring-2 ring-inset ring-slate-900'
+            : 'bg-white hover:bg-slate-50'
         }
-        ${isCurrentDay ? "relative" : ""}
+        ${isCurrentDay ? 'relative' : ''}
       `}
     >
       {/* Day number row */}
       <div className="flex items-center justify-between mb-1">
         <span
           className={`text-xs font-semibold leading-none
-            ${isCurrentDay
-              ? "w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center"
-              : "text-slate-700"
+            ${
+              isCurrentDay
+                ? 'w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center'
+                : 'text-slate-700'
             }
           `}
         >
@@ -124,9 +126,12 @@ export default function CalendarDayCell({
         {totalOrders > 0 && (
           <span
             className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none
-              ${totalOrders >= 5 ? "bg-red-100 text-red-700" :
-                totalOrders >= 3 ? "bg-amber-100 text-amber-700" :
-                "bg-slate-100 text-slate-600"
+              ${
+                totalOrders >= 5
+                  ? 'bg-red-100 text-red-700'
+                  : totalOrders >= 3
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-slate-100 text-slate-600'
               }
             `}
           >
@@ -141,12 +146,12 @@ export default function CalendarDayCell({
           <div
             key={event.orderId}
             className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium truncate ${
-              statusTextColors[event.status] || "text-slate-600 bg-slate-50"
+              statusTextColors[event.status] || 'text-slate-600 bg-slate-50'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                statusColors[event.status] || "bg-slate-400"
+                statusColors[event.status] || 'bg-slate-400'
               }`}
             />
             <span className="truncate">{event.customerName}</span>
@@ -163,13 +168,22 @@ export default function CalendarDayCell({
       {(summary?.startingCount || summary?.endingCount || summary?.hasLateReturns) && (
         <div className="flex items-center gap-1 mt-auto pt-0.5">
           {summary.startingCount > 0 && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title={`${summary.startingCount} starting`} />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+              title={`${summary.startingCount} starting`}
+            />
           )}
           {summary.endingCount > 0 && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title={`${summary.endingCount} ending`} />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-amber-500"
+              title={`${summary.endingCount} ending`}
+            />
           )}
           {summary.hasLateReturns && (
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" title="Late returns" />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"
+              title="Late returns"
+            />
           )}
         </div>
       )}

@@ -1,9 +1,15 @@
-import { NextRequest } from "next/server";
-import { settingsService } from "@/services/settingsService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiBadRequest, apiForbidden, apiInternalError } from "@/lib/apiResponse";
-import { SettingKey } from "@/domain/types/settings";
+import { NextRequest } from 'next/server';
+import { settingsService } from '@/services/settingsService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import {
+  apiSuccess,
+  apiRepositoryError,
+  apiBadRequest,
+  apiForbidden,
+  apiInternalError,
+} from '@/lib/apiResponse';
+import { SettingKey } from '@/domain/types/settings';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
-    
+
     if (!key) {
       const result = await settingsService.getAllSettings();
       if (!result.success) return apiRepositoryError(result.error, 'Failed to fetch settings');
@@ -65,7 +71,7 @@ export async function PATCH(request: NextRequest) {
       settingsService.setStoreId(authUser.store_id);
     }
     const result = await settingsService.setValue(key as SettingKey, value);
-    
+
     if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to update setting');
     }

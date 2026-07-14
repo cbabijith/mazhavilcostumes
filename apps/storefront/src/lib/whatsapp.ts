@@ -1,8 +1,8 @@
 // Shared WhatsApp ordering config for Mazhavil Dance Costumes
-import { BRAND_CONFIG } from "shared-utils";
+import { BRAND_CONFIG } from 'shared-utils';
 
-export const WHATSAPP_NUMBER = "919446961765";
-export const DISPLAY_PHONE = "+91 94469 61765 / +91 94479 61765";
+export const WHATSAPP_NUMBER = '918129668157';
+export const DISPLAY_PHONE = '+91 81296 68157';
 
 export function calculateRentalPrice(
   pricePerDay: number,
@@ -13,8 +13,8 @@ export function calculateRentalPrice(
   if (!startDateStr || !endDateStr) {
     return { rentalDays: 0, pricingMultiplier: 1, totalRent: pricePerDay * quantity };
   }
-  const start = new Date(startDateStr + "T00:00:00");
-  const end = new Date(endDateStr + "T00:00:00");
+  const start = new Date(startDateStr + 'T00:00:00');
+  const end = new Date(endDateStr + 'T00:00:00');
   if (isNaN(start.getTime()) || isNaN(end.getTime())) {
     return { rentalDays: 0, pricingMultiplier: 1, totalRent: pricePerDay * quantity };
   }
@@ -44,38 +44,38 @@ interface OrderDetails {
 }
 
 export function buildOrderMessage(o: OrderDetails): string {
-  const today = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
+  const today = new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
   });
 
   const lines = [
     `Hello ${BRAND_CONFIG.name}! 👋`,
-    "",
-    "*New Rental Enquiry*",
-    "",
+    '',
+    '*New Rental Enquiry*',
+    '',
     `📦 *Product:* ${o.productName}`,
   ];
 
   if (o.categoryName) lines.push(`🏷️ *Category:* ${o.categoryName}`);
   lines.push(`🔢 *Quantity:* ${o.quantity}`);
-  lines.push("");
+  lines.push('');
   lines.push(`🗓️ *Rental Start Date:* ${o.startDate}`);
   lines.push(`⏳ *Rental End Date:* ${o.endDate}`);
   if (o.rentalDays) {
     lines.push(`⏱️ *Duration:* ${o.rentalDays} days`);
   }
   lines.push(`📅 *Enquiry Date:* ${today}`);
-  lines.push("");
-  lines.push("👤 *Customer Details:*");
+  lines.push('');
+  lines.push('👤 *Customer Details:*');
   lines.push(`Name: ${o.customerName}`);
   lines.push(`Phone: ${o.customerPhone}`);
   lines.push(`📍 Address: ${o.customerAddress}`);
-  lines.push("");
-  lines.push("Please confirm availability. Thank you! 🙏");
+  lines.push('');
+  lines.push('Please confirm availability. Thank you! 🙏');
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 export function buildWhatsAppUrl(message: string): string {
@@ -101,24 +101,19 @@ interface CartOrderDetails {
 }
 
 export function buildCartOrderMessage(details: CartOrderDetails): string {
-  const today = new Date().toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
+  const today = new Date().toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
   });
 
-  const lines = [
-    `Hello ${BRAND_CONFIG.name}! 👋`,
-    "",
-    "*New Rental Enquiry*",
-    "",
-  ];
+  const lines = [`Hello ${BRAND_CONFIG.name}! 👋`, '', '*New Rental Enquiry*', ''];
 
   if (details.items.length === 1) {
     const item = details.items[0];
     lines.push(`📦 *Product:* ${item.name}`);
     lines.push(`🔢 *Quantity:* ${item.quantity}`);
-    lines.push("");
+    lines.push('');
     lines.push(`🗓️ *Rental Start Date:* ${item.startDate}`);
     lines.push(`⏳ *Rental End Date:* ${item.endDate}`);
     if (item.rentalDays) {
@@ -127,7 +122,7 @@ export function buildCartOrderMessage(details: CartOrderDetails): string {
     lines.push(`📅 *Enquiry Date:* ${today}`);
   } else {
     lines.push(` *Items:* ${details.items.length} products`);
-    lines.push("");
+    lines.push('');
     details.items.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.name}`);
       lines.push(`   🔢 Quantity: ${item.quantity}`);
@@ -136,36 +131,36 @@ export function buildCartOrderMessage(details: CartOrderDetails): string {
         lines.push(`   ⏱️ Duration: ${item.rentalDays} days`);
       }
     });
-    lines.push("");
+    lines.push('');
     lines.push(`📅 *Enquiry Date:* ${today}`);
   }
 
-  lines.push("");
-  lines.push("👤 *Customer Details:*");
+  lines.push('');
+  lines.push('👤 *Customer Details:*');
   lines.push(`Name: ${details.customerName}`);
   lines.push(`Phone: ${details.customerPhone}`);
   lines.push(`📍 Address: ${details.customerAddress}`);
-  lines.push("");
-  lines.push("Please confirm availability. Thank you! 🙏");
+  lines.push('');
+  lines.push('Please confirm availability. Thank you! 🙏');
 
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 // Contact message builder
 export function buildContactMessage(name: string, phone: string, message: string): string {
   const lines = [
     `Hello ${BRAND_CONFIG.name}! 👋`,
-    "",
-    "*New Enquiry*",
-    "",
+    '',
+    '*New Enquiry*',
+    '',
     `👤 *Name:* ${name}`,
     `📱 *Phone:* ${phone}`,
-    "",
+    '',
     `💬 *Message:*`,
     message,
-    "",
-    "Please get back to me. Thank you! 🙏",
+    '',
+    'Please get back to me. Thank you! 🙏',
   ];
 
-  return lines.join("\n");
+  return lines.join('\n');
 }

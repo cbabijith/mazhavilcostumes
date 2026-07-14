@@ -7,12 +7,7 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Banner, 
-  CreateBannerDTO, 
-  UpdateBannerDTO,
-  BannerSearchParams
-} from '@/domain';
+import { Banner, CreateBannerDTO, UpdateBannerDTO, BannerSearchParams } from '@/domain';
 
 export class BannerRepository extends BaseRepository {
   private readonly tableName = 'banners';
@@ -21,9 +16,7 @@ export class BannerRepository extends BaseRepository {
    * Find all banners
    */
   async findAll(params?: BannerSearchParams): Promise<RepositoryResult<Banner[]>> {
-    let query = this.client
-      .from(this.tableName)
-      .select('*');
+    let query = this.client.from(this.tableName).select('*');
 
     if (params?.is_active !== undefined) {
       query = query.eq('is_active', params.is_active);
@@ -39,12 +32,12 @@ export class BannerRepository extends BaseRepository {
 
     // Order by banner_type, then position (if exists), then priority
     query = query.order('banner_type', { ascending: true });
-    
+
     if (params?.banner_type) {
       // If filtering by type, order by position then priority
       query = query.order('position', { ascending: true, nullsFirst: false });
     }
-    
+
     query = query.order('priority', { ascending: false });
 
     if (params?.limit) {
@@ -63,11 +56,7 @@ export class BannerRepository extends BaseRepository {
    * Find banner by ID
    */
   async findById(id: string): Promise<RepositoryResult<Banner>> {
-    const response = await this.client
-      .from(this.tableName)
-      .select('*')
-      .eq('id', id)
-      .single();
+    const response = await this.client.from(this.tableName).select('*').eq('id', id).single();
 
     return this.handleResponse<Banner>(response);
   }
@@ -111,10 +100,7 @@ export class BannerRepository extends BaseRepository {
    * Delete a banner
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const response = await this.client.from(this.tableName).delete().eq('id', id);
 
     return this.handleResponse<void>(response);
   }
@@ -123,9 +109,7 @@ export class BannerRepository extends BaseRepository {
    * Count banners
    */
   async count(params?: BannerSearchParams): Promise<RepositoryResult<number>> {
-    let query = this.client
-      .from(this.tableName)
-      .select('*', { count: 'exact', head: true });
+    let query = this.client.from(this.tableName).select('*', { count: 'exact', head: true });
 
     if (params?.is_active !== undefined) {
       query = query.eq('is_active', params.is_active);
@@ -140,7 +124,7 @@ export class BannerRepository extends BaseRepository {
     }
 
     const response = await query;
-    
+
     if (response.error) {
       return {
         success: false,
@@ -148,7 +132,7 @@ export class BannerRepository extends BaseRepository {
         error: response.error,
       };
     }
-    
+
     return {
       success: true,
       data: response.count || 0,
@@ -172,7 +156,7 @@ export class BannerRepository extends BaseRepository {
         error: response.error,
       };
     }
-    
+
     return {
       success: true,
       data: response.count || 0,
@@ -183,7 +167,10 @@ export class BannerRepository extends BaseRepository {
   /**
    * Count banners by type and position
    */
-  async countByTypeAndPosition(bannerType: string, position: string): Promise<RepositoryResult<number>> {
+  async countByTypeAndPosition(
+    bannerType: string,
+    position: string
+  ): Promise<RepositoryResult<number>> {
     const response = await this.client
       .from(this.tableName)
       .select('*', { count: 'exact', head: true })
@@ -197,7 +184,7 @@ export class BannerRepository extends BaseRepository {
         error: response.error,
       };
     }
-    
+
     return {
       success: true,
       data: response.count || 0,

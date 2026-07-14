@@ -10,7 +10,11 @@
 
 import { damageAssessmentRepository, orderRepository, cleaningRepository } from '@/repository';
 import type { RepositoryResult } from '@/repository/supabaseClient';
-import type { DamageAssessment, DamageAssessmentWithProduct, CreateDamageAssessmentsDTO } from '@/domain';
+import type {
+  DamageAssessment,
+  DamageAssessmentWithProduct,
+  CreateDamageAssessmentsDTO,
+} from '@/domain';
 import { DamageDecision } from '@/domain';
 
 export class DamageAssessmentService {
@@ -19,7 +23,9 @@ export class DamageAssessmentService {
    * Called after the return process when items have damage.
    * Batch inserts all assessment rows in a single query.
    */
-  async createAssessments(dto: CreateDamageAssessmentsDTO): Promise<RepositoryResult<DamageAssessment[]>> {
+  async createAssessments(
+    dto: CreateDamageAssessmentsDTO
+  ): Promise<RepositoryResult<DamageAssessment[]>> {
     const rows: any[] = [];
 
     for (const item of dto.items) {
@@ -47,7 +53,9 @@ export class DamageAssessmentService {
   /**
    * Fetch all damage assessments for an order.
    */
-  async getAssessmentsForOrder(orderId: string): Promise<RepositoryResult<DamageAssessmentWithProduct[]>> {
+  async getAssessmentsForOrder(
+    orderId: string
+  ): Promise<RepositoryResult<DamageAssessmentWithProduct[]>> {
     return damageAssessmentRepository.findByOrderId(orderId);
   }
 
@@ -125,9 +133,12 @@ export class DamageAssessmentService {
                 await orderRepository.syncOrderPriorityFlag(orderId);
               }
             } catch (err) {
-              console.error('[DamageAssessmentService] Failed to adjust cleaning record for write-off:', err);
+              console.error(
+                '[DamageAssessmentService] Failed to adjust cleaning record for write-off:',
+                err
+              );
             }
-          })()
+          })(),
         ]);
       }
     }

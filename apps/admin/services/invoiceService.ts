@@ -39,7 +39,10 @@ export class InvoiceService {
   /**
    * Generate invoice PDF and return as a Buffer alongside the invoice number.
    */
-  async generateInvoice(orderId: string, invoiceType: 'deposit' | 'final'): Promise<{ buffer: Buffer; invoiceNumber: string }> {
+  async generateInvoice(
+    orderId: string,
+    invoiceType: 'deposit' | 'final'
+  ): Promise<{ buffer: Buffer; invoiceNumber: string }> {
     // Fetch order with relations
     const orderResult = await orderService.getOrderById(orderId);
     if (!orderResult.success || !orderResult.data) {
@@ -63,16 +66,17 @@ export class InvoiceService {
     // Fall back to dynamic computation for legacy orders without invoice_number
     let invoiceNumber: string;
     if (order.invoice_number) {
-      invoiceNumber = invoiceType === 'final'
-        ? order.invoice_number
-        : `${order.invoice_number}-DEPOSIT`;
+      invoiceNumber =
+        invoiceType === 'final' ? order.invoice_number : `${order.invoice_number}-DEPOSIT`;
     } else {
       // Legacy fallback: compute from fiscal year + count
       const orderDate = new Date(order.created_at || new Date());
       const year = orderDate.getFullYear();
       const month = orderDate.getMonth();
       let fiscalStartYear = year;
-      if (month < 3) { fiscalStartYear = year - 1; }
+      if (month < 3) {
+        fiscalStartYear = year - 1;
+      }
       const startYY = String(fiscalStartYear).slice(-2);
       const endYY = String(fiscalStartYear + 1).slice(-2);
       const fiscalSuffix = `${startYY}${endYY}`;
@@ -81,15 +85,26 @@ export class InvoiceService {
         .from('orders')
         .select('id', { count: 'exact', head: true })
         .lte('created_at', order.created_at);
-      if (!countErr && count !== null) { sequentialNum = count; }
-      invoiceNumber = invoiceType === 'final'
-        ? `MAZ-${fiscalSuffix}-${sequentialNum}`
-        : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
+      if (!countErr && count !== null) {
+        sequentialNum = count;
+      }
+      invoiceNumber =
+        invoiceType === 'final'
+          ? `MAZ-${fiscalSuffix}-${sequentialNum}`
+          : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     }
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 
     // Build props for the React PDF component
-    const props = this.buildInvoiceProps(order, invoiceType, invoiceNumber, invoiceDate, payments, settings, history);
+    const props = this.buildInvoiceProps(
+      order,
+      invoiceType,
+      invoiceNumber,
+      invoiceDate,
+      payments,
+      settings,
+      history
+    );
 
     // Render the React component to a PDF buffer
     // Cast needed because renderToBuffer expects ReactElement<DocumentProps>
@@ -111,7 +126,8 @@ export class InvoiceService {
     return {
       invoicePrefix: prefixResult.success && prefixResult.data ? prefixResult.data.value : 'INV-',
       paymentTerms: termsResult.success && termsResult.data ? termsResult.data.value : '',
-      authorizedSignature: signatureResult.success && signatureResult.data ? signatureResult.data.value : '',
+      authorizedSignature:
+        signatureResult.success && signatureResult.data ? signatureResult.data.value : '',
     };
   }
 
@@ -148,17 +164,18 @@ export class InvoiceService {
     invoiceDate: string,
     payments: any[],
     settings: { invoicePrefix: string; paymentTerms: string; authorizedSignature: string },
-    history: any[] = [],
+    history: any[] = []
   ): TallyInvoiceProps {
     // Build line items
     const items: InvoiceItem[] = (order.items || []).map((item, idx) => {
       const quantity = item.quantity || 0;
       const rate = item.price_per_day || 0;
       const lineTotal = rate * quantity;
-      
-      const discountTotal = (item.discount_type || 'flat') === 'percent'
-        ? lineTotal * ((item.discount || 0) / 100)
-        : (item.discount || 0) * quantity;
+
+      const discountTotal =
+        (item.discount_type || 'flat') === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * quantity;
 
       return {
         sno: idx + 1,
@@ -178,7 +195,7 @@ export class InvoiceService {
     const totalPaid = payments
       .filter((p) => p.payment_type !== 'refund')
       .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
-    
+
     const advancePaid = payments
       .filter((p) => p.payment_type === 'deposit' || p.payment_type === 'advance')
       .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
@@ -186,7 +203,9 @@ export class InvoiceService {
     const balanceDue = Math.max(0, Number(order.total_amount || 0) - totalPaid);
 
     // Find payment mode
-    const depositPayment = payments.find((p) => p.payment_type === 'deposit' || p.payment_type === 'advance');
+    const depositPayment = payments.find(
+      (p) => p.payment_type === 'deposit' || p.payment_type === 'advance'
+    );
     const paymentMode = depositPayment?.payment_mode?.toUpperCase() || undefined;
 
     // Granular calculations
@@ -197,9 +216,10 @@ export class InvoiceService {
     let returnDiscount = 0;
     let additionalLateFee = 0;
 
-    const returnHistory = history.find((h) => 
-      (h.status === 'returned' || h.status === 'flagged' || h.status === 'partial') && 
-      h.notes?.includes('Discount:')
+    const returnHistory = history.find(
+      (h) =>
+        (h.status === 'returned' || h.status === 'flagged' || h.status === 'partial') &&
+        h.notes?.includes('Discount:')
     );
     if (returnHistory && returnHistory.notes) {
       const matchDiscount = returnHistory.notes.match(/Discount:\s*([\d.]+)/);
@@ -231,8 +251,9 @@ export class InvoiceService {
 
     return {
       companyName: order.store?.name || BRAND_CONFIG.name,
-      companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
-      companyPhone: order.store?.phone || '9446961765, 9447961765',
+      companyAddress:
+        order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
+      companyPhone: order.store?.phone || '+91 81296 68157',
       companyEmail: order.store?.email,
       companyGstin: order.store?.gstin,
 

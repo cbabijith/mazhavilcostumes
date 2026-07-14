@@ -24,22 +24,21 @@ export default function FeaturedProducts({ products }: FeaturedProductsProps) {
               Featured <em>Masterpieces</em>
             </h2>
           </div>
-          <Link 
-            href="/collections?featured=true" 
+          <Link
+            href="/collections?featured=true"
             className="text-sm font-medium text-heading hover:text-rosegold transition-all ml-auto md:ml-0 flex items-center gap-2 group animate-fadeInUp"
           >
-            Browse Collections <span className="group-hover:translate-x-1.5 transition-transform text-rosegold">→</span>
+            Browse Collections{' '}
+            <span className="group-hover:translate-x-1.5 transition-transform text-rosegold">
+              →
+            </span>
           </Link>
         </div>
-        
+
         {/* Mobile: 2 cols, Tablet: 3 cols, Desktop: 4 cols — images fill smoothly */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 stagger-children">
           {productsWithImages.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              badge={{ text: 'Featured' }}
-            />
+            <ProductCard key={product.id} product={product} badge={{ text: 'Featured' }} />
           ))}
         </div>
       </div>

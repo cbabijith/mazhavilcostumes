@@ -15,11 +15,13 @@
 **This is non-negotiable. Every single change must be verified.**
 
 ### 🚫 No Automatic Git Push
+
 - The agent must **NEVER** run `git add`, `git commit`, or `git push` automatically.
 - Git operations are the **user's responsibility**. The agent should not suggest or attempt to push code.
 - If the user explicitly asks to push, the target branch is `abijithcb`. NEVER push to `main`.
 
 ### 📝 Mandatory Change Explanations
+
 - For **every** code change, the agent MUST provide a clear explanation of:
   - **What** was changed
   - **Why** the change was necessary (root cause / reasoning)
@@ -27,6 +29,7 @@
 - Do NOT silently make changes and move on. The user must understand every modification.
 
 ### 🔄 Synchronization with RentoCostumes (Separate Repository)
+
 - **Separate Repositories**: `mazhavilcostumes` and `RENTOCOSTUMES` are separate git repositories. Changes made in one do **not** automatically sync.
 - **Porting Changes**: When requested, the agent must assist in porting changes to `RENTOCOSTUMES`.
 - **MANDATORY Branding Safety**:
@@ -44,21 +47,24 @@
 **Tech Stack**: Next.js 16, React 19, TypeScript (strict), Tailwind CSS 4, Supabase, Cloudflare R2, shadcn/ui (new-york style)
 
 ### Apps
-| App | Port | Purpose | Directory |
-|-----|------|---------|-----------| 
-| `admin` | 3001 | Admin dashboard for managing categories, products, banners, orders, customers | `apps/admin/` |
-| `storefront` | 3002 | Customer-facing rental storefront | `apps/storefront/` |
-| `mobile` | — | Flutter mobile app (thin client) | `apps/mobile/` |
+
+| App          | Port | Purpose                                                                       | Directory          |
+| ------------ | ---- | ----------------------------------------------------------------------------- | ------------------ |
+| `admin`      | 3001 | Admin dashboard for managing categories, products, banners, orders, customers | `apps/admin/`      |
+| `storefront` | 3002 | Customer-facing rental storefront                                             | `apps/storefront/` |
+| `mobile`     | —    | Flutter mobile app (thin client)                                              | `apps/mobile/`     |
 
 ### Shared Packages (`packages/`)
-| Package | Purpose |
-|---------|---------|
-| `shared-api` | Reusable API functions (queries, mutations, Supabase client) |
-| `shared-types` | TypeScript types & interfaces |
-| `shared-ui` | Reusable shadcn/ui components |
-| `shared-utils` | Utility functions |
+
+| Package        | Purpose                                                      |
+| -------------- | ------------------------------------------------------------ |
+| `shared-api`   | Reusable API functions (queries, mutations, Supabase client) |
+| `shared-types` | TypeScript types & interfaces                                |
+| `shared-ui`    | Reusable shadcn/ui components                                |
+| `shared-utils` | Utility functions                                            |
 
 ### Commands
+
 ```bash
 pnpm dev          # Start all apps via Turborepo
 pnpm build        # Build all apps
@@ -80,13 +86,13 @@ Domain → Repository → Service → Hooks → Components/Pages
 
 #### Layer Responsibilities
 
-| Layer | Directory | Responsibility | Imports From |
-|-------|-----------|---------------|--------------|
-| **Domain** | `domain/` | Types, interfaces, enums, Zod schemas, type guards | Nothing (pure types) |
-| **Repository** | `repository/` | Raw Supabase CRUD operations, extends `BaseRepository` | `domain/`, `lib/supabase/` |
-| **Service** | `services/` | Business logic, validation, orchestration | `repository/`, `domain/` |
-| **Hooks** | `hooks/` | TanStack Query hooks wrapping services, cache management | `services/`, `domain/`, `stores/` |
-| **Components** | `components/` | React components (UI + admin feature components) | `hooks/`, `domain/`, `stores/` |
+| Layer          | Directory     | Responsibility                                           | Imports From                      |
+| -------------- | ------------- | -------------------------------------------------------- | --------------------------------- |
+| **Domain**     | `domain/`     | Types, interfaces, enums, Zod schemas, type guards       | Nothing (pure types)              |
+| **Repository** | `repository/` | Raw Supabase CRUD operations, extends `BaseRepository`   | `domain/`, `lib/supabase/`        |
+| **Service**    | `services/`   | Business logic, validation, orchestration                | `repository/`, `domain/`          |
+| **Hooks**      | `hooks/`      | TanStack Query hooks wrapping services, cache management | `services/`, `domain/`, `stores/` |
+| **Components** | `components/` | React components (UI + admin feature components)         | `hooks/`, `domain/`, `stores/`    |
 
 #### Layer Rules
 
@@ -99,14 +105,18 @@ Domain → Repository → Service → Hooks → Components/Pages
 7. **Server components** (pages) can call service/data-access functions directly.
 
 #### Singleton Pattern
+
 Each repository and service exports both the class AND a singleton instance:
+
 ```typescript
 export class CategoryRepository extends BaseRepository { ... }
 export const categoryRepository = new CategoryRepository();
 ```
 
 #### Barrel Exports
+
 Every layer has an `index.ts` that re-exports everything. Always import from the barrel:
+
 ```typescript
 // ✅ Correct
 import { Category, CreateCategoryDTO } from '@/domain';
@@ -118,16 +128,20 @@ import { Category } from '@/domain/types/category';
 ```
 
 ### Flutter Mobile (apps/mobile)
+
 ```
 View (widget) → Provider (Riverpod) → Repository → Dio HTTP → Next.js API
 ```
+
 - Flutter is a **thin client** — it NEVER talks to Supabase directly
 - All business logic, validation, and RBAC enforcement lives on the Next.js server
 - Providers are the equivalent of React hooks
 - Repositories encapsulate all HTTP calls via Dio
 
 ### Module Folder Structure (Flutter)
+
 Every feature module MUST follow this structure:
+
 ```
 features/<module_name>/
 ├── models/           # Data classes (fromJson/toJson)
@@ -143,6 +157,7 @@ features/<module_name>/
 ## 3. Domain Layer Patterns
 
 ### Type Definitions
+
 - **Core Entity**: `Category`, `Product` — mirrors DB table columns with `readonly id: string`
 - **DTOs**: `CreateCategoryDTO`, `UpdateCategoryDTO` — all fields optional in update DTO
 - **Relations**: `CategoryWithRelations extends Category` — adds computed fields like `level`, `path`
@@ -151,6 +166,7 @@ features/<module_name>/
 - **Validation**: `CategoryValidationResult` with `is_valid`, `errors[]`, `warnings[]`
 
 ### Zod Schemas (`domain/schemas/`)
+
 - Every entity has a Create and Update Zod schema
 - Use `.refine()` for cross-field validation
 - Export inferred types: `export type CreateProductInput = z.infer<typeof CreateProductSchema>`
@@ -161,13 +177,16 @@ features/<module_name>/
 ## 4. Repository Layer Patterns
 
 ### BaseRepository (`repository/supabaseClient.ts`)
+
 All repositories extend `BaseRepository` which provides:
+
 - `handleResponse<T>()` — converts Supabase response to `RepositoryResult<T>`
 - `handleError()` — converts errors to `RepositoryError`
 - `executeOperation<T>()` — wraps operations with try/catch
 - `exists()`, `getCount()`, `buildQuery()`, `transaction()` — helper methods
 
 ### RepositoryResult<T>
+
 ```typescript
 interface RepositoryResult<T> {
   data: T | null;
@@ -175,9 +194,11 @@ interface RepositoryResult<T> {
   success: boolean;
 }
 ```
+
 ALL repository methods MUST return `RepositoryResult<T>`. Never throw from repository methods — use the result pattern.
 
 ### Supabase Client Usage
+
 - **`createClient()`** — anon key, subject to RLS. For public reads.
 - **`createAdminClient()`** — service role key, bypasses RLS. For admin mutations.
 - Admin dashboard uses the anon client via `BaseRepository.client` since it operates in a trusted server context.
@@ -188,7 +209,9 @@ ALL repository methods MUST return `RepositoryResult<T>`. Never throw from repos
 ## 5. Service Layer Patterns
 
 ### Business Logic
+
 Services contain ALL business logic:
+
 - Input validation (using domain `validateCategoryData()`)
 - Slug generation and uniqueness checks
 - Parent/hierarchy validation (prevent circular references, max 3 levels)
@@ -196,7 +219,9 @@ Services contain ALL business logic:
 - Ordering/reordering logic
 
 ### Error Handling in Services
+
 Return `RepositoryResult` with meaningful error codes:
+
 ```typescript
 return {
   data: null,
@@ -212,16 +237,19 @@ Common error codes: `VALIDATION_ERROR`, `SLUG_EXISTS`, `INVALID_PARENT`, `CIRCUL
 ## 6. Hooks Layer Patterns (TanStack Query)
 
 ### Query Key Factory (`lib/query-client.ts`)
+
 ALWAYS use the centralized `queryKeys` factory:
+
 ```typescript
-queryKeys.categories          // ['categories']
-queryKeys.category(id)        // ['categories', id]
-queryKeys.categoryChildren(id)// ['categories', id, 'children']
-queryKeys.products            // ['products']
-queryKeys.product(id)         // ['products', id]
+queryKeys.categories; // ['categories']
+queryKeys.category(id); // ['categories', id]
+queryKeys.categoryChildren(id); // ['categories', id, 'children']
+queryKeys.products; // ['products']
+queryKeys.product(id); // ['products', id]
 ```
 
 ### Query Defaults
+
 - `staleTime`: 5–10 minutes
 - `gcTime`: 10 minutes
 - `refetchOnWindowFocus`: false
@@ -229,14 +257,17 @@ queryKeys.product(id)         // ['products', id]
 - Don't retry on 4xx errors (client errors)
 
 ### Cache Invalidation
+
 Use `queryUtils` for consistent cache management:
+
 ```typescript
-queryUtils.invalidateCategories()
-queryUtils.invalidateProducts()
-queryUtils.invalidateProduct(id)
+queryUtils.invalidateCategories();
+queryUtils.invalidateProducts();
+queryUtils.invalidateProduct(id);
 ```
 
 ### Hook Structure Pattern
+
 ```typescript
 export function useCreateCategory() {
   const queryClient = useQueryClient();
@@ -270,29 +301,35 @@ export function useCreateCategory() {
 ## 7. State Management
 
 ### Zustand Stores (`stores/`)
+
 - **`appStore`**: Global UI state — sidebar, theme, notifications, breadcrumbs, global search
 - **`productStore`**: Product UI state — filters, selection, modals, view mode, sort
 
 ### When to Use Which
-| State Type | Use |
-|-----------|-----|
-| Server data (products, categories) | TanStack Query hooks |
-| UI state (modals, filters, sidebar) | Zustand stores |
-| Form state | React Hook Form (with Zod resolvers) |
-| Component-local state | `useState` / `useReducer` |
+
+| State Type                          | Use                                  |
+| ----------------------------------- | ------------------------------------ |
+| Server data (products, categories)  | TanStack Query hooks                 |
+| UI state (modals, filters, sidebar) | Zustand stores                       |
+| Form state                          | React Hook Form (with Zod resolvers) |
+| Component-local state               | `useState` / `useReducer`            |
 
 ### Store Patterns
+
 - Use `devtools` + `subscribeWithSelector` middleware
 - Export a selectors object for optimized re-renders:
+
 ```typescript
 export const useProductSelectors = {
   selectedProducts: () => useProductStore((state) => state.selectedProducts),
   filters: () => useProductStore((state) => state.filters),
 };
 ```
+
 - Export `appUtils` for non-React contexts (e.g., `appUtils.showSuccess('Saved!')`)
 
 ### Notification System
+
 Use `useAppStore().showSuccess()` / `showError()` inside hooks. Use `appUtils.showSuccess()` outside React components.
 
 ---
@@ -300,19 +337,31 @@ Use `useAppStore().showSuccess()` / `showError()` inside hooks. Use `appUtils.sh
 ## 8. API Routes (Next.js App Router)
 
 ### REST API Pattern
+
 - Routes under `app/api/<entity>/`
 - HTTP methods: GET (list/fetch), POST (create), PATCH (update), DELETE
 - Dynamic routes: `app/api/<entity>/[id]/route.ts`
 - Sub-resources: `app/api/<entity>/[id]/children/route.ts`
 
 ### Safety Endpoints
+
 - `GET /api/categories/:id/can-delete` — pre-delete check returning `{ canDelete, reason, productCount, childCount }`
 - Delete returns **HTTP 409** when blocked (has children or linked products)
 
 ### PATCH Field Whitelisting
+
 PATCH endpoints use a field whitelist to prevent mass-assignment:
+
 ```typescript
-const allowedFields = ['name', 'slug', 'description', 'image_url', 'parent_id', 'sort_order', 'is_active'];
+const allowedFields = [
+  'name',
+  'slug',
+  'description',
+  'image_url',
+  'parent_id',
+  'sort_order',
+  'is_active',
+];
 ```
 
 ---
@@ -320,7 +369,7 @@ const allowedFields = ['name', 'slug', 'description', 'image_url', 'parent_id', 
 ## 9. RBAC (Role-Based Access Control)
 
 | Role    | Can View | Can Create/Edit/Delete |
-|---------|----------|------------------------|
+| ------- | -------- | ---------------------- |
 | Admin   | ✅       | ✅                     |
 | Manager | ✅       | ✅                     |
 | Staff   | ✅       | ❌                     |
@@ -340,6 +389,7 @@ Main Category (parent_id = null)
 ```
 
 ### Rules
+
 - Maximum 3 levels deep. Variants (level 3) cannot have children.
 - Level is determined by traversing `parent_id` chain, NOT stored in DB.
 - Slug auto-generates from name (lowercase, hyphenated). User can override.
@@ -350,11 +400,13 @@ Main Category (parent_id = null)
 ## 11. Image Upload (Cloudflare R2)
 
 ### R2 Configuration
+
 - Client: `lib/r2.ts` — lazy-initialized S3-compatible client
 - Env vars: `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
 - Upload endpoint: `POST /api/upload` — accepts multipart form data, returns `{ url, key }`
 
 ### Upload Layer Architecture
+
 - **Repository**: `uploadRepository.ts` — raw R2 operations
 - **Service**: `uploadService.ts` — validation, file type checks
 - **Hooks**: `useUpload.ts` — `useUploadFile`, `useUploadMultipleFiles`, `useUploadProductImages`, `useUploadCategoryImage`, `useImageUploadWithPreview`
@@ -378,50 +430,57 @@ Main Category (parent_id = null)
 
 > **THE GOLDEN RULE: Never give a child a fixed size inside a parent with constrained space.**
 > Always use `Expanded`, `Flexible`, `FittedBox`, or percentage-based sizing so the child
-> *negotiates* with its parent rather than demanding space.
+> _negotiates_ with its parent rather than demanding space.
 
 ### 1. FittedBox — Auto-Shrink
+
 - Wrap any widget that could exceed its parent in a `FittedBox` so it **scales down** automatically.
 - Use on titles, price labels, and any text inside a bounded container.
 - Example: `FittedBox(fit: BoxFit.scaleDown, child: Text(...))`.
 
 ### 2. Flexible / Expanded — Space Sharing
+
 - Inside every `Row` or `Column`, at least one child MUST be `Expanded` or `Flexible`.
 - Text-heavy children should always be `Expanded` so they take remaining space.
 - Badges, icons, and fixed-width elements can stay un-wrapped but should be minimal.
 
 ### 3. TextOverflow.ellipsis + maxLines
+
 - Every `Text` widget that could grow unbounded MUST have `maxLines` and `overflow: TextOverflow.ellipsis`.
 - Single-line labels: `maxLines: 1`. Descriptions: `maxLines: 2` or `3`.
 
 ### 4. LayoutBuilder — Adaptive Layout
+
 - Use `LayoutBuilder` when content needs to change shape based on available space.
 - Example: show 2-column grid on small screens, 3-column on wider screens.
 - Access `constraints.maxWidth` to make decisions.
 
 ### 5. MediaQuery + Clamped Scale Factors
+
 - The `Responsive` class already handles this via `_scaleText.clamp(0.8, 1.4)`.
 - Never let scale factors grow unbounded — always clamp.
 - Use comfortable base sizes (sp(13-14) body, sp(16-18) titles) and let the scaler adjust.
 
 ### 6. Wrap instead of Row
+
 - When placing multiple chips, badges, or tags horizontally, use `Wrap` instead of `Row`.
 - `Wrap` automatically flows items to the next line when space runs out.
 - Always set `spacing` and `runSpacing` using `Responsive.w()` and `Responsive.h()`.
 
 ### Sizing Guidelines (Base at 375px width)
-| Element              | Recommended sp/w/h | Notes                          |
-|----------------------|---------------------|--------------------------------|
-| Body text            | sp(13)              | Comfortable reading size       |
-| Card titles          | sp(14)              | Slightly larger than body      |
-| Section headers      | sp(15)              | Clear hierarchy                |
-| Page titles          | sp(16-18)           | Prominent but not oversized    |
-| Icons (inline)       | icon(18-20)         | Matches body text height       |
-| Icons (action)       | icon(22-24)         | Tap-friendly                   |
-| Card padding         | all(12)             | Breathable without waste       |
-| List item spacing    | h(8-10)             | Tight but readable             |
-| Thumbnails           | w(64-72)            | Visible without dominating     |
-| Border radii         | r(10-12)            | Modern, consistent curves      |
+
+| Element           | Recommended sp/w/h | Notes                       |
+| ----------------- | ------------------ | --------------------------- |
+| Body text         | sp(13)             | Comfortable reading size    |
+| Card titles       | sp(14)             | Slightly larger than body   |
+| Section headers   | sp(15)             | Clear hierarchy             |
+| Page titles       | sp(16-18)          | Prominent but not oversized |
+| Icons (inline)    | icon(18-20)        | Matches body text height    |
+| Icons (action)    | icon(22-24)        | Tap-friendly                |
+| Card padding      | all(12)            | Breathable without waste    |
+| List item spacing | h(8-10)            | Tight but readable          |
+| Thumbnails        | w(64-72)           | Visible without dominating  |
+| Border radii      | r(10-12)           | Modern, consistent curves   |
 
 ---
 
@@ -432,12 +491,14 @@ Main Category (parent_id = null)
 All values must be dynamic and responsive to ensure the app works across all device sizes and screen densities.
 
 ### Colors
+
 - **Use AppColors constants** (e.g., `AppColors.primary`, `AppColors.error`, `AppColors.success`)
 - **NEVER use** `Color(0xFF...)` hex values
 - **NEVER use** named colors like `Colors.blue[700]`, `Colors.red`, etc.
 - All colors should be defined in a centralized `AppColors` class
 
 ### Spacing & Dimensions
+
 - **Use AppSizes constants** (e.g., `AppSizes.spacingSmall`, `AppSizes.fontMedium`, `AppSizes.radiusLarge`)
 - **NEVER use** hardcoded numbers like `16`, `8`, `12`, `24`, etc.
 - **ALWAYS wrap in Responsive helper**:
@@ -448,6 +509,7 @@ All values must be dynamic and responsive to ensure the app works across all dev
   - `Responsive.icon()` for icon sizes
 
 ### Font Sizes
+
 - **Use AppSizes font constants**:
   - `AppSizes.fontTiny` (10)
   - `AppSizes.fontSmall` (12)
@@ -462,11 +524,13 @@ All values must be dynamic and responsive to ensure the app works across all dev
 - Always wrap in `Responsive.sp(AppSizes.fontMedium)`
 
 ### Border Widths
+
 - **Use AppSizes.spacingTiny / 4** for thin borders
 - **NEVER use** hardcoded widths like `1`, `1.5`, `2`
 - Example: `Border.all(color: AppColors.primary, width: AppSizes.spacingTiny / 4)`
 
 ### Padding & Margins
+
 - **Use AppSizes spacing constants**:
   - `AppSizes.spacingTiny` (4)
   - `AppSizes.spacingSmall` (8)
@@ -481,6 +545,7 @@ All values must be dynamic and responsive to ensure the app works across all dev
 - Use `Responsive.symmetric()`, `Responsive.only()`, `Responsive.all()`
 
 ### Border Radius
+
 - **Use AppSizes radius constants**:
   - `AppSizes.radiusSmall` (8)
   - `AppSizes.radiusMedium` (12)
@@ -491,6 +556,7 @@ All values must be dynamic and responsive to ensure the app works across all dev
 - Always wrap in `Responsive.r(AppSizes.radiusSmall)`
 
 ### Icon Sizes
+
 - **Use AppSizes icon constants**:
   - `AppSizes.iconTiny` (16)
   - `AppSizes.iconSmall` (20)
@@ -503,32 +569,39 @@ All values must be dynamic and responsive to ensure the app works across all dev
 - Always wrap in `Responsive.icon(AppSizes.iconMedium)`
 
 ### Elevation
+
 - **Use AppSizes.spacingTiny / 2** for small elevation
 - **NEVER use** hardcoded elevation values like `2`, `4`, `8`
 - Example: `elevation: AppSizes.spacingTiny / 2`
 
 ### Alpha Values
+
 - **Use dynamic alpha calculations** with `withValues(alpha: 0.x)`
 - Prefer alpha values that are mathematically derived from constants
 - Example: `AppColors.primary.withValues(alpha: 0.15)`
 
 ### Text Strings
+
 - **Use AppStrings constants** for repeated UI text
 - **NEVER hardcode** repeated strings in multiple places
 - Define all user-facing strings in a centralized `AppStrings` class
 
 ### Widget Sizes
+
 - **NEVER use hardcoded width/height** on widgets
 - Use `Expanded`, `Flexible`, `LayoutBuilder`, `AspectRatio`, `MediaQuery`
 - Let widgets negotiate space with their parents
 
 ### Duration Values
+
 - **Use Duration constants** for animations
 - Define common durations like `Duration(milliseconds: 200)` as constants
 - Example: `const Duration.short = Duration(milliseconds: 200)`
 
 ### Responsive Helper Usage - MANDATORY
+
 All AppSizes values MUST be wrapped in appropriate Responsive methods:
+
 ```dart
 // ✅ Correct
 fontSize: Responsive.sp(AppSizes.fontMedium)
@@ -546,6 +619,7 @@ iconSize: 24
 ```
 
 ### Example: Before and After
+
 ```dart
 // ❌ WRONG - Hardcoded values
 Container(
@@ -577,6 +651,7 @@ Container(
 ```
 
 ### This Rule Applies To
+
 - ALL Flutter files across the entire codebase
 - New features and existing code
 - Third-party widget integrations
@@ -588,6 +663,7 @@ Container(
 ## 15. Component Organization
 
 ### Component Directories
+
 ```
 components/
 ├── admin/          # Feature-specific components (CategoryForm, ProductForm, etc.)
@@ -596,12 +672,14 @@ components/
 ```
 
 ### shadcn/ui Configuration
+
 - Style: `new-york`
 - Base color: `slate`
 - CSS variables: enabled
 - Aliases: `@/components`, `@/lib/utils`, `@/hooks`
 
 ### Form Components
+
 - Unified create/edit forms with `mode` prop
 - Use React Hook Form + Zod resolvers
 - Slug auto-generation from name field
@@ -613,18 +691,21 @@ components/
 ## 15. Storefront Architecture
 
 ### Key Differences from Admin
+
 - Uses `src/` directory structure (`src/app/`, `src/components/`, `src/lib/`)
 - NO layered architecture — simpler data fetching directly from Supabase
 - Pages: home, collections, product details, cart, checkout, wishlist, search, about, contact, FAQs, legal, membership
 - Components organized by feature: `home/`, `product/`, `ui/`
 
 ### Design System
+
 - Luxury minimalist aesthetic (ivory, gold, charcoal palette)
 - Mobile-first responsive design
 - Bottom mobile navigation bar
 - Vendor/store-specific data filtering (only show Mazhavil Dance Costumes content)
 
 ### Storefront Data Access
+
 - The Storefront MUST follow the exact same 5-layer architecture as the Admin app (`Domain → Repository → Service → Hooks → Components/Pages`).
 - Direct Supabase queries in components or simple server actions without service/repository layers are STRICTLY PROHIBITED.
 
@@ -633,11 +714,13 @@ components/
 ## 16. Database
 
 ### Schema Location
+
 - Migrations in `database/migrations/`
 - Initial schema: `001_initial_schema.sql`
 - Tables: `categories`, `products`, `banners`, `customers`, `orders`, `order_items`, `order_status_history`, `settings`, `staff`, `branches`
 
 ### Key Conventions
+
 - Primary keys: UUID (`id`)
 - Timestamps: `created_at` (auto), `updated_at` (set on update)
 - Soft delete: `deleted_at` column (when implemented)
@@ -646,6 +729,7 @@ components/
 - JSONB: Used for `images` array, `damage_history`
 
 ### Product Schema Highlights (Costumes Rental)
+
 - `price_per_day` (NOT purchase price)
 - `security_deposit`
 - `min_rental_days`, `max_rental_days`
@@ -713,16 +797,19 @@ components/
 ## 21. Testing
 
 ### PowerShell Test Scripts (`scripts/`)
+
 - `test-categories-api.ps1` — 12 basic CRUD tests
 - `test-categories-hierarchy.ps1` — 30 comprehensive edge cases
 
 ### Running Tests
+
 ```bash
 # Ensure dev server is running on :3001
 powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1
 ```
 
 ### What to Test
+
 - Happy-path CRUD lifecycle
 - Validation errors (missing fields, malformed JSON, duplicates)
 - Not-found scenarios (404)
@@ -736,12 +823,14 @@ powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1
 ## 22. CSS & Styling
 
 ### Admin
+
 - Tailwind CSS 4 with CSS variables (HSL color system)
 - shadcn/ui component library (new-york style)
 - Dark mode support (`darkMode: "class"`)
 - Clean, minimal, data-focused design
 
 ### Storefront
+
 - Tailwind CSS 4
 - Custom CSS in `globals.css` (~12KB with extensive styling)
 - Mobile-first, luxury aesthetic
@@ -790,6 +879,7 @@ powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1
 ## 25. Environment Variables Reference
 
 ### Admin App (`.env.local`)
+
 ```env
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=
@@ -805,6 +895,7 @@ R2_PUBLIC_URL=
 ```
 
 ### Storefront App (`.env.local`)
+
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
@@ -819,5 +910,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - Keep `AGENTS.md` updated with new rules as they emerge
 
 ## 26. Mandatory Post-Work Verification
-1. ALWAYS check the build for type issues (pnpm lint or 	sc --noEmit) after every significant change.
+
+1. ALWAYS check the build for type issues (pnpm lint or sc --noEmit) after every significant change.
 2. If any runtime issues (e.g. React.Children.only Slot errors) or build issues are found, solve them PROPERLY before concluding the task.

@@ -1,9 +1,9 @@
 /**
  * Cloudflare R2 Storage Utility
- * 
+ *
  * Provides S3-compatible storage operations for image/file uploads.
  * R2 is Cloudflare's S3-compatible object storage with zero egress fees.
- * 
+ *
  * Environment Variables Required:
  * - R2_ENDPOINT: S3 API endpoint (e.g., https://<account>.r2.cloudflarestorage.com)
  * - R2_ACCESS_KEY_ID: R2 access key
@@ -11,11 +11,11 @@
  * - R2_BUCKET_NAME: Bucket name (default: praisbridals)
  * - R2_PUBLIC_URL: Public CDN/dev URL for serving uploaded files
  * - R2_ACCOUNT_ID: Cloudflare account ID
- * 
+ *
  * @module lib/r2
  */
 
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 /**
  * Resolves R2 configuration from environment variables.
@@ -33,16 +33,16 @@ function getR2Config() {
   const publicUrl = process.env.R2_PUBLIC_URL;
 
   const missing: string[] = [];
-  if (!endpoint) missing.push("R2_ENDPOINT");
-  if (!accessKeyId) missing.push("R2_ACCESS_KEY_ID");
-  if (!secretAccessKey) missing.push("R2_SECRET_ACCESS_KEY");
-  if (!bucketName) missing.push("R2_BUCKET_NAME");
-  if (!publicUrl) missing.push("R2_PUBLIC_URL");
+  if (!endpoint) missing.push('R2_ENDPOINT');
+  if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID');
+  if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
+  if (!bucketName) missing.push('R2_BUCKET_NAME');
+  if (!publicUrl) missing.push('R2_PUBLIC_URL');
 
   if (missing.length > 0) {
     throw new Error(
-      `Missing R2 environment variables: ${missing.join(", ")}. ` +
-      `Add them to .env.local and restart the dev server.`
+      `Missing R2 environment variables: ${missing.join(', ')}. ` +
+        `Add them to .env.local and restart the dev server.`
     );
   }
 
@@ -66,7 +66,7 @@ function getR2Client(): S3Client {
   if (_r2Client) return _r2Client;
   const cfg = getR2Config();
   _r2Client = new S3Client({
-    region: "auto",
+    region: 'auto',
     endpoint: cfg.endpoint,
     credentials: {
       accessKeyId: cfg.accessKeyId,
@@ -127,13 +127,13 @@ export async function deleteFileFromR2(key: string): Promise<void> {
  * Generates a unique S3 object key for file upload.
  * Prepends a timestamp to avoid filename collisions and sanitizes
  * the original filename to remove unsafe characters.
- * 
+ *
  * @param folder - The logical folder/category (e.g., "categories", "products", "banners")
  * @param filename - Original filename from the user's upload
  * @returns A safe, unique S3 key like "categories/1713829200000-product.jpg"
  */
 export function generateR2Key(folder: string, filename: string): string {
   const timestamp = Date.now();
-  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
   return `${folder}/${timestamp}-${sanitizedFilename}`;
 }

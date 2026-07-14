@@ -12,8 +12,14 @@ import { staffRepository } from '@/repository/staffRepository';
 import { CreateBranchSchema, UpdateBranchSchema } from '@/domain/schemas/branch.schema';
 import { createAdminClient } from '@/lib/supabase/server';
 import type {
-  Branch, BranchWithStaffCount, CreateBranchDTO, UpdateBranchDTO,
-  Staff, StaffWithBranch, CreateStaffDTO, UpdateStaffDTO,
+  Branch,
+  BranchWithStaffCount,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+  Staff,
+  StaffWithBranch,
+  CreateStaffDTO,
+  UpdateStaffDTO,
 } from '@/domain/types/branch';
 import type { RepositoryResult } from '@/repository/supabaseClient';
 
@@ -60,7 +66,7 @@ class BranchService {
     const payload = { ...data, is_main: false, store_id: this.currentStoreId || '' };
     const validation = CreateBranchSchema.safeParse(payload);
     if (!validation.success) {
-      return validationError(validation.error.issues.map(i => i.message).join(', '));
+      return validationError(validation.error.issues.map((i) => i.message).join(', '));
     }
     return branchRepository.create(payload);
   }
@@ -68,7 +74,7 @@ class BranchService {
   async updateBranch(id: string, data: UpdateBranchDTO): Promise<RepositoryResult<Branch>> {
     const validation = UpdateBranchSchema.safeParse(data);
     if (!validation.success) {
-      return validationError(validation.error.issues.map(i => i.message).join(', '));
+      return validationError(validation.error.issues.map((i) => i.message).join(', '));
     }
 
     // Block promoting a non-main branch to main — the main branch is fixed.
@@ -86,10 +92,7 @@ class BranchService {
     if (data.is_main === false) {
       const current = await branchRepository.findById(id);
       if (current.success && current.data?.is_main) {
-        return validationError(
-          'The main branch cannot be demoted.',
-          'MAIN_BRANCH_LOCKED'
-        );
+        return validationError('The main branch cannot be demoted.', 'MAIN_BRANCH_LOCKED');
       }
     }
 
@@ -125,7 +128,10 @@ class BranchService {
       }
     } catch (err) {
       // Non-fatal: DB cascade will handle cleanup even if this fails
-      console.warn('[BranchService] Failed to pre-clean branch_inventory, relying on DB cascade:', err);
+      console.warn(
+        '[BranchService] Failed to pre-clean branch_inventory, relying on DB cascade:',
+        err
+      );
     }
 
     return branchRepository.delete(id);

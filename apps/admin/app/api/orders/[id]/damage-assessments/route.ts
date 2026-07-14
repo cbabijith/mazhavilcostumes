@@ -10,10 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { damageAssessmentService } from '@/services/damageAssessmentService';
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: orderId } = await params;
     const result = await damageAssessmentService.getAssessmentsForOrder(orderId);
@@ -36,19 +33,13 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: orderId } = await params;
     const body = await request.json();
 
     if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
-      return NextResponse.json(
-        { error: 'items array is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'items array is required' }, { status: 400 });
     }
 
     const result = await damageAssessmentService.createAssessments({
@@ -63,10 +54,13 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      assessments: result.data || [],
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        assessments: result.data || [],
+      },
+      { status: 201 }
+    );
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

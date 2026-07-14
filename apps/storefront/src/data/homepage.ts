@@ -14,9 +14,27 @@ export interface Review {
 }
 
 export const reviews: Review[] = [
-  { id: "r1", name: "Aswathy Nair", text: "The Bharatanatyam costume was perfectly stitched, vibrant, and looked absolutely stunning on stage. The temple jewelry set included was in pristine condition.", rating: 5, occasion: "Arangetram, Trivandrum" },
-  { id: "r2", name: "Devika Sajeev", text: "Rented Mohiniyattam costumes for our college group dance. Extremely clean, well-maintained, and the sizing fit perfectly. Will definitely rent again!", rating: 5, occasion: "Youth Festival, Kozhikode" },
-  { id: "r3", name: "Rahul Krishnan", text: "Superb collection of folk and classical dance costumes. Easy booking over WhatsApp and prompt delivery. Highly recommended for school events.", rating: 5, occasion: "Annual Day Function, Kollam" },
+  {
+    id: 'r1',
+    name: 'Anjali Nair',
+    text: 'The bridal kundan jewelry set was absolutely breathtaking! In pristine condition, all stones intact, and it perfectly completed my wedding day look.',
+    rating: 5,
+    occasion: 'Wedding, Kayamkulam',
+  },
+  {
+    id: 'r2',
+    name: 'Devika Sajeev',
+    text: 'Rented an antique temple jewelry set for my engagement. Extremely clean, well-maintained, and got so many compliments. The booking process on WhatsApp was seamless!',
+    rating: 5,
+    occasion: 'Engagement, Haripad',
+  },
+  {
+    id: 'r3',
+    name: 'Rahul Krishnan',
+    text: 'Exquisite collection of premium bridal chokers and bangles. Easy booking, flexible rental period, and prompt delivery. Highly recommended!',
+    rating: 5,
+    occasion: 'Wedding Reception, Kollam',
+  },
 ];
 
 // ── Editorial Banners ─────────────────────────────────────────────────
@@ -32,14 +50,16 @@ export const editorialBanners: EditorialBanner[] = [
   {
     id: 'eb1',
     title: 'Bridal Collection',
-    subtitle: 'Exquisite pieces handcrafted for your most memorable day. From traditional Kerala to contemporary designs.',
+    subtitle:
+      'Exquisite pieces handcrafted for your most memorable day. From traditional Kerala to contemporary designs.',
     image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=800',
     link: '/collections?occasion=wedding',
   },
   {
     id: 'eb2',
     title: 'Festive Favourites',
-    subtitle: 'Celebrate every festival in style with our curated collection of temple costumes and gold sets.',
+    subtitle:
+      'Celebrate every festival in style with our curated collection of temple costumes and gold sets.',
     image: 'https://images.unsplash.com/photo-1602173574767-37ac01994b2a?w=800',
     link: '/collections?occasion=festival',
   },
@@ -136,14 +156,23 @@ export interface HowItWorksStep {
 }
 
 export const howItWorksSteps: HowItWorksStep[] = [
-  { title: "Browse", desc: "Explore our collection of premium costumes." },
-  { title: "Pick Dates", desc: "Select the date for your special event." },
-  { title: "WhatsApp Order", desc: "Continue your order through WhatsApp with selected date and product" },
+  {
+    title: 'Browse',
+    desc: 'Explore our curated collection of premium bridal jewelry and accessory sets.',
+  },
+  {
+    title: 'Pick Dates',
+    desc: 'Select the rental dates for your wedding, engagement, or special celebration.',
+  },
+  {
+    title: 'WhatsApp Order',
+    desc: 'Complete your booking directly over WhatsApp with our styling experts.',
+  },
 ];
 
 export const trustBadges = [
-  { title: "Sanitized", icon: "✨" },
-  { title: "Insured", icon: "🛡️" },
-  { title: "Free Delivery", icon: "🚚" },
-  { title: "Easy Return", icon: "↩️" },
+  { title: 'Sanitized', icon: '✨' },
+  { title: 'Insured', icon: '🛡️' },
+  { title: 'Free Delivery', icon: '🚚' },
+  { title: 'Easy Return', icon: '↩️' },
 ];

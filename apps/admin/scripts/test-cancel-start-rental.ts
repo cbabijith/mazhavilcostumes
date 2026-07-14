@@ -60,7 +60,9 @@ async function runTests() {
   const { data: category } = await supabase.from('categories').select('*').limit(1).single();
 
   if (!branch || !customer || !store || !category) {
-    console.error('Missing essential setup data (branch, customer, store, category). Please seed the DB first.');
+    console.error(
+      'Missing essential setup data (branch, customer, store, category). Please seed the DB first.'
+    );
     process.exit(1);
   }
 
@@ -84,7 +86,9 @@ async function runTests() {
   }
   const product = pRes.data;
 
-  console.log(`Test Environment: Branch ${branch.id.slice(0, 6)}, Customer ${customer.id.slice(0, 6)}, Product ${product.id.slice(0, 6)} (stock: ${product.available_quantity})\n`);
+  console.log(
+    `Test Environment: Branch ${branch.id.slice(0, 6)}, Customer ${customer.id.slice(0, 6)}, Product ${product.id.slice(0, 6)} (stock: ${product.available_quantity})\n`
+  );
 
   orderService.setUserContext(null, branch.id);
 
@@ -106,48 +110,59 @@ async function runTests() {
   });
   const order1Id = res1.data?.id;
   if (order1Id) cleanupOrderIds.push(order1Id);
-  assert(res1.success && res1.data?.status === OrderStatus.SCHEDULED,
+  assert(
+    res1.success && res1.data?.status === OrderStatus.SCHEDULED,
     'Create order with future date → status = "scheduled"',
-    { success: res1.success, status: res1.data?.status });
+    { success: res1.success, status: res1.data?.status }
+  );
 
   // ─── TEST 2: Stock NOT decremented for scheduled order ──
   const prodAfterScheduled = await productRepository.findById(product.id);
-  assert(prodAfterScheduled.data!.available_quantity === 10,
+  assert(
+    prodAfterScheduled.data!.available_quantity === 10,
     'Stock unchanged after creating scheduled order (no decrement)',
-    { stock: prodAfterScheduled.data!.available_quantity });
+    { stock: prodAfterScheduled.data!.available_quantity }
+  );
 
   // ─── TEST 3: Cancel scheduled order → success ───────────
   console.log('\n--- Phase 2: Cancel Scheduled Order ---');
 
   const res3 = await orderService.updateOrder(order1Id!, { status: OrderStatus.CANCELLED });
-  assert(res3.success && res3.data?.status === OrderStatus.CANCELLED,
+  assert(
+    res3.success && res3.data?.status === OrderStatus.CANCELLED,
     'PATCH scheduled → cancelled → success',
-    { success: res3.success, status: res3.data?.status });
+    { success: res3.success, status: res3.data?.status }
+  );
 
   // ─── TEST 4: Stock still unchanged after cancelling a scheduled order ──
   const prodAfterCancelSched = await productRepository.findById(product.id);
-  assert(prodAfterCancelSched.data!.available_quantity === 10,
+  assert(
+    prodAfterCancelSched.data!.available_quantity === 10,
     'Stock still 10 after cancelling scheduled order (never decremented)',
-    { stock: prodAfterCancelSched.data!.available_quantity });
+    { stock: prodAfterCancelSched.data!.available_quantity }
+  );
 
   // ─── TEST 5: Cancelled order CANNOT transition to anything ──
   console.log('\n--- Phase 3: Terminal State Enforcement ---');
 
   const res5a = await orderService.updateOrder(order1Id!, { status: OrderStatus.ONGOING });
-  assert(!res5a.success,
-    'Cancelled → ongoing → BLOCKED',
-    { success: res5a.success, error: res5a.error?.message });
+  assert(!res5a.success, 'Cancelled → ongoing → BLOCKED', {
+    success: res5a.success,
+    error: res5a.error?.message,
+  });
 
   const res5b = await orderService.updateOrder(order1Id!, { status: OrderStatus.SCHEDULED });
-  assert(!res5b.success,
-    'Cancelled → scheduled → BLOCKED',
-    { success: res5b.success, error: res5b.error?.message });
+  assert(!res5b.success, 'Cancelled → scheduled → BLOCKED', {
+    success: res5b.success,
+    error: res5b.error?.message,
+  });
 
   // ─── TEST 6: Double cancel → BLOCKED ────────────────────
   const res6 = await orderService.updateOrder(order1Id!, { status: OrderStatus.CANCELLED });
-  assert(!res6.success,
-    'Double cancel (cancelled → cancelled) → BLOCKED',
-    { success: res6.success, error: res6.error?.message });
+  assert(!res6.success, 'Double cancel (cancelled → cancelled) → BLOCKED', {
+    success: res6.success,
+    error: res6.error?.message,
+  });
 
   // ─── TEST 7: Start Rental (scheduled → ongoing) ────────
   console.log('\n--- Phase 4: Start Rental (scheduled → ongoing) ---');
@@ -165,28 +180,37 @@ async function runTests() {
   const stockBeforeStart = (await productRepository.findById(product.id)).data!.available_quantity;
 
   const res7 = await orderService.updateOrder(order2Id!, { status: OrderStatus.ONGOING });
-  assert(res7.success && res7.data?.status === OrderStatus.ONGOING,
+  assert(
+    res7.success && res7.data?.status === OrderStatus.ONGOING,
     'Start Rental: scheduled → ongoing → success',
-    { success: res7.success, status: res7.data?.status });
+    { success: res7.success, status: res7.data?.status }
+  );
 
   // ─── TEST 8: Stock decremented by order quantity on start ──
   const stockAfterStart = (await productRepository.findById(product.id)).data!.available_quantity;
-  assert(stockAfterStart === stockBeforeStart - 2,
+  assert(
+    stockAfterStart === stockBeforeStart - 2,
     `Stock decreased by 2 on start rental (${stockBeforeStart} → ${stockAfterStart})`,
-    { before: stockBeforeStart, after: stockAfterStart });
+    { before: stockBeforeStart, after: stockAfterStart }
+  );
 
   // ─── TEST 9: Cancel ongoing order → stock restored ─────
   console.log('\n--- Phase 5: Cancel Ongoing Order & Stock Restoration ---');
 
   const res9 = await orderService.updateOrder(order2Id!, { status: OrderStatus.CANCELLED });
-  assert(res9.success && res9.data?.status === OrderStatus.CANCELLED,
+  assert(
+    res9.success && res9.data?.status === OrderStatus.CANCELLED,
     'Cancel ongoing order → success',
-    { success: res9.success, status: res9.data?.status });
+    { success: res9.success, status: res9.data?.status }
+  );
 
-  const stockAfterCancelOngoing = (await productRepository.findById(product.id)).data!.available_quantity;
-  assert(stockAfterCancelOngoing === stockBeforeStart,
+  const stockAfterCancelOngoing = (await productRepository.findById(product.id)).data!
+    .available_quantity;
+  assert(
+    stockAfterCancelOngoing === stockBeforeStart,
     `Stock restored after cancelling ongoing order (back to ${stockBeforeStart})`,
-    { before: stockBeforeStart, after: stockAfterCancelOngoing });
+    { before: stockBeforeStart, after: stockAfterCancelOngoing }
+  );
 
   // ─── TEST 10: Returned → scheduled is BLOCKED ──────────
   console.log('\n--- Phase 6: Invalid Transitions from Terminal/Non-schedulable States ---');
@@ -205,18 +229,20 @@ async function runTests() {
   await orderService.updateOrder(order3Id!, { status: OrderStatus.RETURNED });
 
   const res10 = await orderService.updateOrder(order3Id!, { status: OrderStatus.SCHEDULED });
-  assert(!res10.success,
-    'Returned → scheduled → BLOCKED',
-    { success: res10.success, error: res10.error?.message });
+  assert(!res10.success, 'Returned → scheduled → BLOCKED', {
+    success: res10.success,
+    error: res10.error?.message,
+  });
 
   // ─── TEST 11: Completed → ongoing is BLOCKED ───────────
   // returned → completed first
   await orderService.updateOrder(order3Id!, { status: OrderStatus.COMPLETED });
 
   const res11 = await orderService.updateOrder(order3Id!, { status: OrderStatus.ONGOING });
-  assert(!res11.success,
-    'Completed → ongoing → BLOCKED',
-    { success: res11.success, error: res11.error?.message });
+  assert(!res11.success, 'Completed → ongoing → BLOCKED', {
+    success: res11.success,
+    error: res11.error?.message,
+  });
 
   // ─── TEST 12: Status history correctness ────────────────
   console.log('\n--- Phase 7: Status History Validation ---');
@@ -227,20 +253,21 @@ async function runTests() {
     .eq('order_id', order2Id!)
     .order('created_at', { ascending: true });
 
-  const historyStatuses = histRes.data?.map(h => h.status) || [];
+  const historyStatuses = histRes.data?.map((h) => h.status) || [];
   // order2 went: scheduled → ongoing → cancelled
   const expectedSequence = ['scheduled', 'ongoing', 'cancelled'];
   const sequenceMatch = JSON.stringify(historyStatuses) === JSON.stringify(expectedSequence);
 
-  assert(sequenceMatch,
-    `Status history for order2: [${expectedSequence.join(' → ')}]`,
-    { expected: expectedSequence, got: historyStatuses });
+  assert(sequenceMatch, `Status history for order2: [${expectedSequence.join(' → ')}]`, {
+    expected: expectedSequence,
+    got: historyStatuses,
+  });
 
   // ─── TEST 13: Full lifecycle: create scheduled → cancel → verify no stock impact
   console.log('\n--- Phase 8: Full Cancel Lifecycle (E2E) ---');
 
   const stockBefore13 = (await productRepository.findById(product.id)).data!.available_quantity;
-  
+
   const res13 = await orderService.createOrder({
     customer_id: customer.id,
     branch_id: branch.id,
@@ -258,8 +285,10 @@ async function runTests() {
   assert(res13cancel.success, 'E2E: Cancel succeeded');
 
   const stockAfter13 = (await productRepository.findById(product.id)).data!.available_quantity;
-  assert(stockAfter13 === stockBefore13,
-    `E2E: Stock unchanged through create-scheduled-then-cancel cycle (${stockBefore13} → ${stockAfter13})`);
+  assert(
+    stockAfter13 === stockBefore13,
+    `E2E: Stock unchanged through create-scheduled-then-cancel cycle (${stockBefore13} → ${stockAfter13})`
+  );
 
   // ─── CLEANUP ────────────────────────────────────────────
   console.log('\n--- Cleanup ---');
@@ -286,7 +315,7 @@ async function runTests() {
   process.exit(failCount > 0 ? 1 : 0);
 }
 
-runTests().catch(e => {
+runTests().catch((e) => {
   console.error('Fatal error:', e);
   process.exit(1);
 });

@@ -3,11 +3,11 @@
  * POST /api/banners/reorder — bulk update banner priorities or positions
  */
 
-import { NextRequest } from "next/server";
-import { bannerService } from "@/services/bannerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { bannerService } from '@/services/bannerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
 export async function POST(request: NextRequest) {
   try {

@@ -14,11 +14,11 @@
  * @module components/admin/orders/OrderRow
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Edit,
   Download,
@@ -29,14 +29,14 @@ import {
   Sparkles,
   Clock,
   AlertTriangle,
-} from "lucide-react";
-import { format } from "date-fns";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/shared-utils";
-import { type OrderWithRelations, OrderStatus } from "@/domain";
-import OrderStatusBadge from "./OrderStatusBadge";
-import { BRAND_CONFIG } from "shared-utils";
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/shared-utils';
+import { type OrderWithRelations, OrderStatus } from '@/domain';
+import OrderStatusBadge from './OrderStatusBadge';
+import { BRAND_CONFIG } from 'shared-utils';
 
 /** Inline WhatsApp brand SVG icon */
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -55,32 +55,22 @@ interface OrderRowProps {
   onViewItems?: (order: OrderWithRelations) => void;
 }
 
-function OrderRowInner({
-  order,
-  selected,
-  onToggleSelect,
-  onCancel,
-  onViewItems,
-}: OrderRowProps) {
+function OrderRowInner({ order, selected, onToggleSelect, onCancel, onViewItems }: OrderRowProps) {
   const router = useRouter();
   const itemCount = order.item_count ?? order.items?.length ?? 0;
 
   const handleRowClick = (e: React.MouseEvent<HTMLTableRowElement>) => {
     const target = e.target as HTMLElement;
-    if (
-      target.closest("button") ||
-      target.closest("input") ||
-      target.closest("a")
-    )
-      return;
+    if (target.closest('button') || target.closest('input') || target.closest('a')) return;
     router.push(`/dashboard/orders/${order.id}`);
   };
 
   return (
     <tr
       onClick={handleRowClick}
-      className={`hover:bg-slate-50 transition-colors group cursor-pointer ${selected ? "bg-slate-50/80" : ""
-        }`}
+      className={`hover:bg-slate-50 transition-colors group cursor-pointer ${
+        selected ? 'bg-slate-50/80' : ''
+      }`}
     >
       {/* Checkbox */}
       <td className="px-4 py-4 text-center">
@@ -96,11 +86,11 @@ function OrderRowInner({
       <td className="px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border border-slate-200 text-slate-600 font-bold">
-            {order.customer?.name?.charAt(0).toUpperCase() || "C"}
+            {order.customer?.name?.charAt(0).toUpperCase() || 'C'}
           </div>
           <div>
             <p className="font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
-              {order.customer?.name || "Unknown Customer"}
+              {order.customer?.name || 'Unknown Customer'}
             </p>
             <p className="text-xs text-slate-400 font-mono mt-0.5">
               {order.invoice_number || order.id.slice(0, 8)}
@@ -113,20 +103,25 @@ function OrderRowInner({
       <td className="px-4 py-4">
         <div className="flex items-center gap-1.5 text-xs text-slate-500">
           <Clock className="w-3.5 h-3.5 text-slate-400" />
-          {format(new Date(order.created_at), "MMM d, yyyy")}
+          {format(new Date(order.created_at), 'MMM d, yyyy')}
         </div>
       </td>
 
       {/* Phone - Clickable Badge */}
       <td className="px-4 py-4">
         {order.customer?.phone ? (
-          <a
-            href={`tel:${order.customer.phone}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors cursor-pointer gap-1.5">
+          <a href={`tel:${order.customer.phone}`} onClick={(e) => e.stopPropagation()}>
+            <Badge
+              variant="outline"
+              className="bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors cursor-pointer gap-1.5"
+            >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                />
               </svg>
               {order.customer.phone}
             </Badge>
@@ -141,12 +136,12 @@ function OrderRowInner({
         <div className="flex flex-col gap-1 text-xs">
           <div className="flex items-center gap-1.5 text-slate-600">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            {format(new Date(order.start_date), "MMM d, yyyy")}
+            {format(new Date(order.start_date), 'MMM d, yyyy')}
           </div>
           <div className="text-slate-400 ml-5 flex items-center gap-1">
-            to{" "}
+            to{' '}
             <span className="font-medium text-slate-600">
-              {format(new Date(order.end_date), "MMM d, yyyy")}
+              {format(new Date(order.end_date), 'MMM d, yyyy')}
             </span>
           </div>
         </div>
@@ -164,7 +159,7 @@ function OrderRowInner({
         <div className="flex items-center gap-1.5 text-slate-600 hover:text-blue-600 transition-colors">
           <Package className="w-4 h-4 text-slate-400 group-hover:text-blue-500" />
           <span className="font-medium underline decoration-dashed underline-offset-2 decoration-slate-300 hover:decoration-blue-400">
-            {itemCount} item{itemCount !== 1 ? "s" : ""}
+            {itemCount} item{itemCount !== 1 ? 's' : ''}
           </span>
         </div>
       </td>
@@ -172,9 +167,7 @@ function OrderRowInner({
       {/* Amount */}
       <td className="px-4 py-4">
         <div className="flex flex-col">
-          <span className="font-bold text-slate-900">
-            {formatCurrency(order.total_amount)}
-          </span>
+          <span className="font-bold text-slate-900">{formatCurrency(order.total_amount)}</span>
           {(order.amount_paid || 0) > 0 && (
             <span className="text-[10px] text-emerald-600 font-medium">
               Paid: {formatCurrency(order.amount_paid)}
@@ -186,10 +179,10 @@ function OrderRowInner({
       {/* Status */}
       <td className="px-4 py-4">
         <div className="flex flex-col items-start gap-1">
-          <OrderStatusBadge 
-            status={order.status} 
-            is_late={order.is_late} 
-            end_date={order.end_date} 
+          <OrderStatusBadge
+            status={order.status}
+            is_late={order.is_late}
+            end_date={order.end_date}
             start_date={order.start_date}
             created_at={order.created_at}
           />
@@ -215,30 +208,61 @@ function OrderRowInner({
             )}
 
           {/* Show payment badge for active (non-terminal) orders */}
-          {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (
+          {order.status !== OrderStatus.COMPLETED &&
+            order.status !== OrderStatus.CANCELLED &&
             (() => {
               const ps = order.payment_status;
-              if (ps === 'paid') return <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] py-0 px-1.5">Paid</Badge>;
-              if (ps === 'partial') return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5">Partial</Badge>;
-              return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] py-0 px-1.5">Unpaid</Badge>;
-            })()
-          )}
+              if (ps === 'paid')
+                return (
+                  <Badge
+                    variant="outline"
+                    className="bg-emerald-50 text-emerald-600 border-emerald-200 text-[10px] py-0 px-1.5"
+                  >
+                    Paid
+                  </Badge>
+                );
+              if (ps === 'partial')
+                return (
+                  <Badge
+                    variant="outline"
+                    className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5"
+                  >
+                    Partial
+                  </Badge>
+                );
+              return (
+                <Badge
+                  variant="outline"
+                  className="bg-red-50 text-red-600 border-red-200 text-[10px] py-0 px-1.5"
+                >
+                  Unpaid
+                </Badge>
+              );
+            })()}
 
           {/* Show refund-due indicator for cancelled orders with payments */}
           {order.status === OrderStatus.CANCELLED && order.amount_paid > 0 && (
-            <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5">Refund Due</Badge>
+            <Badge
+              variant="outline"
+              className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5"
+            >
+              Refund Due
+            </Badge>
           )}
 
           {/* Action Needed Indicator for today's scheduled orders */}
-          {order.status === OrderStatus.SCHEDULED && new Date(order.start_date) <= new Date(new Date().toDateString()) && (
-            <div className="flex items-center gap-1 mt-1">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-              </span>
-              <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Action Needed</span>
-            </div>
-          )}
+          {order.status === OrderStatus.SCHEDULED &&
+            new Date(order.start_date) <= new Date(new Date().toDateString()) && (
+              <div className="flex items-center gap-1 mt-1">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">
+                  Action Needed
+                </span>
+              </div>
+            )}
         </div>
       </td>
 
@@ -309,9 +333,9 @@ function OrderRowInner({
             className="w-8 h-8 text-slate-400 hover:text-slate-900"
             onClick={(e) => {
               e.stopPropagation();
-              const link = document.createElement("a");
+              const link = document.createElement('a');
               link.href = `/api/orders/${order.id}/invoice?type=final`;
-              link.setAttribute("download", "");
+              link.setAttribute('download', '');
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
@@ -329,13 +353,13 @@ function OrderRowInner({
               e.stopPropagation();
               // Use a hidden iframe to load the PDF inline and trigger print dialog
               // This avoids downloading the PDF (which the Download button already does)
-              const iframe = document.createElement("iframe");
-              iframe.style.position = "fixed";
-              iframe.style.right = "0";
-              iframe.style.bottom = "0";
-              iframe.style.width = "0";
-              iframe.style.height = "0";
-              iframe.style.border = "none";
+              const iframe = document.createElement('iframe');
+              iframe.style.position = 'fixed';
+              iframe.style.right = '0';
+              iframe.style.bottom = '0';
+              iframe.style.width = '0';
+              iframe.style.height = '0';
+              iframe.style.border = 'none';
               iframe.src = `/api/orders/${order.id}/invoice?type=final&disposition=inline`;
               document.body.appendChild(iframe);
               iframe.onload = () => {
@@ -345,7 +369,7 @@ function OrderRowInner({
                   // Cross-origin fallback: open in new tab for manual print
                   window.open(
                     `/api/orders/${order.id}/invoice?type=final&disposition=inline`,
-                    "_blank"
+                    '_blank'
                   );
                 }
                 // Clean up iframe after a delay
@@ -359,7 +383,7 @@ function OrderRowInner({
             <Printer className="w-4 h-4" />
           </Button>
 
-          {order.status === "scheduled" && (
+          {order.status === 'scheduled' && (
             <Button
               variant="ghost"
               size="icon"
@@ -387,16 +411,17 @@ function OrderRowInner({
               <Button
                 variant="ghost"
                 size="icon"
-                className={`w-8 h-8 ${isEditDisabled
-                    ? "text-slate-200 cursor-not-allowed"
-                    : "text-slate-400 hover:text-slate-900"
-                  }`}
+                className={`w-8 h-8 ${
+                  isEditDisabled
+                    ? 'text-slate-200 cursor-not-allowed'
+                    : 'text-slate-400 hover:text-slate-900'
+                }`}
                 disabled={isEditDisabled}
                 asChild={!isEditDisabled}
                 onClick={(e) => {
                   if (isEditDisabled) e.stopPropagation();
                 }}
-                title={isEditDisabled ? "Cannot edit in current status" : "Edit Order"}
+                title={isEditDisabled ? 'Cannot edit in current status' : 'Edit Order'}
               >
                 {!isEditDisabled ? (
                   <Link href={`/dashboard/orders/${order.id}/edit`}>
@@ -410,8 +435,6 @@ function OrderRowInner({
               </Button>
             );
           })()}
-
-
         </div>
       </td>
     </tr>
@@ -431,6 +454,6 @@ const OrderRow = React.memo(OrderRowInner, (prev, next) => {
   );
 });
 
-OrderRow.displayName = "OrderRow";
+OrderRow.displayName = 'OrderRow';
 
 export default OrderRow;

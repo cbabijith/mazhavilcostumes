@@ -15,9 +15,9 @@
  * @module components/admin/orders/DamageAssessmentPanel
  */
 
-"use client";
+'use client';
 
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Package,
   CheckCircle2,
@@ -28,18 +28,15 @@ import {
   Trash2,
   ShieldAlert,
   ClipboardCheck,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { formatCurrency } from "@/lib/shared-utils";
-import Modal from "@/components/admin/Modal";
-import {
-  useDamageAssessments,
-  useAssessDamageUnit,
-} from "@/hooks";
-import { usePermissions } from "@/hooks/usePermissions";
-import { DamageDecision } from "@/domain";
-import type { DamageAssessmentWithProduct, OrderWithRelations } from "@/domain";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { formatCurrency } from '@/lib/shared-utils';
+import Modal from '@/components/admin/Modal';
+import { useDamageAssessments, useAssessDamageUnit } from '@/hooks';
+import { usePermissions } from '@/hooks/usePermissions';
+import { DamageDecision } from '@/domain';
+import type { DamageAssessmentWithProduct, OrderWithRelations } from '@/domain';
 
 interface DamageAssessmentPanelProps {
   order: OrderWithRelations;
@@ -51,7 +48,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
   const { assessUnit, isAssessing } = useAssessDamageUnit();
 
   const [confirmWriteOff, setConfirmWriteOff] = useState<DamageAssessmentWithProduct | null>(null);
-  const [writeOffNotes, setWriteOffNotes] = useState("");
+  const [writeOffNotes, setWriteOffNotes] = useState('');
 
   const assessments = data?.assessments || [];
   const summary = data?.summary || { allDone: false, pending: 0, total: 0 };
@@ -61,9 +58,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
   if (!isAdmin) return null;
 
   // Don't show if there are no assessments and no damaged items
-  const hasDamagedItems = order.items?.some(
-    item => item.condition_rating === 'damaged'
-  );
+  const hasDamagedItems = order.items?.some((item) => item.condition_rating === 'damaged');
   if (!hasDamagedItems && assessments.length === 0) return null;
 
   // If assessments haven't been created yet (edge case: old orders before auto-creation),
@@ -78,7 +73,8 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
           <div>
             <p className="text-sm font-bold text-amber-900">Damage Assessments Pending</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              Assessments were not created for this order. This may be an older order processed before auto-assessment was enabled.
+              Assessments were not created for this order. This may be an older order processed
+              before auto-assessment was enabled.
             </p>
           </div>
         </div>
@@ -91,7 +87,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
       orderId: order.id,
       assessmentId: assessment.id,
       decision: DamageDecision.REUSE,
-      notes: "Marked as reusable",
+      notes: 'Marked as reusable',
     });
   };
 
@@ -102,34 +98,38 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
         orderId: order.id,
         assessmentId: confirmWriteOff.id,
         decision: DamageDecision.NOT_REUSE,
-        notes: writeOffNotes || "Written off — removed from stock",
+        notes: writeOffNotes || 'Written off — removed from stock',
       },
       {
         onSuccess: () => {
           setConfirmWriteOff(null);
-          setWriteOffNotes("");
+          setWriteOffNotes('');
         },
       }
     );
   };
 
   const getImageUrl = (product: any) => {
-    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) return null;
+    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0)
+      return null;
     const img = product.images[0];
-    return typeof img === "string" ? img : img?.url || null;
+    return typeof img === 'string' ? img : img?.url || null;
   };
 
   // Group by product for display
-  const grouped = assessments.reduce((acc, a) => {
-    const key = a.product_id;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(a);
-    return acc;
-  }, {} as Record<string, DamageAssessmentWithProduct[]>);
+  const grouped = assessments.reduce(
+    (acc, a) => {
+      const key = a.product_id;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(a);
+      return acc;
+    },
+    {} as Record<string, DamageAssessmentWithProduct[]>
+  );
 
   // Count stats
-  const reuseCount = assessments.filter(a => a.decision === DamageDecision.REUSE).length;
-  const writeOffCount = assessments.filter(a => a.decision === DamageDecision.NOT_REUSE).length;
+  const reuseCount = assessments.filter((a) => a.decision === DamageDecision.REUSE).length;
+  const writeOffCount = assessments.filter((a) => a.decision === DamageDecision.NOT_REUSE).length;
   const pendingCount = summary.pending;
 
   return (
@@ -200,17 +200,30 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
                 const goodQty = totalQty - damagedQty;
 
                 // Per-product stats
-                const productPending = units.filter(u => u.decision === DamageDecision.PENDING).length;
-                const productReuse = units.filter(u => u.decision === DamageDecision.REUSE).length;
-                const productWriteOff = units.filter(u => u.decision === DamageDecision.NOT_REUSE).length;
+                const productPending = units.filter(
+                  (u) => u.decision === DamageDecision.PENDING
+                ).length;
+                const productReuse = units.filter(
+                  (u) => u.decision === DamageDecision.REUSE
+                ).length;
+                const productWriteOff = units.filter(
+                  (u) => u.decision === DamageDecision.NOT_REUSE
+                ).length;
 
                 return (
-                  <div key={productId} className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div
+                    key={productId}
+                    className="border border-slate-200 rounded-xl overflow-hidden"
+                  >
                     {/* Product header */}
                     <div className="flex items-center gap-4 px-5 py-4 bg-slate-50/70 border-b border-slate-100">
                       <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex-shrink-0">
                         {imgUrl ? (
-                          <img src={imgUrl} alt={product?.name} className="w-full h-full object-cover" />
+                          <img
+                            src={imgUrl}
+                            alt={product?.name}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <Package className="w-6 h-6" />
@@ -218,7 +231,9 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-bold text-slate-900 truncate">{product?.name || 'Product'}</h4>
+                        <h4 className="text-sm font-bold text-slate-900 truncate">
+                          {product?.name || 'Product'}
+                        </h4>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           {/* Quantity breakdown */}
                           <span className="text-xs font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
@@ -252,7 +267,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
 
                     {/* Units list */}
                     <div className="divide-y divide-slate-100">
-                      {units.map(unit => {
+                      {units.map((unit) => {
                         const isPending = unit.decision === DamageDecision.PENDING;
                         const isReuse = unit.decision === DamageDecision.REUSE;
                         const isWriteOff = unit.decision === DamageDecision.NOT_REUSE;
@@ -261,29 +276,41 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
                           <div
                             key={unit.id}
                             className={`flex items-center justify-between px-5 py-3.5 transition-colors ${
-                              isWriteOff ? 'bg-red-50/40' : isReuse ? 'bg-emerald-50/40' : 'hover:bg-slate-50/50'
+                              isWriteOff
+                                ? 'bg-red-50/40'
+                                : isReuse
+                                  ? 'bg-emerald-50/40'
+                                  : 'hover:bg-slate-50/50'
                             }`}
                           >
                             <div className="flex items-center gap-3">
                               {/* Unit indicator */}
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                                isPending
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : isReuse
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-red-100 text-red-700'
-                              }`}>
+                              <div
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                  isPending
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : isReuse
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-red-100 text-red-700'
+                                }`}
+                              >
                                 {unit.unit_index}
                               </div>
 
-                              <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
-                                isPending
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              <span
+                                className={`text-xs font-bold px-2.5 py-1 rounded-lg border ${
+                                  isPending
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : isReuse
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : 'bg-red-50 text-red-700 border-red-200'
+                                }`}
+                              >
+                                {isPending
+                                  ? 'Pending Review'
                                   : isReuse
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-red-50 text-red-700 border-red-200'
-                              }`}>
-                                {isPending ? 'Pending Review' : isReuse ? 'Reuse ✓' : 'Written Off ✗'}
+                                    ? 'Reuse ✓'
+                                    : 'Written Off ✗'}
                               </span>
 
                               {unit.notes && !isPending && (
@@ -312,7 +339,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
                                   variant="outline"
                                   onClick={() => {
                                     setConfirmWriteOff(unit);
-                                    setWriteOffNotes("");
+                                    setWriteOffNotes('');
                                   }}
                                   disabled={isAssessing}
                                   className="h-8 px-3.5 text-xs font-bold border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 rounded-lg transition-colors"
@@ -336,7 +363,10 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
       {/* Write Off Confirmation Modal */}
       <Modal
         open={confirmWriteOff !== null}
-        onClose={() => { setConfirmWriteOff(null); setWriteOffNotes(""); }}
+        onClose={() => {
+          setConfirmWriteOff(null);
+          setWriteOffNotes('');
+        }}
         title="Confirm Write Off"
         maxWidth="max-w-md"
       >
@@ -346,19 +376,19 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
               <Trash2 className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-slate-900 mb-1">Permanent Stock Reduction</h4>
+              <h4 className="text-sm font-semibold text-slate-900 mb-1">
+                Permanent Stock Reduction
+              </h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Writing off this unit will <strong>permanently reduce</strong> the product's total stock by 1.
-                This action cannot be undone.
+                Writing off this unit will <strong>permanently reduce</strong> the product's total
+                stock by 1. This action cannot be undone.
               </p>
             </div>
           </div>
 
           {confirmWriteOff?.product && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
-              <p className="text-sm font-bold text-slate-900">
-                {confirmWriteOff.product.name}
-              </p>
+              <p className="text-sm font-bold text-slate-900">{confirmWriteOff.product.name}</p>
               <p className="text-xs text-slate-500">
                 Unit {confirmWriteOff.unit_index} will be removed from inventory
               </p>
@@ -380,7 +410,10 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <Button
               variant="outline"
-              onClick={() => { setConfirmWriteOff(null); setWriteOffNotes(""); }}
+              onClick={() => {
+                setConfirmWriteOff(null);
+                setWriteOffNotes('');
+              }}
               className="h-10 px-5 rounded-xl font-bold border-slate-200"
             >
               Cancel

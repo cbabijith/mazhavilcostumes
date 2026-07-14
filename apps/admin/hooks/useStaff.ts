@@ -104,7 +104,10 @@ export function useCreateStaff() {
 
   return useMutation({
     mutationFn: (data: Omit<CreateStaffDTO, 'store_id'>) =>
-      apiFetch<ApiSuccessResponse<Staff>>('/api/staff', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<Staff>>('/api/staff', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     onSuccess: () => {
       showSuccess('Staff member created successfully');
     },
@@ -121,7 +124,10 @@ export function useUpdateStaff() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateStaffDTO }) =>
-      apiFetch<ApiSuccessResponse<Staff>>(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<Staff>>(`/api/staff/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onSuccess: () => {
       showSuccess('Staff member updated successfully');
     },
@@ -140,8 +146,7 @@ export function useDeleteStaff() {
   const { showSuccess, showError } = useAppStore();
 
   return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/staff/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiFetch(`/api/staff/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       showSuccess('Staff member deactivated successfully');
     },

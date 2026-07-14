@@ -54,11 +54,13 @@ export class DamageAssessmentRepository extends BaseRepository {
     return this.executeOperation(async () =>
       this.client
         .from(this.tableName)
-        .select(`
+        .select(
+          `
           *,
           product:product_id(id, name, images),
           order_item:order_item_id(id, quantity, damage_description, damage_charges, condition_rating)
-        `)
+        `
+        )
         .eq('order_id', orderId)
         .order('product_id', { ascending: true })
         .order('unit_index', { ascending: true })
@@ -69,16 +71,20 @@ export class DamageAssessmentRepository extends BaseRepository {
    * Fetch all damage assessments for a specific product (across all orders).
    * Used by the product details page to show damage history.
    */
-  async findByProductId(productId: string): Promise<RepositoryResult<DamageAssessmentWithProduct[]>> {
+  async findByProductId(
+    productId: string
+  ): Promise<RepositoryResult<DamageAssessmentWithProduct[]>> {
     return this.executeOperation(async () =>
       this.client
         .from(this.tableName)
-        .select(`
+        .select(
+          `
           *,
           product:product_id(id, name, images),
           order_item:order_item_id(id, quantity, damage_description, damage_charges, condition_rating),
           order:order_id(id, status, customer:customer_id(name))
-        `)
+        `
+        )
         .eq('product_id', productId)
         .order('created_at', { ascending: false })
         .limit(20)
@@ -102,19 +108,16 @@ export class DamageAssessmentRepository extends BaseRepository {
     if (assessedBy) updateData.assessed_by = assessedBy;
 
     return this.executeOperation(async () =>
-      this.client
-        .from(this.tableName)
-        .update(updateData)
-        .eq('id', id)
-        .select('*')
-        .single()
+      this.client.from(this.tableName).update(updateData).eq('id', id).select('*').single()
     );
   }
 
   /**
    * Check if all assessments for an order are decided (not pending).
    */
-  async checkAllAssessed(orderId: string): Promise<{ allDone: boolean; pending: number; total: number }> {
+  async checkAllAssessed(
+    orderId: string
+  ): Promise<{ allDone: boolean; pending: number; total: number }> {
     const { data, error } = await this.client
       .from(this.tableName)
       .select('decision')
@@ -123,7 +126,7 @@ export class DamageAssessmentRepository extends BaseRepository {
     if (error || !data) return { allDone: false, pending: 0, total: 0 };
 
     const total = data.length;
-    const pending = data.filter(d => d.decision === 'pending').length;
+    const pending = data.filter((d) => d.decision === 'pending').length;
     return { allDone: pending === 0, pending, total };
   }
 
@@ -131,7 +134,10 @@ export class DamageAssessmentRepository extends BaseRepository {
    * Decrement product stock (global) when a unit is marked as not_reuse.
    * Decrements both products.quantity and products.available_quantity.
    */
-  async decrementProductStock(productId: string, quantity: number = 1): Promise<RepositoryResult<any>> {
+  async decrementProductStock(
+    productId: string,
+    quantity: number = 1
+  ): Promise<RepositoryResult<any>> {
     // Fetch current stock
     const { data: product, error: fetchErr } = await this.client
       .from('products')

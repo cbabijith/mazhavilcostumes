@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { ReportTable } from "../ReportTable";
+import { ReportTable } from '../ReportTable';
 
 interface RentalFrequencyViewProps {
   data: any[];
@@ -11,23 +11,23 @@ interface RentalFrequencyViewProps {
   formatCell: (value: any, format?: string) => any;
 }
 
-export function RentalFrequencyView({ 
-  data, 
-  loading, 
-  error, 
-  sortConfig, 
-  onSort, 
-  formatCell 
+export function RentalFrequencyView({
+  data,
+  loading,
+  error,
+  sortConfig,
+  onSort,
+  formatCell,
 }: RentalFrequencyViewProps) {
   const columns = [
-    { header: "Product", key: "product_name" },
-    { header: "Category", key: "category_name" },
-    { header: "Rental Count", key: "rental_count", format: "number" as const },
-    { header: "Last Rented", key: "last_rented", format: "date" as const },
+    { header: 'Product', key: 'product_name' },
+    { header: 'Category', key: 'category_name' },
+    { header: 'Rental Count', key: 'rental_count', format: 'number' as const },
+    { header: 'Last Rented', key: 'last_rented', format: 'date' as const },
   ];
 
   return (
-    <ReportTable 
+    <ReportTable
       columns={columns}
       data={data}
       loading={loading}

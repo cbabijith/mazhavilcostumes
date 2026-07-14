@@ -8,11 +8,11 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Customer, 
-  CreateCustomerDTO, 
-  UpdateCustomerDTO, 
-  CustomerSearchParams, 
+import {
+  Customer,
+  CreateCustomerDTO,
+  UpdateCustomerDTO,
+  CustomerSearchParams,
   CustomerSearchResult,
 } from '@/domain';
 
@@ -22,7 +22,9 @@ export class CustomerRepository extends BaseRepository {
   /**
    * Find all customers with optional filtering and pagination
    */
-  async findAll(params: CustomerSearchParams = {}): Promise<RepositoryResult<CustomerSearchResult>> {
+  async findAll(
+    params: CustomerSearchParams = {}
+  ): Promise<RepositoryResult<CustomerSearchResult>> {
     const {
       query,
       phone,
@@ -50,7 +52,9 @@ export class CustomerRepository extends BaseRepository {
 
     // Apply text search on name or email
     if (query) {
-      selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+      selectQuery = (selectQuery as any).or(
+        `name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`
+      );
     }
 
     // Execute consolidated query (gets both data and total exact count in a single trip)
@@ -91,12 +95,8 @@ export class CustomerRepository extends BaseRepository {
    */
   async findById(id: string): Promise<RepositoryResult<Customer>> {
     return this.executeOperation<Customer>(async () => {
-      const response = await this.client
-        .from(this.tableName)
-        .select('*')
-        .eq('id', id)
-        .single();
-        
+      const response = await this.client.from(this.tableName).select('*').eq('id', id).single();
+
       return response;
     });
   }
@@ -111,7 +111,7 @@ export class CustomerRepository extends BaseRepository {
         .select('*')
         .eq('phone', phone)
         .maybeSingle(); // Use maybeSingle to not error on 0 rows
-        
+
       return response;
     });
   }
@@ -121,12 +121,8 @@ export class CustomerRepository extends BaseRepository {
    */
   async create(data: CreateCustomerDTO): Promise<RepositoryResult<Customer>> {
     return this.executeOperation<Customer>(async () => {
-      const response = await this.client
-        .from(this.tableName)
-        .insert([data])
-        .select()
-        .single();
-        
+      const response = await this.client.from(this.tableName).insert([data]).select().single();
+
       return response;
     });
   }
@@ -142,7 +138,7 @@ export class CustomerRepository extends BaseRepository {
         .eq('id', id)
         .select()
         .single();
-        
+
       return response;
     });
   }
@@ -152,10 +148,7 @@ export class CustomerRepository extends BaseRepository {
    */
   async delete(id: string): Promise<RepositoryResult<boolean>> {
     return this.executeOperation<boolean>(async () => {
-      const { error } = await this.client
-        .from(this.tableName)
-        .delete()
-        .eq('id', id);
+      const { error } = await this.client.from(this.tableName).delete().eq('id', id);
 
       if (error) throw error;
       return { data: true, error: null };

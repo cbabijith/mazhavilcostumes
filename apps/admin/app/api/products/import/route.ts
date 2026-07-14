@@ -2,17 +2,13 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { apiGuard } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
-import { 
-  apiSuccess, 
-  apiForbidden, 
-  apiBadRequest, 
-  apiInternalError 
-} from '@/lib/apiResponse';
+import { apiSuccess, apiForbidden, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 import { createAdminClient } from '@/lib/supabase/server';
 import { randomUUID } from 'crypto';
 
 function baseSlug(str: string): string {
-  return str.toLowerCase()
+  return str
+    .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
@@ -56,7 +52,7 @@ export async function POST(request: NextRequest) {
     // 2. Clear Database if cleanSlate is requested
     if (cleanSlate) {
       console.log('Admin UI Import - Starting Clean Slate Purge...');
-      
+
       const tablesToDelete = [
         'order_status_history',
         'payments',
@@ -68,7 +64,7 @@ export async function POST(request: NextRequest) {
         'customers',
         'product_inventory',
         'products',
-        'categories'
+        'categories',
       ];
 
       for (const table of tablesToDelete) {
@@ -76,7 +72,7 @@ export async function POST(request: NextRequest) {
           .from(table)
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000');
-        
+
         if (error) {
           console.error(`Wipe failed on table ${table}:`, error);
           return apiInternalError(`Clean slate failed on table ${table}: ${error.message}`);
@@ -85,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Filter valid items containing code & name
-    const validItems = items.filter(item => {
+    const validItems = items.filter((item) => {
       const code = item.code || item.Code;
       const name = item.name || item.Name;
       return code && String(code).trim() && name && String(name).trim();
@@ -101,7 +97,8 @@ export async function POST(request: NextRequest) {
 
     for (const item of validItems) {
       const catName = (item.category || item.Category || '').trim();
-      const gst = item.gst !== undefined ? Number(item.gst) : (item.GST !== undefined ? Number(item.GST) : 5.00);
+      const gst =
+        item.gst !== undefined ? Number(item.gst) : item.GST !== undefined ? Number(item.GST) : 5.0;
 
       if (!catName) continue;
 
@@ -120,15 +117,13 @@ export async function POST(request: NextRequest) {
           is_global: true,
           is_active: true,
           created_by: staffId,
-          created_at_branch_id: branchId
+          created_at_branch_id: branchId,
         });
       }
     }
 
     if (uniqueCategories.length > 0) {
-      const { error: catInsertErr } = await adminClient
-        .from('categories')
-        .insert(uniqueCategories);
+      const { error: catInsertErr } = await adminClient.from('categories').insert(uniqueCategories);
 
       if (catInsertErr) {
         console.error('Failed to insert categories:', catInsertErr);
@@ -144,9 +139,20 @@ export async function POST(request: NextRequest) {
       const code = String(item.code || item.Code || '').trim();
       const name = String(item.name || item.Name || '').trim();
       const catName = (item.category || item.Category || '').trim().toLowerCase();
-      const rent = item.rent !== undefined ? Number(item.rent) : (item.Rent !== undefined ? Number(item.Rent) : 0);
-      const purchasePrice = item.purchasePrice !== undefined ? Number(item.purchasePrice) : (item['Purchase Price'] !== undefined ? Number(item['Purchase Price']) : 0);
-      const qty = item.qty !== undefined ? Number(item.qty) : (item.Qty !== undefined ? Number(item.Qty) : 0);
+      const rent =
+        item.rent !== undefined
+          ? Number(item.rent)
+          : item.Rent !== undefined
+            ? Number(item.Rent)
+            : 0;
+      const purchasePrice =
+        item.purchasePrice !== undefined
+          ? Number(item.purchasePrice)
+          : item['Purchase Price'] !== undefined
+            ? Number(item['Purchase Price'])
+            : 0;
+      const qty =
+        item.qty !== undefined ? Number(item.qty) : item.Qty !== undefined ? Number(item.Qty) : 0;
 
       const productId = randomUUID();
       const catId = categorySlugMap.get(catName) || null;
@@ -169,7 +175,7 @@ export async function POST(request: NextRequest) {
         is_active: true,
         track_inventory: true,
         created_by: staffId,
-        created_at_branch_id: branchId
+        created_at_branch_id: branchId,
       });
 
       inventoryToInsert.push({
@@ -177,7 +183,7 @@ export async function POST(request: NextRequest) {
         product_id: productId,
         branch_id: branchId,
         quantity: qty,
-        available_quantity: qty
+        available_quantity: qty,
       });
     }
 
@@ -200,15 +206,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return apiSuccess({
-      categoriesCount: uniqueCategories.length,
-      productsCount: productsToInsert.length
-    }, {
-      message: 'Catalog imported successfully.'
-    });
-
+    return apiSuccess(
+      {
+        categoriesCount: uniqueCategories.length,
+        productsCount: productsToInsert.length,
+      },
+      {
+        message: 'Catalog imported successfully.',
+      }
+    );
   } catch (error: any) {
     console.error('Products API - Catalog Import Error:', error);
-    return apiInternalError(error.message || 'Catalog import failed due to an internal server error.');
+    return apiInternalError(
+      error.message || 'Catalog import failed due to an internal server error.'
+    );
   }
 }

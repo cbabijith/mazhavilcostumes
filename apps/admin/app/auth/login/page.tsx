@@ -1,45 +1,48 @@
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff, Sparkles } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { BRAND_CONFIG } from "shared-utils";
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { Lock, Mail, ArrowRight, AlertCircle, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { BRAND_CONFIG } from 'shared-utils';
 
 export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError("");
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsLoading(true);
+      setError('');
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      if (error) {
-        setError("Invalid email or password");
+        if (error) {
+          setError('Invalid email or password');
+          setIsLoading(false);
+          return;
+        }
+
+        router.push('/dashboard');
+      } catch (err) {
+        setError('An error occurred. Please try again.');
         setIsLoading(false);
-        return;
       }
-
-      router.push("/dashboard");
-    } catch (err) {
-      setError("An error occurred. Please try again.");
-      setIsLoading(false);
-    }
-  }, [email, password, router, supabase]);
+    },
+    [email, password, router, supabase]
+  );
 
   return (
     <div className="min-h-screen flex w-full bg-white font-sans">
@@ -48,11 +51,15 @@ export default function LoginPage() {
         {/* Decorative Background Elements */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-slate-800 via-slate-950 to-black opacity-80" />
         <div className="absolute top-0 left-0 w-full h-full bg-[url('/noise.svg')] opacity-[0.03]" />
-        
+
         {/* Top Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-xl p-2.5 border border-white/20 flex items-center justify-center">
-             <img src={BRAND_CONFIG.defaultLogo} alt={`${BRAND_CONFIG.name} Logo`} className="w-full h-full object-contain" />
+            <img
+              src={BRAND_CONFIG.defaultLogo}
+              alt={`${BRAND_CONFIG.name} Logo`}
+              className="w-full h-full object-contain"
+            />
           </div>
           <span className="text-2xl font-bold tracking-tight text-white uppercase tracking-widest">
             {BRAND_CONFIG.name}
@@ -63,13 +70,17 @@ export default function LoginPage() {
         <div className="relative z-10 max-w-lg">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 backdrop-blur-md mb-6">
             <Sparkles className="w-4 h-4 text-amber-200" />
-            <span className="text-xs font-medium text-amber-100 uppercase tracking-wider">Premium Dashboard</span>
+            <span className="text-xs font-medium text-amber-100 uppercase tracking-wider">
+              Premium Dashboard
+            </span>
           </div>
           <h1 className="text-4xl sm:text-5xl font-light text-white leading-tight tracking-tight mb-6">
-            Manage your <span className="font-semibold text-amber-200">luxury rental</span> collection.
+            Manage your <span className="font-semibold text-amber-200">luxury rental</span>{' '}
+            collection.
           </h1>
           <p className="text-slate-400 text-lg font-light leading-relaxed">
-            The exclusive administration suite for {BRAND_CONFIG.name}. Seamlessly control inventory, process orders, and curate the perfect experience for your clients.
+            The exclusive administration suite for {BRAND_CONFIG.name}. Seamlessly control
+            inventory, process orders, and curate the perfect experience for your clients.
           </p>
         </div>
       </div>
@@ -77,16 +88,21 @@ export default function LoginPage() {
       {/* Right side - Login Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8 sm:p-12 lg:p-24 bg-white relative">
         <div className="w-full max-w-sm space-y-10">
-          
           {/* Mobile Header (Only visible on small screens) */}
           <div className="lg:hidden text-center space-y-4 mb-8">
-             <div className="w-16 h-16 mx-auto bg-slate-950 rounded-2xl p-3 shadow-xl">
-               <img src={BRAND_CONFIG.defaultLogo} alt={BRAND_CONFIG.name} className="w-full h-full object-contain" />
-             </div>
-             <div>
-               <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase">{BRAND_CONFIG.name}</h1>
-               <p className="text-sm text-slate-500 mt-1 uppercase tracking-widest">Admin Portal</p>
-             </div>
+            <div className="w-16 h-16 mx-auto bg-slate-950 rounded-2xl p-3 shadow-xl">
+              <img
+                src={BRAND_CONFIG.defaultLogo}
+                alt={BRAND_CONFIG.name}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase">
+                {BRAND_CONFIG.name}
+              </h1>
+              <p className="text-sm text-slate-500 mt-1 uppercase tracking-widest">Admin Portal</p>
+            </div>
           </div>
 
           {/* Form Header */}
@@ -106,7 +122,10 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">
+              <label
+                htmlFor="email"
+                className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1"
+              >
                 Email Address
               </label>
               <div className="relative group">
@@ -126,7 +145,10 @@ export default function LoginPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between ml-1">
-                <label htmlFor="password" className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-semibold text-slate-500 uppercase tracking-wider"
+                >
                   Password
                 </label>
               </div>
@@ -134,7 +156,7 @@ export default function LoginPage() {
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-slate-900 transition-colors" />
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-12 pr-12 h-14 bg-slate-50/50 border-slate-200 focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-xl text-base transition-all"
@@ -178,7 +200,6 @@ export default function LoginPage() {
               Authorized Personnel Only
             </p>
           </div>
-
         </div>
       </div>
     </div>

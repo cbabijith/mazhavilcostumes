@@ -10,10 +10,7 @@ import { branchService } from '@/services/branchService';
 import { apiGuard, adminOnly } from '@/lib/apiGuard';
 import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'dashboard');
     if (guard.error) return guard.error;
@@ -30,10 +27,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await adminOnly(request);
     if (guard.error) return guard.error;

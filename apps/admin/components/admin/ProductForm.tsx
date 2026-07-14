@@ -8,23 +8,23 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { AlertCircle, RefreshCw, Wand2, ArrowLeft, Package, Info } from "lucide-react";
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { AlertCircle, RefreshCw, Wand2, ArrowLeft, Package, Info } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileUpload } from "@/components/ui/file-upload";
-import { Switch } from "@/components/ui/switch";
-import { type Category } from "@/domain/types/category";
-import { type Product, type ProductWithRelations } from "@/domain/types/product";
-import { useAppStore, useAppSelectors } from "@/stores";
-import { useQueryClient } from "@tanstack/react-query";
-import { useCreateProduct, useUpdateProduct } from "@/hooks/useProducts";
-import { useCategories } from "@/hooks/useCategories";
-import { useBranches } from "@/hooks/useBranches";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FileUpload } from '@/components/ui/file-upload';
+import { Switch } from '@/components/ui/switch';
+import { type Category } from '@/domain/types/category';
+import { type Product, type ProductWithRelations } from '@/domain/types/product';
+import { useAppStore, useAppSelectors } from '@/stores';
+import { useQueryClient } from '@tanstack/react-query';
+import { useCreateProduct, useUpdateProduct } from '@/hooks/useProducts';
+import { useCategories } from '@/hooks/useCategories';
+import { useBranches } from '@/hooks/useBranches';
 
 const MAX_IMAGES = 5;
 
@@ -35,24 +35,22 @@ interface ProductFormProps {
 /* ── Helper: default empty form state ──────────────────────────────── */
 function emptyFormData() {
   return {
-    name: "",
-    slug: "",
-    sku: "",
-    barcode: "",
-    description: "",
-    category_id: "",
-    subcategory_id: "",
-    subvariant_id: "",
-    price_per_day: "" as number | string,
-    purchase_price: "" as number | string,
-    quantity: "" as number | string,
+    name: '',
+    slug: '',
+    sku: '',
+    barcode: '',
+    description: '',
+    category_id: '',
+    subcategory_id: '',
+    subvariant_id: '',
+    price_per_day: '' as number | string,
+    purchase_price: '' as number | string,
+    quantity: '' as number | string,
     is_active: true,
   };
 }
 
-export default function ProductForm({
-  product,
-}: ProductFormProps) {
+export default function ProductForm({ product }: ProductFormProps) {
   const router = useRouter();
   const isEdit = !!product;
   const showError = useAppSelectors.showError();
@@ -65,7 +63,7 @@ export default function ProductForm({
   const { categories, isLoading: isCategoriesLoading } = useCategories();
   const { branches, isLoading: isBranchesLoading } = useBranches();
   const [branchStocks, setBranchStocks] = useState<Record<string, number>>({});
-  const [globalStock, setGlobalStock] = useState<string | number>("");
+  const [globalStock, setGlobalStock] = useState<string | number>('');
 
   // Find the active branch context (selected in switcher or user's assigned branch)
   const activeBranchId = selectedBranchId || user?.branch_id;
@@ -75,11 +73,11 @@ export default function ProductForm({
 
   // Handle global stock changes and propagate to all branches
   const handleGlobalStockChange = (val: string) => {
-    const qty = val === "" ? "" : parseInt(val, 10);
+    const qty = val === '' ? '' : parseInt(val, 10);
     const numericQty = isNaN(qty as any) ? 0 : (qty as number);
-    
-    setGlobalStock(val === "" ? "" : numericQty);
-    
+
+    setGlobalStock(val === '' ? '' : numericQty);
+
     const updated: Record<string, number> = {};
     branches.forEach((b) => {
       updated[b.id] = numericQty;
@@ -112,7 +110,7 @@ export default function ProductForm({
       if (allEqual && firstVal !== null) {
         setGlobalStock(firstVal);
       } else {
-        setGlobalStock("");
+        setGlobalStock('');
       }
     } else {
       const stocks: Record<string, number> = {};
@@ -134,7 +132,7 @@ export default function ProductForm({
   // ── Branch Context Guard: sub-branch users can only edit their own products ────────
   useEffect(() => {
     if (isEdit && !isMainBranchContext && product && product.branch_id !== activeBranchId) {
-      showError("You are not authorized to edit products belonging to other branches.");
+      showError('You are not authorized to edit products belonging to other branches.');
       router.push(`/dashboard/products/${product.id}`);
     }
   }, [isEdit, isMainBranchContext, product, activeBranchId, router, showError]);
@@ -144,7 +142,7 @@ export default function ProductForm({
   const isFormReady = !isCategoriesLoading && !isBranchesLoading;
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
   // Barcode uniqueness validation
@@ -153,24 +151,34 @@ export default function ProductForm({
   const barcodeCheckTimer = useRef<NodeJS.Timeout | null>(null);
 
   const existingImages: string[] = (product?.images || [])
-    .map((img) => (typeof img === "string" ? img : img.url))
+    .map((img) => (typeof img === 'string' ? img : img.url))
     .filter(Boolean) as string[];
   const [imageUrls, setImageUrls] = useState<string[]>(existingImages);
 
   const [formData, setFormData] = useState(() =>
     product
       ? {
-          name: product.name ?? "",
-          slug: product.slug ?? "",
-          sku: product.sku ?? "",
-          barcode: product.barcode ?? "",
-          description: product.description ?? "",
-          category_id: product.category_id ?? "",
-          subcategory_id: product.subcategory_id ?? "",
-          subvariant_id: product.subvariant_id ?? "",
-          price_per_day: product.price_per_day !== undefined && product.price_per_day !== null ? product.price_per_day : ("" as number | string),
-          purchase_price: (product as any).purchase_price !== undefined && (product as any).purchase_price !== null ? (product as any).purchase_price : ("" as number | string),
-          quantity: (product as any).quantity !== undefined && (product as any).quantity !== null ? ((product as any).quantity ?? (product as any).total_quantity ?? "") : ("" as number | string),
+          name: product.name ?? '',
+          slug: product.slug ?? '',
+          sku: product.sku ?? '',
+          barcode: product.barcode ?? '',
+          description: product.description ?? '',
+          category_id: product.category_id ?? '',
+          subcategory_id: product.subcategory_id ?? '',
+          subvariant_id: product.subvariant_id ?? '',
+          price_per_day:
+            product.price_per_day !== undefined && product.price_per_day !== null
+              ? product.price_per_day
+              : ('' as number | string),
+          purchase_price:
+            (product as any).purchase_price !== undefined &&
+            (product as any).purchase_price !== null
+              ? (product as any).purchase_price
+              : ('' as number | string),
+          quantity:
+            (product as any).quantity !== undefined && (product as any).quantity !== null
+              ? ((product as any).quantity ?? (product as any).total_quantity ?? '')
+              : ('' as number | string),
           is_active: product.is_active ?? true,
         }
       : emptyFormData()
@@ -181,9 +189,9 @@ export default function ProductForm({
     name
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-      .replace(/--+/g, "-");
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/--+/g, '-');
 
   const getTimestampStr = () => Date.now().toString(36).toUpperCase();
   const getRandomStr = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -208,7 +216,9 @@ export default function ProductForm({
     barcodeCheckTimer.current = setTimeout(async () => {
       try {
         const excludeParam = product?.id ? `&exclude=${product.id}` : '';
-        const res = await fetch(`/api/products/check-barcode?code=${encodeURIComponent(barcode.trim())}${excludeParam}`);
+        const res = await fetch(
+          `/api/products/check-barcode?code=${encodeURIComponent(barcode.trim())}${excludeParam}`
+        );
         const json = await res.json();
         if (json.success && json.data) {
           if (!json.data.unique) {
@@ -227,43 +237,41 @@ export default function ProductForm({
 
   const generateSKU = () => {
     const catName = categories.find((c) => c.id === formData.category_id)?.name;
-    const prefix = catName ? catName.substring(0, 3).toUpperCase() : "PB";
+    const prefix = catName ? catName.substring(0, 3).toUpperCase() : 'PB';
     const random = getRandom4Digit();
     setFormData((prev) => ({ ...prev, sku: `${prefix}-${random}` }));
   };
 
   const clearZeroOnFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.value === "0") e.target.value = "";
+    if (e.target.value === '0') e.target.value = '';
   };
 
   // Prevent scroll on number inputs
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (e.target instanceof HTMLInputElement && e.target.type === "number") {
+      if (e.target instanceof HTMLInputElement && e.target.type === 'number') {
         e.preventDefault();
       }
     };
-    document.addEventListener("wheel", handleWheel, { passive: false });
-    return () => document.removeEventListener("wheel", handleWheel);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => document.removeEventListener('wheel', handleWheel);
   }, []);
 
   // Category hierarchy
   const mains = categories.filter((c) => !c.parent_id);
   const subs = categories.filter((c) => c.parent_id === formData.category_id);
-  const variants = categories.filter(
-    (c) => c.parent_id === formData.subcategory_id
-  );
+  const variants = categories.filter((c) => c.parent_id === formData.subcategory_id);
 
   const handleMainCategoryChange = (value: string) =>
     setFormData((prev) => ({
       ...prev,
       category_id: value,
-      subcategory_id: "",
-      subvariant_id: "",
+      subcategory_id: '',
+      subvariant_id: '',
     }));
 
   const handleSubCategoryChange = (value: string) =>
-    setFormData((prev) => ({ ...prev, subcategory_id: value, subvariant_id: "" }));
+    setFormData((prev) => ({ ...prev, subcategory_id: value, subvariant_id: '' }));
 
   // ── GST Inheritance from Category ──────────────────────────────────
   // Determine the most specific category's GST rate
@@ -283,42 +291,44 @@ export default function ProductForm({
   const handleSubmit = useCallback(
     async (continueAdding: boolean = false) => {
       setLoading(true);
-      setError("");
+      setError('');
 
       try {
         // Mandatory field validation
         if (!formData.name.trim()) {
-          showError("Product name is required");
+          showError('Product name is required');
           setLoading(false);
           return;
         }
 
         if (!formData.category_id) {
-          showError("Category is required");
+          showError('Category is required');
           setLoading(false);
           return;
         }
 
         if (!formData.slug.trim()) {
-          showError("URL Slug is required");
+          showError('URL Slug is required');
           setLoading(false);
           return;
         }
 
         if (!/^[a-z0-9-]+$/.test(formData.slug)) {
-          showError("URL Slug must contain only lowercase letters, numbers, and hyphens (e.g., bridal-necklace-set)");
+          showError(
+            'URL Slug must contain only lowercase letters, numbers, and hyphens (e.g., bridal-necklace-set)'
+          );
           setLoading(false);
           return;
         }
 
         if (!formData.sku || !formData.sku.trim()) {
-          showError("SKU is required");
+          showError('SKU is required');
           setLoading(false);
           return;
         }
 
         if (!formData.barcode || !formData.barcode.trim()) {
-          showError("Barcode is required");
+          showError('Barcode is required');
           setLoading(false);
           return;
         }
@@ -329,32 +339,32 @@ export default function ProductForm({
         const parsedPurchasePrice = parseFloat(String(formData.purchase_price));
         const purchasePrice = isNaN(parsedPurchasePrice) ? 0 : parsedPurchasePrice;
 
-        const otherBranchesQty = isMainBranchContext 
-          ? 0 
+        const otherBranchesQty = isMainBranchContext
+          ? 0
           : (product?.product_inventory || [])
               .filter((inv: any) => inv.branch_id !== activeBranchId)
               .reduce((sum: number, inv: any) => sum + inv.quantity, 0);
 
-        const subBranchQty = activeBranchId ? (branchStocks[activeBranchId] || 0) : 0;
-        
-        const totalQuantity = isMainBranchContext 
+        const subBranchQty = activeBranchId ? branchStocks[activeBranchId] || 0 : 0;
+
+        const totalQuantity = isMainBranchContext
           ? Object.values(branchStocks).reduce((sum, qty) => sum + (qty || 0), 0)
           : otherBranchesQty + subBranchQty;
 
         if (pricePerDay <= 0) {
-          showError("Rent amount is required and must be greater than 0");
+          showError('Rent amount is required and must be greater than 0');
           setLoading(false);
           return;
         }
 
         if (totalQuantity <= 0) {
-          showError("Stock quantity is required and must be greater than 0");
+          showError('Stock quantity is required and must be greater than 0');
           setLoading(false);
           return;
         }
 
         if (barcodeError) {
-          showError("Please fix the barcode error before saving");
+          showError('Please fix the barcode error before saving');
           setLoading(false);
           return;
         }
@@ -377,7 +387,8 @@ export default function ProductForm({
             })
           : branches.map((branch) => {
               const inv = product?.product_inventory?.find((i: any) => i.branch_id === branch.id);
-              const qty = branch.id === activeBranchId ? subBranchQty : (isEdit ? (inv?.quantity || 0) : 0);
+              const qty =
+                branch.id === activeBranchId ? subBranchQty : isEdit ? inv?.quantity || 0 : 0;
               return {
                 branch_id: branch.id,
                 quantity: qty,
@@ -416,24 +427,25 @@ export default function ProductForm({
         if (continueAdding && !isEdit) {
           // Reset form for next product
           setFormData(emptyFormData());
-          setBranchStocks(Object.keys(branchStocks).reduce((acc, key) => ({ ...acc, [key]: 0 }), {}));
+          setBranchStocks(
+            Object.keys(branchStocks).reduce((acc, key) => ({ ...acc, [key]: 0 }), {})
+          );
           setGlobalStock(0);
           setImageUrls([]);
           setSlugManuallyEdited(false);
-          window.scrollTo({ top: 0, behavior: "smooth" });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-          router.push("/dashboard/products");
+          router.push('/dashboard/products');
         }
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "An unexpected error occurred";
-        console.error("Error saving product:", err);
+        const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+        console.error('Error saving product:', err);
         showError(message);
       } finally {
         setLoading(false);
       }
     },
-     
+
     [
       formData,
       imageUrls,
@@ -463,19 +475,19 @@ export default function ProductForm({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => router.push("/dashboard/products")}
+            onClick={() => router.push('/dashboard/products')}
             className="w-9 h-9 border-slate-200 text-slate-500 hover:text-slate-900 bg-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              {isEdit ? "Edit Product" : "Add Product"}
+              {isEdit ? 'Edit Product' : 'Add Product'}
             </h1>
             <p className="text-sm text-slate-500">
               {isEdit
-                ? "Update details and stock"
-                : "Fill in the essentials — you can always edit later"}
+                ? 'Update details and stock'
+                : 'Fill in the essentials — you can always edit later'}
             </p>
           </div>
         </div>
@@ -506,9 +518,7 @@ export default function ProductForm({
                   setFormData((prev) => ({
                     ...prev,
                     name: newName,
-                    slug: slugManuallyEdited
-                      ? prev.slug
-                      : generateSlug(newName),
+                    slug: slugManuallyEdited ? prev.slug : generateSlug(newName),
                   }));
                 }}
                 required
@@ -519,14 +529,10 @@ export default function ProductForm({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-700">
-                Description
-              </label>
+              <label className="text-sm font-medium text-slate-700">Description</label>
               <textarea
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Materials, occasion, style details... (optional)"
                 rows={3}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none resize-y"
@@ -574,16 +580,12 @@ export default function ProductForm({
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
                 />
               </div>
-              <p className="text-xs text-slate-400">
-                Same price across all branches
-              </p>
+              <p className="text-xs text-slate-400">Same price across all branches</p>
             </div>
 
             {/* Purchase Price */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-900">
-                Purchase Price
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-900">Purchase Price</h3>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-base">
                   ₹
@@ -601,9 +603,7 @@ export default function ProductForm({
                   className="h-12 pl-8 border-slate-200 focus:border-slate-900 font-bold text-xl"
                 />
               </div>
-              <p className="text-xs text-slate-400">
-                Original cost — used for ROI calculation
-              </p>
+              <p className="text-xs text-slate-400">Original cost — used for ROI calculation</p>
             </div>
 
             {/* Categories */}
@@ -641,9 +641,7 @@ export default function ProductForm({
               {variants.length > 0 && (
                 <select
                   value={formData.subvariant_id}
-                  onChange={(e) =>
-                    setFormData({ ...formData, subvariant_id: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, subvariant_id: e.target.value })}
                   className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
                 >
                   <option value="">Select variant</option>
@@ -660,7 +658,7 @@ export default function ProductForm({
                 <div className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg mt-2">
                   <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                   <p className="text-xs text-blue-700 font-medium">
-                    GST Rate: <span className="font-bold">{inheritedGst.percentage}%</span>{" "}
+                    GST Rate: <span className="font-bold">{inheritedGst.percentage}%</span>{' '}
                     <span className="text-blue-500">(from {inheritedGst.categoryName})</span>
                   </p>
                 </div>
@@ -684,22 +682,26 @@ export default function ProductForm({
                       value={globalStock}
                       onChange={(e) => handleGlobalStockChange(e.target.value)}
                       onFocus={() => {
-                        if (globalStock === 0) setGlobalStock("");
+                        if (globalStock === 0) setGlobalStock('');
                       }}
                       onBlur={() => {
-                        if (globalStock === "") setGlobalStock(0);
+                        if (globalStock === '') setGlobalStock(0);
                       }}
                       placeholder="0"
                       className="h-12 border-slate-200 focus:border-slate-900 font-bold text-xl text-center"
                     />
                     <p className="text-xs text-slate-400 text-center">
-                      Type stock here to apply to all branches below, or edit branch stock individually.
+                      Type stock here to apply to all branches below, or edit branch stock
+                      individually.
                     </p>
                   </div>
 
                   <div className="border border-slate-100 rounded-lg divide-y divide-slate-100 mt-2">
                     {branches.map((branch) => (
-                      <div key={branch.id} className="flex items-center justify-between p-3 hover:bg-slate-50/50 transition-colors">
+                      <div
+                        key={branch.id}
+                        className="flex items-center justify-between p-3 hover:bg-slate-50/50 transition-colors"
+                      >
                         <div className="space-y-0.5">
                           <span className="text-sm font-medium text-slate-700">{branch.name}</span>
                           {branch.is_main && (
@@ -712,10 +714,10 @@ export default function ProductForm({
                           <Input
                             type="number"
                             min={0}
-                            value={branchStocks[branch.id] ?? ""}
+                            value={branchStocks[branch.id] ?? ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              const qty = val === "" ? "" : parseInt(val, 10);
+                              const qty = val === '' ? '' : parseInt(val, 10);
                               setBranchStocks((prev) => ({
                                 ...prev,
                                 [branch.id]: isNaN(qty as any) ? 0 : (qty as number),
@@ -725,12 +727,12 @@ export default function ProductForm({
                               if (branchStocks[branch.id] === 0) {
                                 setBranchStocks((prev) => ({
                                   ...prev,
-                                  [branch.id]: "" as any,
+                                  [branch.id]: '' as any,
                                 }));
                               }
                             }}
                             onBlur={() => {
-                              if (branchStocks[branch.id] === ("" as any)) {
+                              if (branchStocks[branch.id] === ('' as any)) {
                                 setBranchStocks((prev) => ({
                                   ...prev,
                                   [branch.id]: 0,
@@ -750,10 +752,10 @@ export default function ProductForm({
                   <Input
                     type="number"
                     min={0}
-                    value={activeBranchId ? (branchStocks[activeBranchId] ?? "") : ""}
+                    value={activeBranchId ? (branchStocks[activeBranchId] ?? '') : ''}
                     onChange={(e) => {
                       const val = e.target.value;
-                      const qty = val === "" ? "" : parseInt(val, 10);
+                      const qty = val === '' ? '' : parseInt(val, 10);
                       if (activeBranchId) {
                         setBranchStocks((prev) => ({
                           ...prev,
@@ -765,12 +767,12 @@ export default function ProductForm({
                       if (activeBranchId && branchStocks[activeBranchId] === 0) {
                         setBranchStocks((prev) => ({
                           ...prev,
-                          [activeBranchId]: "" as any,
+                          [activeBranchId]: '' as any,
                         }));
                       }
                     }}
                     onBlur={() => {
-                      if (activeBranchId && branchStocks[activeBranchId] === ("" as any)) {
+                      if (activeBranchId && branchStocks[activeBranchId] === ('' as any)) {
                         setBranchStocks((prev) => ({
                           ...prev,
                           [activeBranchId]: 0,
@@ -796,27 +798,19 @@ export default function ProductForm({
           <div className="bg-white border border-slate-200 rounded-lg p-5">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  Active Listing
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Visible in storefront
-                </p>
+                <p className="text-sm font-semibold text-slate-900">Active Listing</p>
+                <p className="text-xs text-slate-500 mt-0.5">Visible in storefront</p>
               </div>
               <Switch
                 checked={formData.is_active}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, is_active: checked })
-                }
+                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
               />
             </div>
           </div>
 
           {/* Identifiers: SKU + Barcode */}
           <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">
-              Identifiers
-            </h3>
+            <h3 className="text-sm font-semibold text-slate-900">Identifiers</h3>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 SKU <span className="text-red-500">*</span>
@@ -824,9 +818,7 @@ export default function ProductForm({
               <div className="flex gap-1.5">
                 <Input
                   value={formData.sku}
-                  onChange={(e) =>
-                    setFormData({ ...formData, sku: e.target.value })
-                  }
+                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                   placeholder="e.g., PB-NK-001"
                   className="h-9 border-slate-200 focus:border-slate-900 font-mono text-xs flex-1"
                 />
@@ -903,7 +895,7 @@ export default function ProductForm({
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/dashboard/products")}
+            onClick={() => router.push('/dashboard/products')}
             className="h-10 border-slate-200 text-slate-600 hover:text-slate-900"
           >
             Cancel
@@ -917,7 +909,7 @@ export default function ProductForm({
                 onClick={() => handleSubmit(true)}
                 className="h-10 border-slate-200 text-slate-700 hover:bg-slate-50"
               >
-                {loading ? "Saving..." : !isFormReady ? "Loading..." : "Save & Add Another"}
+                {loading ? 'Saving...' : !isFormReady ? 'Loading...' : 'Save & Add Another'}
               </Button>
             )}
             <Button
@@ -927,12 +919,12 @@ export default function ProductForm({
               className="h-10 px-6 bg-slate-900 text-white hover:bg-slate-800 font-semibold"
             >
               {loading
-                ? "Saving..."
+                ? 'Saving...'
                 : !isFormReady
-                ? "Loading..."
-                : isEdit
-                ? "Save Changes"
-                : "Create Product"}
+                  ? 'Loading...'
+                  : isEdit
+                    ? 'Save Changes'
+                    : 'Create Product'}
             </Button>
           </div>
         </div>

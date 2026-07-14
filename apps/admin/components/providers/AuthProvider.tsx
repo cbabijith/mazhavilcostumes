@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useAppStore } from "@/stores/appStore";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useAppStore } from '@/stores/appStore';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter, usePathname } from 'next/navigation';
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUser = useAppStore((state) => state.setUser);
   const setAuthenticated = useAppStore((state) => state.setAuthenticated);
   const setLoading = useAppStore((state) => state.setLoading);
-  
+
   const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const supabase = useMemo(() => createClient(), []);
-  
+
   const pathnameRef = useRef(pathname);
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -32,10 +32,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
 
         setLoading(true);
-        
+
         // 1. Check current session
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
         if (!session) {
           setAuthenticated(false);
           setUser(null);
@@ -50,7 +52,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const response = await fetch('/api/auth/me');
         if (response.ok) {
           const json = await response.json();
-          const authUser = json.data?.user || json.user; 
+          const authUser = json.data?.user || json.user;
           if (authUser) {
             setUser({
               ...authUser,
@@ -81,7 +83,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           setAuthenticated(true);
         }
       } catch (error) {
-        console.error("Auth initialization failed:", error);
+        console.error('Auth initialization failed:', error);
       } finally {
         setLoading(false);
         setInitialized(true);
@@ -107,7 +109,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     };
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setAuthenticated(false);
@@ -133,7 +137,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
           </div>
         </div>
       )}
-      <div style={{ display: (!initialized && !pathname.startsWith('/auth')) ? 'none' : 'contents' }}>
+      <div style={{ display: !initialized && !pathname.startsWith('/auth') ? 'none' : 'contents' }}>
         {children}
       </div>
     </>

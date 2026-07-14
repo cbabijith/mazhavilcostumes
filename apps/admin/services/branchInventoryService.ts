@@ -6,22 +6,22 @@
  * @module services/branchInventoryService
  */
 
-import { 
+import {
   branchInventoryRepository,
   branchRepository,
   productRepository,
-  RepositoryResult 
+  RepositoryResult,
 } from '@/repository';
-import { 
+import {
   BranchInventory,
   CreateBranchInventoryDTO,
   UpdateBranchInventoryDTO,
-  InventoryAdjustment
+  InventoryAdjustment,
 } from '@/domain';
-import { 
+import {
   CreateBranchInventorySchema,
   UpdateBranchInventorySchema,
-  InventoryAdjustmentSchema
+  InventoryAdjustmentSchema,
 } from '@/domain/schemas';
 
 export class BranchInventoryService {
@@ -49,14 +49,19 @@ export class BranchInventoryService {
   /**
    * Get specific branch inventory for a product
    */
-  async getBranchProductInventory(branchId: string, productId: string): Promise<RepositoryResult<BranchInventory | null>> {
+  async getBranchProductInventory(
+    branchId: string,
+    productId: string
+  ): Promise<RepositoryResult<BranchInventory | null>> {
     return branchInventoryRepository.getBranchProductInventory(branchId, productId);
   }
 
   /**
    * Create branch inventory
    */
-  async createBranchInventory(inventory: CreateBranchInventoryDTO): Promise<RepositoryResult<BranchInventory>> {
+  async createBranchInventory(
+    inventory: CreateBranchInventoryDTO
+  ): Promise<RepositoryResult<BranchInventory>> {
     // Validate input
     const validationResult = CreateBranchInventorySchema.safeParse(inventory);
     if (!validationResult.success) {
@@ -65,8 +70,8 @@ export class BranchInventoryService {
         data: null,
         error: {
           message: 'Validation failed',
-          details: validationResult.error.issues
-        } as any
+          details: validationResult.error.issues,
+        } as any,
       };
     }
 
@@ -79,7 +84,10 @@ export class BranchInventoryService {
       return {
         success: false,
         data: null,
-        error: { message: 'Inventory already exists for this branch and product', code: 'INVENTORY_EXISTS' } as any
+        error: {
+          message: 'Inventory already exists for this branch and product',
+          code: 'INVENTORY_EXISTS',
+        } as any,
       };
     }
 
@@ -89,7 +97,10 @@ export class BranchInventoryService {
   /**
    * Update branch inventory
    */
-  async updateBranchInventory(id: string, inventory: UpdateBranchInventoryDTO): Promise<RepositoryResult<BranchInventory>> {
+  async updateBranchInventory(
+    id: string,
+    inventory: UpdateBranchInventoryDTO
+  ): Promise<RepositoryResult<BranchInventory>> {
     // Validate input
     const validationResult = UpdateBranchInventorySchema.safeParse(inventory);
     if (!validationResult.success) {
@@ -98,8 +109,8 @@ export class BranchInventoryService {
         data: null,
         error: {
           message: 'Validation failed',
-          details: validationResult.error.issues
-        } as any
+          details: validationResult.error.issues,
+        } as any,
       };
     }
 
@@ -116,7 +127,9 @@ export class BranchInventoryService {
   /**
    * Adjust inventory quantity
    */
-  async adjustInventoryQuantity(adjustment: InventoryAdjustment): Promise<RepositoryResult<BranchInventory>> {
+  async adjustInventoryQuantity(
+    adjustment: InventoryAdjustment
+  ): Promise<RepositoryResult<BranchInventory>> {
     // Validate input
     const validationResult = InventoryAdjustmentSchema.safeParse(adjustment);
     if (!validationResult.success) {
@@ -125,8 +138,8 @@ export class BranchInventoryService {
         data: null,
         error: {
           message: 'Validation failed',
-          details: validationResult.error.issues
-        } as any
+          details: validationResult.error.issues,
+        } as any,
       };
     }
 
@@ -154,14 +167,16 @@ export class BranchInventoryService {
   /**
    * Initialize inventory for a new product across all branches
    */
-  async initializeProductInventory(productId: string): Promise<RepositoryResult<BranchInventory[]>> {
+  async initializeProductInventory(
+    productId: string
+  ): Promise<RepositoryResult<BranchInventory[]>> {
     // Get all branches - using a different approach since getAllBranches doesn't exist
     const branchesResult = await branchRepository.findAll('default');
     if (!branchesResult.success || !branchesResult.data) {
       return {
         success: false,
         data: [],
-        error: { message: 'Failed to fetch branches' } as any
+        error: { message: 'Failed to fetch branches' } as any,
       };
     }
 
@@ -186,7 +201,7 @@ export class BranchInventoryService {
     return {
       success: true,
       data: inventoryResults,
-      error: null
+      error: null,
     };
   }
 }

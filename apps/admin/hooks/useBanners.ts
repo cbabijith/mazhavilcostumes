@@ -80,7 +80,10 @@ export function useCreateBanner() {
 
   return useMutation({
     mutationFn: (data: CreateBannerDTO) =>
-      apiFetch<ApiSuccessResponse<Banner>>('/api/banners', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<Banner>>('/api/banners', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async () => {
       // Invalidate all banner queries to refresh list and counts
       queryClient.invalidateQueries({ queryKey: bannerKeys.all });
@@ -103,7 +106,10 @@ export function useUpdateBanner() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateBannerDTO }) =>
-      apiFetch<ApiSuccessResponse<Banner>>(`/api/banners/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<Banner>>(`/api/banners/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async (result, variables) => {
       // Invalidate all banner queries to refresh list and counts
       queryClient.invalidateQueries({ queryKey: bannerKeys.all });
@@ -150,7 +156,10 @@ export function useReorderBanners() {
 
   return useMutation({
     mutationFn: (banners: { id: string; priority?: number; position?: string }[]) =>
-      apiFetch<ApiSuccessResponse<null>>('/api/banners/reorder', { method: 'POST', body: JSON.stringify({ banners }) }),
+      apiFetch<ApiSuccessResponse<null>>('/api/banners/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ banners }),
+      }),
     onMutate: async (newOrder) => {
       // Cancel any in-flight banner queries
       await queryClient.cancelQueries({ queryKey: bannerKeys.all });
@@ -161,23 +170,25 @@ export function useReorderBanners() {
       // Optimistically update ALL banner query caches that contain these items
       queryClient.setQueriesData<Banner[]>({ queryKey: bannerKeys.all }, (old) => {
         if (!old || !Array.isArray(old)) return old;
-        return old.map((banner) => {
-          const update = newOrder.find((o) => o.id === banner.id);
-          if (update) {
-            return {
-              ...banner,
-              position: update.position ?? banner.position,
-              priority: update.priority ?? banner.priority,
-            };
-          }
-          return banner;
-        }).sort((a, b) => {
-          // Sort by position (numeric) for hero banners
-          const posA = a.position ? parseInt(a.position) : 999;
-          const posB = b.position ? parseInt(b.position) : 999;
-          if (posA !== posB) return posA - posB;
-          return (b.priority || 0) - (a.priority || 0);
-        });
+        return old
+          .map((banner) => {
+            const update = newOrder.find((o) => o.id === banner.id);
+            if (update) {
+              return {
+                ...banner,
+                position: update.position ?? banner.position,
+                priority: update.priority ?? banner.priority,
+              };
+            }
+            return banner;
+          })
+          .sort((a, b) => {
+            // Sort by position (numeric) for hero banners
+            const posA = a.position ? parseInt(a.position) : 999;
+            const posB = b.position ? parseInt(b.position) : 999;
+            if (posA !== posB) return posA - posB;
+            return (b.priority || 0) - (a.priority || 0);
+          });
       });
 
       return { previousQueries };
@@ -206,7 +217,8 @@ export function useBannerCounts() {
   return useQuery({
     queryKey: bannerKeys.counts,
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>('/api/banners/counts');
+      const response =
+        await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>('/api/banners/counts');
       return response.data || { hero: 0, editorial: 0, split: 0 };
     },
     refetchOnWindowFocus: false,
@@ -220,7 +232,9 @@ export function useRemainingSlots() {
   return useQuery({
     queryKey: bannerKeys.remainingSlots,
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>('/api/banners/remaining-slots');
+      const response = await apiFetch<ApiSuccessResponse<Record<BannerType, number>>>(
+        '/api/banners/remaining-slots'
+      );
       return response.data || { hero: 10, editorial: 1, split: 2 };
     },
     refetchOnWindowFocus: false,

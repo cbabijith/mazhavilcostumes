@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   images: {
@@ -9,20 +9,19 @@ const nextConfig: NextConfig = {
     imageSizes: [32, 64, 128, 256],
     remotePatterns: [
       {
-        protocol: "https",
-        hostname: "*.r2.dev",
+        protocol: 'https',
+        hostname: '*.r2.dev',
       },
       {
-        protocol: "https",
-        hostname: "*.supabase.co",
+        protocol: 'https',
+        hostname: '*.supabase.co',
       },
       {
-        protocol: "https",
-        hostname: "*.supabase.in",
+        protocol: 'https',
+        hostname: '*.supabase.in',
       },
     ],
   },
 };
 
 export default nextConfig;
-

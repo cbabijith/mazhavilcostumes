@@ -9,11 +9,17 @@
  * @module app/api/orders/[id]/route
  */
 
-import { NextRequest } from "next/server";
-import { orderService } from "@/services/orderService";
-import { apiGuard } from "@/lib/apiGuard";
-import { UpdateOrderSchema } from "@/domain";
-import { apiSuccess, apiRepositoryError, apiNotFound, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { orderService } from '@/services/orderService';
+import { apiGuard } from '@/lib/apiGuard';
+import { UpdateOrderSchema } from '@/domain';
+import {
+  apiSuccess,
+  apiRepositoryError,
+  apiNotFound,
+  apiBadRequest,
+  apiInternalError,
+} from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -76,10 +82,16 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
 
     // Enforce role-based access for deletion (shop admin/owner only)
     if (!['admin', 'super_admin', 'owner'].includes(authUser?.role || '')) {
-      return new Response(JSON.stringify({ success: false, error: 'Unauthorized: Only shop admins and owners can delete orders.' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Unauthorized: Only shop admins and owners can delete orders.',
+        }),
+        {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
