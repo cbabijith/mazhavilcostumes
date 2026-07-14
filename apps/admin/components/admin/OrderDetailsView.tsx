@@ -586,9 +586,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 {statusDisplay.label}
               </div>
             </div>
-            <p className="text-sm text-slate-500">
-              Created on {format(new Date(order.created_at), "dd MMM, yyyy • h:mm a")} by Admin
-            </p>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm text-slate-500">
+                Created on {format(new Date(order.created_at), "dd MMM, yyyy • h:mm a")} by{" "}
+                <span className="font-semibold text-slate-700">{order.creator?.name || "Admin"}</span>
+              </p>
+              {order.updated_at && order.updater && (
+                <p className="text-xs text-slate-400">
+                  Last updated on {format(new Date(order.updated_at), "dd MMM, yyyy • h:mm a")} by{" "}
+                  <span className="font-semibold text-slate-600">{order.updater.name}</span>
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">

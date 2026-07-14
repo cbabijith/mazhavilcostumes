@@ -883,7 +883,9 @@ export class OrderRepository extends BaseRepository {
           is_returned, returned_quantity, base_amount, gst_amount,
           product:product_id(id, name, images, category:category_id(has_buffer))
         ),
-        branch:branch_id(id, name)
+        branch:branch_id(id, name),
+        creator:created_by(id, name, email),
+        updater:updated_by(id, name, email)
       `)
       .eq('id', id)
       .single();
@@ -1195,7 +1197,10 @@ export class OrderRepository extends BaseRepository {
 
     const response = await this.client
       .from(this.tableName)
-      .update({ ...orderData })
+      .update({
+        ...orderData,
+        ...this.getUpdateAuditFields(),
+      })
       .eq('id', id)
       .select()
       .single();

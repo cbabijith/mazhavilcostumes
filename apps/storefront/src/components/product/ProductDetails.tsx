@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck } from "lucide-react";
+import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck, Star } from "lucide-react";
 import WhatsAppOrderModal from "./WhatsAppOrderModal";
 import { getProductImageUrls } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
@@ -185,6 +185,18 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                   <ShoppingBag size={16} strokeWidth={1.8} />
                   {isInCart ? "Go to Cart" : "Add to Cart"}
                 </button>
+
+                <a
+                  href="https://www.google.com/maps/place/Mazhavil+Dance+Costumes/@8.4813229,76.9651016,190m/data=!3m1!1e3!4m14!1m5!3m4!2zOMKwMjgnNTIuNCJOIDc2wrA1Nyc1NC4yIkU!8m2!3d8.481222!4d76.965056!3m7!1s0x3b05baffdb11f17d:0x33294c74d75f5173!8m2!3d8.4813169!4d76.9650347!9m1!1b1!16s%2Fg%2F11c4bghg8f?entry=ttu"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative w-full py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 overflow-hidden shadow-md shadow-amber-500/10 cursor-pointer bg-amber-500 hover:bg-amber-600 text-white hover:shadow-lg hover:shadow-amber-500/20 active:scale-[0.98] transition-all mt-2 group"
+                >
+                  {/* Subtle pulsing ring */}
+                  <span className="absolute inset-0 rounded-full border border-amber-500 animate-ping opacity-60 pointer-events-none scale-105" />
+                  <Star size={16} className="fill-white text-white group-hover:rotate-12 transition-transform" />
+                  <span>Loved this costume? Write a Google Review!</span>
+                </a>
               </div>
 
               {/* Trust notes */}

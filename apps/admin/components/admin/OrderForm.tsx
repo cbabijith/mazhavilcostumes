@@ -167,7 +167,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     const itemGstBreakdown: { productId: string; gstRate: number; baseAmount: number; gstAmount: number; lineAfterDiscount: number }[] = [];
 
     cartItems.forEach((item) => {
-      const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+      const price = parseFloat(item.price_per_day as any);
+      const priceVal = isNaN(price) ? 0 : price;
+      const lineTotal = priceVal * item.quantity * pricingMultiplier;
       const itemDisc = item.discount_type === 'percent'
         ? lineTotal * (item.discount / 100)
         : (item.discount || 0) * item.quantity;
@@ -513,6 +515,22 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       return;
     }
 
+    // Validate that price per day is a valid number and not less than original price per day
+    const invalidItems = cartItems.filter(item => {
+      const price = parseFloat(item.price_per_day);
+      const originalPrice = item.original_price_per_day ?? 0;
+      return isNaN(price) || price < originalPrice;
+    });
+
+    if (invalidItems.length > 0) {
+      const firstInvalid = invalidItems[0];
+      showError(
+        "Invalid Price Override",
+        `Price for ${firstInvalid.product.name} must be a valid number and cannot be lower than original price ${formatCurrency(firstInvalid.original_price_per_day ?? 0)}.`
+      );
+      return;
+    }
+
     const basePayload = {
       notes: notes || undefined,
       delivery_address: deliveryAddress || undefined,
@@ -531,7 +549,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       items: cartItems.map(item => ({
         product_id: item.product.id,
         quantity: item.quantity,
-        price_per_day: item.price_per_day,
+        price_per_day: parseFloat(item.price_per_day as any),
         original_price_per_day: item.original_price_per_day,
         discount: item.discount || 0,
         discount_type: item.discount_type || 'flat',
@@ -592,7 +610,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         items: cartItems.map(item => ({
           product_id: item.product.id,
           quantity: item.quantity,
-          price_per_day: item.price_per_day,
+          price_per_day: parseFloat(item.price_per_day as any),
           original_price_per_day: item.original_price_per_day,
           discount: item.discount || 0,
           discount_type: item.discount_type || 'flat',
@@ -1006,22 +1024,26 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               <input
                                 type="number"
                                 value={item.price_per_day}
-                                min={item.original_price_per_day}
                                 step="1"
                                 onChange={(e) => {
-                                  const val = parseFloat(e.target.value);
-                                  if (isNaN(val)) return;
+                                  const rawVal = e.target.value;
+                                  setCartItems(prev => prev.map(p =>
+                                    p.product.id === item.product.id ? { ...p, price_per_day: rawVal } : p
+                                  ));
+                                }}
+                                onBlur={(e) => {
+                                  const price = parseFloat(e.target.value);
                                   const minPrice = item.original_price_per_day ?? 0;
-                                  if (val < minPrice) {
+                                  if (isNaN(price) || price < minPrice) {
                                     showError("Price Override", `Price cannot be lower than ${formatCurrency(minPrice)}.`);
                                     setCartItems(prev => prev.map(p =>
                                       p.product.id === item.product.id ? { ...p, price_per_day: minPrice } : p
                                     ));
-                                    return;
+                                  } else {
+                                    setCartItems(prev => prev.map(p =>
+                                      p.product.id === item.product.id ? { ...p, price_per_day: price } : p
+                                    ));
                                   }
-                                  setCartItems(prev => prev.map(p =>
-                                    p.product.id === item.product.id ? { ...p, price_per_day: val } : p
-                                  ));
                                 }}
                                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
                                 className="w-20 h-6 text-xs text-right font-semibold border border-slate-200 rounded px-1.5 outline-none focus:border-slate-900 bg-white"
@@ -1275,7 +1297,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                           </div>
                           <div className="text-right">
                             {(() => {
-                              const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+                              const price = parseFloat(item.price_per_day as any);
+                              const priceVal = isNaN(price) ? 0 : price;
+                              const lineTotal = priceVal * item.quantity * pricingMultiplier;
                               const discAmt = item.discount_type === 'percent'
                                 ? lineTotal * ((item.discount || 0) / 100)
                                 : (item.discount || 0) * item.quantity;
@@ -1296,10 +1320,10 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                         <div className="mt-1.5 px-2 py-1.5 bg-slate-50/80 rounded border border-slate-100">
                           <div className="flex items-center justify-between text-[10px] text-slate-500">
                             <span className="font-medium">
-                              {formatCurrency(item.price_per_day)} × {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} × {pricingMultiplier === 1 ? `base (${rentalDays} days)` : `${pricingMultiplier} (${rentalDays} days − 2 free)`}
+                              {formatCurrency(parseFloat(item.price_per_day as any) || 0)} × {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} × {pricingMultiplier === 1 ? `base (${rentalDays} days)` : `${pricingMultiplier} (${rentalDays} days − 2 free)`}
                             </span>
                             <span className="font-semibold text-slate-600">
-                              = {formatCurrency(item.price_per_day * item.quantity * pricingMultiplier)}
+                              = {formatCurrency((parseFloat(item.price_per_day as any) || 0) * item.quantity * pricingMultiplier)}
                             </span>
                           </div>
                           <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
