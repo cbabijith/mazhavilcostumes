@@ -19,6 +19,10 @@
 - Git operations are the **user's responsibility**. The agent should not suggest or attempt to push code.
 - If the user explicitly asks to push, the target branch is `abijithcb`. NEVER push to `main`.
 
+### 🚫 No Direct Database Schema Execution
+- The agent must **NEVER** execute database migrations or run DDL/DML queries directly against the live database (using CLI, scripts, or RPC) without **explicit permission** from the user.
+- Schema changes must be written to migration SQL files first and verified locally/proposed to the user.
+
 ### 📝 Mandatory Change Explanations
 - For **every** code change, the agent MUST provide a clear explanation of:
   - **What** was changed

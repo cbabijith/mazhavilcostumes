@@ -125,6 +125,8 @@ export interface Order {
   is_late: boolean;
   invoice_number?: string;
 
+  created_by?: string | null;
+  updated_by?: string | null;
   readonly created_at: string;
   readonly updated_at?: string;
 }
@@ -153,6 +155,16 @@ export interface OrderWithRelations extends Order {
     email: string | null;
     gstin: string | null;
   };
+  creator?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  updater?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
 // Order Status History Entity

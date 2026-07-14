@@ -191,7 +191,7 @@ export default function ContactPage() {
                     <div className="min-w-0">
                       <p className="text-xs text-body mb-1">Address</p>
                       <a
-                        href="https://www.google.com/maps/search/?api=1&query=8.481222,76.965056"
+                        href="https://www.google.com/maps/place/Mazhavil+Dance+Costumes/@8.4813296,76.9650323,17z/data=!4m6!3m5!1s0x3b05baffdb11f17d:0x33294c74d75f5173!8m2!3d8.4813296!4d76.9650323!16s%2Fg%2F11c4bghg8f"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm text-heading leading-relaxed hover:text-rosegold transition-colors"

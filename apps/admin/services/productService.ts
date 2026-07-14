@@ -622,7 +622,8 @@ export class ProductService {
       let query = adminClient
         .from('products')
         .select('id')
-        .eq('slug', slug);
+        .eq('slug', slug)
+        .is('deleted_at', null);
       
       // Exclude current product when editing
       if (excludeId) {
