@@ -80,24 +80,32 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
               const hasCTA = !!banner.call_to_action;
               const hasTextContent = hasTitle || hasSubtitle || hasCTA;
 
+              const isNearby = Math.abs(index - current) <= 1;
+
               const SlideInner = (
                 <div className="min-w-full h-full relative group">
-                  <Image
-                    src={banner.mobile_image_url || banner.web_image_url}
-                    alt={banner.alt_text || banner.title || "Banner"}
-                    fill
-                    priority={index === 0}
-                    sizes="(max-width: 640px) 100vw, 1px"
-                    className="w-full h-full object-cover object-center sm:hidden"
-                  />
-                  <Image
-                    src={banner.web_image_url}
-                    alt={banner.alt_text || banner.title || "Banner"}
-                    fill
-                    priority={index === 0}
-                    sizes="(min-width: 640px) 100vw, 1024px"
-                    className="w-full h-full object-cover object-center hidden sm:block"
-                  />
+                  {isNearby ? (
+                    <>
+                      <Image
+                        src={banner.mobile_image_url || banner.web_image_url}
+                        alt={banner.alt_text || banner.title || "Banner"}
+                        fill
+                        priority={index === 0}
+                        sizes="(max-width: 640px) 100vw, 1px"
+                        className="w-full h-full object-cover object-center sm:hidden"
+                      />
+                      <Image
+                        src={banner.web_image_url}
+                        alt={banner.alt_text || banner.title || "Banner"}
+                        fill
+                        priority={index === 0}
+                        sizes="(min-width: 640px) 100vw, 1024px"
+                        className="w-full h-full object-cover object-center hidden sm:block"
+                      />
+                    </>
+                  ) : (
+                    <div className="w-full h-full bg-silk-dark" />
+                  )}
 
                   {/* Text Overlay */}
                   {hasTextContent && (

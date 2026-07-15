@@ -23,6 +23,7 @@ export default async function AboutPage() {
               alt="Mazhavil Dance Costumes Logo" 
               width={160}
               height={160}
+              unoptimized
               className="w-28 h-28 sm:w-36 sm:h-36 object-contain animate-fadeIn"
             />
           </div>

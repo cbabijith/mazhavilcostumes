@@ -1,51 +1,53 @@
-import { ShieldCheck, Truck, Sparkles, Star } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { ShieldCheck, Truck, Sparkles, Headphones } from "lucide-react";
 
 const badges = [
   {
     icon: ShieldCheck,
     title: "Certified Quality",
-    description: "Each piece is hand-selected and verified by experts",
+    description: "Verified by experts",
   },
   {
     icon: Truck,
     title: "Safe Delivery",
-    description: "Insured and tracked shipping to your doorstep",
+    description: "Secure & insured",
   },
   {
     icon: Sparkles,
     title: "Pristine Condition",
-    description: "Professionally cleaned and sanitized after every use",
+    description: "Cleaned & sanitized",
   },
   {
-    icon: Star,
-    title: "Trusted Service",
-    description: "Over 500+ dancers adorned across the region",
+    icon: Headphones,
+    title: "Trusted Support",
+    description: "We're here to help",
   },
 ];
 
 export default function TrustBadges() {
   return (
-    <section className="bg-ivory py-6 sm:py-8 md:py-12 px-5 md:px-10 border-b border-[var(--border-silk)]">
-      <div className="max-w-[1600px] mx-auto">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 stagger-children">
-          {badges.map((badge, index) => (
-            <Card
-              key={index}
-              className="flex flex-col items-center text-center p-4 sm:p-6 md:p-8 group border-[var(--border-silk)] bg-white/60 backdrop-blur-sm hover:shadow-silk transition-all duration-500 hover:-translate-y-1 rounded-2xl"
-            >
-              <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full bg-rosegold/5 text-rosegold mb-4 sm:mb-5 transition-all duration-500 group-hover:bg-rosegold group-hover:text-white group-hover:shadow-lg group-hover:shadow-rosegold/20">
-                <badge.icon size={22} strokeWidth={1.5} />
+    <section className="bg-white py-6 px-3 sm:px-6">
+      <div className="max-w-[1200px] mx-auto">
+        <div className="grid grid-cols-4">
+            {badges.map((badge, index) => (
+              <div
+                key={index}
+                className={`flex min-w-0 flex-col items-start px-2 py-4 sm:p-5 ${
+                  index !== badges.length - 1 ? "border-r border-[#EAEAEA]" : ""
+                }`}
+              >
+                <badge.icon
+                  className="text-[#EC4899] mb-2 h-[18px] w-[18px] sm:mb-3 sm:h-7 sm:w-7"
+                  strokeWidth={1.9}
+                />
+                <h3 className="mb-1 max-w-full truncate text-[10px] font-semibold leading-tight text-gray-900 sm:text-[16px]">
+                  {badge.title}
+                </h3>
+                <p className="max-w-full truncate text-[9px] font-medium leading-tight text-[#6B7280] sm:text-[12px]">
+                  {badge.description}
+                </p>
               </div>
-              <h3 className="text-[11px] sm:text-xs font-serif uppercase tracking-[0.15em] mb-2 sm:mb-2.5 text-heading font-medium">
-                {badge.title}
-              </h3>
-              <p className="text-[11px] sm:text-xs text-caption leading-relaxed max-w-[180px]">
-                {badge.description}
-              </p>
-            </Card>
-          ))}
-        </div>
+            ))}
+          </div>
       </div>
     </section>
   );

@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ShoppingBag, Heart, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ShoppingBag, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Store, Category } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import ActionSearchBar from "@/components/ui/action-search-bar";
 
 interface HeaderProps {
@@ -17,8 +17,14 @@ interface HeaderProps {
 export default function Header({ store, categories }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [cartCount, setCartCount] = useState(0);
-  const [wishlistCount, setWishlistCount] = useState(0);
+  const [showCategoryBar, setShowCategoryBar] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
+  const isHomePage = pathname === "/";
+
+  const lastScrollY = useRef(0);
+  const toggleLock = useRef(false);
+  const showCategoryBarRef = useRef(true);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -26,32 +32,63 @@ export default function Header({ store, categories }: HeaderProps) {
 
   useEffect(() => {
     const handleScroll = () => {
-      const scrolled = window.scrollY > 40;
+      const currentScrollY = window.scrollY;
+      const scrolled = currentScrollY > 40;
       if (scrolled !== isScrolled) setIsScrolled(scrolled);
+
+      // Hide category bar on scroll down, show on scroll up (homepage only)
+      if (isHomePage) {
+        if (toggleLock.current) return;
+
+        const scrollDelta = currentScrollY - lastScrollY.current;
+        if (Math.abs(scrollDelta) > 15) {
+          const shouldShow = scrollDelta < 0 || currentScrollY < 120;
+          const shouldHide = scrollDelta > 0 && currentScrollY > 120;
+
+          if (shouldShow && !showCategoryBarRef.current) {
+            setShowCategoryBar(true);
+            showCategoryBarRef.current = true;
+            toggleLock.current = true;
+            setTimeout(() => {
+              toggleLock.current = false;
+              lastScrollY.current = window.scrollY;
+            }, 400);
+          } else if (shouldHide && showCategoryBarRef.current) {
+            setShowCategoryBar(false);
+            showCategoryBarRef.current = false;
+            toggleLock.current = true;
+            setTimeout(() => {
+              toggleLock.current = false;
+              lastScrollY.current = window.scrollY;
+            }, 400);
+          }
+
+          if (!toggleLock.current) {
+            lastScrollY.current = currentScrollY;
+          }
+        }
+      } else {
+        lastScrollY.current = currentScrollY;
+      }
     };
 
     const loadCounts = () => {
       const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
-      const wish = JSON.parse(localStorage.getItem("paris_wishlist") || "[]");
       setCartCount(cart.length);
-      setWishlistCount(wish.length);
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     loadCounts();
 
     const handleCartUpdate = (e: any) => setCartCount(e.detail);
-    const handleWishUpdate = (e: any) => setWishlistCount(e.detail);
 
     window.addEventListener("paris_cart_updated", handleCartUpdate);
-    window.addEventListener("paris_wishlist_updated", handleWishUpdate);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("paris_cart_updated", handleCartUpdate);
-      window.removeEventListener("paris_wishlist_updated", handleWishUpdate);
     };
-  }, [isScrolled]);
+  }, [isHomePage]);
 
   const compactCategories = false;
 
@@ -105,8 +142,8 @@ export default function Header({ store, categories }: HeaderProps) {
     <>
       <nav
         className={cn(
-          "sticky top-0 z-50 transition-all duration-300 border-b bg-white py-4",
-          isScrolled ? "border-[var(--border-silk)] shadow-sm" : "border-transparent"
+          "sticky top-0 z-50 transition-all duration-300 border-b py-4",
+          isScrolled ? "border-[var(--border-silk)] bg-silk" : "border-transparent bg-transparent"
         )}
       >
         <div className="max-w-[1600px] mx-auto px-6 sm:px-8 lg:px-12">
@@ -119,28 +156,29 @@ export default function Header({ store, categories }: HeaderProps) {
                   alt="Mazhavil Dance Costumes"
                   width={180}
                   height={60}
+                  unoptimized
                   className="w-auto object-contain transition-all duration-500 h-12 sm:h-14 md:h-16"
                 />
               </div>
               <div className="flex flex-col text-left justify-center">
-                <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-xl font-serif font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
+                <span className="text-[10px] min-[380px]:text-xs sm:text-base md:text-lg lg:text-xl font-bold tracking-[0.05em] uppercase text-rosegold transition-colors leading-tight whitespace-nowrap">
                   Mazhavil Dance Costumes
                 </span>
                 <span 
-                  className="text-[7px] min-[380px]:text-[9px] sm:text-[11px] md:text-[12px] tracking-[0.2em] min-[380px]:tracking-[0.4em] sm:tracking-[0.6em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold font-sans block italic whitespace-nowrap"
+                  className="text-[6px] min-[380px]:text-[8px] sm:text-[10px] md:text-[11px] tracking-[0.05em] min-[380px]:tracking-[0.1em] sm:tracking-[0.15em] text-rosegold-dark uppercase leading-none mt-1.5 font-bold block whitespace-nowrap"
                 >
                   Karamana | Trivandrum
                 </span>
               </div>
             </Link>
 
-            {/* Desktop Nav */}
-            <div className="hidden lg:flex items-center gap-8">
+            {/* Desktop Nav — minimal clean links */}
+            <div className="hidden lg:flex items-center gap-10">
               {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="text-[11px] uppercase tracking-[0.15em] font-bold text-rosegold transition-colors relative after:absolute after:bottom-0 after:left-0 after:w-0 after:h-[1px] after:bg-rosegold after:transition-all hover:after:w-full"
+                  className="text-sm font-medium text-heading hover:text-rosegold transition-colors duration-300"
                 >
                   {link.label}
                 </Link>
@@ -159,23 +197,11 @@ export default function Header({ store, categories }: HeaderProps) {
               </Link>
 
               {/* Full Search Bar for Desktop View */}
-              <div className="hidden sm:block flex-1 max-w-[400px]">
+              <div className="hidden sm:block flex-1 max-w-[300px] lg:max-w-[320px]">
                 <ActionSearchBar storeId={store?.id} />
               </div>
 
               <div className="flex items-center gap-1 hidden sm:flex">
-                <Link
-                  href="/wishlist"
-                  className="hidden sm:flex p-2.5 text-body hover:text-rosegold transition-all hover:bg-rosegold/5 rounded-full relative"
-                  aria-label="Wishlist"
-                >
-                  <Heart size={20} strokeWidth={1.5} />
-                  {wishlistCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 bg-rosegold text-white text-[9px] font-bold min-w-[14px] h-[14px] flex items-center justify-center rounded-full border border-white animate-in zoom-in duration-200">
-                      {wishlistCount}
-                    </span>
-                  )}
-                </Link>
                 <Link
                   href="/cart"
                   className="hidden sm:flex p-2.5 text-body hover:text-rosegold transition-all hover:bg-rosegold/5 rounded-full relative"
@@ -193,17 +219,19 @@ export default function Header({ store, categories }: HeaderProps) {
           </div>
         </div>
 
-        {/* Category Bar */}
-        {displayCategories.length > 0 && (
-          <div className="border-t border-[var(--border-silk)] mt-2">
+        {/* Category Bar — homepage only, hides on scroll down */}
+        {isHomePage && displayCategories.length > 0 && showCategoryBar && (
+          <div 
+            className="border-t border-[var(--border-silk)] mt-2"
+          >
             <div className="w-full lg:max-w-[1600px] lg:mx-auto relative group/nav">
               {/* Left Arrow & Gradient Overlay */}
               {showLeftArrow && (
                 <>
-                  <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-r from-white via-white/90 to-transparent pointer-events-none z-10" />
+                  <div className="hidden sm:block absolute left-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-r from-silk via-silk/90 to-transparent pointer-events-none z-10" />
                   <button
                     onClick={() => scroll("left")}
-                    className="hidden sm:flex absolute left-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-white/95 border border-[var(--border-silk)] shadow-md hover:shadow-lg hover:shadow-rosegold/15 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
+                    className="hidden sm:flex absolute left-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-silk/95 border border-[var(--border-silk)] hover:border-rosegold flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
                     aria-label="Scroll left"
                   >
                     <ChevronLeft size={16} strokeWidth={2.5} />
@@ -214,10 +242,10 @@ export default function Header({ store, categories }: HeaderProps) {
               {/* Right Arrow & Gradient Overlay */}
               {showRightArrow && (
                 <>
-                  <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-l from-white via-white/90 to-transparent pointer-events-none z-10" />
+                  <div className="hidden sm:block absolute right-0 top-0 bottom-0 w-16 sm:w-20 bg-gradient-to-l from-silk via-silk/90 to-transparent pointer-events-none z-10" />
                   <button
                     onClick={() => scroll("right")}
-                    className="hidden sm:flex absolute right-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-white/95 border border-[var(--border-silk)] shadow-md hover:shadow-lg hover:shadow-rosegold/15 flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
+                    className="hidden sm:flex absolute right-4 top-[40px] -translate-y-1/2 z-20 size-8 sm:size-9 rounded-full bg-silk/95 border border-[var(--border-silk)] hover:border-rosegold flex items-center justify-center text-rosegold hover:bg-rosegold hover:text-white hover:border-rosegold transition-all duration-300 active:scale-95 cursor-pointer animate-in fade-in duration-300"
                     aria-label="Scroll right"
                   >
                     <ChevronRight size={16} strokeWidth={2.5} />
@@ -234,7 +262,7 @@ export default function Header({ store, categories }: HeaderProps) {
                   href="/"
                   className="flex items-center gap-2 shrink-0 transition-all duration-300 luxury-link flex-col h-20 justify-center"
                 >
-                  <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white shadow-lg shadow-rosegold/30 border-2 border-white transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-rosegold/50 group-active:scale-95">
+                  <div className="relative size-12 sm:size-14 rounded-full flex items-center justify-center bg-rosegold text-white border-2 border-white transition-all duration-300 group-hover:-translate-y-0.5 group-active:scale-95">
                     <span className="text-[8px] uppercase font-bold tracking-widest text-center leading-tight font-sans">Home</span>
                   </div>
                 </Link>
@@ -245,7 +273,7 @@ export default function Header({ store, categories }: HeaderProps) {
                     href={`/collections?category_id=${category.id}`}
                     className="flex items-center snap-start group shrink-0 transition-all duration-300 luxury-link flex-col gap-2 h-20 justify-center"
                   >
-                    <div className="relative size-12 sm:size-14 rounded-full overflow-hidden bg-white border border-[var(--border-silk)] shadow-sm group-hover:border-rosegold transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-md group-hover:shadow-rosegold/15 group-active:scale-95">
+                    <div className="relative size-12 sm:size-14 rounded-full overflow-hidden bg-white border border-[var(--border-silk)] group-hover:border-rosegold transition-all duration-300 group-hover:-translate-y-0.5 group-active:scale-95">
                       {category.image_url && category.image_url.trim() !== "" ? (
                         <Image
                           src={category.image_url}

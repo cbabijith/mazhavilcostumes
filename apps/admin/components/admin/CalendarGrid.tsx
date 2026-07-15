@@ -72,7 +72,7 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isToday = isSameDay(day, new Date());
             const dayOrders = getOrdersForDay(day);
-            const totalItems = dayOrders.reduce((sum, order) => sum + order.items.reduce((acc, item) => acc + item.quantity, 0), 0);
+            const totalItems = dayOrders.reduce((sum, order) => sum + (order.items?.reduce((acc, item) => acc + item.quantity, 0) || 0), 0);
 
             return (
               <div
@@ -159,7 +159,7 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                 <div className="bg-muted/50 rounded-md p-3">
                   <p className="text-sm font-medium mb-2">Items</p>
                   <ul className="text-sm space-y-1">
-                    {order.items.map((item: any) => (
+                    {order.items?.map((item: any) => (
                       <li key={item.id} className="flex justify-between">
                         <span className="truncate pr-4">{item.quantity}x {(item as any).product?.name || 'Unknown Product'}</span>
                       </li>

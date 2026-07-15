@@ -45,7 +45,7 @@ function OrderDeleteModalInner({
             <p className="text-sm text-slate-600 leading-relaxed">
               Are you sure you want to permanently delete order{" "}
               <span className="font-semibold text-slate-900">
-                #{order?.id.slice(0, 8)}
+                {order?.invoice_number || `#${order?.id.slice(0, 8)}`}
               </span>
               ? This action cannot be undone.
             </p>

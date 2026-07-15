@@ -1,7 +1,9 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+let client: SupabaseClient | null = null;
 
 export function createClient() {
   // Return a mock client during build time if env vars are missing
@@ -15,5 +17,8 @@ export function createClient() {
       'Required: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY'
     );
   }
-  return createSupabaseClient(supabaseUrl!, supabaseAnonKey!);
+  if (!client) {
+    client = createSupabaseClient(supabaseUrl, supabaseAnonKey);
+  }
+  return client;
 }

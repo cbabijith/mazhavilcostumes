@@ -172,9 +172,9 @@ export function TodaysRevenueView({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-indigo-600">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest mb-1">Total Booking Sales</p>
+                <p className="text-[10px] font-bold text-indigo-600/70 uppercase tracking-widest mb-1">Total Rental Revenue</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_booking_sales)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of business won today</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Value of rental bookings today</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-emerald-600">
@@ -305,7 +305,7 @@ export function TodaysRevenueView({
                       formatter={(value: any) => formatCurrency(Number(value || 0))} 
                     />
                     <Legend verticalAlign="top" align="right" iconType="circle" />
-                    <Bar dataKey="booking_sales" name="Sales (Orders)" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="booking_sales" name="Rental Revenue" fill="#6366f1" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="amount_collection" name="Amount (Payments)" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

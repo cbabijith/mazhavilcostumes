@@ -18,15 +18,17 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes — Premium Costumes Rental",
+  title: "Mazhavil Dance Costumes — Premium Dance Costumes Rental",
   description:
-    "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
+    "Premium dance costumes rental for classical, folk, cinematic, and school/college festival performances across Kerala. Insured and sanitized outfits.",
   keywords: [
-    "bridal costumes rental",
-    "wedding costumes",
-    "Kerala costumes rental",
+    "dance costumes rental",
+    "classical dance costumes",
+    "folk dance costumes",
+    "Kerala dance costumes",
     "Mazhavil Dance Costumes",
-    "premium costumes",
+    "school youth festival costumes",
+    "premium costumes rental",
   ],
   icons: {
     icon: "/logo_mazhavil.jpeg",
@@ -35,6 +37,7 @@ export const metadata: Metadata = {
 };
 
 import MobileBottomNav from "@/components/home/MobileBottomNav";
+import ReviewPopup from "@/components/home/ReviewPopup";
 
 export default function RootLayout({
   children,
@@ -54,6 +57,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-silk-gradient selection:bg-rosegold/20 selection:text-rosegold-dark">
         {children}
         <MobileBottomNav />
+        <ReviewPopup />
       </body>
     </html>
   );

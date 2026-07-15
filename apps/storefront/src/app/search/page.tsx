@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Header from "@/components/home/Header";
 import Footer from "@/components/home/Footer";
 import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCategories, getFeaturedProducts } from "@/lib/supabase/queries";
+import { getCachedCategories, getCachedFeaturedProducts } from "@/lib/supabase/cached-queries";
 import SearchClient from "./search-client";
 
 export default async function SearchPage() {
@@ -10,8 +10,8 @@ export default async function SearchPage() {
   if (!store) return null;
 
   const [categories, featured] = await Promise.all([
-    getCategories(store.id),
-    getFeaturedProducts(store.id, 6),
+    getCachedCategories(store.id),
+    getCachedFeaturedProducts(store.id, 6),
   ]);
 
   return (

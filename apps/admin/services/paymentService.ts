@@ -187,9 +187,26 @@ export class PaymentService {
       };
     }
 
+    // Validate amount if provided
+    if (data.amount !== undefined && data.amount <= 0) {
+      return {
+        data: null,
+        error: {
+          message: 'Payment amount must be greater than 0',
+          code: 'VALIDATION_ERROR'
+        } as any,
+        success: false,
+      };
+    }
+
     paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
     const result = await paymentRepository.update(id, data);
-    if (result.success) {
+    if (result.success && result.data) {
+      try {
+        await this.syncOrderPaymentStatus(result.data.order_id);
+      } catch (err) {
+        console.error('Failed to sync order payment status:', err);
+      }
       try {
         dashboardService.clearCache();
       } catch (err) {
@@ -203,8 +220,16 @@ export class PaymentService {
    * Delete a payment
    */
   async deletePayment(id: string): Promise<RepositoryResult<boolean>> {
+    const paymentCheck = await paymentRepository.findById(id);
     const result = await paymentRepository.delete(id);
     if (result.success) {
+      if (paymentCheck.success && paymentCheck.data) {
+        try {
+          await this.syncOrderPaymentStatus(paymentCheck.data.order_id);
+        } catch (err) {
+          console.error('Failed to sync order payment status:', err);
+        }
+      }
       try {
         dashboardService.clearCache();
       } catch (err) {
@@ -236,6 +261,39 @@ export class PaymentService {
     );
 
     return { data: final || null, error: null, success: true };
+  }
+
+  async syncOrderPaymentStatus(orderId: string): Promise<void> {
+    const { orderRepository } = await import('@/repository');
+    const paymentsResult = await paymentRepository.findByOrderId(orderId);
+    const orderResult = await orderRepository.findById(orderId);
+    if (paymentsResult.success && paymentsResult.data && orderResult.success && orderResult.data) {
+      const order = orderResult.data;
+      const newAmountPaid = paymentsResult.data.reduce((sum, p) => {
+        if (p.payment_type === PaymentType.REFUND) {
+          return sum - p.amount;
+        }
+        return sum + p.amount;
+      }, 0);
+      const clampedAmountPaid = Math.max(0, newAmountPaid);
+      const newPaymentStatus = clampedAmountPaid >= order.total_amount ? 'paid' : clampedAmountPaid > 0 ? 'partial' : 'pending';
+      
+      // Only perform update and checks if values have changed to prevent infinite loops
+      if (order.amount_paid !== clampedAmountPaid || order.payment_status !== newPaymentStatus) {
+        await orderRepository.update(orderId, {
+          amount_paid: clampedAmountPaid,
+          payment_status: newPaymentStatus,
+        } as any);
+
+        // Check if the status needs to be auto-completed (since payment status changed)
+        try {
+          const { orderService } = await import('./orderService');
+          await orderService.checkAndAutoComplete(orderId);
+        } catch (err) {
+          console.error('[paymentService.syncOrderPaymentStatus] Failed to check and auto-complete order:', err);
+        }
+      }
+    }
   }
 }
 

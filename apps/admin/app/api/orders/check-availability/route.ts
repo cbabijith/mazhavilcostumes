@@ -37,56 +37,64 @@ export async function POST(request: NextRequest) {
       return apiBadRequest('start_date and end_date are required');
     }
 
-    const results = [];
-    let allAvailable = true;
-
+    // Deduplicate items by product_id (keep max quantity per product)
+    const productMap = new Map<string, { product_id: string; quantity: number; product_name?: string }>();
     for (const item of items) {
       if (!item.product_id || !item.quantity) {
         return apiBadRequest('Each item must have product_id and quantity');
       }
-
-      const availResult = await orderService.checkAvailability(
-        item.product_id,
-        start_date,
-        end_date,
-        branch_id,
-        exclude_order_id
-      );
-
-      if (!availResult.success || !availResult.data) {
-        results.push({
-          product_id: item.product_id,
-          product_name: 'Unknown',
-          requested: item.quantity,
-          available: 0,
-          isAvailable: false,
-          peakReserved: 0,
-          overlappingOrders: [],
-          total: 0,
-          error: availResult.error?.message || 'Failed to check availability',
-        });
-        allAvailable = false;
-        continue;
+      const existing = productMap.get(item.product_id);
+      if (!existing || item.quantity > existing.quantity) {
+        productMap.set(item.product_id, item);
       }
-
-      const isAvailable = availResult.data.available >= item.quantity;
-      const isAvailableWithPriority = availResult.data.availableWithPriority >= item.quantity;
-      if (!isAvailable && !isAvailableWithPriority) allAvailable = false;
-
-      results.push({
-        product_id: item.product_id,
-        product_name: item.product_name || 'Unknown',
-        requested: item.quantity,
-        available: availResult.data.available,
-        availableWithPriority: availResult.data.availableWithPriority,
-        isAvailable: isAvailable || isAvailableWithPriority,
-        peakReserved: availResult.data.peakReserved,
-        overlappingOrders: availResult.data.overlappingOrders,
-        priorityCleaningNeeded: availResult.data.priorityCleaningNeeded,
-        priorityCleaningInfo: availResult.data.priorityCleaningInfo || [],
-        total: availResult.data.total,
-      });
     }
+    const uniqueItems = Array.from(productMap.values());
+
+    // Run all availability checks in parallel
+    const results = await Promise.all(
+      uniqueItems.map(async (item) => {
+        const availResult = await orderService.checkAvailability(
+          item.product_id,
+          start_date,
+          end_date,
+          branch_id,
+          exclude_order_id
+        );
+
+        if (!availResult.success || !availResult.data) {
+          return {
+            product_id: item.product_id,
+            product_name: item.product_name || 'Unknown',
+            requested: item.quantity,
+            available: 0,
+            isAvailable: false,
+            peakReserved: 0,
+            overlappingOrders: [],
+            total: 0,
+            error: availResult.error?.message || 'Failed to check availability',
+          };
+        }
+
+        const isAvailable = availResult.data.available >= item.quantity;
+        const isAvailableWithPriority = availResult.data.availableWithPriority >= item.quantity;
+
+        return {
+          product_id: item.product_id,
+          product_name: item.product_name || 'Unknown',
+          requested: item.quantity,
+          available: availResult.data.available,
+          availableWithPriority: availResult.data.availableWithPriority,
+          isAvailable: isAvailable || isAvailableWithPriority,
+          peakReserved: availResult.data.peakReserved,
+          overlappingOrders: availResult.data.overlappingOrders,
+          priorityCleaningNeeded: availResult.data.priorityCleaningNeeded,
+          priorityCleaningInfo: availResult.data.priorityCleaningInfo || [],
+          total: availResult.data.total,
+        };
+      })
+    );
+
+    const allAvailable = results.every(r => r.isAvailable);
 
     return apiSuccess({ allAvailable, items: results });
   } catch (err) {

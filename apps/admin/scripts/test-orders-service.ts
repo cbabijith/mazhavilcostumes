@@ -213,7 +213,7 @@ async function runTests() {
         items: [{ product_id: product.id, quantity: 1, price_per_day: 500 }]
     } as any);
     await orderService.processOrderReturn(o4.data!.id, {
-        items: [{ item_id: o4.data!.items[0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
+        items: [{ item_id: o4.data!.items![0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
     } as any);
     const cancelReturned = await orderService.updateOrder(o4.data!.id, { status: OrderStatus.CANCELLED });
     // In a real system, we'd assert this fails.
@@ -285,7 +285,7 @@ async function runTests() {
     const ro1 = await orderService.createOrder({ customer_id: customer.id, branch_id: branch.id, items: [{ product_id: product.id, quantity: 1, price_per_day: 500 }], rental_start_date: '2026-06-01', rental_end_date: '2026-06-05' } as any);
     await orderService.updateOrder(ro1.data!.id, { status: OrderStatus.ONGOING });
     const ret1 = await orderService.processOrderReturn(ro1.data!.id, {
-        items: [{ item_id: ro1.data!.items[0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
+        items: [{ item_id: ro1.data!.items![0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
     } as any);
     assert(ret1.data!.status === OrderStatus.RETURNED, "33. Standard Return: Items marked EXCELLENT change order status to RETURNED");
     
@@ -298,7 +298,7 @@ async function runTests() {
     const ro2 = await orderService.createOrder({ customer_id: customer.id, branch_id: branch.id, items: [{ product_id: product.id, quantity: 1, price_per_day: 500 }], rental_start_date: '2026-06-01', rental_end_date: '2026-06-05' } as any);
     await orderService.updateOrder(ro2.data!.id, { status: OrderStatus.ONGOING });
     const ret2 = await orderService.processOrderReturn(ro2.data!.id, {
-        items: [{ item_id: ro2.data!.items[0].id, returned_quantity: 1, condition_rating: 'damaged', damage_charges: 100 }]
+        items: [{ item_id: ro2.data!.items![0].id, returned_quantity: 1, condition_rating: 'damaged', damage_charges: 100 }]
     } as any);
     assert(ret2.data!.status === OrderStatus.FLAGGED, "34. Damaged Return: Items marked DAMAGED automatically change order status to FLAGGED");
 
@@ -306,7 +306,7 @@ async function runTests() {
     const ro3 = await orderService.createOrder({ customer_id: customer.id, branch_id: branch.id, items: [{ product_id: product.id, quantity: 2, price_per_day: 500 }], rental_start_date: '2026-06-01', rental_end_date: '2026-06-05' } as any);
     await orderService.updateOrder(ro3.data!.id, { status: OrderStatus.ONGOING });
     const ret3 = await orderService.processOrderReturn(ro3.data!.id, {
-        items: [{ item_id: ro3.data!.items[0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
+        items: [{ item_id: ro3.data!.items![0].id, returned_quantity: 1, condition_rating: 'excellent', damage_charges: 0 }]
     } as any);
     assert(ret3.data!.status === OrderStatus.PARTIAL, "35. Missing Return: Returning partial quantity automatically changes order status to PARTIAL");
 
@@ -321,7 +321,7 @@ async function runTests() {
     const preReturnTotal = oAfterP5.data!.total_amount;
     
     const mainRet = await orderService.processOrderReturn(mainOrderId, {
-        items: [{ item_id: oAfterP5.data!.items[0].id, returned_quantity: 2, condition_rating: 'excellent', damage_charges: 200 }],
+        items: [{ item_id: oAfterP5.data!.items![0].id, returned_quantity: 2, condition_rating: 'excellent', damage_charges: 200 }],
         late_fee: 1500,
         discount: 100
     } as any);

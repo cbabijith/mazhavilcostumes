@@ -334,7 +334,7 @@ export default function ProductDetailPage() {
               <div className="md:w-64 bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 p-6 flex flex-col items-center justify-center min-h-[250px]">
                 {primaryImage ? (
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
-                    <Image src={primaryImage} alt={product.name} fill className="object-cover" />
+                    <Image src={primaryImage} alt={product.name} fill sizes="(max-width: 768px) 100vw, 256px" className="object-cover" />
                   </div>
                 ) : (
                   <div className="w-full aspect-square rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400">

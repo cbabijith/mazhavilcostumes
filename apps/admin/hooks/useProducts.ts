@@ -236,8 +236,16 @@ export function useUpdateProduct() {
     },
     onSuccess: (res, variables) => {
       showSuccess('Product updated successfully');
-      queryClient.invalidateQueries({ queryKey: productKeys.all });
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+      if (res.data) {
+        queryClient.setQueryData(productKeys.detail(variables.id), res.data);
+        queryClient.setQueriesData<ProductSearchResult>({ queryKey: productKeys.all }, (old) => {
+          if (!old || !Array.isArray(old.products)) return old;
+          return {
+            ...old,
+            products: old.products.map(p => p.id === variables.id ? { ...p, ...res.data } as Product : p),
+          };
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['branch-inventory'] });
       closeEditModal();
     },
@@ -252,9 +260,10 @@ export function useUpdateProduct() {
       }
       // No showError here — mutateAsync re-throws to the form's catch block
     },
-    onSettled: (data, error, variables) => {
-      queryClient.invalidateQueries({ queryKey: productKeys.all });
-      queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+    onSettled: (_data, error, variables) => {
+      if (error) {
+        queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
+      }
     }
   });
 
@@ -322,7 +331,6 @@ export function useDeleteProduct() {
       return { previousQueries };
     },
     onSuccess: () => {
-      // Also remove branch inventory cache
       queryClient.invalidateQueries({ queryKey: ['branch-inventory'] });
       showSuccess('Product deleted successfully');
       closeDeleteModal();

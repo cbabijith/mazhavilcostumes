@@ -67,6 +67,7 @@ export {
   useUpdateStaff,
   useDeleteStaff,
   useToggleStaffStatus,
+  useResetStaffPassword,
 } from './useStaff';
 
 // Permission hooks

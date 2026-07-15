@@ -3,7 +3,7 @@
 import { unstable_cache } from 'next/cache';
 import { getStoreByEmail, getStoreBySlug } from '@/lib/supabase/queries';
 
-const MAZHAVIL_COSTUMES_EMAIL = 'mazhavilcostumes1@gmail.com';
+const MAZHAVIL_COSTUMES_EMAIL = 'mazhavildancecostumes01@gmail.com';
 const MAZHAVIL_COSTUMES_SLUG = 'mazhavil-costumes';
 
 const fetchStoreConfig = unstable_cache(

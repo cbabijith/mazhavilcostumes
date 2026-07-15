@@ -58,34 +58,33 @@ export class InvoiceService {
     const historyResult = await orderRepository.getStatusHistory(orderId);
     const history = historyResult.success ? historyResult.data || [] : [];
 
-    // Get fiscal year based on order's created_at date
-    const orderDate = new Date(order.created_at || new Date());
-    const year = orderDate.getFullYear();
-    const month = orderDate.getMonth(); // 0-indexed: 0 = Jan, 11 = Dec
-    
-    let fiscalStartYear = year;
-    if (month < 3) { // Jan, Feb, Mar belong to previous year's fiscal year
-      fiscalStartYear = year - 1;
+    // Use stored invoice_number from the order record
+    // Fall back to dynamic computation for legacy orders without invoice_number
+    let invoiceNumber: string;
+    if (order.invoice_number) {
+      invoiceNumber = invoiceType === 'final'
+        ? order.invoice_number
+        : `${order.invoice_number}-DEPOSIT`;
+    } else {
+      // Legacy fallback: compute from fiscal year + count
+      const orderDate = new Date(order.created_at || new Date());
+      const year = orderDate.getFullYear();
+      const month = orderDate.getMonth();
+      let fiscalStartYear = year;
+      if (month < 3) { fiscalStartYear = year - 1; }
+      const startYY = String(fiscalStartYear).slice(-2);
+      const endYY = String(fiscalStartYear + 1).slice(-2);
+      const fiscalSuffix = `${startYY}${endYY}`;
+      let sequentialNum = 1;
+      const { count, error: countErr } = await createAdminClient()
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .lte('created_at', order.created_at);
+      if (!countErr && count !== null) { sequentialNum = count; }
+      invoiceNumber = invoiceType === 'final'
+        ? `MAZ-${fiscalSuffix}-${sequentialNum}`
+        : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     }
-    
-    const startYY = String(fiscalStartYear).slice(-2);
-    const endYY = String(fiscalStartYear + 1).slice(-2);
-    const fiscalSuffix = `${startYY}${endYY}`;
-    
-    // Count orders created on or before this order to get sequential bill number
-    let sequentialNum = 1;
-    const { count, error: countErr } = await createAdminClient()
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .lte('created_at', order.created_at);
-      
-    if (!countErr && count !== null) {
-      sequentialNum = count;
-    }
-    
-    const invoiceNumber = invoiceType === 'final'
-      ? `MAZ-${fiscalSuffix}-${sequentialNum}`
-      : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 
     // Build props for the React PDF component
@@ -151,7 +150,7 @@ export class InvoiceService {
     history: any[] = [],
   ): TallyInvoiceProps {
     // Build line items
-    const items: InvoiceItem[] = order.items.map((item, idx) => {
+    const items: InvoiceItem[] = (order.items || []).map((item, idx) => {
       const quantity = item.quantity || 0;
       const rate = item.price_per_day || 0;
       const lineTotal = rate * quantity;
@@ -212,7 +211,7 @@ export class InvoiceService {
     const initialLateFee = Math.max(0, (Number(order.late_fee) || 0) - additionalLateFee);
 
     // Build damage charges breakdown
-    const damageChargesBreakdown = order.items
+    const damageChargesBreakdown = (order.items || [])
       .filter((item) => (item.damage_charges || 0) > 0)
       .map((item) => ({
         productName: this.getItemProductName(item),
@@ -239,7 +238,7 @@ export class InvoiceService {
       invoiceNumber,
       invoiceDate,
       invoiceType,
-      orderId: order.id.slice(0, 8).toUpperCase(),
+      orderId: order.invoice_number || order.id.slice(0, 8).toUpperCase(),
       paymentMode,
 
       buyerName: order.customer.name,

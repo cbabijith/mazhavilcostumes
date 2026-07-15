@@ -80,69 +80,69 @@ export function buildWhatsAppUrl(message: string): string {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
-// Wishlist message builder
-interface WishlistItem {
+// Cart order message builder (with customer details)
+interface CartOrderItem {
   name: string;
   price: number;
-  startDate?: string;
-  endDate?: string;
+  quantity: number;
+  startDate: string;
+  endDate: string;
   rentalDays?: number;
   totalRent?: number;
 }
 
-export function buildWishlistMessage(items: WishlistItem[]): string {
+interface CartOrderDetails {
+  items: CartOrderItem[];
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+}
+
+export function buildCartOrderMessage(details: CartOrderDetails): string {
+  const today = new Date().toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
   const lines = [
     "Hello Mazhavil Dance Costumes! 👋",
     "",
-    "*Wishlist Enquiry*",
+    "*New Rental Enquiry*",
     "",
   ];
 
-  if (items.length === 0) {
-    lines.push("I'm interested in browsing your collections.");
+  if (details.items.length === 1) {
+    const item = details.items[0];
+    lines.push(`📦 *Product:* ${item.name}`);
+    lines.push(`🔢 *Quantity:* ${item.quantity}`);
+    lines.push("");
+    lines.push(`🗓️ *Rental Start Date:* ${item.startDate}`);
+    lines.push(`⏳ *Rental End Date:* ${item.endDate}`);
+    if (item.rentalDays) {
+      lines.push(`⏱️ *Duration:* ${item.rentalDays} days`);
+    }
+    lines.push(`📅 *Enquiry Date:* ${today}`);
   } else {
-    lines.push("I'm interested in these items for my event:");
-    items.forEach((item, index) => {
+    lines.push(`� *Items:* ${details.items.length} products`);
+    lines.push("");
+    details.items.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.name}`);
-      if (item.startDate && item.endDate) {
-        if (item.rentalDays) {
-          lines.push(`   🗓️ Dates: ${item.startDate} to ${item.endDate} (${item.rentalDays} days)`);
-        } else {
-          lines.push(`   🗓️ Dates: ${item.startDate} to ${item.endDate}`);
-        }
+      lines.push(`   🔢 Quantity: ${item.quantity}`);
+      lines.push(`   🗓️ Dates: ${item.startDate} to ${item.endDate}`);
+      if (item.rentalDays) {
+        lines.push(`   ⏱️ Duration: ${item.rentalDays} days`);
       }
     });
+    lines.push("");
+    lines.push(`📅 *Enquiry Date:* ${today}`);
   }
 
   lines.push("");
-  lines.push("Please check availability. Thank you! 🙏");
-
-  return lines.join("\n");
-}
-
-// Cart message builder
-interface CartItem extends WishlistItem {
-  startDate: string;
-  endDate: string;
-}
-
-export function buildCartMessage(items: CartItem[]): string {
-  const lines = [
-    "Hello Mazhavil Dance Costumes! 👋",
-    "",
-    "*Booking Enquiry*",
-    "",
-  ];
-
-  if (items.length === 0) {
-    lines.push("I'd like to book some items for my event.");
-  } else {
-    items.forEach((item, index) => {
-      lines.push(`${index + 1}. ${item.name}`);
-      lines.push(`   Dates: ${item.startDate} to ${item.endDate}`);
-    });
-  }
-
+  lines.push("👤 *Customer Details:*");
+  lines.push(`Name: ${details.customerName}`);
+  lines.push(`Phone: ${details.customerPhone}`);
+  lines.push(`📍 Address: ${details.customerAddress}`);
   lines.push("");
   lines.push("Please confirm availability. Thank you! 🙏");
 
@@ -164,39 +164,6 @@ export function buildContactMessage(name: string, phone: string, message: string
     "",
     "Please get back to me. Thank you! 🙏",
   ];
-
-  return lines.join("\n");
-}
-
-// Checkout message builder
-interface CheckoutDetails {
-  items: CartItem[];
-  customerName: string;
-  customerPhone: string;
-  eventDate: string;
-}
-
-export function buildCheckoutMessage(details: CheckoutDetails): string {
-  const lines = [
-    "Hello Mazhavil Dance Costumes! 👋",
-    "",
-    "*New Booking Request*",
-    "",
-  ];
-
-  details.items.forEach((item, index) => {
-    lines.push(`${index + 1}. ${item.name}`);
-    lines.push(`   Dates: ${item.startDate} to ${item.endDate}`);
-  });
-
-  lines.push("");
-  lines.push(`📅 *Event Date:* ${details.eventDate}`);
-  lines.push("");
-  lines.push("👤 *Customer Details:*");
-  lines.push(`Name: ${details.customerName}`);
-  lines.push(`Phone: ${details.customerPhone}`);
-  lines.push("");
-  lines.push("Please confirm availability. Thank you! 🙏");
 
   return lines.join("\n");
 }

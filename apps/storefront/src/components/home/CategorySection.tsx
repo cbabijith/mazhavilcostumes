@@ -14,12 +14,12 @@ interface FallbackCategory {
 }
 
 const fallbackCategories: FallbackCategory[] = [
-  { name: "Necklaces", slug: "necklaces", image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400" },
-  { name: "Earrings", slug: "earrings", image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400" },
-  { name: "Bangles", slug: "bangles", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=400" },
-  { name: "Rings", slug: "rings", image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400" },
-  { name: "Bridal Sets", slug: "bridal-sets", image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400" },
-  { name: "Anklets", slug: "anklets", image: "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?w=400" },
+  { name: "Classical", slug: "classical", image: "https://images.unsplash.com/photo-1515377905703-c4788e51af15?w=400" },
+  { name: "Folk", slug: "folk", image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=400" },
+  { name: "Cinematic", slug: "cinematic", image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400" },
+  { name: "Western", slug: "western", image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?w=400" },
+  { name: "Accessories", slug: "accessories", image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=400" },
+  { name: "Semi-Classical", slug: "semi-classical", image: "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?w=400" },
 ];
 
 export default function CategorySection({ categories }: CategorySectionProps) {

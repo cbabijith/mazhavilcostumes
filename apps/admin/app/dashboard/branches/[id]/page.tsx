@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AddButton from "@/components/admin/AddButton";
 import Modal from "@/components/admin/Modal";
 import PasswordInput from "@/components/admin/PasswordInput";
-import { useBranch, useStaffByBranch, useCreateStaff, useUpdateStaff, useDeleteStaff, useBranches } from "@/hooks";
+import { useBranch, useStaffByBranch, useCreateStaff, useUpdateStaff, useDeleteStaff, useBranches, usePermissions } from "@/hooks";
 import type { Staff, StaffRole } from "@/domain/types/branch";
 
 export default function BranchDetailPage() {
@@ -25,6 +25,8 @@ export default function BranchDetailPage() {
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const deleteStaff = useDeleteStaff();
+  const { role: currentUserRole } = usePermissions();
+  const isSuperAdmin = currentUserRole === 'super_admin';
 
   const [showModal, setShowModal] = useState(false);
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
@@ -174,9 +176,11 @@ export default function BranchDetailPage() {
                         <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors" onClick={() => openEdit(s)} title="Edit">
                           <Edit className="w-4 h-4 text-slate-400" />
                         </button>
-                        <button className="p-2 hover:bg-red-50 rounded-lg transition-colors" onClick={() => handleDelete(s)} title="Delete">
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </button>
+                        {isSuperAdmin && s.role !== 'super_admin' && (
+                          <button className="p-2 hover:bg-red-50 rounded-lg transition-colors" onClick={() => handleDelete(s)} title="Delete">
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

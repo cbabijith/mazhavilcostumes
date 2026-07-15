@@ -12,7 +12,6 @@
 import { NextRequest } from "next/server";
 import { orderService } from "@/services/orderService";
 import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
 import { UpdateOrderSchema } from "@/domain";
 import { apiSuccess, apiRepositoryError, apiNotFound, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
 
@@ -44,7 +43,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    const authUser = await getAuthUser(request);
+    const authUser = guard.user;
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
 
     const { id } = await params;
@@ -73,7 +72,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    const authUser = await getAuthUser(request);
+    const authUser = guard.user;
 
     // Enforce role-based access for deletion (shop admin/owner only)
     if (!['admin', 'super_admin', 'owner'].includes(authUser?.role || '')) {

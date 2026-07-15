@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // Call the unified dashboard service to ensure consistent calculations and URLs
     const metrics = await dashboardService.getOperationalMetrics(branchId);
 
-    return apiSuccess(metrics);
+return apiSuccess(metrics);
   } catch (error) {
     console.error('Error fetching operational metrics:', error);
     return apiInternalError('Failed to fetch operational metrics');

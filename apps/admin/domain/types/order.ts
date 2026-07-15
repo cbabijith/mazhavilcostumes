@@ -60,6 +60,7 @@ export interface OrderItem {
   readonly product_id: string;
   quantity: number;
   price_per_day: number;
+  original_price_per_day?: number;
   total_price: number;
   subtotal: number;
   discount: number;
@@ -122,7 +123,10 @@ export interface Order {
   cancelled_by?: string;
   cancelled_at?: string;
   is_late: boolean;
+  invoice_number?: string;
 
+  created_by?: string | null;
+  updated_by?: string | null;
   readonly created_at: string;
   readonly updated_at?: string;
 }
@@ -137,7 +141,8 @@ export interface OrderWithRelations extends Order {
     alt_phone?: string | null;
     email: string | null;
   };
-  items: OrderItem[];
+  items?: OrderItem[];
+  item_count?: number;
   branch?: {
     id: string;
     name: string;
@@ -150,6 +155,16 @@ export interface OrderWithRelations extends Order {
     email: string | null;
     gstin: string | null;
   };
+  creator?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  updater?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
 }
 
 // Order Status History Entity
@@ -171,6 +186,7 @@ export interface CreateOrderDTO {
     product_id: string;
     quantity: number;
     price_per_day: number;
+    original_price_per_day?: number;
   }[];
   rental_start_date: string;
   rental_end_date: string;
@@ -213,11 +229,13 @@ export interface UpdateOrderDTO {
   has_priority_cleaning?: boolean;
   has_stock_conflict?: boolean;
   conflict_details?: any[] | null;
+  backfill_note?: string;
 
   items?: {
     product_id: string;
     quantity: number;
     price_per_day: number;
+    original_price_per_day?: number;
     discount?: number;
     discount_type?: 'flat' | 'percent';
     gst_percentage?: number;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Send, X, Package, Tag, Heart, ShoppingBag } from "lucide-react";
+import { Search, Send, X, Package, Tag, ShoppingBag } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -43,14 +43,6 @@ const QUICK_ACTIONS: SearchAction[] = [
     description: "Latest additions",
     href: "/collections?sort=new",
     color: "text-orange-500"
-  },
-  {
-    id: "wishlist",
-    label: "Wishlist",
-    icon: <Heart className="w-5 h-5" />,
-    description: "Your saved items",
-    href: "/wishlist",
-    color: "text-red-500"
   },
   {
     id: "cart",

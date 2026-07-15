@@ -21,24 +21,14 @@ interface SearchClientProps {
 
 export default function SearchClient({ storeId, categories, featured }: SearchClientProps) {
   const [query, setQuery] = useState("");
-  const [history, setHistory] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load history from localStorage on mount
+  // Autofocus on mount
   useEffect(() => {
-    const saved = localStorage.getItem("recent_searches");
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        setHistory([]);
-      }
-    }
-    // Autofocus on mount
     setTimeout(() => inputRef.current?.focus(), 100);
   }, []);
 
@@ -85,40 +75,11 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
     return () => clearTimeout(timer);
   }, [query, storeId, supabase]);
 
-  const saveToHistory = (searchQuery: string) => {
-    const trimmed = searchQuery.trim();
-    if (!trimmed) return;
-    
-    // Add to beginning, remove duplicates, limit to 8 items
-    const updated = [trimmed, ...history.filter(item => item.toLowerCase() !== trimmed.toLowerCase())].slice(0, 8);
-    setHistory(updated);
-    localStorage.setItem("recent_searches", JSON.stringify(updated));
-  };
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      saveToHistory(query);
       router.push(`/collections?q=${encodeURIComponent(query.trim())}`);
     }
-  };
-
-  const handleHistoryClick = (item: string) => {
-    setQuery(item);
-    saveToHistory(item);
-    router.push(`/collections?q=${encodeURIComponent(item)}`);
-  };
-
-  const removeHistoryItem = (itemToRemove: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering search
-    const updated = history.filter(item => item !== itemToRemove);
-    setHistory(updated);
-    localStorage.setItem("recent_searches", JSON.stringify(updated));
-  };
-
-  const clearHistory = () => {
-    setHistory([]);
-    localStorage.removeItem("recent_searches");
   };
 
   return (
@@ -175,7 +136,6 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
                   <button
                     key={product.id}
                     onClick={() => {
-                      saveToHistory(product.name);
                       router.push(`/product/${product.id}`);
                     }}
                     className="w-full flex items-center justify-between py-3 hover:text-rosegold transition-colors text-left group cursor-pointer"
@@ -212,49 +172,13 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
             )}
           </section>
         ) : (
-          /* Recent Searches */
           <section className="bg-white rounded-[2.5rem] p-6 border border-[var(--border-silk)] shadow-sm animate-in fade-in duration-300">
-            <div className="flex items-center justify-between mb-4 border-b border-[var(--border-silk)] pb-3">
-              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-heading">Recent Searches</h3>
-              {history.length > 0 && (
-                <button
-                  onClick={clearHistory}
-                  className="text-[10px] uppercase tracking-wider font-bold text-rosegold hover:opacity-80 transition-opacity cursor-pointer"
-                >
-                  Clear All
-                </button>
-              )}
+            <div className="py-12 text-center">
+              <Search size={32} className="text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm text-caption">
+                Start typing to search for costumes
+              </p>
             </div>
-
-            {history.length > 0 ? (
-              <div className="divide-y divide-[var(--border-silk)]">
-                {history.map((item, index) => (
-                  <div
-                    key={`${item}-${index}`}
-                    onClick={() => handleHistoryClick(item)}
-                    className="flex items-center justify-between py-3 hover:text-rosegold transition-colors cursor-pointer group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Search size={14} className="text-muted-foreground group-hover:text-rosegold transition-colors" />
-                      <span className="text-sm font-medium text-body group-hover:text-rosegold transition-colors">
-                        {item}
-                      </span>
-                    </div>
-                    <button
-                      onClick={(e) => removeHistoryItem(item, e)}
-                      className="p-1 text-muted-foreground/40 hover:text-rosegold transition-colors cursor-pointer flex items-center justify-center"
-                      aria-label={`Remove search term ${item}`}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-sm text-caption italic">
-                No recent searches
-              </div>
-            )}
           </section>
         )}
       </main>

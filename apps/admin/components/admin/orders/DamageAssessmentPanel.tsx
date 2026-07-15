@@ -61,7 +61,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
   if (!isAdmin) return null;
 
   // Don't show if there are no assessments and no damaged items
-  const hasDamagedItems = order.items.some(
+  const hasDamagedItems = order.items?.some(
     item => item.condition_rating === 'damaged'
   );
   if (!hasDamagedItems && assessments.length === 0) return null;

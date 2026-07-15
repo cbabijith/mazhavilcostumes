@@ -16,7 +16,7 @@ export default async function GalleryPage() {
   ]);
 
   return (
-    <main className="min-h-screen bg-silk selection:bg-rosegold/20 pb-20 lg:pb-0">
+    <main className="min-h-screen bg-white selection:bg-rosegold/20 pb-20 lg:pb-0">
       <Header store={store} categories={categories} />
       
       <Suspense fallback={<div className="container mx-auto py-24 text-center">Loading gallery...</div>}>
