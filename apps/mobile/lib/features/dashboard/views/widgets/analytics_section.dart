@@ -1676,6 +1676,11 @@ class AnalyticsSection extends ConsumerWidget {
         startDate = DateTime(now.year, now.month, now.day);
         endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
         break;
+      case AnalyticsRange.yesterday:
+        final yesterday = now.subtract(const Duration(days: 1));
+        startDate = DateTime(yesterday.year, yesterday.month, yesterday.day);
+        endDate = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+        break;
       case AnalyticsRange.thisWeek:
         final daysToSubtract = now.weekday - 1;
         startDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: daysToSubtract));

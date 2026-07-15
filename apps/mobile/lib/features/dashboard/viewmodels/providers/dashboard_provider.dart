@@ -34,6 +34,7 @@ final operationalMetricsProvider = FutureProvider<OperationalMetrics>((ref) asyn
 /// Date range options for the analytics section
 enum AnalyticsRange {
   today('today', 'Today'),
+  yesterday('yesterday', 'Yesterday'),
   thisWeek('this_week', 'This Week'),
   lastWeek('last_week', 'Last Week'),
   thisMonth('this_month', 'This Month'),
@@ -64,6 +65,7 @@ final analyticsPrevLabelProvider = Provider<String>((ref) {
   final range = ref.watch(analyticsRangeProvider);
   return switch (range) {
     AnalyticsRange.today => 'Yesterday',
+    AnalyticsRange.yesterday => 'Previous Day',
     AnalyticsRange.thisWeek => 'Last Week',
     AnalyticsRange.lastWeek => 'Previous Week',
     AnalyticsRange.thisMonth => 'Last Month',
