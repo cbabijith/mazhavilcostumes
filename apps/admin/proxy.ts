@@ -5,37 +5,43 @@ const SLOW_THRESHOLD_MS = 300
 
 export async function proxy(request: NextRequest) {
   const start = performance.now()
-  const isApi = request.nextUrl.pathname.startsWith('/api/')
+  const path = request.nextUrl.pathname
+  const isApi = path.startsWith('/api/')
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
+  let session = null
+
+  // Only check session for UI routes that require auth redirection decisions
+  if (!isApi) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet: { name: string; value: string; options?: unknown }[]) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            )
+          },
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: unknown }[]) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-        },
-      },
+      }
+    )
+    const { data: { session: currentSession } } = await supabase.auth.getSession()
+    session = currentSession
+
+    // Protect dashboard routes
+    if (path.startsWith('/dashboard')) {
+      if (!session) {
+        return NextResponse.redirect(new URL('/auth/login', request.url))
+      }
     }
-  )
 
-  const { data: { session } } = await supabase.auth.getSession()
-
-  // Protect dashboard routes
-  if (request.nextUrl.pathname.startsWith('/dashboard')) {
-    if (!session) {
-      return NextResponse.redirect(new URL('/auth/login', request.url))
+    // Redirect authenticated users away from login page
+    if (path === '/auth/login' && session) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
-  }
-
-  // Redirect authenticated users away from login page
-  if (request.nextUrl.pathname === '/auth/login' && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   const response = NextResponse.next()
