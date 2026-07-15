@@ -1207,13 +1207,15 @@ export class OrderRepository extends BaseRepository {
 
     // If items are provided, sync them
     if (items && Array.isArray(items)) {
-      // 1. Delete existing items
-      // NOTE: In a production app with complex stock tracking, we might want to do a differential update
-      // But for this rental system, replacing them is simpler as long as we're not in an active rental state.
-      await this.client.from(this.orderItemsTable).delete().eq('order_id', id);
+      // 1. Fetch existing items first to perform differential update
+      const { data: existingItems } = await this.client
+        .from(this.orderItemsTable)
+        .select('*')
+        .eq('order_id', id);
 
-      // 2. Insert new items with GST calculation
-      // Fetch current GST rates for updated items
+      const existingItemsList = existingItems || [];
+
+      // 2. Fetch current GST rates for updated items
       const productIds = items.map((item: any) => item.product_id);
       const { data: products } = await this.client
         .from('products')
@@ -1238,43 +1240,64 @@ export class OrderRepository extends BaseRepository {
       const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
       const pricingMultiplier = Math.max(1, rentalDays - 2);
 
-      // We don't adjust per-item GST for order-level discount during update yet
-      // because the update data might not include all order financial fields.
-      // Ideally we should recalculate the whole order totals here.
-      // For now, save the raw per-item GST breakdown.
-      
-      await this.client.from(this.orderItemsTable).insert(
-        items.map((item: any) => {
-          const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-          const itemDisc = item.discount_type === 'percent'
-            ? lineTotal * ((item.discount || 0) / 100)
-            : (item.discount || 0) * item.quantity;
-          const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
-          const gstRate = perItemGstRates.get(item.product_id) ?? 0;
-          
-          let itemGst = 0;
-          let itemBase = lineAfterDiscount;
-          
-          if (isGstEnabled && gstRate > 0) {
-            itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
-            itemBase = lineAfterDiscount - itemGst;
-          }
+      const incomingProductIds = new Set(productIds);
+      const itemsToInsert: any[] = [];
 
-          return {
-            order_id: id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            price_per_day: item.price_per_day,
-            original_price_per_day: item.original_price_per_day || item.price_per_day,
-            discount: item.discount || 0,
-            discount_type: item.discount_type || 'flat',
-            subtotal: lineTotal,
-            gst_percentage: gstRate,
-            base_amount: Math.round(itemBase * 100) / 100,
-            gst_amount: Math.round(itemGst * 100) / 100,
-          };
-        })
-      );
+      for (const item of items) {
+        const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+        const itemDisc = item.discount_type === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * item.quantity;
+        const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
+        const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+        
+        let itemGst = 0;
+        let itemBase = lineAfterDiscount;
+        
+        if (isGstEnabled && gstRate > 0) {
+          itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+          itemBase = lineAfterDiscount - itemGst;
+        }
+
+        const existingMatch = existingItemsList.find(ei => ei.product_id === item.product_id);
+
+        const itemPayload = {
+          order_id: id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price_per_day: item.price_per_day,
+          original_price_per_day: item.original_price_per_day || item.price_per_day,
+          discount: item.discount || 0,
+          discount_type: item.discount_type || 'flat',
+          subtotal: lineTotal,
+          gst_percentage: gstRate,
+          base_amount: Math.round(itemBase * 100) / 100,
+          gst_amount: Math.round(itemGst * 100) / 100,
+        };
+
+        if (existingMatch) {
+          // Update in-place to preserve returned_quantity and other return-specific metadata
+          await this.client
+            .from(this.orderItemsTable)
+            .update(itemPayload)
+            .eq('id', existingMatch.id);
+        } else {
+          // Add to insert queue
+          itemsToInsert.push(itemPayload);
+        }
+      }
+
+      // 3. Insert new items (if any)
+      if (itemsToInsert.length > 0) {
+        await this.client.from(this.orderItemsTable).insert(itemsToInsert);
+      }
+
+      // 4. Delete removed items (if any)
+      const itemsToDelete = existingItemsList.filter(ei => !incomingProductIds.has(ei.product_id));
+      if (itemsToDelete.length > 0) {
+        const deleteIds = itemsToDelete.map(ei => ei.id);
+        await this.client.from(this.orderItemsTable).delete().in('id', deleteIds);
+      }
     }
 
     // If status changed to ongoing/in_use, decrement stock

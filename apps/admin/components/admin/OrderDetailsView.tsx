@@ -601,6 +601,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
+            {!isFinalized && order.status !== OrderStatus.RETURNED && (
+              <Button
+                variant="outline"
+                className="h-12 border-slate-200 px-5 font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => router.push(`/dashboard/orders/${order.id}/edit`)}
+              >
+                <Edit3 className="w-4 h-4 mr-2" />
+                {order.status === OrderStatus.ONGOING || order.status === OrderStatus.IN_USE ? "Edit Amount" : "Edit Order"}
+              </Button>
+            )}
             {!isFinalized && (
               amount_due > 0 ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700">

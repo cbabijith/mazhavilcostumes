@@ -104,7 +104,7 @@ export default function CollectionsClient({
           {initialSearchQuery ? `Results for "${initialSearchQuery}"` : "Explore our Masterpieces"}
         </h1>
         <p className="text-sm text-body mt-2 max-w-lg mx-auto">
-          Browse Kerala's most exquisite bridal costumes collection. Hand-selected pieces for your most precious moments.
+          Rent Kerala's most exquisite collection of classical, folk, and cinematic dance costumes. Crafted with premium fabrics to bring elegance, color, and grace to every movement.
         </p>
       </div>
 
