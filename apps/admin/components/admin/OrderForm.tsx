@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCustomers, useProducts, useCreateOrder, useUpdateOrder, useCreateCustomer, useIsGSTEnabled, useCheckOrderAvailability, useLookupProductByBarcode } from "@/hooks";
 import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
-import { PaymentMethod } from "@/domain/types/order";
+import { PaymentMethod, OrderStatus } from "@/domain/types/order";
 import dynamic from 'next/dynamic';
 
 const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
@@ -31,6 +31,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const showError = useAppSelectors.showError();
   const selectedBranchId = useAppSelectors.selectedBranchId();
   const isEditing = !!initialData;
+  const isOngoingOrInUse = initialData?.status === OrderStatus.ONGOING || initialData?.status === OrderStatus.IN_USE;
 
   const { createOrder, isPending: isCreating } = useCreateOrder();
   const { updateOrder, isPending: isUpdating } = useUpdateOrder();
@@ -531,7 +532,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       return;
     }
 
-    const basePayload = {
+    const basePayload: any = {
       notes: notes || undefined,
       delivery_address: deliveryAddress || undefined,
       discount: orderDiscount || 0,
@@ -542,10 +543,6 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       subtotal: cartTotals.subtotal,
       gst_amount: cartTotals.gstAmount,
       total_amount: cartTotals.grandTotal,
-      amount_paid: advanceAmount > 0 ? advanceAmount : 0,
-      payment_status: advanceAmount > 0 
-        ? (advanceAmount >= cartTotals.grandTotal ? 'paid' : 'partial')
-        : 'pending',
       items: cartItems.map(item => ({
         product_id: item.product.id,
         quantity: item.quantity,
@@ -555,6 +552,13 @@ export default function OrderForm({ initialData }: OrderFormProps) {
         discount_type: item.discount_type || 'flat',
       }))
     };
+
+    if (!isEditing) {
+      basePayload.amount_paid = advanceAmount > 0 ? advanceAmount : 0;
+      basePayload.payment_status = advanceAmount > 0 
+        ? (advanceAmount >= cartTotals.grandTotal ? 'paid' : 'partial')
+        : 'pending';
+    }
 
     // Check if any items ACTUALLY need priority cleaning based on requested quantity
     const priorityItems = cartItems.filter(item => {
@@ -662,14 +666,26 @@ export default function OrderForm({ initialData }: OrderFormProps) {
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              {isEditing ? "Edit Order" : "New Order"}
+              {isOngoingOrInUse ? "Edit Amount" : isEditing ? "Edit Order" : "New Order"}
             </h1>
             <p className="text-sm text-slate-500">
-              {isEditing ? "Update order details" : "Search customer, add items, and confirm"}
+              {isOngoingOrInUse ? "Update order amounts and payment details" : isEditing ? "Update order details" : "Search customer, add items, and confirm"}
             </p>
           </div>
         </div>
       </div>
+
+      {isOngoingOrInUse && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-amber-950 text-sm uppercase tracking-wider">Ongoing Rental Active</h4>
+            <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+              This rental is currently active. You are only allowed to modify financial values (item rates and order discounts). The rental period, customer, and items/quantities cannot be modified.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Two-column layout — 50/50 split */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -747,9 +763,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   <h4 className="font-semibold text-slate-900">{selectedCustomer.name}</h4>
                   <p className="text-xs text-slate-500">{selectedCustomer.phone}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setSelectedCustomer(null)} className="h-8 border-slate-200 text-slate-500 hover:text-slate-900 text-xs">
-                  Change
-                </Button>
+                {!isOngoingOrInUse && (
+                  <Button variant="outline" size="sm" onClick={() => setSelectedCustomer(null)} className="h-8 border-slate-200 text-slate-500 hover:text-slate-900 text-xs">
+                    Change
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -767,6 +785,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   type="button"
                   variant="outline"
                   size="sm"
+                  disabled={isOngoingOrInUse}
                   onClick={() => handleQuickDate(extraDays)}
                   className={`h-8 text-xs border-slate-200 ${rentalDays === extraDays + 1 ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50'}`}
                 >
@@ -782,6 +801,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   type="date"
                   className="h-12 border-slate-200 focus:border-slate-900 text-base"
                   value={format(startDate, "yyyy-MM-dd")}
+                  disabled={isOngoingOrInUse}
                   onChange={(e) => {
                     const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
@@ -798,6 +818,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                   className="h-12 border-slate-200 focus:border-slate-900 text-base"
                   value={format(endDate, "yyyy-MM-dd")}
                   min={format(startDate, "yyyy-MM-dd")}
+                  disabled={isOngoingOrInUse}
                   onChange={(e) => {
                     const newDate = new Date(e.target.value);
                     if (!isNaN(newDate.getTime())) {
@@ -877,9 +898,10 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                 <div className="relative flex-1" ref={productRef}>
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <Input
-                    placeholder="Search products or scan barcode..."
+                    placeholder={isOngoingOrInUse ? "Items cannot be added to ongoing rentals" : "Search products or scan barcode..."}
                     className="pl-10 h-12 border-slate-200 focus:border-slate-900 text-base"
                     value={productSearch}
+                    disabled={isOngoingOrInUse}
                     onChange={(e) => {
                       setProductSearch(e.target.value);
                       setIsProductDropdownOpen(true);
@@ -973,6 +995,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isOngoingOrInUse}
                   onClick={() => setIsScannerOpen(prev => !prev)}
                   className={`h-12 w-12 p-0 flex-shrink-0 ${isScannerOpen ? 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:text-white' : 'border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-400'}`}
                   title={isScannerOpen ? "Close scanner" : "Scan barcode"}
@@ -1056,13 +1079,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               )}
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeCartItem(item.product.id)}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {!isOngoingOrInUse && (
+                            <button
+                              type="button"
+                              onClick={() => removeCartItem(item.product.id)}
+                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
 
                         {/* Live Availability Badge */}
@@ -1226,7 +1251,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
 
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
                           <div className="flex items-center border border-slate-200 rounded-md bg-white overflow-hidden">
-                            <button type="button" onClick={() => updateCartQty(item.product.id, -1)} className="px-2.5 py-1 hover:bg-slate-50 text-slate-500">
+                            <button type="button" disabled={isOngoingOrInUse} onClick={() => updateCartQty(item.product.id, -1)} className="px-2.5 py-1 hover:bg-slate-50 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed">
                               <Minus className="w-3 h-3" />
                             </button>
                             <input
@@ -1235,6 +1260,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               pattern="[0-9]*"
                               defaultValue={item.quantity}
                               key={`qty-${item.product.id}-${item.quantity}`}
+                              disabled={isOngoingOrInUse}
                               onFocus={(e) => e.target.select()}
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/[^0-9]/g, '');
@@ -1289,9 +1315,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                   p.product.id === item.product.id ? { ...p, quantity: clamped } : p
                                 ));
                               }}
-                              className="w-12 text-center text-xs font-bold text-slate-900 bg-slate-50 border-x border-slate-100 outline-none py-1"
+                              className="w-12 text-center text-xs font-bold text-slate-900 bg-slate-50 border-x border-slate-100 outline-none py-1 disabled:text-slate-400"
                             />
-                            <button type="button" onClick={() => updateCartQty(item.product.id, 1)} className="px-2.5 py-1 hover:bg-slate-50 text-slate-500">
+                            <button type="button" disabled={isOngoingOrInUse} onClick={() => updateCartQty(item.product.id, 1)} className="px-2.5 py-1 hover:bg-slate-50 text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed">
                               <Plus className="w-3 h-3" />
                             </button>
                           </div>
@@ -1587,7 +1613,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                 disabled={isCreating || isUpdating || hasUnavailableItems || isDateInvalid || isPaymentInvalid}
                 className={`w-full h-14 font-bold text-lg mt-2 shadow-lg ${hasUnavailableItems || isDateInvalid || isPaymentInvalid ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-900/20'}`}
               >
-                {isCreating || isUpdating ? "Processing..." : isPaymentInvalid ? "Amount Exceeds Total" : isDateInvalid ? "Invalid Dates" : hasUnavailableItems ? "Items Unavailable" : isEditing ? "Save Changes" : "Confirm Order"}
+                {isCreating || isUpdating ? "Processing..." : isPaymentInvalid ? "Amount Exceeds Total" : isDateInvalid ? "Invalid Dates" : hasUnavailableItems ? "Items Unavailable" : isOngoingOrInUse ? "Save Amount Details" : isEditing ? "Save Changes" : "Confirm Order"}
               </Button>
             </div>
           </div>

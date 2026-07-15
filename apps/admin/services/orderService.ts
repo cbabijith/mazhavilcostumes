@@ -788,6 +788,13 @@ export class OrderService {
 
     if (result.success) {
       try {
+        const { paymentService } = await import('./paymentService');
+        await paymentService.syncOrderPaymentStatus(id);
+      } catch (err) {
+        console.error('[OrderService.updateOrder] Failed to sync order payment status:', err);
+      }
+
+      try {
         dashboardService.clearCache();
       } catch (err) {
         console.error('Failed to clear dashboard cache:', err);

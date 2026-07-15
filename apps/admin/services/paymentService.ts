@@ -263,9 +263,6 @@ export class PaymentService {
     return { data: final || null, error: null, success: true };
   }
 
-  /**
-   * Sync order payment status and amount paid based on current payments
-   */
   async syncOrderPaymentStatus(orderId: string): Promise<void> {
     const { orderRepository } = await import('@/repository');
     const paymentsResult = await paymentRepository.findByOrderId(orderId);
@@ -280,10 +277,22 @@ export class PaymentService {
       }, 0);
       const clampedAmountPaid = Math.max(0, newAmountPaid);
       const newPaymentStatus = clampedAmountPaid >= order.total_amount ? 'paid' : clampedAmountPaid > 0 ? 'partial' : 'pending';
-      await orderRepository.update(orderId, {
-        amount_paid: clampedAmountPaid,
-        payment_status: newPaymentStatus,
-      } as any);
+      
+      // Only perform update and checks if values have changed to prevent infinite loops
+      if (order.amount_paid !== clampedAmountPaid || order.payment_status !== newPaymentStatus) {
+        await orderRepository.update(orderId, {
+          amount_paid: clampedAmountPaid,
+          payment_status: newPaymentStatus,
+        } as any);
+
+        // Check if the status needs to be auto-completed (since payment status changed)
+        try {
+          const { orderService } = await import('./orderService');
+          await orderService.checkAndAutoComplete(orderId);
+        } catch (err) {
+          console.error('[paymentService.syncOrderPaymentStatus] Failed to check and auto-complete order:', err);
+        }
+      }
     }
   }
 }
