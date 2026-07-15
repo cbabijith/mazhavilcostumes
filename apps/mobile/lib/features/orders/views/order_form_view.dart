@@ -45,6 +45,10 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
+  bool get _isOngoingOrInUse =>
+      widget.order?.status == OrderStatus.ongoing ||
+      widget.order?.status == OrderStatus.inUse;
+
   // Debounce and Cancel tokens for APIs
   Timer? _searchDebounce;
   CancelToken? _productSearchCancelToken;
@@ -765,7 +769,11 @@ class _OrderFormViewState extends ConsumerState<OrderFormView> {
             _submit();
           },
           child: Text(
-            isEditing ? 'Save Changes' : 'Confirm Order',
+            _isOngoingOrInUse
+                ? 'Save Amount Details'
+                : isEditing
+                    ? 'Save Changes'
+                    : 'Confirm Order',
             style: TextStyle(
               fontSize: Responsive.sp(AppSizes.fontLarge),
               fontWeight: FontWeight.bold,

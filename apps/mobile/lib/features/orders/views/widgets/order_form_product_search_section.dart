@@ -2,16 +2,20 @@ part of '../order_form_view.dart';
 
 extension _OrderFormProductSearchSection on _OrderFormViewState {
   Widget _buildProductSearchField() {
+    final ongoing = _isOngoingOrInUse;
     return Row(
       children: [
         Expanded(
           child: TextField(
             controller: _productSearchController,
             keyboardType: TextInputType.text,
+            enabled: !ongoing,
             style: TextStyle(fontSize: Responsive.sp(14)),
             decoration: InputDecoration(
               labelText: 'Search Items',
-              hintText: 'Search products or scan barcode...',
+              hintText: ongoing
+                  ? 'Items cannot be added to ongoing rentals'
+                  : 'Search products or scan barcode...',
               hintStyle: TextStyle(
                 fontSize: Responsive.sp(14),
                 color: Colors.grey,
@@ -20,7 +24,7 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
                 Icons.search_rounded,
                 size: Responsive.icon(20),
               ),
-              suffixIcon: _productSearchController.text.isNotEmpty
+              suffixIcon: !ongoing && _productSearchController.text.isNotEmpty
                   ? IconButton(
                       icon: Icon(
                         Icons.clear_rounded,
@@ -48,6 +52,7 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
               ),
             ),
             onChanged: (value) {
+              if (ongoing) return;
               _update(() {
                 _productSearchQuery = value;
               });
@@ -66,17 +71,17 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
           height: Responsive.h(48),
           width: Responsive.h(48),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.primary),
+            border: Border.all(color: ongoing ? Colors.grey.shade300 : AppColors.primary),
             borderRadius: BorderRadius.circular(Responsive.r(8)),
           ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(Responsive.r(8)),
-              onTap: _openBarcodeScanner,
+              onTap: ongoing ? null : _openBarcodeScanner,
               child: Icon(
                 Icons.qr_code_scanner_rounded,
-                color: AppColors.primary,
+                color: ongoing ? Colors.grey[400] : AppColors.primary,
                 size: Responsive.icon(22),
               ),
             ),
@@ -240,9 +245,10 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
   }
 
   Widget _buildInlineCartQtyControls(OrderItemInput item) {
+    final ongoing = _isOngoingOrInUse;
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.primary),
+        border: Border.all(color: ongoing ? Colors.grey.shade300 : AppColors.primary),
         borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
       ),
       child: Row(
@@ -251,8 +257,8 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            icon: Icon(Icons.remove_rounded, color: AppColors.primary, size: Responsive.icon(18)),
-            onPressed: () {
+            icon: Icon(Icons.remove_rounded, color: ongoing ? Colors.grey[400] : AppColors.primary, size: Responsive.icon(18)),
+            onPressed: ongoing ? null : () {
               _update(() {
                 if (item.quantity > 1) {
                   item.quantity--;
@@ -270,14 +276,18 @@ extension _OrderFormProductSearchSection on _OrderFormViewState {
             padding: Responsive.symmetric(horizontal: 8),
             child: Text(
               '${item.quantity}',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: Responsive.sp(AppSizes.fontMedium)),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: Responsive.sp(AppSizes.fontMedium),
+                color: ongoing ? Colors.grey[500] : Colors.grey[800],
+              ),
             ),
           ),
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            icon: Icon(Icons.add_rounded, color: AppColors.primary, size: Responsive.icon(18)),
-            onPressed: () {
+            icon: Icon(Icons.add_rounded, color: ongoing ? Colors.grey[400] : AppColors.primary, size: Responsive.icon(18)),
+            onPressed: ongoing ? null : () {
               final maxQty = item.availableWithPriority > 0 ? item.availableWithPriority : item.available;
               if (maxQty > 0 && item.quantity >= maxQty) {
                 final msg = item.availableWithPriority > item.available

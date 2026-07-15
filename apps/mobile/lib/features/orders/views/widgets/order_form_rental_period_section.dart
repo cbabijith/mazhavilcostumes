@@ -6,20 +6,28 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
     required TextEditingController controller,
     required String? Function(String?) validator,
   }) {
+    final ongoing = _isOngoingOrInUse;
     return TextFormField(
       controller: controller,
       readOnly: true,
-      style: TextStyle(fontSize: Responsive.sp(14)),
+      enabled: !ongoing,
+      style: TextStyle(
+        fontSize: Responsive.sp(14),
+        color: ongoing ? Colors.grey[500] : Colors.grey[800],
+      ),
       decoration: InputDecoration(
         labelText: label,
+        filled: ongoing,
+        fillColor: ongoing ? Colors.grey.shade100 : null,
         suffixIcon: Icon(
           Icons.calendar_today_rounded,
           size: Responsive.icon(18),
+          color: ongoing ? Colors.grey[400] : null,
         ),
         contentPadding: Responsive.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      onTap: () => _selectDate(controller),
+      onTap: ongoing ? null : () => _selectDate(controller),
       validator: validator,
     );
   }
@@ -76,7 +84,7 @@ extension _OrderFormRentalPeriodSection on _OrderFormViewState {
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       ),
-      onPressed: isEnabled
+      onPressed: (isEnabled && !_isOngoingOrInUse)
           ? () {
               try {
                 final start = _parseDisplayDate(startText);

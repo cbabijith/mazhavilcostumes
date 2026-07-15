@@ -154,14 +154,15 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
                 ),
               ),
               const Spacer(),
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline_rounded,
-                  color: AppColors.error.withValues(alpha: 0.8),
-                  size: Responsive.icon(20),
+              if (!_isOngoingOrInUse)
+                IconButton(
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.error.withValues(alpha: 0.8),
+                    size: Responsive.icon(20),
+                  ),
+                  onPressed: () => _removeItem(index),
                 ),
-                onPressed: () => _removeItem(index),
-              ),
             ],
           ),
           Container(
@@ -215,7 +216,11 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
                   controller: item.quantityController,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: Responsive.sp(14)),
+                  enabled: !_isOngoingOrInUse,
+                  style: TextStyle(
+                    fontSize: Responsive.sp(14),
+                    color: _isOngoingOrInUse ? Colors.grey[500] : Colors.grey[800],
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Quantity',
                     contentPadding: Responsive.symmetric(
@@ -227,92 +232,98 @@ extension _OrderFormCartItemsSection on _OrderFormViewState {
                       constraints: const BoxConstraints(),
                       icon: Icon(
                         Icons.remove_rounded,
-                        color: AppColors.primary,
+                        color: _isOngoingOrInUse ? Colors.grey[400] : AppColors.primary,
                         size: Responsive.icon(18),
                       ),
-                      onPressed: () {
-                        if (item.quantity > 1) {
-                          _update(() {
-                            item.quantity--;
-                            item.quantityController.text =
-                                item.quantity.toString();
-                          });
-                          _calculateTotals();
-                          _checkItemAvailability(index);
-                        }
-                      },
+                      onPressed: _isOngoingOrInUse
+                          ? null
+                          : () {
+                              if (item.quantity > 1) {
+                                _update(() {
+                                  item.quantity--;
+                                  item.quantityController.text =
+                                      item.quantity.toString();
+                                });
+                                _calculateTotals();
+                                _checkItemAvailability(index);
+                              }
+                            },
                     ),
                     suffixIcon: IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       icon: Icon(
                         Icons.add_rounded,
-                        color: AppColors.primary,
+                        color: _isOngoingOrInUse ? Colors.grey[400] : AppColors.primary,
                         size: Responsive.icon(18),
                       ),
-                      onPressed: () {
-                        final maxQty = item.availableWithPriority > 0
-                            ? item.availableWithPriority
-                            : item.available;
-                        if (maxQty > 0 && item.quantity >= maxQty) {
-                          final msg = item.availableWithPriority >
-                                  item.available
-                              ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
-                              : 'Maximum $maxQty available for these dates.';
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(msg),
-                              backgroundColor: AppColors.error,
-                            ),
-                          );
-                          return;
-                        }
-                        _update(() {
-                          item.quantity++;
-                          item.quantityController.text =
-                              item.quantity.toString();
-                        });
-                        _calculateTotals();
-                        _checkItemAvailability(index);
-                      },
+                      onPressed: _isOngoingOrInUse
+                          ? null
+                          : () {
+                              final maxQty = item.availableWithPriority > 0
+                                  ? item.availableWithPriority
+                                  : item.available;
+                              if (maxQty > 0 && item.quantity >= maxQty) {
+                                final msg = item.availableWithPriority >
+                                        item.available
+                                    ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
+                                    : 'Maximum $maxQty available for these dates.';
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(msg),
+                                    backgroundColor: AppColors.error,
+                                  ),
+                                );
+                                return;
+                              }
+                              _update(() {
+                                item.quantity++;
+                                item.quantityController.text =
+                                    item.quantity.toString();
+                              });
+                              _calculateTotals();
+                              _checkItemAvailability(index);
+                            },
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onChanged: (val) {
-                    if (val.isEmpty) return;
-                    final parsed = int.tryParse(val);
-                    if (parsed == null) return;
-                    final maxQty = item.availableWithPriority > 0
-                        ? item.availableWithPriority
-                        : item.available;
-                    if (maxQty > 0 && parsed > maxQty) {
-                      final msg = item.availableWithPriority >
-                              item.available
-                          ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
-                          : 'Maximum $maxQty available for these dates.';
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(msg),
-                          backgroundColor: AppColors.error,
-                        ),
-                      );
-                      item.quantityController.text = item.quantity.toString();
-                      item.quantityController.selection =
-                          TextSelection.fromPosition(
-                        TextPosition(
-                          offset: item.quantityController.text.length,
-                        ),
-                      );
-                      return;
-                    }
-                    _update(() {
-                      item.quantity = parsed;
-                    });
-                    _calculateTotals();
-                    _checkItemAvailability(index);
-                  },
+                  onChanged: _isOngoingOrInUse
+                      ? null
+                      : (val) {
+                          if (val.isEmpty) return;
+                          final parsed = int.tryParse(val);
+                          if (parsed == null) return;
+                          final maxQty = item.availableWithPriority > 0
+                              ? item.availableWithPriority
+                              : item.available;
+                          if (maxQty > 0 && parsed > maxQty) {
+                            final msg = item.availableWithPriority >
+                                    item.available
+                                ? 'Maximum $maxQty available for these dates (${item.available} free + ${maxQty - item.available} with priority cleaning).'
+                                : 'Maximum $maxQty available for these dates.';
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(msg),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            item.quantityController.text = item.quantity.toString();
+                            item.quantityController.selection =
+                                TextSelection.fromPosition(
+                              TextPosition(
+                                offset: item.quantityController.text.length,
+                              ),
+                            );
+                            return;
+                          }
+                          _update(() {
+                            item.quantity = parsed;
+                          });
+                          _calculateTotals();
+                          _checkItemAvailability(index);
+                        },
                 ),
               ),
               Column(

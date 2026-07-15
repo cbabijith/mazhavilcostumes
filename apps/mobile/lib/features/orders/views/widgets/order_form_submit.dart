@@ -274,6 +274,8 @@ extension _OrderFormSubmit on _OrderFormViewState {
         'branch_id': _selectedBranchId,
         'rental_start_date': _toIsoDate(_startDateController.text),
         'rental_end_date': _toIsoDate(_endDateController.text),
+        'amount_paid': advanceAmount,
+        'payment_status': paymentStatus,
       } else ...{
         'start_date': _toIsoDate(_startDateController.text),
         'end_date': _toIsoDate(_endDateController.text),
@@ -290,8 +292,6 @@ extension _OrderFormSubmit on _OrderFormViewState {
       'subtotal': _subtotal,
       'gst_amount': _gstAmount,
       'total_amount': _totalAmount,
-      'amount_paid': advanceAmount,
-      'payment_status': paymentStatus,
       'items': _items
           .where((item) => item.productId.isNotEmpty)
           .map(
