@@ -1055,7 +1055,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     ),
                     SizedBox(height: Responsive.h(2)),
                     Text(
-                      isPaid ? '₹0.00' : '₹${balanceDue.toStringAsFixed(2)}',
+                      isPaid
+                          ? '₹${_currentOrder.amountPaid.toStringAsFixed(2)}'
+                          : '₹${balanceDue.toStringAsFixed(2)}',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontMedium),
                         fontWeight: FontWeight.bold,
