@@ -373,11 +373,13 @@ class OrderOperations {
 
   Future<void> updatePayment({
     required String paymentId,
+    required double amount,
     required String paymentMode,
     String? notes,
   }) async {
     await _repository.updatePayment(
       paymentId: paymentId,
+      amount: amount,
       paymentMode: paymentMode,
       notes: notes,
     );

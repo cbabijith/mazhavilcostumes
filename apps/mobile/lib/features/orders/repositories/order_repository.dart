@@ -309,9 +309,10 @@ class OrderRepository {
     }
   }
 
-  /// Update an existing payment transaction's mode and notes.
+  /// Update an existing payment transaction's amount, mode, and notes.
   Future<void> updatePayment({
     required String paymentId,
+    required double amount,
     required String paymentMode,
     String? notes,
     CancelToken? cancelToken,
@@ -319,7 +320,11 @@ class OrderRepository {
     try {
       await _api.patch(
         '/payments/$paymentId',
-        data: {'payment_mode': paymentMode, 'notes': notes},
+        data: {
+          'amount': amount,
+          'payment_mode': paymentMode,
+          'notes': notes,
+        },
         cancelToken: cancelToken,
       );
     } catch (e) {

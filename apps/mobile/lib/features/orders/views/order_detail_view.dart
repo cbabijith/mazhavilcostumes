@@ -3776,146 +3776,375 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
 
   void _openEditTransactionDialog(PaymentTransaction tx) {
     String paymentMode = tx.paymentMode;
+    final amountController = TextEditingController(text: tx.amount.toString());
     final notesController = TextEditingController(text: tx.notes);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusXLarge)),
+        ),
       ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Edit Transaction Details',
-                    style: TextStyle(
-                      fontSize: Responsive.sp(16),
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+            Widget buildModeButton(Map<String, dynamic> mode) {
+              final isSelected = paymentMode == mode['id'];
+              final iconData = mode['icon'] as IconData;
+              final label = mode['label'] as String;
+              return InkWell(
+                onTap: () => setModalState(() => paymentMode = mode['id'] as String),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                child: Container(
+                  padding: Responsive.symmetric(
+                    vertical: AppSizes.spacingMedium,
+                    horizontal: AppSizes.spacingSmall,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.08)
+                        : Colors.white,
+                    border: Border.all(
+                      color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                      width: isSelected ? 2.0 : 1.0,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Amount: ₹${tx.amount.toStringAsFixed(2)}  |  Type: ${tx.paymentType.toUpperCase()}',
-                    style: TextStyle(
-                      fontSize: Responsive.sp(12),
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  DropdownButtonFormField<String>(
-                    initialValue: paymentMode,
-                    decoration: InputDecoration(
-                      labelText: 'Payment Mode',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        iconData,
+                        size: Responsive.icon(AppSizes.iconMedium),
+                        color: isSelected ? AppColors.primary : Colors.grey[600],
                       ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
-                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                      DropdownMenuItem(value: 'card', child: Text('Card')),
-                      DropdownMenuItem(
-                        value: 'bank_transfer',
-                        child: Text('Bank Transfer'),
-                      ),
-                      DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setModalState(() => paymentMode = val);
-                    },
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  TextField(
-                    controller: notesController,
-                    decoration: InputDecoration(
-                      labelText: 'Notes',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: Responsive.h(24)),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                      SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? AppColors.primary : Colors.grey[700],
+                          ),
                         ),
                       ),
-                      onPressed: () async {
-                        Navigator.pop(modalContext);
-                        setState(() => _isLoading = true);
-                        try {
-                          if (tx.id.startsWith('virtual-')) {
-                            // Convert the virtual transaction into a real recorded payment in the database
-                            await ref
-                                .read(orderOperationsProvider)
-                                .collectPayment(
-                                  orderId: _currentOrder.id,
-                                  amount: tx.amount,
-                                  paymentMode: paymentMode,
-                                  paymentType: tx.paymentType,
-                                  notes: notesController.text.trim(),
-                                );
-                          } else {
-                            await ref
-                                .read(orderOperationsProvider)
-                                .updatePayment(
-                                  paymentId: tx.id,
-                                  paymentMode: paymentMode,
-                                  notes: notesController.text.trim(),
-                                );
-                          }
-                          await _refreshOrder();
-                          ref.invalidate(
-                            orderPaymentsProvider(_currentOrder.id),
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  tx.id.startsWith('virtual-')
-                                      ? 'Payment record created successfully'
-                                      : 'Transaction updated successfully',
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          setState(() => _isLoading = false);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Failed to update transaction: $e',
-                                ),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      child: const Text('Update Transaction'),
-                    ),
+                    ],
                   ),
-                ],
+                ),
+              );
+            }
+
+            final modes = [
+              {'id': 'upi', 'label': 'UPI / GPay', 'icon': Icons.qr_code_scanner_rounded},
+              {'id': 'cash', 'label': 'Cash', 'icon': Icons.payments_outlined},
+              {'id': 'card', 'label': 'Card', 'icon': Icons.credit_card_rounded},
+              {'id': 'bank_transfer', 'label': 'Bank Transfer', 'icon': Icons.account_balance_outlined},
+            ];
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: Responsive.w(AppSizes.screenPaddingSmall),
+                right: Responsive.w(AppSizes.screenPaddingSmall),
+                top: Responsive.h(AppSizes.screenPaddingSmall),
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    Responsive.h(AppSizes.spacingXXLarge),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Edit Payment',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontLarge),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[900],
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: Responsive.icon(AppSizes.iconMedium),
+                          ),
+                          onPressed: () => Navigator.pop(modalContext),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    // 1. Header info card
+                    Container(
+                      width: double.infinity,
+                      padding: Responsive.all(AppSizes.spacingLarge),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        border: Border.all(color: Colors.grey.shade200),
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusMedium),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PAYMENT TYPE',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              fontWeight: FontWeight.w900,
+                              color: Colors.grey[500],
+                              letterSpacing: 1.1,
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                          Text(
+                            tx.paymentType.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                          Text(
+                            'Original Amount: ₹${tx.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    // 2. Amount field
+                    Text(
+                      'PAYMENT AMOUNT (₹)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: Responsive.sp(22),
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primary,
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        prefixIcon: Icon(
+                          Icons.currency_rupee_rounded,
+                          color: AppColors.primary,
+                          size: Responsive.icon(AppSizes.iconMedium),
+                        ),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusMedium),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusMedium),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    // 3. Payment Mode Selection
+                    Text(
+                      'PAYMENT MODE',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: buildModeButton(modes[0])),
+                            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                            Expanded(child: buildModeButton(modes[1])),
+                          ],
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                        Row(
+                          children: [
+                            Expanded(child: buildModeButton(modes[2])),
+                            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                            Expanded(child: buildModeButton(modes[3])),
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    // 4. Notes Field
+                    Text(
+                      'NOTES / REF ID (OPTIONAL)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    TextField(
+                      controller: notesController,
+                      decoration: InputDecoration(
+                        hintText: 'E.g. UPI Ref #123456',
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusSmall),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
+                    // 5. Actions
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              padding: Responsive.symmetric(
+                                vertical: AppSizes.spacingMedium,
+                              ),
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                            ),
+                            onPressed: () => Navigator.pop(modalContext),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: Responsive.symmetric(
+                                vertical: AppSizes.spacingMedium,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () async {
+                              final amt =
+                                  double.tryParse(amountController.text) ?? 0.0;
+                              if (amt <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Please enter a valid amount'),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              Navigator.pop(modalContext);
+                              setState(() => _isLoading = true);
+                              try {
+                                if (tx.id.startsWith('virtual-')) {
+                                  await ref
+                                      .read(orderOperationsProvider)
+                                      .collectPayment(
+                                        orderId: _currentOrder.id,
+                                        amount: amt,
+                                        paymentMode: paymentMode,
+                                        paymentType: tx.paymentType,
+                                        notes: notesController.text.trim(),
+                                      );
+                                } else {
+                                  await ref
+                                      .read(orderOperationsProvider)
+                                      .updatePayment(
+                                        paymentId: tx.id,
+                                        amount: amt,
+                                        paymentMode: paymentMode,
+                                        notes: notesController.text.trim(),
+                                      );
+                                }
+                                await _refreshOrder();
+                                ref.invalidate(
+                                  orderPaymentsProvider(_currentOrder.id),
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        tx.id.startsWith('virtual-')
+                                            ? 'Payment record created successfully'
+                                            : 'Transaction updated successfully',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setState(() => _isLoading = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to update transaction: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            child: Text(
+                              'Save Changes',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
