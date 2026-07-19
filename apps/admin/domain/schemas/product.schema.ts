@@ -123,6 +123,8 @@ export const UpdateProductSchema = z.object({
 export const ProductSearchSchema = z.object({
   query: z.string().optional(),
   category_id: z.string().optional(),
+  subcategory_id: z.string().optional(),
+  subvariant_id: z.string().optional(),
   store_id: z.string().optional(),
   branch_id: z.string().optional(),
   status: z.nativeEnum(ProductStatus).optional(),

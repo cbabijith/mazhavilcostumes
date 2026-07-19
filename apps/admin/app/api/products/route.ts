@@ -45,6 +45,8 @@ export async function GET(request: NextRequest) {
     const params = ProductSearchSchema.parse({
       query: searchParams.get('query') || undefined,
       category_id: searchParams.get('category_id') || undefined,
+      subcategory_id: searchParams.get('subcategory_id') || undefined,
+      subvariant_id: searchParams.get('subvariant_id') || undefined,
       store_id: searchParams.get('store_id') || undefined,
       branch_id: searchParams.get('branch_id') || undefined,
       status: searchParams.get('status') || undefined,

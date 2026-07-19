@@ -93,6 +93,11 @@ export async function POST(request: NextRequest) {
 
     const body = pickCategoryFields(await request.json()) as unknown as CreateCategoryDTO;
 
+    // Forcefully inject store_id from auth session (Zero-Trust)
+    if (authUser?.store_id) {
+      body.store_id = authUser.store_id;
+    }
+
     const result = await categoryService.createCategory(body);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to create category');

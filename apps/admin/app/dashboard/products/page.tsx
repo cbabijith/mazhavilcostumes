@@ -85,6 +85,8 @@ function ProductsContent() {
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
   const urlCategoryId = searchParams.get("category_id") || "";
+  const urlSubcategoryId = searchParams.get("subcategory_id") || "";
+  const urlSubvariantId = searchParams.get("subvariant_id") || "";
 
   // Local state only for the fast-typing input field
   const [searchInput, setSearchInput] = useState(urlQuery);
@@ -93,6 +95,21 @@ function ProductsContent() {
 
   // Fetch categories for filter dropdown
   const { categories } = useCategories();
+
+  // Filter categories by levels
+  const mainCategories = useMemo(() => {
+    return categories.filter((c) => !c.parent_id);
+  }, [categories]);
+
+  const subcategories = useMemo(() => {
+    if (!urlCategoryId) return [];
+    return categories.filter((c) => c.parent_id === urlCategoryId);
+  }, [categories, urlCategoryId]);
+
+  const variants = useMemo(() => {
+    if (!urlSubcategoryId) return [];
+    return categories.filter((c) => c.parent_id === urlSubcategoryId);
+  }, [categories, urlSubcategoryId]);
 
   // Centralized URL updater (Idempotent updates)
   const updateParams = (updates: Record<string, string | null>) => {
@@ -127,11 +144,16 @@ function ProductsContent() {
     };
   }, [searchInput, urlQuery, searchParams]);
 
+  const selectedBranchId = useAppSelectors.selectedBranchId();
+
   const { products, isLoading, total, totalStock, totalPages, hasNext, hasPrev } = useProducts({
     query: debouncedQuery,
     category_id: urlCategoryId,
+    subcategory_id: urlSubcategoryId,
+    subvariant_id: urlSubvariantId,
     limit: pageSize,
     page,
+    branch_id: selectedBranchId || undefined,
   });
 
   const deleteProduct = useDeleteProduct();
@@ -172,6 +194,12 @@ function ProductsContent() {
         const searchParams = new URLSearchParams();
         if (urlCategoryId) {
           searchParams.append('category_id', urlCategoryId);
+        }
+        if (urlSubcategoryId) {
+          searchParams.append('subcategory_id', urlSubcategoryId);
+        }
+        if (urlSubvariantId) {
+          searchParams.append('subvariant_id', urlSubvariantId);
         }
         searchParams.append('limit', String(limit));
         searchParams.append('page', String(pageNum));
@@ -473,11 +501,11 @@ function ProductsContent() {
             <div className="relative">
               <select
                 value={urlCategoryId}
-                onChange={(e) => updateParams({ category_id: e.target.value, page: "1" })}
+                onChange={(e) => updateParams({ category_id: e.target.value, subcategory_id: null, subvariant_id: null, page: "1" })}
                 className="h-10 rounded-md border border-slate-200 bg-white px-3 pr-8 text-sm font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 appearance-none min-w-[180px]"
               >
                 <option value="">All Categories</option>
-                {categories.map((cat) => (
+                {mainCategories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.name}
                   </option>
@@ -490,12 +518,74 @@ function ProductsContent() {
                 variant="ghost"
                 size="icon"
                 className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                onClick={() => updateParams({ category_id: null, page: "1" })}
+                onClick={() => updateParams({ category_id: null, subcategory_id: null, subvariant_id: null, page: "1" })}
               >
                 <X className="w-4 h-4" />
               </Button>
             )}
           </div>
+
+          {/* Subcategory Filter */}
+          {urlCategoryId && subcategories.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={urlSubcategoryId}
+                  onChange={(e) => updateParams({ subcategory_id: e.target.value, subvariant_id: null, page: "1" })}
+                  className="h-10 rounded-md border border-slate-200 bg-white px-3 pr-8 text-sm font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 appearance-none min-w-[180px]"
+                >
+                  <option value="">All Subcategories</option>
+                  {subcategories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <Filter className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+              {urlSubcategoryId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                  onClick={() => updateParams({ subcategory_id: null, subvariant_id: null, page: "1" })}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Variant Filter */}
+          {urlSubcategoryId && variants.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <select
+                  value={urlSubvariantId}
+                  onChange={(e) => updateParams({ subvariant_id: e.target.value, page: "1" })}
+                  className="h-10 rounded-md border border-slate-200 bg-white px-3 pr-8 text-sm font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900 appearance-none min-w-[180px]"
+                >
+                  <option value="">All Variants</option>
+                  {variants.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+                <Filter className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              </div>
+              {urlSubvariantId && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                  onClick={() => updateParams({ subvariant_id: null, page: "1" })}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          )}
 
           {selectedProducts.length > 0 && (
             <div className="flex flex-wrap items-center gap-3">

@@ -128,6 +128,8 @@ export interface UpdateProductDTO {
 export interface ProductSearchParams {
   query?: string;
   category_id?: string;
+  subcategory_id?: string;
+  subvariant_id?: string;
   store_id?: string;
   branch_id?: string;
   status?: ProductStatus;
