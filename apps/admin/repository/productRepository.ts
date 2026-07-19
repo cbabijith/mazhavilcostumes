@@ -29,6 +29,8 @@ export class ProductRepository extends BaseRepository {
     const {
       query,
       category_id,
+      subcategory_id,
+      subvariant_id,
       store_id,
       branch_id,
       status,
@@ -47,6 +49,8 @@ export class ProductRepository extends BaseRepository {
     // Build filters
     const filters: Record<string, any> = {};
     if (category_id) filters.category_id = category_id;
+    if (subcategory_id) filters.subcategory_id = subcategory_id;
+    if (subvariant_id) filters.subvariant_id = subvariant_id;
     if (store_id) filters.store_id = store_id;
     if (status !== undefined) filters.is_active = status === 'active';
     if (is_featured !== undefined) filters.is_featured = is_featured;
@@ -107,20 +111,70 @@ export class ProductRepository extends BaseRepository {
       selectQuery = (selectQuery as any).lte('price_per_day', max_price);
     }
 
-    // Execute main query and stock sum RPC in parallel
+    // Determine how to query total stock
+    let totalStockPromise: Promise<{ data: any; error: any }>;
+    if (subcategory_id || subvariant_id) {
+      totalStockPromise = (async () => {
+        let stockQuery = this.client
+          .from(this.tableName)
+          .select('quantity')
+          .is('deleted_at', null);
+
+        if (category_id) stockQuery = stockQuery.eq('category_id', category_id);
+        if (subcategory_id) stockQuery = stockQuery.eq('subcategory_id', subcategory_id);
+        if (subvariant_id) stockQuery = stockQuery.eq('subvariant_id', subvariant_id);
+        if (store_id) stockQuery = stockQuery.eq('store_id', store_id);
+        if (status !== undefined) stockQuery = stockQuery.eq('is_active', status === 'active');
+        if (is_featured !== undefined) stockQuery = stockQuery.eq('is_featured', is_featured);
+        if (min_price !== undefined) stockQuery = stockQuery.gte('price_per_day', min_price);
+        if (max_price !== undefined) stockQuery = stockQuery.lte('price_per_day', max_price);
+        if (in_stock !== undefined) {
+          if (in_stock) {
+            stockQuery = stockQuery.gt('available_quantity', 0);
+          } else {
+            stockQuery = stockQuery.eq('available_quantity', 0);
+          }
+        }
+        if (branch_id) {
+          stockQuery = stockQuery.or(`branch_id.eq.${branch_id},branch_id.is.null`);
+        }
+        if (query) {
+          const normalizedQuery = query.trim().replace(/\s+/g, '-');
+          if (normalizedQuery !== query) {
+            stockQuery = stockQuery.or(
+              `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%,` +
+              `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+            );
+          } else {
+            stockQuery = stockQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
+          }
+        }
+
+        const { data: resData, error: resError } = await stockQuery;
+        const sum = resData ? resData.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) : 0;
+        return { data: sum, error: resError };
+      })();
+    } else {
+      totalStockPromise = (async () => {
+        const res = await this.client.rpc('get_total_stock', {
+          p_query: query || null,
+          p_category_id: category_id || null,
+          p_store_id: store_id || null,
+          p_branch_id: branch_id || null,
+          p_is_active: status !== undefined ? (status === 'active') : null,
+          p_is_featured: is_featured ?? null,
+          p_min_price: min_price ?? null,
+          p_max_price: max_price ?? null,
+          p_in_stock: in_stock ?? null,
+        });
+        return { data: res.data, error: res.error };
+      })();
+    }
+
+    // Execute main query and stock sum in parallel
     const [mainResponse, stockResponse] = await Promise.all([
       selectQuery,
-      this.client.rpc('get_total_stock', {
-        p_query: query || null,
-        p_category_id: category_id || null,
-        p_store_id: store_id || null,
-        p_branch_id: branch_id || null,
-        p_is_active: status !== undefined ? status === 'active' : null,
-        p_is_featured: is_featured ?? null,
-        p_min_price: min_price ?? null,
-        p_max_price: max_price ?? null,
-        p_in_stock: in_stock ?? null,
-      }),
+      totalStockPromise,
     ]);
 
     const { data, count, error } = mainResponse as any;
