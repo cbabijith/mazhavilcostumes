@@ -13,10 +13,10 @@
  * @module app/api/categories/product-counts/route
  */
 
-import { NextRequest } from "next/server";
-import { categoryRepository } from "@/repository";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { categoryRepository } from '@/repository';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/categories/product-counts — get product counts for all categories */
 export async function GET(request: NextRequest) {
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     // Build product counts map
     const productCounts: Record<string, number> = {};
-    
+
     for (const category of categoriesResult.data) {
       const countResult = await categoryRepository.getProductCount(category.id);
       if (countResult.success && countResult.data !== null) {

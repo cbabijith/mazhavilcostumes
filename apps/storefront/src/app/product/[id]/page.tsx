@@ -1,11 +1,16 @@
-import { notFound } from "next/navigation";
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import ProductDetails from "@/components/product/ProductDetails";
-import RelatedProducts from "@/components/product/RelatedProducts";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { getCachedProductById, getCachedCategories, getCachedRelatedProducts } from "@/lib/supabase/cached-queries";
-import { getProductImageUrls } from "@/lib/supabase/queries";
+import { notFound } from 'next/navigation';
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import ProductDetails from '@/components/product/ProductDetails';
+import RelatedProducts from '@/components/product/RelatedProducts';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import {
+  getCachedProductById,
+  getCachedCategories,
+  getCachedRelatedProducts,
+} from '@/lib/supabase/cached-queries';
+import { getProductImageUrls } from '@/lib/supabase/queries';
+import { BRAND_CONFIG } from 'shared-utils';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -14,22 +19,19 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   const product = await getCachedProductById(id);
-  if (!product) return { title: "Product — Mazhavil Dance Costumes" };
+  if (!product) return { title: `Product — ${BRAND_CONFIG.name}` };
   return {
-    title: `${product.name} — Mazhavil Dance Costumes`,
+    title: `${product.name} — ${BRAND_CONFIG.name}`,
     description:
       product.description ||
-      `Rent ${product.name} from Mazhavil Dance Costumes. Premium classical and traditional dance costumes.`,
+      `Rent ${product.name} from ${BRAND_CONFIG.name}. Premium bridal jewelry and accessories.`,
   };
 }
 
 export default async function ProductPage({ params }: PageProps) {
   const { id } = await params;
 
-  const [store, product] = await Promise.all([
-    getParisBridalsStore(),
-    getCachedProductById(id),
-  ]);
+  const [store, product] = await Promise.all([getParisBridalsStore(), getCachedProductById(id)]);
 
   if (!product) {
     notFound();
@@ -42,7 +44,9 @@ export default async function ProductPage({ params }: PageProps) {
   // Fetch categories and related products in parallel (eliminating waterfalls)
   const [categories, related] = await Promise.all([
     store ? getCachedCategories(store.id) : Promise.resolve([]),
-    store ? getCachedRelatedProducts(store.id, product.category_id || '', product.id, 8) : Promise.resolve([]),
+    store
+      ? getCachedRelatedProducts(store.id, product.category_id || '', product.id, 8)
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -68,9 +72,7 @@ export default async function ProductPage({ params }: PageProps) {
           products={related}
           heading="You May Also Love"
           eyebrow={
-            product.category?.name
-              ? `More ${product.category.name}`
-              : "More from the collection"
+            product.category?.name ? `More ${product.category.name}` : 'More from the collection'
           }
         />
       )}

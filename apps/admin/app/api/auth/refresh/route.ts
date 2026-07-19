@@ -26,10 +26,7 @@ export async function POST(request: NextRequest) {
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!url || !anonKey) {
-      return NextResponse.json(
-        { success: false, error: 'Server misconfigured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, error: 'Server misconfigured' }, { status: 500 });
     }
 
     const authClient = createSupabaseClient(url, anonKey, {

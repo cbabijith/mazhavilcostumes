@@ -1,22 +1,44 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Edit, Trash2, Package, AlertTriangle, Store,
-  XCircle, Barcode, Image as ImageIcon, CalendarDays, TrendingUp, Clock, Users, BarChart3,
-  ShieldAlert, RotateCcw, Trash, Download, Printer
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import Modal from "@/components/admin/Modal";
-import ProductAvailabilityCalendar from "@/components/admin/ProductAvailabilityCalendar";
-import { useProduct, useDeleteProduct } from "@/hooks";
-import { useProductStore, useAppStore } from "@/stores";
-import { formatCurrency } from "@/lib/shared-utils";
-import { downloadBarcode, printBarcode } from "@/lib/barcode";
-import Image from "next/image";
+  ArrowLeft,
+  Edit,
+  Trash2,
+  Package,
+  AlertTriangle,
+  Store,
+  XCircle,
+  Barcode,
+  Image as ImageIcon,
+  CalendarDays,
+  TrendingUp,
+  Clock,
+  Users,
+  BarChart3,
+  ShieldAlert,
+  RotateCcw,
+  Trash,
+  Download,
+  Printer,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import Modal from '@/components/admin/Modal';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import ProductAvailabilityCalendar from '@/components/admin/ProductAvailabilityCalendar';
+import { useProduct, useDeleteProduct } from '@/hooks';
+import { useProductStore, useAppStore, useAppSelectors } from '@/stores';
+import { formatCurrency } from '@/lib/shared-utils';
+import { downloadBarcode, printBarcode, printBarcodeSingleSheet } from '@/lib/barcode';
+import Image from 'next/image';
 
 interface BranchInventoryRow {
   id: string;
@@ -70,7 +92,9 @@ export default function ProductDetailPage() {
   const productId = params.id as string;
   const { product, isLoading } = useProduct(productId);
   const deleteProduct = useDeleteProduct();
-  const { showSuccess, user } = useAppStore();
+  const showSuccess = useAppSelectors.showSuccess();
+  const user = useAppSelectors.user();
+  const selectedBranchId = useAppSelectors.selectedBranchId();
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
   const isAdmin = ['admin', 'super_admin', 'owner'].includes(user?.role || '');
 
@@ -82,12 +106,8 @@ export default function ProductDetailPage() {
   const [damageHistory, setDamageHistory] = useState<any[]>([]);
   const [isLoadingDamage, setIsLoadingDamage] = useState(false);
 
-  const {
-    openDeleteModal,
-    closeDeleteModal,
-    isDeleteModalOpen,
-    currentProduct,
-  } = useProductStore();
+  const { openDeleteModal, closeDeleteModal, isDeleteModalOpen, currentProduct } =
+    useProductStore();
 
   useEffect(() => {
     if (!productId) return;
@@ -144,9 +164,9 @@ export default function ProductDetailPage() {
     if (!currentProduct) return;
     try {
       const result = await deleteProduct.mutateAsync(currentProduct.id);
-      if (result && typeof result === "object" && "success" in result && result.success) {
-        showSuccess("Product deleted successfully");
-        router.push("/dashboard/products");
+      if (result && typeof result === 'object' && 'success' in result && result.success) {
+        showSuccess('Product deleted successfully');
+        router.push('/dashboard/products');
       }
     } catch (err) {
       console.error(err);
@@ -169,8 +189,10 @@ export default function ProductDetailPage() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 p-12 text-center">
           <Package className="mb-4 h-12 w-12 text-slate-300" />
           <h3 className="mb-2 text-lg font-semibold text-slate-900">Product Not Found</h3>
-          <p className="mb-6 text-sm text-slate-500 max-w-sm">The product you are looking for does not exist or has been removed from the system.</p>
-          <Button variant="outline" onClick={() => router.push("/dashboard/products")}>
+          <p className="mb-6 text-sm text-slate-500 max-w-sm">
+            The product you are looking for does not exist or has been removed from the system.
+          </p>
+          <Button variant="outline" onClick={() => router.push('/dashboard/products')}>
             Return to Products
           </Button>
         </div>
@@ -178,9 +200,22 @@ export default function ProductDetailPage() {
     );
   }
 
-  const primaryImage = product.images?.find((img) => img.is_primary)?.url || product.images?.[0]?.url;
-  const totalQty = product.quantity || 0;
-  const availQty = product.available_quantity || 0;
+  const selectedBranchInv = selectedBranchId
+    ? branchInventory.find((inv) => inv.branch_id === selectedBranchId)
+    : null;
+
+  const primaryImage =
+    product.images?.find((img) => img.is_primary)?.url || product.images?.[0]?.url;
+  const totalQty = selectedBranchId
+    ? selectedBranchInv
+      ? selectedBranchInv.quantity
+      : 0
+    : product.quantity || 0;
+  const availQty = selectedBranchId
+    ? selectedBranchInv
+      ? selectedBranchInv.available_quantity
+      : 0
+    : product.available_quantity || 0;
 
   return (
     <div className="space-y-6 pb-12">
@@ -190,7 +225,7 @@ export default function ProductDetailPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => router.push("/dashboard/products")}
+            onClick={() => router.push('/dashboard/products')}
             className="w-9 h-9 mt-0.5 shrink-0 border-slate-200 text-slate-500 hover:text-slate-900 bg-white"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -198,19 +233,27 @@ export default function ProductDetailPage() {
           <div>
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">{product.name}</h1>
-              <Badge variant="secondary" className={`px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${product.is_active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>
-                {product.is_active ? "Active" : "Inactive"}
+              <Badge
+                variant="secondary"
+                className={`px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${product.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {product.is_active ? 'Active' : 'Inactive'}
               </Badge>
               {product.is_featured && (
-                <Badge variant="outline" className="px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider border-purple-200 text-purple-700 bg-purple-50">
+                <Badge
+                  variant="outline"
+                  className="px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider border-purple-200 text-purple-700 bg-purple-50"
+                >
                   Featured
                 </Badge>
               )}
             </div>
             <div className="flex items-center gap-2 mt-1.5 text-sm text-slate-500">
-              <span className="font-medium text-slate-700">{product.category?.name || "Uncategorized"}</span>
+              <span className="font-medium text-slate-700">
+                {product.category?.name || 'Uncategorized'}
+              </span>
               <span className="text-slate-300">•</span>
-              <span className="font-mono text-xs">{product.sku || "No SKU"}</span>
+              <span className="font-mono text-xs">{product.sku || 'No SKU'}</span>
             </div>
           </div>
         </div>
@@ -227,21 +270,65 @@ export default function ProductDetailPage() {
                 <Download className="h-4 w-4" />
                 <span className="hidden sm:inline">Download Barcode</span>
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => printBarcode(product.barcode!, product.name)}
-                className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
-              >
-                <Printer className="h-4 w-4" />
-                <span className="hidden sm:inline">Print Barcode</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-slate-200 text-slate-600 hover:text-slate-900 bg-white"
+                  >
+                    <Printer className="h-4 w-4" />
+                    <span className="hidden sm:inline">Print Barcode</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-white">
+                  <DropdownMenuItem
+                    onClick={() => printBarcode(product.barcode!, product.name)}
+                    className="cursor-pointer"
+                  >
+                    Print A4 Sheet
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 50,
+                        labelHeight_mm: 30,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (50x30mm)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 40,
+                        labelHeight_mm: 30,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (40x30mm)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() =>
+                      printBarcodeSingleSheet(product.barcode!, product.name, {
+                        labelWidth_mm: 32,
+                        labelHeight_mm: 20,
+                      })
+                    }
+                    className="cursor-pointer"
+                  >
+                    Print Thermal (32x20mm)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
           {canEdit && (
-            <Button 
-              size="sm" 
-              onClick={() => router.push(`/dashboard/products/${product.id}/edit`)} 
+            <Button
+              size="sm"
+              onClick={() => router.push(`/dashboard/products/${product.id}/edit`)}
               className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
             >
               <Edit className="h-4 w-4" />
@@ -282,7 +369,15 @@ export default function ProductDetailPage() {
         <StatCard
           label="Available Inventory"
           value={isLoadingAnalytics ? null : `${availQty} / ${totalQty}`}
-          subtext={availQty === 0 ? "Out of stock" : "Ready for rent"}
+          subtext={
+            selectedBranchId
+              ? availQty === 0
+                ? 'Out of stock at this branch'
+                : 'Ready for rent at this branch'
+              : availQty === 0
+                ? 'Out of stock globally'
+                : 'Ready for rent'
+          }
           alert={availQty === 0}
         />
       </div>
@@ -297,8 +392,14 @@ export default function ProductDetailPage() {
           />
           <StatCard
             label="ROI"
-            value={isLoadingAnalytics ? null : analytics?.roi != null ? `${analytics.roi}%` : "N/A"}
-            subtext={analytics?.roi != null ? (analytics.roi > 0 ? "Profitable" : "Below cost") : "Set purchase price"}
+            value={isLoadingAnalytics ? null : analytics?.roi != null ? `${analytics.roi}%` : 'N/A'}
+            subtext={
+              analytics?.roi != null
+                ? analytics.roi > 0
+                  ? 'Profitable'
+                  : 'Below cost'
+                : 'Set purchase price'
+            }
             highlight={!!analytics?.roi && analytics.roi > 100}
             alert={analytics?.roi != null && analytics.roi < 0}
           />
@@ -323,10 +424,8 @@ export default function ProductDetailPage() {
 
       {/* ── Main Layout ───────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-
         {/* LEFT COLUMN: Main Info & History */}
         <div className="lg:col-span-2 space-y-6">
-          
           {/* Detailed Info Card */}
           <Card className="shadow-sm border-slate-200 overflow-hidden bg-white">
             <div className="flex flex-col md:flex-row">
@@ -334,7 +433,13 @@ export default function ProductDetailPage() {
               <div className="md:w-64 bg-slate-50 border-b md:border-b-0 md:border-r border-slate-200 p-6 flex flex-col items-center justify-center min-h-[250px]">
                 {primaryImage ? (
                   <div className="relative w-full aspect-square rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
-                    <Image src={primaryImage} alt={product.name} fill sizes="(max-width: 768px) 100vw, 256px" className="object-cover" />
+                    <Image
+                      src={primaryImage}
+                      alt={product.name}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 256px"
+                      className="object-cover"
+                    />
                   </div>
                 ) : (
                   <div className="w-full aspect-square rounded-lg border border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400">
@@ -348,14 +453,22 @@ export default function ProductDetailPage() {
               <div className="flex-1 p-6 flex flex-col">
                 {isAdmin && (
                   <div className="mb-6">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Rent Price</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                      Rent Price
+                    </h3>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold tracking-tight text-slate-900">{formatCurrency(product.price_per_day)}</span>
+                      <span className="text-3xl font-bold tracking-tight text-slate-900">
+                        {formatCurrency(product.price_per_day)}
+                      </span>
                     </div>
                     {(product as any).purchase_price > 0 && (
                       <div className="mt-2 flex items-center gap-2">
-                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Purchase:</span>
-                        <span className="text-sm font-semibold text-slate-700">{formatCurrency((product as any).purchase_price)}</span>
+                        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                          Purchase:
+                        </span>
+                        <span className="text-sm font-semibold text-slate-700">
+                          {formatCurrency((product as any).purchase_price)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -364,13 +477,17 @@ export default function ProductDetailPage() {
                 <div className="h-px w-full bg-slate-100 mb-6" />
 
                 <div className="flex-1">
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Product Description</h3>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Product Description
+                  </h3>
                   {product.description ? (
                     <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
                       {product.description}
                     </p>
                   ) : (
-                    <p className="text-sm text-slate-400 italic">No description provided for this item.</p>
+                    <p className="text-sm text-slate-400 italic">
+                      No description provided for this item.
+                    </p>
                   )}
                 </div>
               </div>
@@ -381,10 +498,19 @@ export default function ProductDetailPage() {
           <Card className="shadow-sm border-slate-200 bg-white">
             <CardHeader className="border-b border-slate-200 py-4 px-6 flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Rental History</CardTitle>
-                <CardDescription className="text-sm mt-1">Recent orders containing this product</CardDescription>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  Rental History
+                </CardTitle>
+                <CardDescription className="text-sm mt-1">
+                  Recent orders containing this product
+                </CardDescription>
               </div>
-              <Button variant="ghost" size="sm" className="text-slate-500 hover:text-slate-900" onClick={() => router.push(`/dashboard/orders?product_id=${product.id}`)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-slate-500 hover:text-slate-900"
+                onClick={() => router.push(`/dashboard/orders?product_id=${product.id}`)}
+              >
                 View All
               </Button>
             </CardHeader>
@@ -394,7 +520,9 @@ export default function ProductDetailPage() {
                   <tr>
                     <th className="px-6 py-3 font-medium border-b border-slate-200">Date</th>
                     <th className="px-6 py-3 font-medium border-b border-slate-200">Customer</th>
-                    <th className="px-6 py-3 font-medium border-b border-slate-200">Rental Period</th>
+                    <th className="px-6 py-3 font-medium border-b border-slate-200">
+                      Rental Period
+                    </th>
                     <th className="px-6 py-3 font-medium border-b border-slate-200">Status</th>
                   </tr>
                 </thead>
@@ -409,7 +537,9 @@ export default function ProductDetailPage() {
                     <tr>
                       <td colSpan={4} className="px-6 py-12 text-center">
                         <p className="text-slate-500 font-medium">No rental history</p>
-                        <p className="text-xs text-slate-400 mt-1">This product hasn&apos;t been rented yet.</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          This product hasn&apos;t been rented yet.
+                        </p>
                       </td>
                     </tr>
                   ) : (
@@ -419,10 +549,41 @@ export default function ProductDetailPage() {
 
                       const getStatusBadge = (status: string) => {
                         const s = status.toLowerCase();
-                        if (s === 'completed' || s === 'returned') return <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-100">Returned</Badge>;
-                        if (s === 'ongoing') return <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50">Ongoing</Badge>;
-                        if (s === 'cancelled') return <Badge variant="secondary" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50">Cancelled</Badge>;
-                        return <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 capitalize">{status}</Badge>;
+                        if (s === 'completed' || s === 'returned')
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="bg-slate-100 text-slate-700 hover:bg-slate-100"
+                            >
+                              Returned
+                            </Badge>
+                          );
+                        if (s === 'ongoing')
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                            >
+                              Ongoing
+                            </Badge>
+                          );
+                        if (s === 'cancelled')
+                          return (
+                            <Badge
+                              variant="secondary"
+                              className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50"
+                            >
+                              Cancelled
+                            </Badge>
+                          );
+                        return (
+                          <Badge
+                            variant="secondary"
+                            className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50 capitalize"
+                          >
+                            {status}
+                          </Badge>
+                        );
                       };
 
                       return (
@@ -432,20 +593,34 @@ export default function ProductDetailPage() {
                           onClick={() => router.push(`/dashboard/orders/${order.id}`)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-slate-600">
-                            {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            {new Date(order.created_at).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-medium text-slate-900">{order.customer?.name || "Unknown Customer"}</div>
+                            <div className="font-medium text-slate-900">
+                              {order.customer?.name || 'Unknown Customer'}
+                            </div>
                             {order.customer?.phone && (
-                              <div className="text-xs text-slate-500 mt-0.5">{order.customer.phone}</div>
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                {order.customer.phone}
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
-                            {new Date(order.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — {new Date(order.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {new Date(order.start_date).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                            })}{' '}
+                            —{' '}
+                            {new Date(order.end_date).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                           </td>
-                          <td className="px-6 py-4">
-                            {getStatusBadge(order.status)}
-                          </td>
+                          <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                         </tr>
                       );
                     })
@@ -460,8 +635,12 @@ export default function ProductDetailPage() {
             <Card className="shadow-sm border-slate-200 bg-white">
               <CardHeader className="border-b border-slate-200 py-4 px-6">
                 <div>
-                  <CardTitle className="text-base font-semibold text-slate-900">Monthly Revenue (Last 6 Months)</CardTitle>
-                  <CardDescription className="text-sm mt-1">Revenue and rental breakdown by month</CardDescription>
+                  <CardTitle className="text-base font-semibold text-slate-900">
+                    Monthly Revenue (Last 6 Months)
+                  </CardTitle>
+                  <CardDescription className="text-sm mt-1">
+                    Revenue and rental breakdown by month
+                  </CardDescription>
                 </div>
               </CardHeader>
               <div className="overflow-x-auto">
@@ -469,8 +648,12 @@ export default function ProductDetailPage() {
                   <thead className="bg-slate-50/50 text-slate-500">
                     <tr>
                       <th className="px-6 py-3 font-medium border-b border-slate-200">Month</th>
-                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Rentals</th>
-                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">Revenue</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">
+                        Rentals
+                      </th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200 text-right">
+                        Revenue
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -483,20 +666,30 @@ export default function ProductDetailPage() {
                     ) : analytics?.monthlyRevenue && analytics.monthlyRevenue.length > 0 ? (
                       <>
                         {analytics.monthlyRevenue.map((m, i) => {
-                          const maxRev = Math.max(...(analytics.monthlyRevenue || []).map(x => x.revenue), 1);
+                          const maxRev = Math.max(
+                            ...(analytics.monthlyRevenue || []).map((x) => x.revenue),
+                            1
+                          );
                           const pct = (m.revenue / maxRev) * 100;
                           return (
                             <tr key={i} className="hover:bg-slate-50 transition-colors">
                               <td className="px-6 py-3.5">
                                 <span className="font-medium text-slate-900">{m.month}</span>
                               </td>
-                              <td className="px-6 py-3.5 text-right text-slate-600 font-medium">{m.rentals}</td>
+                              <td className="px-6 py-3.5 text-right text-slate-600 font-medium">
+                                {m.rentals}
+                              </td>
                               <td className="px-6 py-3.5 text-right">
                                 <div className="flex items-center justify-end gap-3">
                                   <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
-                                    <div className="h-full bg-slate-800 rounded-full" style={{ width: `${pct}%` }} />
+                                    <div
+                                      className="h-full bg-slate-800 rounded-full"
+                                      style={{ width: `${pct}%` }}
+                                    />
                                   </div>
-                                  <span className="font-semibold text-slate-900 tabular-nums">{formatCurrency(m.revenue)}</span>
+                                  <span className="font-semibold text-slate-900 tabular-nums">
+                                    {formatCurrency(m.revenue)}
+                                  </span>
                                 </div>
                               </td>
                             </tr>
@@ -508,13 +701,17 @@ export default function ProductDetailPage() {
                             {analytics.monthlyRevenue.reduce((s, m) => s + m.rentals, 0)}
                           </td>
                           <td className="px-6 py-3 text-right text-slate-900">
-                            {formatCurrency(analytics.monthlyRevenue.reduce((s, m) => s + m.revenue, 0))}
+                            {formatCurrency(
+                              analytics.monthlyRevenue.reduce((s, m) => s + m.revenue, 0)
+                            )}
                           </td>
                         </tr>
                       </>
                     ) : (
                       <tr>
-                        <td colSpan={3} className="px-6 py-8 text-center text-slate-500">No revenue data for the last 6 months.</td>
+                        <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
+                          No revenue data for the last 6 months.
+                        </td>
                       </tr>
                     )}
                   </tbody>
@@ -533,7 +730,8 @@ export default function ProductDetailPage() {
                     Damage History
                   </CardTitle>
                   <CardDescription className="text-sm mt-1">
-                    {damageHistory.length} damage record{damageHistory.length !== 1 ? 's' : ''} across orders
+                    {damageHistory.length} damage record{damageHistory.length !== 1 ? 's' : ''}{' '}
+                    across orders
                   </CardDescription>
                 </div>
               </CardHeader>
@@ -542,7 +740,9 @@ export default function ProductDetailPage() {
                   <thead className="bg-slate-50/50 text-slate-500">
                     <tr>
                       <th className="px-6 py-3 font-medium border-b border-slate-200">Date</th>
-                      <th className="px-6 py-3 font-medium border-b border-slate-200">Order / Customer</th>
+                      <th className="px-6 py-3 font-medium border-b border-slate-200">
+                        Order / Customer
+                      </th>
                       <th className="px-6 py-3 font-medium border-b border-slate-200">Unit</th>
                       <th className="px-6 py-3 font-medium border-b border-slate-200">Decision</th>
                       <th className="px-6 py-3 font-medium border-b border-slate-200">Notes</th>
@@ -568,12 +768,19 @@ export default function ProductDetailPage() {
                           <tr
                             key={record.id}
                             className="hover:bg-slate-50 transition-colors cursor-pointer group"
-                            onClick={() => order?.id && router.push(`/dashboard/orders/${order.id}`)}
+                            onClick={() =>
+                              order?.id && router.push(`/dashboard/orders/${order.id}`)
+                            }
                           >
                             <td className="px-6 py-4 whitespace-nowrap text-slate-600">
-                              {new Date(record.assessed_at || record.created_at).toLocaleDateString(undefined, {
-                                month: 'short', day: 'numeric', year: 'numeric'
-                              })}
+                              {new Date(record.assessed_at || record.created_at).toLocaleDateString(
+                                undefined,
+                                {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                }
+                              )}
                             </td>
                             <td className="px-6 py-4">
                               <div className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">
@@ -590,25 +797,39 @@ export default function ProductDetailPage() {
                             </td>
                             <td className="px-6 py-4">
                               {isPending && (
-                                <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50">
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50"
+                                >
                                   Pending
                                 </Badge>
                               )}
                               {isReuse && (
-                                <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50">
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                >
                                   <RotateCcw className="w-3 h-3 mr-1" /> Reuse
                                 </Badge>
                               )}
                               {isWriteOff && (
-                                <Badge variant="secondary" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50">
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50"
+                                >
                                   <Trash className="w-3 h-3 mr-1" /> Written Off
                                 </Badge>
                               )}
                             </td>
                             <td className="px-6 py-4">
                               {record.notes ? (
-                                <span className="text-sm text-slate-600 italic" title={record.notes}>
-                                  {record.notes.length > 50 ? record.notes.substring(0, 50) + '...' : record.notes}
+                                <span
+                                  className="text-sm text-slate-600 italic"
+                                  title={record.notes}
+                                >
+                                  {record.notes.length > 50
+                                    ? record.notes.substring(0, 50) + '...'
+                                    : record.notes}
                                 </span>
                               ) : (
                                 <span className="text-xs text-slate-300">—</span>
@@ -627,25 +848,35 @@ export default function ProductDetailPage() {
 
         {/* RIGHT COLUMN: Sidebar */}
         <div className="space-y-6">
-
           {/* Technical Identifiers */}
           <Card className="shadow-sm border-slate-200 bg-white">
             <CardHeader className="border-b border-slate-200 py-4 px-5">
-              <CardTitle className="text-sm font-semibold text-slate-900">Product Identifiers</CardTitle>
+              <CardTitle className="text-sm font-semibold text-slate-900">
+                Product Identifiers
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <dl className="divide-y divide-slate-100 text-sm">
                 <div className="px-5 py-3 flex items-center justify-between">
                   <dt className="text-slate-500 font-medium">SKU</dt>
-                  <dd className="font-mono text-slate-900 bg-slate-50 px-2 py-1 rounded border border-slate-200 text-xs">{product.sku || "N/A"}</dd>
+                  <dd className="font-mono text-slate-900 bg-slate-50 px-2 py-1 rounded border border-slate-200 text-xs">
+                    {product.sku || 'N/A'}
+                  </dd>
                 </div>
                 <div className="px-5 py-3 flex items-center justify-between">
                   <dt className="text-slate-500 font-medium">Barcode</dt>
-                  <dd className="font-mono text-slate-900 bg-slate-50 px-2 py-1 rounded border border-slate-200 text-xs">{product.barcode || "N/A"}</dd>
+                  <dd className="font-mono text-slate-900 bg-slate-50 px-2 py-1 rounded border border-slate-200 text-xs">
+                    {product.barcode || 'N/A'}
+                  </dd>
                 </div>
                 <div className="px-5 py-3 flex items-center justify-between">
                   <dt className="text-slate-500 font-medium">System ID</dt>
-                  <dd className="font-mono text-slate-400 text-xs truncate max-w-[120px]" title={product.id}>{product.id.substring(0, 8)}...</dd>
+                  <dd
+                    className="font-mono text-slate-400 text-xs truncate max-w-[120px]"
+                    title={product.id}
+                  >
+                    {product.id.substring(0, 8)}...
+                  </dd>
                 </div>
               </dl>
             </CardContent>
@@ -671,36 +902,50 @@ export default function ProductDetailPage() {
                   {branchInventory.map((inv) => {
                     const isOut = inv.available_quantity === 0;
                     const isLow = !isOut && inv.available_quantity <= inv.low_stock_threshold;
-                    
+
                     return (
                       <li key={inv.id} className="p-5 flex flex-col gap-2">
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-slate-900 text-sm">{inv.branch?.name || "Unknown Branch"}</span>
+                          <span className="font-medium text-slate-900 text-sm">
+                            {inv.branch?.name || 'Unknown Branch'}
+                          </span>
                           <div className="flex items-baseline gap-1">
-                            <span className={`text-lg font-bold tracking-tight ${isOut ? 'text-red-600' : 'text-slate-900'}`}>
+                            <span
+                              className={`text-lg font-bold tracking-tight ${isOut ? 'text-red-600' : 'text-slate-900'}`}
+                            >
                               {inv.available_quantity}
                             </span>
-                            <span className="text-xs text-slate-500 font-medium">/ {inv.quantity}</span>
+                            <span className="text-xs text-slate-500 font-medium">
+                              / {inv.quantity}
+                            </span>
                           </div>
                         </div>
-                        
+
                         {/* Visual stock bar */}
                         <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full rounded-full transition-all ${isOut ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-slate-900'}`}
-                            style={{ width: `${inv.quantity > 0 ? (inv.available_quantity / inv.quantity) * 100 : 0}%` }}
+                            style={{
+                              width: `${inv.quantity > 0 ? (inv.available_quantity / inv.quantity) * 100 : 0}%`,
+                            }}
                           />
                         </div>
-                        
+
                         {/* Status text */}
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-xs text-slate-500">
                             Threshold: {inv.low_stock_threshold}
                           </span>
                           {(isOut || isLow) && (
-                            <span className={`text-xs font-medium flex items-center gap-1 ${isOut ? 'text-red-600' : 'text-amber-600'}`}>
-                              {isOut ? <XCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-                              {isOut ? "Out of stock" : "Low stock"}
+                            <span
+                              className={`text-xs font-medium flex items-center gap-1 ${isOut ? 'text-red-600' : 'text-amber-600'}`}
+                            >
+                              {isOut ? (
+                                <XCircle className="w-3 h-3" />
+                              ) : (
+                                <AlertTriangle className="w-3 h-3" />
+                              )}
+                              {isOut ? 'Out of stock' : 'Low stock'}
                             </span>
                           )}
                         </div>
@@ -715,7 +960,9 @@ export default function ProductDetailPage() {
           {/* Booking Calendar — Interval Scheduling */}
           <Card className="shadow-sm border-slate-200 bg-white">
             <CardHeader className="border-b border-slate-200 py-4 px-5 flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-semibold text-slate-900">Booking Calendar</CardTitle>
+              <CardTitle className="text-sm font-semibold text-slate-900">
+                Booking Calendar
+              </CardTitle>
               <CalendarDays className="w-4 h-4 text-slate-400" />
             </CardHeader>
             <CardContent className="p-4">
@@ -735,14 +982,18 @@ export default function ProductDetailPage() {
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to permanently delete <span className="font-semibold text-slate-900">{currentProduct?.name}</span>? This action cannot be undone and will remove all associated data.
+                Are you sure you want to permanently delete{' '}
+                <span className="font-semibold text-slate-900">{currentProduct?.name}</span>? This
+                action cannot be undone and will remove all associated data.
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={closeDeleteModal} className="border-slate-200">Cancel</Button>
+            <Button variant="outline" onClick={closeDeleteModal} className="border-slate-200">
+              Cancel
+            </Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleteProduct.isPending}>
-              {deleteProduct.isPending ? "Deleting..." : "Delete Product"}
+              {deleteProduct.isPending ? 'Deleting...' : 'Delete Product'}
             </Button>
           </div>
         </div>
@@ -757,7 +1008,7 @@ function StatCard({
   value,
   subtext,
   highlight,
-  alert
+  alert,
 }: {
   label: string;
   value: string | null;
@@ -776,21 +1027,19 @@ function StatCard({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
           )}
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
+          {alert && <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />}
         </div>
         <div className="space-y-1">
           {value === null ? (
             <div className="h-8 w-24 bg-slate-100 animate-pulse rounded" />
           ) : (
-            <p className={`text-2xl font-bold tracking-tight ${alert ? "text-red-600" : "text-slate-900"}`}>
+            <p
+              className={`text-2xl font-bold tracking-tight ${alert ? 'text-red-600' : 'text-slate-900'}`}
+            >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

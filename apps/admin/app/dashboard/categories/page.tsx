@@ -13,24 +13,18 @@
  * @module app/dashboard/categories/page
  */
 
-"use client";
+'use client';
 
-import { useMemo, useState, useEffect, useRef, Suspense } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import {
-  Search,
-  FolderTree,
-  Plus,
-  Loader2,
-  Store,
-} from "lucide-react";
+import { useMemo, useState, useEffect, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Search, FolderTree, Plus, Loader2, Store } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { useCategories } from "@/hooks";
-import CategoryTree from "@/components/admin/CategoryTree";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { useCategories } from '@/hooks';
+import CategoryTree from '@/components/admin/CategoryTree';
 
 export default function CategoriesPage() {
   return (
@@ -52,8 +46,8 @@ function CategoriesContent() {
   const { categories, isLoading } = useCategories();
 
   // Local search state with filtering
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search input by 300ms
@@ -115,19 +109,14 @@ function CategoriesContent() {
       {/* Header — matches Product module */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Categories
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Categories</h1>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
             <Store className="w-4 h-4 text-slate-400" />
             <span>Manage Main, Sub, and Variant categories</span>
             <span>• {stats.total} total categories</span>
           </p>
         </div>
-        <Button
-          asChild
-          className="gap-2 bg-slate-900 text-white hover:bg-slate-800"
-        >
+        <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
           <Link href="/dashboard/categories/create">
             <Plus className="w-4 h-4" />
             Add Main Category
@@ -194,18 +183,16 @@ function CategoriesContent() {
         ) : filteredCategories.length === 0 ? (
           <div className="p-16 text-center">
             <FolderTree className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-semibold text-slate-900 mb-1">
-              No Categories Found
-            </h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">No Categories Found</h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
               {searchInput
                 ? `No categories matched your search for "${searchInput}".`
-                : "There are no categories yet. Create your first main category to get started."}
+                : 'There are no categories yet. Create your first main category to get started.'}
             </p>
             {!searchInput && (
               <Button
                 className="mt-6 bg-slate-900 text-white hover:bg-slate-800"
-                onClick={() => router.push("/dashboard/categories/create")}
+                onClick={() => router.push('/dashboard/categories/create')}
               >
                 Create First Main Category
               </Button>
@@ -237,12 +224,8 @@ function StatCard({
     <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
       <CardContent className="p-5">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {label}
-          </p>
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</p>
+          {alert && <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />}
         </div>
         <div className="space-y-1">
           {value === null ? (
@@ -250,15 +233,13 @@ function StatCard({
           ) : (
             <p
               className={`text-2xl font-bold tracking-tight ${
-                alert ? "text-red-600" : "text-slate-900"
+                alert ? 'text-red-600' : 'text-slate-900'
               }`}
             >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

@@ -197,7 +197,7 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   Future<void> clearFilters() async {
     _currentSearch = '';
     _currentStatus = null;
-    _currentBranchId = null;
+    _currentBranchId = ref.read(effectiveBranchIdProvider);
     _currentDateFilter = 'ALL';
     _currentDateFrom = null;
     _currentDateTo = null;
@@ -427,7 +427,15 @@ final orderOperationsProvider = Provider<OrderOperations>((ref) {
 
 final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
-  ref.keepAlive();
-  return repository.getOrderPayments(id);
+  print('[orderPaymentsProvider] Fetching payments for order ID: $id');
+  try {
+    final payments = await repository.getOrderPayments(id);
+    print('[orderPaymentsProvider] Fetched ${payments.length} payments for order ID: $id');
+    return payments;
+  } catch (e, stack) {
+    print('[orderPaymentsProvider] Error fetching payments for order ID $id: $e');
+    print(stack);
+    rethrow;
+  }
 });
 

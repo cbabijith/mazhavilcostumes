@@ -13,15 +13,19 @@ import { NextRequest } from 'next/server';
 import { CreateProductDTO, UpdateProductDTO, UpdateProductSchema } from '@/domain';
 import { productService } from '@/services';
 import { z } from 'zod';
-import { apiSuccess, apiRepositoryError, apiBadRequest, apiZodError, apiInternalError } from '@/lib/apiResponse';
+import {
+  apiSuccess,
+  apiRepositoryError,
+  apiBadRequest,
+  apiZodError,
+  apiInternalError,
+} from '@/lib/apiResponse';
+import { getAuthUser } from '@/lib/auth';
 
 /**
  * GET /api/products/[id]
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
 
@@ -36,7 +40,6 @@ export async function GET(
     }
 
     return apiSuccess(result.data);
-
   } catch (error) {
     console.error('Product API - GET Error:', error);
     return apiInternalError();
@@ -46,10 +49,7 @@ export async function GET(
 /**
  * PATCH /api/products/[id]
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -58,15 +58,26 @@ export async function PATCH(
       return apiBadRequest('Invalid product ID');
     }
 
+    const authUser = await getAuthUser(request);
+    if (!authUser?.store_id) {
+      return apiBadRequest('Cannot determine store context. Please log out and log back in.');
+    }
+
+    // Set user context in service for audit fields and branch permission check
+    productService.setUserContext(authUser.staff_id, authUser.branch_id, authUser.store_id);
+
     // Validate request body
     const validatedData = UpdateProductSchema.parse(body);
 
     // Convert null values to undefined for type compatibility
     const updateData: UpdateProductDTO = {
       ...validatedData,
-      category_id: validatedData.category_id === null ? null : validatedData.category_id || undefined,
-      subcategory_id: validatedData.subcategory_id === null ? null : validatedData.subcategory_id || undefined,
-      subvariant_id: validatedData.subvariant_id === null ? null : validatedData.subvariant_id || undefined,
+      category_id:
+        validatedData.category_id === null ? null : validatedData.category_id || undefined,
+      subcategory_id:
+        validatedData.subcategory_id === null ? null : validatedData.subcategory_id || undefined,
+      subvariant_id:
+        validatedData.subvariant_id === null ? null : validatedData.subvariant_id || undefined,
     };
 
     const result = await productService.updateProduct(id, updateData);
@@ -76,10 +87,9 @@ export async function PATCH(
     }
 
     return apiSuccess(result.data, { message: 'Product updated successfully' });
-
   } catch (error) {
     console.error('Product API - PATCH Error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return apiZodError(error);
     }
@@ -102,6 +112,14 @@ export async function DELETE(
       return apiBadRequest('Invalid product ID');
     }
 
+    const authUser = await getAuthUser(request);
+    if (!authUser?.store_id) {
+      return apiBadRequest('Cannot determine store context. Please log out and log back in.');
+    }
+
+    // Set user context in service for audit fields and branch permission check
+    productService.setUserContext(authUser.staff_id, authUser.branch_id, authUser.store_id);
+
     const result = await productService.deleteProduct(id);
 
     if (!result.success) {
@@ -109,7 +127,6 @@ export async function DELETE(
     }
 
     return apiSuccess(null, { message: 'Product deleted successfully' });
-
   } catch (error) {
     console.error('Product API - DELETE Error:', error);
     return apiInternalError();

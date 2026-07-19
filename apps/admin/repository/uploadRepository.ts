@@ -13,7 +13,10 @@ export class UploadRepository extends BaseRepository {
   /**
    * Upload file to Cloudflare R2
    */
-  async uploadFile(file: File, folder: string = 'uploads'): Promise<RepositoryResult<ImageUploadResult>> {
+  async uploadFile(
+    file: File,
+    folder: string = 'uploads'
+  ): Promise<RepositoryResult<ImageUploadResult>> {
     try {
       // Generate unique filename
       const timestamp = Date.now();
@@ -133,10 +136,13 @@ export class UploadRepository extends BaseRepository {
   /**
    * Validate file type and size
    */
-  validateFile(file: File, options: {
-    maxSize?: number; // in bytes
-    allowedTypes?: string[];
-  } = {}): RepositoryResult<void> {
+  validateFile(
+    file: File,
+    options: {
+      maxSize?: number; // in bytes
+      allowedTypes?: string[];
+    } = {}
+  ): RepositoryResult<void> {
     const { maxSize = 10 * 1024 * 1024, allowedTypes = ['image/*'] } = options;
 
     // Check file size
@@ -152,7 +158,7 @@ export class UploadRepository extends BaseRepository {
     }
 
     // Check file type
-    const isAllowed = allowedTypes.some(type => {
+    const isAllowed = allowedTypes.some((type) => {
       if (type.endsWith('/*')) {
         return file.type.startsWith(type.slice(0, -1));
       }
@@ -191,7 +197,11 @@ export class UploadRepository extends BaseRepository {
   /**
    * Update upload progress
    */
-  updateUploadProgress(upload: FileUpload, progress: number, status: FileUpload['status']): FileUpload {
+  updateUploadProgress(
+    upload: FileUpload,
+    progress: number,
+    status: FileUpload['status']
+  ): FileUpload {
     return {
       ...upload,
       progress,
@@ -243,7 +253,7 @@ export class UploadRepository extends BaseRepository {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
+
       try {
         // Validate file first
         const validation = this.validateFile(file);
@@ -257,7 +267,7 @@ export class UploadRepository extends BaseRepository {
 
         // Upload file
         const uploadResult = await this.uploadFile(file, folder);
-        
+
         if (uploadResult.success && uploadResult.data) {
           results.push({
             file,

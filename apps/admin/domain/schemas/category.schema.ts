@@ -17,8 +17,12 @@ const slugPattern = /^[a-z0-9-]+$/;
  * Base schema fields shared between create and update
  */
 const baseCategorySchema = {
-  name: z.string().min(1, 'Category name is required').max(255, 'Name must be 255 characters or less'),
-  slug: z.string()
+  name: z
+    .string()
+    .min(1, 'Category name is required')
+    .max(255, 'Name must be 255 characters or less'),
+  slug: z
+    .string()
     .min(1, 'Slug is required')
     .max(255)
     .regex(slugPattern, 'Slug must contain only lowercase letters, numbers, and hyphens'),

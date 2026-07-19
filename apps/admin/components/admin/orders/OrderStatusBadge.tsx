@@ -16,9 +16,9 @@
  * @module components/admin/orders/OrderStatusBadge
  */
 
-import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { OrderStatus } from "@/domain";
+import React from 'react';
+import { Badge } from '@/components/ui/badge';
+import { OrderStatus } from '@/domain';
 
 interface OrderStatusBadgeProps {
   status: OrderStatus;
@@ -28,76 +28,70 @@ interface OrderStatusBadgeProps {
   created_at?: string;
 }
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; className: string }
-> = {
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   [OrderStatus.SCHEDULED]: {
-    label: "Scheduled",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    label: 'Scheduled',
+    className: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   [OrderStatus.CONFIRMED]: {
-    label: "Confirmed",
-    className: "bg-blue-50 text-blue-700 border-blue-200",
+    label: 'Confirmed',
+    className: 'bg-blue-50 text-blue-700 border-blue-200',
   },
   [OrderStatus.ONGOING]: {
-    label: "Ongoing",
-    className: "bg-purple-50 text-purple-700 border-purple-200",
+    label: 'Ongoing',
+    className: 'bg-purple-50 text-purple-700 border-purple-200',
   },
   [OrderStatus.IN_USE]: {
-    label: "In Use",
-    className: "bg-purple-50 text-purple-700 border-purple-200",
+    label: 'In Use',
+    className: 'bg-purple-50 text-purple-700 border-purple-200',
   },
   [OrderStatus.RETURNED]: {
-    label: "Returned",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: 'Returned',
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   [OrderStatus.COMPLETED]: {
-    label: "Completed",
-    className: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: 'Completed',
+    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   [OrderStatus.PARTIAL]: {
-    label: "Partial",
-    className: "bg-amber-50 text-amber-700 border-amber-200",
+    label: 'Partial',
+    className: 'bg-amber-50 text-amber-700 border-amber-200',
   },
   [OrderStatus.FLAGGED]: {
-    label: "Flagged",
-    className: "bg-red-50 text-red-700 border-red-200",
+    label: 'Flagged',
+    className: 'bg-red-50 text-red-700 border-red-200',
   },
   // LATE_RETURN removed - now handled by is_late boolean flag
   [OrderStatus.CANCELLED]: {
-    label: "Cancelled",
-    className: "bg-slate-100 text-slate-600 border-slate-200",
+    label: 'Cancelled',
+    className: 'bg-slate-100 text-slate-600 border-slate-200',
   },
   [OrderStatus.PENDING]: {
-    label: "Pending",
-    className: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    label: 'Pending',
+    className: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   },
   [OrderStatus.DELIVERED]: {
-    label: "Delivered",
-    className: "bg-teal-50 text-teal-700 border-teal-200",
+    label: 'Delivered',
+    className: 'bg-teal-50 text-teal-700 border-teal-200',
   },
 };
 
 const DEFAULT_CONFIG = {
-  label: "Unknown",
-  className: "bg-slate-100 text-slate-600 border-slate-200",
+  label: 'Unknown',
+  className: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
-function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_at }: OrderStatusBadgeProps) {
-  // If order is late, show Late badge instead of status badge
-  if (is_late) {
-    return (
-      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
-        Late
-      </Badge>
-    );
-  }
-
+function OrderStatusBadgeInner({
+  status,
+  is_late,
+  end_date,
+  start_date,
+  created_at,
+}: OrderStatusBadgeProps) {
   // Check if scheduled/pending/confirmed order has expired (return date passed)
   const isExpired = React.useMemo(() => {
     if (!end_date || !['pending', 'confirmed', 'scheduled'].includes(status)) return false;
-    
+
     // Bypass for backdated orders (start_date < created_at date portion)
     if (start_date && created_at) {
       const creationDateStr = created_at.split('T')[0];
@@ -105,19 +99,34 @@ function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_
         return false;
       }
     }
-    
+
     const end = new Date(end_date);
     const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-    
+
     const today = new Date();
     const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+
     return endMidnight < todayMidnight;
   }, [status, end_date, start_date, created_at]);
 
+  // If order is late, show Late badge instead of status badge
+  if (is_late) {
+    return (
+      <Badge
+        variant="outline"
+        className="bg-red-50 text-red-700 border-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]"
+      >
+        Late
+      </Badge>
+    );
+  }
+
   if (isExpired) {
     return (
-      <Badge variant="outline" className="bg-red-50 text-red-750 border-red-200 font-bold uppercase tracking-wider">
+      <Badge
+        variant="outline"
+        className="bg-red-50 text-red-750 border-red-200 font-bold uppercase tracking-wider"
+      >
         Expired
       </Badge>
     );
@@ -133,6 +142,6 @@ function OrderStatusBadgeInner({ status, is_late, end_date, start_date, created_
 }
 
 const OrderStatusBadge = React.memo(OrderStatusBadgeInner);
-OrderStatusBadge.displayName = "OrderStatusBadge";
+OrderStatusBadge.displayName = 'OrderStatusBadge';
 
 export default OrderStatusBadge;

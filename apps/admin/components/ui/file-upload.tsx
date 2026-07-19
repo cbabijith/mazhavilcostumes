@@ -10,12 +10,12 @@
  * @module components/ui/file-upload
  */
 
-"use client";
+'use client';
 
-import * as React from "react";
-import { useCallback, useState, useRef, useEffect } from "react";
-import { cn } from "@/lib/utils";
-import { Upload, X, FileVideo, Loader2, AlertCircle, Clock } from "lucide-react";
+import * as React from 'react';
+import { useCallback, useState, useRef, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { Upload, X, FileVideo, Loader2, AlertCircle, Clock } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,9 +66,9 @@ export interface FileUploadProps {
 // ---------------------------------------------------------------------------
 
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) return '0 B';
   const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
+  const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
@@ -83,7 +83,7 @@ const MAX_DIMENSION = 1200;
 
 async function compressImage(file: File): Promise<File> {
   // Skip non-image files
-  if (!file.type.startsWith("image/")) return file;
+  if (!file.type.startsWith('image/')) return file;
 
   return new Promise((resolve) => {
     const img = new window.Image();
@@ -100,14 +100,14 @@ async function compressImage(file: File): Promise<File> {
         height = Math.round(height * ratio);
       }
 
-      const canvas = document.createElement("canvas");
+      const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, width, height);
 
       // Try WebP first, fall back to JPEG
-      const outputType = "image/webp";
+      const outputType = 'image/webp';
 
       // Iteratively reduce quality until under target
       let quality = 0.8;
@@ -121,7 +121,7 @@ async function compressImage(file: File): Promise<File> {
 
             if (blob.size <= TARGET_SIZE_BYTES || quality <= 0.1) {
               // Good enough — create a new File
-              const ext = outputType === "image/webp" ? ".webp" : ".jpg";
+              const ext = outputType === 'image/webp' ? '.webp' : '.jpg';
               const newName = file.name.replace(/\.[^.]+$/, ext);
               resolve(new File([blob], newName, { type: outputType }));
             } else {
@@ -149,7 +149,7 @@ async function compressImage(file: File): Promise<File> {
 
 function isHeicFile(file: File): boolean {
   const fileName = file.name.toLowerCase();
-  return fileName.endsWith(".heic") || fileName.endsWith(".heif");
+  return fileName.endsWith('.heic') || fileName.endsWith('.heif');
 }
 
 // ---------------------------------------------------------------------------
@@ -173,17 +173,17 @@ function PreviewItem({ url, isVideo, onRemove, disabled }: PreviewItemProps) {
             <span className="text-[10px] text-slate-400 mt-1">Video</span>
           </div>
         ) : (
-          <img
-            src={url}
-            alt="Preview"
-            className="w-full h-full object-cover"
-          />
+          <img src={url} alt="Preview" className="w-full h-full object-cover" />
         )}
       </div>
       {!disabled && (
         <button
           type="button"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
           className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm z-10"
         >
           <X className="w-3 h-3" />
@@ -209,26 +209,30 @@ interface QueuePreviewItemProps {
 
 function QueuePreviewItem({ item, onRemove, disabled }: QueuePreviewItemProps) {
   const statusLabels = {
-    waiting: "Waiting...",
-    compressing: "Compressing...",
-    uploading: "Uploading...",
-    error: "Failed",
+    waiting: 'Waiting...',
+    compressing: 'Compressing...',
+    uploading: 'Uploading...',
+    error: 'Failed',
   };
 
   const statusColors = {
-    waiting: "border-slate-200 bg-slate-50/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/20",
-    compressing: "border-blue-300 bg-blue-50/50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/20",
-    uploading: "border-primary/40 bg-primary/5 text-primary",
-    error: "border-red-300 bg-red-50/50 text-red-600 dark:border-red-900/50 dark:bg-red-950/20",
+    waiting:
+      'border-slate-200 bg-slate-50/50 text-slate-400 dark:border-slate-800 dark:bg-slate-900/20',
+    compressing:
+      'border-blue-300 bg-blue-50/50 text-blue-600 dark:border-blue-800 dark:bg-blue-950/20',
+    uploading: 'border-primary/40 bg-primary/5 text-primary',
+    error: 'border-red-300 bg-red-50/50 text-red-600 dark:border-red-900/50 dark:bg-red-950/20',
   };
 
   const isProcessing = item.status === 'compressing' || item.status === 'uploading';
 
   return (
-    <div className={cn(
-      "group relative w-24 h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-2 text-center transition-all",
-      statusColors[item.status]
-    )}>
+    <div
+      className={cn(
+        'group relative w-24 h-24 rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-2 text-center transition-all',
+        statusColors[item.status]
+      )}
+    >
       {item.status === 'error' ? (
         <AlertCircle className="w-5 h-5 text-red-500 mb-1" />
       ) : isProcessing ? (
@@ -236,18 +240,18 @@ function QueuePreviewItem({ item, onRemove, disabled }: QueuePreviewItemProps) {
       ) : (
         <Clock className="w-5 h-5 text-slate-400 mb-1" />
       )}
-      
-      <span className="text-[10px] font-medium truncate w-full px-1">
-        {item.name}
-      </span>
-      <span className="text-[9px] opacity-75 mt-0.5">
-        {statusLabels[item.status]}
-      </span>
+
+      <span className="text-[10px] font-medium truncate w-full px-1">{item.name}</span>
+      <span className="text-[9px] opacity-75 mt-0.5">{statusLabels[item.status]}</span>
 
       {!disabled && (
         <button
           type="button"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
           className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm z-10"
         >
           <X className="w-3 h-3" />
@@ -264,11 +268,11 @@ function QueuePreviewItem({ item, onRemove, disabled }: QueuePreviewItemProps) {
 const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
   (
     {
-      accept = "image/*",
+      accept = 'image/*',
       multiple = false,
       maxFiles = 10,
       maxSize = 20 * 1024 * 1024,
-      folder = "uploads",
+      folder = 'uploads',
       uploadImmediately = true,
       value = [],
       onChange,
@@ -289,10 +293,15 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
 
     // Refs to store latest values to avoid React state closure stale references in async queue loop
     const queueRef = useRef<QueueItem[]>([]);
-    queueRef.current = uploadQueue;
-
     const valueRef = useRef<string[]>(value);
-    valueRef.current = value;
+
+    useEffect(() => {
+      queueRef.current = uploadQueue;
+    }, [uploadQueue]);
+
+    useEffect(() => {
+      valueRef.current = value;
+    }, [value]);
 
     // Maximum files the user can still add
     const remainingSlots = multiple ? maxFiles - value.length : value.length === 0 ? 1 : 0;
@@ -309,18 +318,20 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
 
         for (const file of files) {
           // Check file type against accept string
-          if (accept !== "*") {
-            const acceptTypes = accept.split(",").map((t) => t.trim());
+          if (accept !== '*') {
+            const acceptTypes = accept.split(',').map((t) => t.trim());
             const matches = acceptTypes.some((type) => {
-              if (type.endsWith("/*")) {
-                return file.type.startsWith(type.replace("/*", "/"));
+              if (type.endsWith('/*')) {
+                return file.type.startsWith(type.replace('/*', '/'));
               }
               return file.type === type;
             });
 
             // Allow HEIC files by extension even if MIME type is not recognized
             const isHeic = isHeicFile(file);
-            const isImageAccept = acceptTypes.some(t => t === "image/*" || t === "image/heic" || t === "image/heif");
+            const isImageAccept = acceptTypes.some(
+              (t) => t === 'image/*' || t === 'image/heic' || t === 'image/heif'
+            );
 
             if (!matches && !(isHeic && isImageAccept)) {
               errors.push(`"${file.name}" is not an accepted file type`);
@@ -342,7 +353,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
         // Check max files
         if (valid.length > remainingSlots) {
           errors.push(
-            `Can only add ${remainingSlots} more file${remainingSlots === 1 ? "" : "s"} (max ${maxFiles})`
+            `Can only add ${remainingSlots} more file${remainingSlots === 1 ? '' : 's'} (max ${maxFiles})`
           );
           return { valid: valid.slice(0, remainingSlots), errors };
         }
@@ -360,11 +371,11 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
       async (file: File): Promise<string | null> => {
         try {
           const formData = new FormData();
-          formData.append("file", file);
-          formData.append("folder", folder);
+          formData.append('file', file);
+          formData.append('folder', folder);
 
-          const res = await fetch("/api/upload", {
-            method: "POST",
+          const res = await fetch('/api/upload', {
+            method: 'POST',
             body: formData,
           });
 
@@ -376,7 +387,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           // Support both legacy { url } and standard apiSuccess { data: { url } }
           return json.data?.url || json.url;
         } catch (err) {
-          console.error("Upload error:", err);
+          console.error('Upload error:', err);
           return null;
         }
       },
@@ -396,16 +407,16 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           let fileToUpload = item.file;
 
           // Step 1: Compress image if enabled
-          if (compress && item.file.type.startsWith("image/")) {
+          if (compress && item.file.type.startsWith('image/')) {
             setUploadQueue((prev) =>
-              prev.map((i) => (i.id === itemId ? { ...i, status: "compressing" } : i))
+              prev.map((i) => (i.id === itemId ? { ...i, status: 'compressing' } : i))
             );
             fileToUpload = await compressImage(item.file);
           }
 
           // Step 2: Upload to R2
           setUploadQueue((prev) =>
-            prev.map((i) => (i.id === itemId ? { ...i, status: "uploading" } : i))
+            prev.map((i) => (i.id === itemId ? { ...i, status: 'uploading' } : i))
           );
 
           const url = await uploadToR2(fileToUpload);
@@ -414,20 +425,18 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           }
 
           // Step 3: Success! Append to parent value immediately
-          const newValue = multiple
-            ? [...valueRef.current, url]
-            : [url];
-          
+          const newValue = multiple ? [...valueRef.current, url] : [url];
+
           onChange?.(newValue);
 
           // Step 4: Remove from queue
           setUploadQueue((prev) => prev.filter((i) => i.id !== itemId));
         } catch (err) {
-          console.error("Queue upload error:", err);
+          console.error('Queue upload error:', err);
           setError(err instanceof Error ? err.message : `Failed to upload "${item.name}"`);
-          
+
           setUploadQueue((prev) =>
-            prev.map((i) => (i.id === itemId ? { ...i, status: "error" } : i))
+            prev.map((i) => (i.id === itemId ? { ...i, status: 'error' } : i))
           );
         }
       },
@@ -442,11 +451,13 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // Queue Processor: Reacts to changes in uploadQueue
     useEffect(() => {
       // Don't start another process if one is already compressing or uploading
-      const active = uploadQueue.some((i) => i.status === "compressing" || i.status === "uploading");
+      const active = uploadQueue.some(
+        (i) => i.status === 'compressing' || i.status === 'uploading'
+      );
       if (active) return;
 
       // Find the next waiting item
-      const nextItem = uploadQueue.find((i) => i.status === "waiting");
+      const nextItem = uploadQueue.find((i) => i.status === 'waiting');
       if (nextItem) {
         processQueueItem(nextItem.id);
       }
@@ -455,7 +466,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     const wasUploadingRef = useRef(false);
     useEffect(() => {
       const activeCount = uploadQueue.filter(
-        (i) => i.status === "compressing" || i.status === "uploading" || i.status === "waiting"
+        (i) => i.status === 'compressing' || i.status === 'uploading' || i.status === 'waiting'
       ).length;
       const isCurrentlyUploading = activeCount > 0;
 
@@ -492,7 +503,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           file,
           name: file.name,
           size: file.size,
-          status: "waiting",
+          status: 'waiting',
         }));
 
         setUploadQueue((prev) => [...prev, ...newItems]);
@@ -549,11 +560,16 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // Click to browse
     // ------------------------------------------------------------------
 
-    const handleClick = useCallback(() => {
-      if (canAddMore) {
-        inputRef.current?.click();
-      }
-    }, [canAddMore]);
+    const handleClick = useCallback(
+      (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (canAddMore) {
+          inputRef.current?.click();
+        }
+      },
+      [canAddMore]
+    );
 
     const handleInputChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -561,7 +577,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
           handleFiles(e.target.files);
         }
         // Reset input so selecting the same file again triggers onChange
-        e.target.value = "";
+        e.target.value = '';
       },
       [handleFiles]
     );
@@ -571,7 +587,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // ------------------------------------------------------------------
 
     const isVideoUrl = (url: string) => {
-      const videoExts = [".mp4", ".webm", ".mov", ".avi", ".mkv"];
+      const videoExts = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
       return videoExts.some((ext) => url.toLowerCase().includes(ext));
     };
 
@@ -580,18 +596,14 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
     // ------------------------------------------------------------------
 
     const isUploading = uploadQueue.some(
-      (i) => i.status === "compressing" || i.status === "uploading" || i.status === "waiting"
+      (i) => i.status === 'compressing' || i.status === 'uploading' || i.status === 'waiting'
     );
     const hasFiles = value.length > 0 || uploadQueue.length > 0;
 
     return (
-      <div ref={ref} className={cn("space-y-2", className)}>
+      <div ref={ref} className={cn('space-y-2', className)}>
         {/* Label */}
-        {label && (
-          <label className="text-sm font-semibold text-slate-700 block">
-            {label}
-          </label>
-        )}
+        {label && <label className="text-sm font-semibold text-slate-700 block">{label}</label>}
 
         {/* Previews */}
         {hasFiles && (
@@ -623,25 +635,31 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
             tabIndex={0}
             onClick={handleClick}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") handleClick();
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                if (canAddMore) {
+                  inputRef.current?.click();
+                }
+              }
             }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 cursor-pointer transition-all",
+              'relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 cursor-pointer transition-all',
               isDragging
-                ? "border-primary bg-primary/5 scale-[1.01]"
-                : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100",
-              isUploading && "pointer-events-none opacity-60",
-              disabled && "pointer-events-none opacity-50 cursor-not-allowed"
+                ? 'border-primary bg-primary/5 scale-[1.01]'
+                : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100',
+              isUploading && 'pointer-events-none opacity-60',
+              disabled && 'pointer-events-none opacity-50 cursor-not-allowed'
             )}
           >
             {isUploading ? (
               <>
                 <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 <p className="text-sm text-primary font-medium">
-                  Uploading {uploadQueue.filter((i) => i.status !== "error").length} file(s)…
+                  Uploading {uploadQueue.filter((i) => i.status !== 'error').length} file(s)…
                 </p>
               </>
             ) : (
@@ -654,11 +672,11 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
                     <span className="text-primary">Click to upload</span> or drag and drop
                   </p>
                   <p className="text-xs text-slate-500 mt-1">
-                    {accept === "image/*"
-                      ? "PNG, JPG, WebP, HEIC"
-                      : accept === "image/*,video/*"
-                      ? "PNG, JPG, WebP, HEIC, MP4"
-                      : accept}{" "}
+                    {accept === 'image/*'
+                      ? 'PNG, JPG, WebP, HEIC'
+                      : accept === 'image/*,video/*'
+                        ? 'PNG, JPG, WebP, HEIC, MP4'
+                        : accept}{' '}
                     up to {formatFileSize(maxSize)}
                     {multiple && ` · Max ${maxFiles} files`}
                   </p>
@@ -673,6 +691,7 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
               accept={accept}
               multiple={multiple}
               onChange={handleInputChange}
+              onClick={(e) => e.stopPropagation()}
               className="hidden"
               disabled={disabled || isUploading}
             />
@@ -688,14 +707,12 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
         )}
 
         {/* Helper text */}
-        {helperText && !error && (
-          <p className="text-xs text-slate-500">{helperText}</p>
-        )}
+        {helperText && !error && <p className="text-xs text-slate-500">{helperText}</p>}
       </div>
     );
   }
 );
 
-FileUpload.displayName = "FileUpload";
+FileUpload.displayName = 'FileUpload';
 
 export { FileUpload };

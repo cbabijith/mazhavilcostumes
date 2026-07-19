@@ -8,6 +8,8 @@
  * @module lib/exportUtils
  */
 
+import { BRAND_CONFIG } from 'shared-utils';
+
 interface ExportColumn {
   header: string;
   key: string;
@@ -23,18 +25,22 @@ export function exportToExcel(
   columns: ExportColumn[],
   filename: string
 ) {
-  const headers = columns.map(c => c.header);
-  const rows = data.map(row =>
-    columns.map(col => {
+  const headers = columns.map((c) => c.header);
+  const rows = data.map((row) =>
+    columns.map((col) => {
       const val = row[col.key];
       if (val == null) return '';
       if (col.format === 'currency') return Number(val).toFixed(2);
       if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
       if (col.format === 'date' && val) {
-        try { 
+        try {
           const d = new Date(val);
-          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-        } catch { return val; }
+          return d
+            .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            .replace(/ /g, '-');
+        } catch {
+          return val;
+        }
       }
       return String(val);
     })
@@ -42,7 +48,7 @@ export function exportToExcel(
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ...rows.map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
   ].join('\n');
 
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -72,23 +78,32 @@ export async function exportToPDF(
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`, 14, 24);
-  doc.text(`Mazhavil Dance Costumes`, 14, 29);
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`,
+    14,
+    24
+  );
+  doc.text(BRAND_CONFIG.name, 14, 29);
   doc.setTextColor(0, 0, 0);
 
   // Table
-  const head = [columns.map(c => c.header)];
-  const body = data.map(row =>
-    columns.map(col => {
+  const head = [columns.map((c) => c.header)];
+  const body = data.map((row) =>
+    columns.map((col) => {
       const val = row[col.key];
       if (val == null) return '';
-      if (col.format === 'currency') return `Rs. ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      if (col.format === 'currency')
+        return `Rs. ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
       if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
       if (col.format === 'date' && val) {
-        try { 
+        try {
           const d = new Date(val);
-          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-        } catch { return val; }
+          return d
+            .toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            .replace(/ /g, '-');
+        } catch {
+          return val;
+        }
       }
       return String(val);
     })
@@ -100,7 +115,12 @@ export async function exportToPDF(
     startY: 34,
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 3, lineColor: [220, 220, 220], lineWidth: 0.1 },
-    headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8 },
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: 14, right: 14 },
   });

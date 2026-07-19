@@ -9,10 +9,10 @@
  * @module components/admin/dashboard/DailyReportPanel
  */
 
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   CalendarPlus,
   Truck,
@@ -27,11 +27,12 @@ import {
   X,
   Download,
   FileText,
-} from "lucide-react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+} from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { BRAND_CONFIG } from 'shared-utils';
 
 interface DailyReportStats {
   todaysBookings: number;
@@ -64,9 +65,9 @@ interface DailyReportStats {
 }
 
 const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     maximumFractionDigits: 0,
   }).format(amount);
 
@@ -82,13 +83,13 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch("/api/dashboard/daily-report");
+        const res = await fetch('/api/dashboard/daily-report');
         const json = await res.json();
         if (json.success && json.data) {
           setStats(json.data);
         }
       } catch (err) {
-        console.error("Failed to load daily report:", err);
+        console.error('Failed to load daily report:', err);
       } finally {
         setIsLoading(false);
       }
@@ -113,58 +114,84 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
   const returnPending = stats.todaysReturn.total - stats.todaysReturn.returned;
 
   const downloadPDF = () => {
-    const formatPDFCurrency = (amount: number) => 
-      `Rs. ${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(amount)}`;
+    const formatPDFCurrency = (amount: number) =>
+      `Rs. ${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(amount)}`;
 
     const doc = new jsPDF();
     const now = new Date();
-    const dateStr = new Intl.DateTimeFormat("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
+    const dateStr = new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
     }).format(now);
 
     // Header
     doc.setFontSize(22);
     doc.setTextColor(15, 23, 42); // slate-900
-    doc.text("Mazhavil Dance Costumes", 14, 20);
-    
+    doc.text(BRAND_CONFIG.name, 14, 20);
+
     doc.setFontSize(12);
     doc.setTextColor(100, 116, 139); // slate-500
-    doc.text("Daily Operational Report", 14, 28);
+    doc.text('Daily Operational Report', 14, 28);
     doc.text(dateStr, 14, 34);
 
     // Summary Section
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
-    doc.text("Business Summary", 14, 48);
+    doc.text('Business Summary', 14, 48);
 
     autoTable(doc, {
       startY: 52,
-      head: [["Metric", "Value", "Status"]],
+      head: [['Metric', 'Value', 'Status']],
       body: [
-        ["Total Bookings Today", String(stats.todaysBookings), `${formatPDFCurrency(stats.todaysSales)} Value`],
-        ["Amount Collection (Net)", formatPDFCurrency(stats.todaysCollection - stats.todaysRefunds), `Gross: ${formatPDFCurrency(stats.todaysCollection)}${stats.todaysRefunds > 0 ? ` (Refund: ${formatPDFCurrency(stats.todaysRefunds)})` : ""}`],
-        ["Deliveries", `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`, stats.todaysDelivery.total - stats.todaysDelivery.delivered > 0 ? "Pending" : "Completed"],
-        ["Returns", `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`, stats.todaysReturn.total - stats.todaysReturn.returned > 0 ? "Pending" : "Completed"],
-        ["Damaged Items Today", String(stats.damagedOrders), stats.damagedOrders > 0 ? "Flagged" : "None"],
-        ["Revenue Due (All Outstanding)", formatPDFCurrency(stats.revenueDue.amount), stats.revenueDue.amount > 0 ? `${stats.revenueDue.orderCount} Order(s) with Balance` : "Fully Settled"],
+        [
+          'Total Bookings Today',
+          String(stats.todaysBookings),
+          `${formatPDFCurrency(stats.todaysSales)} Value`,
+        ],
+        [
+          'Amount Collection (Net)',
+          formatPDFCurrency(stats.todaysCollection - stats.todaysRefunds),
+          `Gross: ${formatPDFCurrency(stats.todaysCollection)}${stats.todaysRefunds > 0 ? ` (Refund: ${formatPDFCurrency(stats.todaysRefunds)})` : ''}`,
+        ],
+        [
+          'Deliveries',
+          `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`,
+          stats.todaysDelivery.total - stats.todaysDelivery.delivered > 0 ? 'Pending' : 'Completed',
+        ],
+        [
+          'Returns',
+          `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`,
+          stats.todaysReturn.total - stats.todaysReturn.returned > 0 ? 'Pending' : 'Completed',
+        ],
+        [
+          'Damaged Items Today',
+          String(stats.damagedOrders),
+          stats.damagedOrders > 0 ? 'Flagged' : 'None',
+        ],
+        [
+          'Revenue Due (All Outstanding)',
+          formatPDFCurrency(stats.revenueDue.amount),
+          stats.revenueDue.amount > 0
+            ? `${stats.revenueDue.orderCount} Order(s) with Balance`
+            : 'Fully Settled',
+        ],
       ],
       theme: 'striped',
       headStyles: { fillColor: [15, 23, 42] },
     });
 
     // Collection Breakdown
-    doc.text("Collection Breakdown", 14, (doc as any).lastAutoTable.finalY + 15);
+    doc.text('Collection Breakdown', 14, (doc as any).lastAutoTable.finalY + 15);
     autoTable(doc, {
       startY: (doc as any).lastAutoTable.finalY + 20,
-      head: [["Mode", "Amount"]],
+      head: [['Mode', 'Amount']],
       body: [
-        ["Cash", formatPDFCurrency(stats.mode_breakdown.cash)],
-        ["UPI", formatPDFCurrency(stats.mode_breakdown.upi)],
-        ["GPay", formatPDFCurrency(stats.mode_breakdown.gpay)],
-        ["Bank Transfer", formatPDFCurrency(stats.mode_breakdown.bank_transfer)],
+        ['Cash', formatPDFCurrency(stats.mode_breakdown.cash)],
+        ['UPI', formatPDFCurrency(stats.mode_breakdown.upi)],
+        ['GPay', formatPDFCurrency(stats.mode_breakdown.gpay)],
+        ['Bank Transfer', formatPDFCurrency(stats.mode_breakdown.bank_transfer)],
       ],
       theme: 'grid',
       headStyles: { fillColor: [15, 23, 42] },
@@ -174,7 +201,7 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
+      day: '2-digit',
     }).format(now);
     doc.save(`Daily_Report_${istIsoDate}.pdf`);
   };
@@ -183,137 +210,186 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
     {
       label: "Today's Bookings",
       value: String(stats.todaysBookings),
-      subtitle: stats.todaysBookings === 0
-        ? "No orders created today"
-        : `${stats.todaysBookings} order${stats.todaysBookings !== 1 ? "s" : ""} created`,
+      subtitle:
+        stats.todaysBookings === 0
+          ? 'No orders created today'
+          : `${stats.todaysBookings} order${stats.todaysBookings !== 1 ? 's' : ''} created`,
       icon: CalendarPlus,
-      color: "blue",
-      href: "/dashboard/orders?date_filter=today&exclude_status=cancelled",
+      color: 'blue',
+      href: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
       isEmpty: stats.todaysBookings === 0,
     },
     {
       label: "Today's Delivery",
-      value: stats.todaysDelivery.total > 0
-        ? `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`
-        : "0",
-      subtitle: stats.todaysDelivery.total === 0
-        ? "No deliveries scheduled"
-        : deliveryPending > 0
-          ? `${deliveryPending} yet to deliver`
-          : "All delivered ✓",
+      value:
+        stats.todaysDelivery.total > 0
+          ? `${stats.todaysDelivery.delivered}/${stats.todaysDelivery.total}`
+          : '0',
+      subtitle:
+        stats.todaysDelivery.total === 0
+          ? 'No deliveries scheduled'
+          : deliveryPending > 0
+            ? `${deliveryPending} yet to deliver`
+            : 'All delivered ✓',
       icon: Truck,
-      color: "emerald",
-      href: "/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled",
+      color: 'emerald',
+      href: '/dashboard/orders?date_filter=today&date_field=start_date&exclude_status=cancelled',
       isEmpty: stats.todaysDelivery.total === 0,
       hasWarning: deliveryPending > 0,
     },
     {
       label: "Today's Return",
-      value: stats.todaysReturn.total > 0
-        ? `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`
-        : "0",
-      subtitle: stats.todaysReturn.total === 0
-        ? "No returns expected"
-        : returnPending > 0
-          ? `${returnPending} yet to receive`
-          : "All received ✓",
+      value:
+        stats.todaysReturn.total > 0
+          ? `${stats.todaysReturn.returned}/${stats.todaysReturn.total}`
+          : '0',
+      subtitle:
+        stats.todaysReturn.total === 0
+          ? 'No returns expected'
+          : returnPending > 0
+            ? `${returnPending} yet to receive`
+            : 'All received ✓',
       icon: PackageCheck,
-      color: "violet",
-      href: "/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled",
+      color: 'violet',
+      href: '/dashboard/orders?date_filter=today&date_field=end_date&exclude_status=cancelled',
       isEmpty: stats.todaysReturn.total === 0,
       hasWarning: returnPending > 0,
     },
     {
       label: "Today's Sales",
       value: formatCurrency(stats.todaysSales),
-      subtitle: "Total value of bookings today",
+      subtitle: 'Total value of bookings today',
       icon: IndianRupee,
-      color: "indigo",
-      href: "/dashboard/orders?date_filter=today&exclude_status=cancelled",
+      color: 'indigo',
+      href: '/dashboard/orders?date_filter=today&exclude_status=cancelled',
       isEmpty: stats.todaysSales === 0,
       isCurrency: true,
     },
     {
-      label: "Amount Collection",
+      label: 'Amount Collection',
       value: formatCurrency(stats.todaysCollection - stats.todaysRefunds),
-      subtitle: stats.todaysRefunds > 0 
-        ? `Net of ${formatCurrency(stats.todaysRefunds)} refund (Gross: ${formatCurrency(stats.todaysCollection)})`
-        : `C: ${formatCurrency(stats.mode_breakdown.cash)} • U: ${formatCurrency(stats.mode_breakdown.upi)} • G: ${formatCurrency(stats.mode_breakdown.gpay)} • B: ${formatCurrency(stats.mode_breakdown.bank_transfer)}`,
+      subtitle:
+        stats.todaysRefunds > 0
+          ? `Net of ${formatCurrency(stats.todaysRefunds)} refund (Gross: ${formatCurrency(stats.todaysCollection)})`
+          : `C: ${formatCurrency(stats.mode_breakdown.cash)} • U: ${formatCurrency(stats.mode_breakdown.upi)} • G: ${formatCurrency(stats.mode_breakdown.gpay)} • B: ${formatCurrency(stats.mode_breakdown.bank_transfer)}`,
       icon: Banknote,
-      color: "green",
+      color: 'green',
       href: null,
       isEmpty: stats.todaysCollection === 0 && stats.todaysRefunds === 0,
       isCurrency: true,
     },
     {
-      label: "Revenue Due",
+      label: 'Revenue Due',
       value: formatCurrency(stats.revenueDue.amount),
-      subtitle: stats.revenueDue.amount === 0
-        ? "No outstanding dues ✓"
-        : `${stats.revenueDue.orderCount} order${stats.revenueDue.orderCount !== 1 ? "s" : ""} pending balance`,
+      subtitle:
+        stats.revenueDue.amount === 0
+          ? 'No outstanding dues ✓'
+          : `${stats.revenueDue.orderCount} order${stats.revenueDue.orderCount !== 1 ? 's' : ''} pending balance`,
       icon: Banknote,
-      color: "indigo",
-      href: "/dashboard/orders?status=revenue_due",
+      color: 'indigo',
+      href: '/dashboard/orders?status=revenue_due',
       isEmpty: stats.revenueDue.amount === 0,
       isCurrency: true,
     },
     {
-      label: "Damaged Orders",
+      label: 'Damaged Orders',
       value: String(stats.damagedOrders),
-      subtitle: stats.damagedOrders === 0
-        ? "No new items flagged today"
-        : `${stats.damagedOrders} item${stats.damagedOrders !== 1 ? "s" : ""} flagged today`,
+      subtitle:
+        stats.damagedOrders === 0
+          ? 'No new items flagged today'
+          : `${stats.damagedOrders} item${stats.damagedOrders !== 1 ? 's' : ''} flagged today`,
       icon: ShieldAlert,
-      color: "rose",
-      href: "/dashboard/orders?status=damaged&date_filter=today&date_field=updated_at",
+      color: 'rose',
+      href: '/dashboard/orders?status=damaged&date_filter=today&date_field=updated_at',
       isEmpty: stats.damagedOrders === 0,
     },
     {
       label: "Today's Refunds",
       value: formatCurrency(stats.todaysRefunds),
-      subtitle: stats.todaysRefunds === 0
-        ? "No refunds processed"
-        : "Refunded to customers",
+      subtitle: stats.todaysRefunds === 0 ? 'No refunds processed' : 'Refunded to customers',
       icon: ArrowDownLeft,
-      color: "orange",
-      href: "/dashboard/orders?status=cancelled&date_filter=today&date_field=cancelled_at",
+      color: 'orange',
+      href: '/dashboard/orders?status=cancelled&date_filter=today&date_field=cancelled_at',
       isEmpty: stats.todaysRefunds === 0,
       isCurrency: true,
     },
     {
-      label: "Damage Income",
+      label: 'Damage Income',
       value: formatCurrency(stats.damageIncome),
-      subtitle: "Collected damage charges",
+      subtitle: 'Collected damage charges',
       icon: ShieldAlert,
-      color: "teal",
-      href: "/dashboard/orders?date_filter=today&date_field=updated_at&has_damage_charges=true",
+      color: 'teal',
+      href: '/dashboard/orders?date_filter=today&date_field=updated_at&has_damage_charges=true',
       isEmpty: stats.damageIncome === 0,
       isCurrency: true,
     },
     {
-      label: "Late Fee Income",
+      label: 'Late Fee Income',
       value: formatCurrency(stats.lateFeeIncome),
-      subtitle: stats.lateFeeIncome === 0
-        ? "No late fees collected"
-        : "From late return fees",
+      subtitle: stats.lateFeeIncome === 0 ? 'No late fees collected' : 'From late return fees',
       icon: Clock,
-      color: "amber",
-      href: "/dashboard/orders?is_late=true&date_filter=today&date_field=updated_at",
+      color: 'amber',
+      href: '/dashboard/orders?is_late=true&date_filter=today&date_field=updated_at',
       isEmpty: stats.lateFeeIncome === 0,
       isCurrency: true,
     },
   ];
 
   const colorMap: Record<string, { bg: string; text: string; badge: string; border: string }> = {
-    blue:    { bg: "bg-blue-50",    text: "text-blue-700",    badge: "bg-blue-100",    border: "border-blue-200" },
-    emerald: { bg: "bg-emerald-50", text: "text-emerald-700", badge: "bg-emerald-100", border: "border-emerald-200" },
-    violet:  { bg: "bg-violet-50",  text: "text-violet-700",  badge: "bg-violet-100",  border: "border-violet-200" },
-    green:   { bg: "bg-emerald-50", text: "text-emerald-700", badge: "bg-emerald-100", border: "border-emerald-200" },
-    rose:    { bg: "bg-rose-50",    text: "text-rose-700",    badge: "bg-rose-100",    border: "border-rose-200" },
-    orange:  { bg: "bg-orange-50",  text: "text-orange-700",  badge: "bg-orange-100",  border: "border-orange-200" },
-    teal:    { bg: "bg-teal-50",    text: "text-teal-700",    badge: "bg-teal-100",    border: "border-teal-200" },
-    amber:   { bg: "bg-amber-50",   text: "text-amber-700",   badge: "bg-amber-100",   border: "border-amber-200" },
-    indigo:  { bg: "bg-indigo-50",  text: "text-indigo-700",  badge: "bg-indigo-100",  border: "border-indigo-200" },
+    blue: {
+      bg: 'bg-blue-50',
+      text: 'text-blue-700',
+      badge: 'bg-blue-100',
+      border: 'border-blue-200',
+    },
+    emerald: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      badge: 'bg-emerald-100',
+      border: 'border-emerald-200',
+    },
+    violet: {
+      bg: 'bg-violet-50',
+      text: 'text-violet-700',
+      badge: 'bg-violet-100',
+      border: 'border-violet-200',
+    },
+    green: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      badge: 'bg-emerald-100',
+      border: 'border-emerald-200',
+    },
+    rose: {
+      bg: 'bg-rose-50',
+      text: 'text-rose-700',
+      badge: 'bg-rose-100',
+      border: 'border-rose-200',
+    },
+    orange: {
+      bg: 'bg-orange-50',
+      text: 'text-orange-700',
+      badge: 'bg-orange-100',
+      border: 'border-orange-200',
+    },
+    teal: {
+      bg: 'bg-teal-50',
+      text: 'text-teal-700',
+      badge: 'bg-teal-100',
+      border: 'border-teal-200',
+    },
+    amber: {
+      bg: 'bg-amber-50',
+      text: 'text-amber-700',
+      badge: 'bg-amber-100',
+      border: 'border-amber-200',
+    },
+    indigo: {
+      bg: 'bg-indigo-50',
+      text: 'text-indigo-700',
+      badge: 'bg-indigo-100',
+      border: 'border-indigo-200',
+    },
   };
 
   return (
@@ -329,7 +405,11 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
               Today&apos;s Report (Amount Collection)
             </h3>
             <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-              {new Date().toLocaleDateString("en-IN", { weekday: "long", month: "short", day: "numeric" })}
+              {new Date().toLocaleDateString('en-IN', {
+                weekday: 'long',
+                month: 'short',
+                day: 'numeric',
+              })}
             </p>
           </div>
         </div>
@@ -365,13 +445,11 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
             <Card
               key={card.label}
               className={`border shadow-sm transition-all overflow-hidden ${
-                isClickable
-                  ? "cursor-pointer hover:shadow-md hover:scale-[1.02]"
-                  : ""
+                isClickable ? 'cursor-pointer hover:shadow-md hover:scale-[1.02]' : ''
               } ${
                 card.hasWarning
                   ? `${colors.bg} ${colors.border}`
-                  : "bg-white border-slate-200 hover:border-slate-300"
+                  : 'bg-white border-slate-200 hover:border-slate-300'
               }`}
               onClick={() => card.href && router.push(card.href)}
             >
@@ -380,24 +458,24 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
                   <div className={`p-2 rounded-xl ${colors.badge}`}>
                     <Icon className={`w-4 h-4 ${colors.text}`} />
                   </div>
-                  {card.isEmpty ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : null}
+                  {card.isEmpty ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : null}
                 </div>
                 <div>
-                  <p className={`text-2xl font-black tracking-tight tabular-nums ${
-                    card.hasWarning ? colors.text : "text-slate-900"
-                  }`}>
+                  <p
+                    className={`text-2xl font-black tracking-tight tabular-nums ${
+                      card.hasWarning ? colors.text : 'text-slate-900'
+                    }`}
+                  >
                     {card.value}
                   </p>
                   <p className="text-[10px] font-semibold text-slate-500 mt-1 uppercase tracking-wider leading-tight">
                     {card.label}
                   </p>
-                  <p className={`text-[10px] mt-0.5 ${
-                    card.hasWarning
-                      ? `${colors.text} font-bold`
-                      : "text-slate-400"
-                  }`}>
+                  <p
+                    className={`text-[10px] mt-0.5 ${
+                      card.hasWarning ? `${colors.text} font-bold` : 'text-slate-400'
+                    }`}
+                  >
                     {card.subtitle}
                   </p>
                 </div>
@@ -410,14 +488,18 @@ export default function DailyReportPanel({ onClose }: DailyReportPanelProps) {
       {/* Revenue Summary Footer */}
       <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-[10px]">
         <span className="text-slate-500 font-medium">
-          Net Collection: <span className="text-slate-900 font-bold">{formatCurrency(stats.todaysCollection - stats.todaysRefunds)}</span>
+          Net Collection:{' '}
+          <span className="text-slate-900 font-bold">
+            {formatCurrency(stats.todaysCollection - stats.todaysRefunds)}
+          </span>
           <span className="text-slate-400 mx-1.5">•</span>
-          Collected {formatCurrency(stats.todaysCollection)} − Refunds {formatCurrency(stats.todaysRefunds)}
+          Collected {formatCurrency(stats.todaysCollection)} − Refunds{' '}
+          {formatCurrency(stats.todaysRefunds)}
         </span>
         {(stats.damageIncome > 0 || stats.lateFeeIncome > 0) && (
           <span className="text-slate-400">
             Includes: {stats.damageIncome > 0 && `Damage ${formatCurrency(stats.damageIncome)}`}
-            {stats.damageIncome > 0 && stats.lateFeeIncome > 0 && " + "}
+            {stats.damageIncome > 0 && stats.lateFeeIncome > 0 && ' + '}
             {stats.lateFeeIncome > 0 && `Late Fee ${formatCurrency(stats.lateFeeIncome)}`}
           </span>
         )}

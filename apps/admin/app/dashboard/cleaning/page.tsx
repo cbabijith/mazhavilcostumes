@@ -5,19 +5,33 @@
  *
  * @module app/dashboard/cleaning/page
  */
-import { Suspense } from "react";
-import { getPageAuthUser } from "@/lib/pageAuth";
+import { Suspense } from 'react';
+import { getPageAuthUser } from '@/lib/pageAuth';
+import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
-import { CleaningQueue } from "@/components/admin/dashboard/CleaningQueue";
-import { Sparkles, Info, Package, Link as LinkIcon, Loader2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { dashboardService } from "@/services/dashboardService";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
+import { CleaningQueue } from '@/components/admin/dashboard/CleaningQueue';
+import { Sparkles, Info, Package, Link as LinkIcon, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { dashboardService } from '@/services/dashboardService';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
-export default async function CleaningPage() {
+export default async function CleaningPage(props: {
+  searchParams: Promise<{ [key: string]: string | undefined }>;
+}) {
+  const searchParams = await props.searchParams;
   const authUser = await getPageAuthUser();
+
+  // Resolve branch ID context using URL searchParams, cookie fallback, or user's default branch
+  const cookieStore = await cookies();
+  const cookieBranchId = cookieStore.get('selected_branch_id')?.value;
+  const activeBranchParam = searchParams.branch_id || cookieBranchId || authUser?.branch_id;
+
+  let branchId: string | null = null;
+  if (activeBranchParam && activeBranchParam !== 'all') {
+    branchId = activeBranchParam;
+  }
 
   return (
     <div className="space-y-6 pb-10">
@@ -29,7 +43,8 @@ export default async function CleaningPage() {
             Cleaning Queue
           </h1>
           <p className="text-slate-500 mt-1">
-            Track products currently in their cleaning/buffer period before becoming available for the next rental.
+            Track products currently in their cleaning/buffer period before becoming available for
+            the next rental.
           </p>
         </div>
       </div>
@@ -41,7 +56,9 @@ export default async function CleaningPage() {
           <div className="text-sm text-blue-800">
             <p className="font-semibold">Workflow Information:</p>
             <p className="mt-1 opacity-90">
-              All returned items with buffer requirements appear here automatically. Use the <span className="font-bold text-amber-700">Prior Cleaning</span> filter to prioritize items needed for urgent upcoming bookings.
+              All returned items with buffer requirements appear here automatically. Use the{' '}
+              <span className="font-bold text-amber-700">Prior Cleaning</span> filter to prioritize
+              items needed for urgent upcoming bookings.
             </p>
           </div>
         </CardContent>
@@ -49,13 +66,15 @@ export default async function CleaningPage() {
 
       {/* Main Content — Full Width Table */}
       <div className="w-full">
-        <Suspense fallback={
-          <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            <p className="text-sm text-slate-500 font-medium">Loading cleaning queue...</p>
-          </div>
-        }>
-          <CleaningQueue branchId={authUser?.branch_id || ''} />
+        <Suspense
+          fallback={
+            <div className="bg-white border border-slate-200 rounded-xl p-12 flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              <p className="text-sm text-slate-500 font-medium">Loading cleaning queue...</p>
+            </div>
+          }
+        >
+          <CleaningQueue branchId={branchId} />
         </Suspense>
       </div>
     </div>

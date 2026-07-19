@@ -1,15 +1,15 @@
-import Header from "@/components/home/Header";
-import Footer from "@/components/home/Footer";
-import { getParisBridalsStore } from "@/lib/actions/store";
-import { Button } from "@/components/ui/button";
-import { RefreshCw, ShieldCheck, Clock, AlertCircle } from "lucide-react";
-import { buildWhatsAppUrl } from "@/lib/whatsapp";
+import Header from '@/components/home/Header';
+import Footer from '@/components/home/Footer';
+import { getParisBridalsStore } from '@/lib/actions/store';
+import { Button } from '@/components/ui/button';
+import { RefreshCw, ShieldCheck, Clock, AlertCircle } from 'lucide-react';
+import { buildWhatsAppUrl } from '@/lib/whatsapp';
 
 export default async function ReturnsPage() {
   const store = await getParisBridalsStore();
   if (!store) return null;
 
-  const whatsappMessage = "Hi, I have a question about returns or damage policy.";
+  const whatsappMessage = 'Hi, I have a question about returns or damage policy.';
   const whatsappUrl = buildWhatsAppUrl(whatsappMessage);
 
   return (
@@ -64,9 +64,9 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Normal Wear & Tear</h2>
                   <p className="text-body text-sm leading-relaxed">
-                    Minor wear from normal use is expected and accepted. This includes slight tarnishing,
-                    minor scratches from handling, and loose stones that can be tightened. No charges apply
-                    for normal wear.
+                    Minor wear from normal use is expected and accepted. This includes slight
+                    tarnishing, minor scratches from handling, and loose stones that can be
+                    tightened. No charges apply for normal wear.
                   </p>
                 </div>
               </div>
@@ -80,8 +80,8 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Damage Charges</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Significant damage beyond normal wear will be assessed and charged from your security
-                    deposit. This includes:
+                    Significant damage beyond normal wear will be assessed and charged from your
+                    security deposit. This includes:
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">
@@ -113,7 +113,8 @@ export default async function ReturnsPage() {
                 <div>
                   <h2 className="font-serif text-heading text-xl mb-2">Security Deposit Refund</h2>
                   <p className="text-body text-sm leading-relaxed mb-3">
-                    Your security deposit is refunded within next business day after return inspection.
+                    Your security deposit is refunded within next business day after return
+                    inspection.
                   </p>
                   <ul className="text-body text-sm space-y-2">
                     <li className="flex items-center gap-2">

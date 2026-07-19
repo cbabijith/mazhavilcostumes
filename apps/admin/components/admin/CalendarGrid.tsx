@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
+import { useMemo, useState } from 'react';
 import {
   startOfMonth,
   endOfMonth,
@@ -14,14 +14,14 @@ import {
   isWithinInterval,
   startOfDay,
   endOfDay,
-} from "date-fns";
-import { OrderWithRelations } from "@/domain/types/order";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import Modal from "@/components/admin/Modal";
-import { Card } from "@/components/ui/card";
-import { Eye } from "lucide-react";
-import { useRouter } from "next/navigation";
+} from 'date-fns';
+import { OrderWithRelations } from '@/domain/types/order';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import Modal from '@/components/admin/Modal';
+import { Card } from '@/components/ui/card';
+import { Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface CalendarGridProps {
   currentDate: Date;
@@ -30,7 +30,10 @@ interface CalendarGridProps {
 
 export default function CalendarGrid({ currentDate, orders }: CalendarGridProps) {
   const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState<{ date: Date; orders: OrderWithRelations[] } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{
+    date: Date;
+    orders: OrderWithRelations[];
+  } | null>(null);
 
   const daysInMonth = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -52,7 +55,7 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
     });
   };
 
-  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
     <>
@@ -72,7 +75,11 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isToday = isSameDay(day, new Date());
             const dayOrders = getOrdersForDay(day);
-            const totalItems = dayOrders.reduce((sum, order) => sum + (order.items?.reduce((acc, item) => acc + item.quantity, 0) || 0), 0);
+            const totalItems = dayOrders.reduce(
+              (sum, order) =>
+                sum + (order.items?.reduce((acc, item) => acc + item.quantity, 0) || 0),
+              0
+            );
 
             return (
               <div
@@ -83,25 +90,25 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                   }
                 }}
                 className={cn(
-                  "min-h-[120px] p-2 border-r border-b relative group transition-colors",
-                  !isCurrentMonth && "bg-muted/20 text-muted-foreground",
-                  isToday && "bg-primary/5",
-                  dayOrders.length > 0 && "cursor-pointer hover:bg-muted/50",
-                  (i + 1) % 7 === 0 && "border-r-0"
+                  'min-h-[120px] p-2 border-r border-b relative group transition-colors',
+                  !isCurrentMonth && 'bg-muted/20 text-muted-foreground',
+                  isToday && 'bg-primary/5',
+                  dayOrders.length > 0 && 'cursor-pointer hover:bg-muted/50',
+                  (i + 1) % 7 === 0 && 'border-r-0'
                 )}
               >
                 <div className="flex justify-between items-start mb-2">
                   <span
                     className={cn(
-                      "text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full",
-                      isToday && "bg-primary text-primary-foreground"
+                      'text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full',
+                      isToday && 'bg-primary text-primary-foreground'
                     )}
                   >
-                    {format(day, "d")}
+                    {format(day, 'd')}
                   </span>
                   {dayOrders.length > 0 && (
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {dayOrders.length} {dayOrders.length === 1 ? "Order" : "Orders"}
+                      {dayOrders.length} {dayOrders.length === 1 ? 'Order' : 'Orders'}
                     </Badge>
                   )}
                 </div>
@@ -115,8 +122,11 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                       </div>
                       {/* Show preview of first 2 orders */}
                       {dayOrders.slice(0, 2).map((order) => (
-                        <div key={order.id} className="text-[11px] truncate bg-muted/80 rounded px-1.5 py-1 text-slate-700 dark:text-slate-300">
-                          {order.customer?.name || "Unknown"}
+                        <div
+                          key={order.id}
+                          className="text-[11px] truncate bg-muted/80 rounded px-1.5 py-1 text-slate-700 dark:text-slate-300"
+                        >
+                          {order.customer?.name || 'Unknown'}
                         </div>
                       ))}
                       {dayOrders.length > 2 && (
@@ -139,19 +149,29 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
       <Modal
         open={!!selectedDay}
         onClose={() => setSelectedDay(null)}
-        title={`Bookings for ${selectedDay ? format(selectedDay.date, "MMMM do, yyyy") : ""}`}
+        title={`Bookings for ${selectedDay ? format(selectedDay.date, 'MMMM do, yyyy') : ''}`}
         maxWidth="max-w-2xl"
       >
         <div className="h-[60vh] pr-4 overflow-y-auto">
           <div className="flex flex-col gap-4 py-2">
             {selectedDay?.orders.map((order) => (
-              <Card key={order.id} className="p-4 hover:border-primary/50 transition-colors cursor-pointer" onClick={() => router.push(`/dashboard/orders/${order.id}`)}>
+              <Card
+                key={order.id}
+                className="p-4 hover:border-primary/50 transition-colors cursor-pointer"
+                onClick={() => router.push(`/dashboard/orders/${order.id}`)}
+              >
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h4 className="font-semibold">{order.customer?.name}</h4>
                     <p className="text-sm text-muted-foreground">{order.customer?.phone}</p>
                   </div>
-                  <Badge variant={order.status === 'ongoing' || order.status === 'in_use' ? 'default' : 'secondary'}>
+                  <Badge
+                    variant={
+                      order.status === 'ongoing' || order.status === 'in_use'
+                        ? 'default'
+                        : 'secondary'
+                    }
+                  >
                     {order.status.replace('_', ' ').toUpperCase()}
                   </Badge>
                 </div>
@@ -161,7 +181,9 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
                   <ul className="text-sm space-y-1">
                     {order.items?.map((item: any) => (
                       <li key={item.id} className="flex justify-between">
-                        <span className="truncate pr-4">{item.quantity}x {(item as any).product?.name || 'Unknown Product'}</span>
+                        <span className="truncate pr-4">
+                          {item.quantity}x {(item as any).product?.name || 'Unknown Product'}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -169,7 +191,8 @@ export default function CalendarGrid({ currentDate, orders }: CalendarGridProps)
 
                 <div className="mt-3 flex justify-between text-sm text-muted-foreground">
                   <div>
-                    {format(parseISO(order.start_date), "MMM d")} - {format(parseISO(order.end_date), "MMM d")}
+                    {format(parseISO(order.start_date), 'MMM d')} -{' '}
+                    {format(parseISO(order.end_date), 'MMM d')}
                   </div>
                   <div className="flex items-center text-primary font-medium hover:underline">
                     <Eye className="w-4 h-4 mr-1" />

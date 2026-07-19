@@ -1,12 +1,15 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+
 <!-- END:nextjs-agent-rules -->
 
 # Recent Updates
 
 ## April 23, 2026 - Login Page Redesign
+
 - Redesigned the admin login page with a cleaner, minimalist UI
 - Changed background from dark gradient to light slate-50 for better readability
 - Simplified card design with reduced shadow and cleaner spacing
@@ -21,49 +24,58 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## Category Module — Final Architecture (Apr 23, 2026)
 
 ### 3-Level Hierarchy
+
 - **Main Category**: `parent_id = null`
 - **Sub Category**: `parent_id = main.id`
 - **Variant**: `parent_id = sub.id`
 
 ### REST API (all routes under `app/api/categories/`)
-| Method | Route | Purpose |
-|--------|-------|---------|
-| `GET` | `/api/categories` | List all categories |
-| `POST` | `/api/categories` | Create a category (validates name/slug) |
-| `GET` | `/api/categories/:id` | Fetch one category (404 if not found) |
-| `PATCH` | `/api/categories/:id` | Update (whitelisted fields only) |
-| `DELETE` | `/api/categories/:id` | Delete with safety check (409 if unsafe) |
-| `GET` | `/api/categories/:id/can-delete` | Pre-delete check (returns canDelete, productCount, childCount, reason) |
-| `GET` | `/api/categories/:id/children` | Direct children + resolved level (`main`/`sub`/`variant`) |
+
+| Method   | Route                            | Purpose                                                                |
+| -------- | -------------------------------- | ---------------------------------------------------------------------- |
+| `GET`    | `/api/categories`                | List all categories                                                    |
+| `POST`   | `/api/categories`                | Create a category (validates name/slug)                                |
+| `GET`    | `/api/categories/:id`            | Fetch one category (404 if not found)                                  |
+| `PATCH`  | `/api/categories/:id`            | Update (whitelisted fields only)                                       |
+| `DELETE` | `/api/categories/:id`            | Delete with safety check (409 if unsafe)                               |
+| `GET`    | `/api/categories/:id/can-delete` | Pre-delete check (returns canDelete, productCount, childCount, reason) |
+| `GET`    | `/api/categories/:id/children`   | Direct children + resolved level (`main`/`sub`/`variant`)              |
 
 ### Delete Safety Check
+
 A category is blocked from deletion if:
+
 - Any product references it via `category_id`, `subcategory_id`, or `subvariant_id`, OR
 - Any child categories are nested under it
 
 The API returns **HTTP 409** with `{ error, reason, productCount, childCount }` when blocked.
 
 ### Data Access Layer
+
 - **`lib/supabase/server.ts`**: exports `createClient()` (anon) and `createAdminClient()` (service role). All keys read from `.env.local` — **no hardcoded secrets**. Admin client throws a helpful error if `SUPABASE_SERVICE_ROLE_KEY` is missing.
 - **`lib/supabase/categories.ts`**: dedicated module for category CRUD. All operations use `createAdminClient()` because the admin dashboard is a trusted server-side context. Never import this module from client components.
 - **`lib/supabase/queries.ts`**: re-exports category types/functions for backward compatibility. Hierarchy and sub-category helpers live here.
 
 ### Client ↔ Server Boundary
+
 - Client components (`CategoryForm`, `CategoryTreeActions`) call the REST API via `fetch()` — they do **not** import server-only Supabase code.
 - Server components (`/dashboard/categories` page, edit page) call data-access functions directly.
 
 ### Image Upload (Cloudflare R2)
+
 - **`lib/r2.ts`**: all credentials read from env (`R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`). Lazy-initialised S3 client. No hardcoded fallbacks.
 - **`/api/upload`**: POST multipart form → R2 → returns `{ url, key }`.
 - `CategoryForm` auto-uploads on file selection and stores the public URL in `image_url`.
 
 ### UX Features
+
 - Slug auto-generates from name as user types (collapses to hyphenated lowercase).
 - User can manually edit the slug; clearing the field resumes auto-generation.
 - Error banner in form shows the exact Supabase/API error message.
 - Delete modal shows `reason` (e.g., "3 product(s) are linked…" or "2 child categories are nested…").
 
 ### Pages
+
 - `/dashboard/categories` — tree view with Main → Sub → Variant indentation. Each card exposes **View / Edit / Delete** actions.
 - `/dashboard/categories/[id]` — **detail page** showing the category hero, breadcrumbs, and its direct children:
   - On a **Main** → lists Sub categories with an **"Add Subcategory"** button.
@@ -74,11 +86,13 @@ The API returns **HTTP 409** with `{ error, reason, productCount, childCount }` 
 - `/dashboard/categories/edit/[id]` — edit form (pre-populated).
 
 ### Security
+
 - **Service role key is NEVER bundled into client code** (used only in API routes and server components).
 - **All secrets live in `.env.local`** (git-ignored). No hardcoded keys anywhere in the codebase.
 - PATCH endpoint uses a **field whitelist** to prevent mass-assignment vulnerabilities.
 
 ### Automated CRUD Tests
+
 Two PowerShell suites, both runnable against the local dev server on `:3001`:
 
 1. **`scripts/test-categories-api.ps1`** — baseline happy-path CRUD (12/12 pass).
@@ -93,9 +107,11 @@ Two PowerShell suites, both runnable against the local dev server on `:3001`:
 Run: `powershell -ExecutionPolicy Bypass -File scripts/test-categories-hierarchy.ps1`. Exits non-zero on any failure. **Current status: 30/30 pass.**
 
 ### Build Verification
+
 - `pnpm build` exits 0. All routes compile, including the 4 category API routes.
 
 ### Documentation Standards
+
 - Module-level JSDoc on every new file (purpose, env vars, security notes).
 - Every exported function has `@param` / `@returns` / `@throws`.
 - Inline comments for non-obvious business logic (hierarchy detection, slug auto-gen, safety check, etc.).
@@ -139,24 +155,25 @@ UI (page component) → hooks (TanStack Query + fetch) → API route (server-sid
 ## Branches & Staff Module (Apr 23, 2026)
 
 ### Database
+
 - `branches`: `id`, `store_id`, `name`, `address`, `phone`, `is_main`, `is_active`
 - `staff`: `id`, `store_id`, `branch_id`, `user_id` (→ auth.users), `name`, `email`, `role`, `is_active`
 - Roles: `admin`, `manager`, `staff`
 
 ### Role-Based Access Control (RBAC) — `lib/permissions.ts`
 
-| Feature         | Admin | Manager | Staff |
-|----------------|-------|---------|-------|
-| Dashboard      | ✅    | ✅      | ✅    |
-| Products       | ✅    | ✅      | ❌    |
-| Categories     | ✅    | ✅      | ❌    |
-| Orders         | ✅    | ✅      | ✅    |
-| Banners        | ✅    | ✅      | ❌    |
-| Customers      | ✅    | ✅      | ❌    |
-| Branches       | ✅    | ❌      | ❌    |
-| Staff          | ✅    | ❌      | ❌    |
-| Settings       | ✅    | ❌      | ❌    |
-| Switch Branch  | ✅    | ✅      | ❌ (locked to assigned branch) |
+| Feature       | Admin | Manager | Staff                          |
+| ------------- | ----- | ------- | ------------------------------ |
+| Dashboard     | ✅    | ✅      | ✅                             |
+| Products      | ✅    | ✅      | ❌                             |
+| Categories    | ✅    | ✅      | ❌                             |
+| Orders        | ✅    | ✅      | ✅                             |
+| Banners       | ✅    | ✅      | ❌                             |
+| Customers     | ✅    | ✅      | ❌                             |
+| Branches      | ✅    | ❌      | ❌                             |
+| Staff         | ✅    | ❌      | ❌                             |
+| Settings      | ✅    | ❌      | ❌                             |
+| Switch Branch | ✅    | ✅      | ❌ (locked to assigned branch) |
 
 - `usePermissions()` hook reads role from app store user
 - Sidebar filters nav items via `routePermissionMap`
@@ -171,17 +188,20 @@ UI (page component) → hooks (TanStack Query + fetch) → API route (server-sid
 > ⚠️ **Run the migration SQL** in Supabase SQL Editor to activate database-level protection.
 
 ### Staff Auth Integration
+
 - Staff created via `supabase.auth.admin.createUser()` (email + password, auto-confirmed)
 - `user_id` stored in staff table, links to `auth.users`
 - On staff deletion, auth user is also deleted via `auth.admin.deleteUser()`
 - Rollback: if staff record creation fails after auth user creation, auth user is cleaned up
 
 ### Pages
+
 - `/dashboard/branches` — List with search, CRUD modal, staff count per branch
 - `/dashboard/branches/[id]` — Detail page with inline staff table + add/edit/delete staff
 - `/dashboard/staff` — All staff across branches with branch filter dropdown
 
 ### Key Files
+
 - Types: `domain/types/branch.ts`
 - Schemas: `domain/schemas/branch.schema.ts`
 - Repos: `repository/branchRepository.ts`, `repository/staffRepository.ts`
@@ -189,6 +209,7 @@ UI (page component) → hooks (TanStack Query + fetch) → API route (server-sid
 - Hooks: `hooks/useBranches.ts`, `hooks/useStaff.ts`
 
 ### RLS Policies (Migration 003)
+
 All tables have RLS enabled. Policies for `authenticated` role:
 | Table | Admin | Staff |
 |-------|-------|-------|
@@ -223,16 +244,16 @@ Write operations go through API routes using service_role (bypasses RLS).
 
 ## Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (browser) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only admin key (bypasses RLS) |
-| `R2_ENDPOINT` | Cloudflare R2 endpoint |
-| `R2_ACCESS_KEY_ID` | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | R2 secret key |
-| `R2_BUCKET_NAME` | R2 bucket name |
-| `R2_PUBLIC_URL` | R2 public CDN URL |
-| `R2_ACCOUNT_ID` | R2 account ID |
+| Variable                        | Purpose                              |
+| ------------------------------- | ------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase project URL                 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key (browser)            |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only admin key (bypasses RLS) |
+| `R2_ENDPOINT`                   | Cloudflare R2 endpoint               |
+| `R2_ACCESS_KEY_ID`              | R2 access key                        |
+| `R2_SECRET_ACCESS_KEY`          | R2 secret key                        |
+| `R2_BUCKET_NAME`                | R2 bucket name                       |
+| `R2_PUBLIC_URL`                 | R2 public CDN URL                    |
+| `R2_ACCOUNT_ID`                 | R2 account ID                        |
 
 Default Store ID: `00000000-0000-0000-0000-000000000001` (single-tenant)

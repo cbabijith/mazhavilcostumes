@@ -14,33 +14,28 @@
  * @module components/admin/orders/OrderFilters
  */
 
-"use client";
+'use client';
 
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
-import { Search, AlertTriangle, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { OrderStatus } from "@/domain";
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, AlertTriangle, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { OrderStatus } from '@/domain';
 
 /** Pre-defined status filter options */
 const FILTER_CHIPS = [
-  { label: "All", value: "ALL" },
-  { label: "Pending", value: OrderStatus.PENDING },
-  { label: "Ongoing", value: OrderStatus.ONGOING },
-  { label: "Scheduled", value: OrderStatus.SCHEDULED },
+  { label: 'All', value: 'ALL' },
+  { label: 'Pending', value: OrderStatus.PENDING },
+  { label: 'Ongoing', value: OrderStatus.ONGOING },
+  { label: 'Scheduled', value: OrderStatus.SCHEDULED },
   // Late removed - now handled by is_late boolean flag
-  { label: "Partial", value: OrderStatus.PARTIAL },
-  { label: "Returned", value: OrderStatus.RETURNED },
-  { label: "Completed", value: OrderStatus.COMPLETED },
-  { label: "Cancelled", value: OrderStatus.CANCELLED },
-  { label: "Flagged", value: OrderStatus.FLAGGED },
-  { label: "Revenue Due", value: "revenue_due" },
+  { label: 'Partial', value: OrderStatus.PARTIAL },
+  { label: 'Returned', value: OrderStatus.RETURNED },
+  { label: 'Completed', value: OrderStatus.COMPLETED },
+  { label: 'Cancelled', value: OrderStatus.CANCELLED },
+  { label: 'Flagged', value: OrderStatus.FLAGGED },
+  { label: 'Revenue Due', value: 'revenue_due' },
 ] as const;
 
 interface OrderFiltersProps {
@@ -102,12 +97,9 @@ function OrderFiltersInner({
     };
   }, [searchInput, onSearchChange]);
 
-  const handleSearchInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setSearchInput(e.target.value);
-    },
-    []
-  );
+  const handleSearchInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchInput(e.target.value);
+  }, []);
 
   return (
     <Card className="shadow-sm border-slate-200 bg-white">
@@ -121,17 +113,19 @@ function OrderFiltersInner({
                 onClick={() => onStatusChange(chip.value)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                   statusFilter === chip.value
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                 }`}
               >
                 {chip.label}
                 {chip.value === OrderStatus.PENDING && actionNeededCount > 0 && (
-                  <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
-                    statusFilter === OrderStatus.PENDING
-                      ? 'bg-white/20 text-white'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                      statusFilter === OrderStatus.PENDING
+                        ? 'bg-white/20 text-white'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
                     {actionNeededCount}
                   </span>
                 )}
@@ -144,19 +138,25 @@ function OrderFiltersInner({
                 onClick={() => onStatusChange('stock_conflict')}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                   statusFilter === 'stock_conflict'
-                    ? "bg-red-600 text-white border-red-600 shadow-sm"
-                    : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300"
+                    ? 'bg-red-600 text-white border-red-600 shadow-sm'
+                    : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300'
                 }`}
               >
-                <AlertTriangle className={`w-3.5 h-3.5 ${
-                  statusFilter === 'stock_conflict' ? 'fill-white text-white' : 'fill-red-500 text-red-500'
-                } ${statusFilter !== 'stock_conflict' && 'animate-pulse'}`} />
+                <AlertTriangle
+                  className={`w-3.5 h-3.5 ${
+                    statusFilter === 'stock_conflict'
+                      ? 'fill-white text-white'
+                      : 'fill-red-500 text-red-500'
+                  } ${statusFilter !== 'stock_conflict' && 'animate-pulse'}`}
+                />
                 Stock Conflict
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
-                  statusFilter === 'stock_conflict'
-                    ? 'bg-white/20 text-white'
-                    : 'bg-red-200 text-red-800'
-                }`}>
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[10px] font-bold px-1 ${
+                    statusFilter === 'stock_conflict'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-red-200 text-red-800'
+                  }`}
+                >
                   {conflictCount}
                 </span>
               </button>
@@ -167,22 +167,24 @@ function OrderFiltersInner({
               onClick={() => onStatusChange('priority_cleaning')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors cursor-pointer ${
                 statusFilter === 'priority_cleaning'
-                  ? "bg-amber-500 text-white border-amber-500"
-                  : "bg-white text-amber-700 border-amber-200 hover:bg-amber-50 hover:border-amber-300"
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50 hover:border-amber-300'
               }`}
             >
-              <Sparkles className={`w-3 h-3 ${
-                statusFilter === 'priority_cleaning' ? 'fill-white text-white' : 'fill-amber-500 text-amber-500'
-              }`} />
+              <Sparkles
+                className={`w-3 h-3 ${
+                  statusFilter === 'priority_cleaning'
+                    ? 'fill-white text-white'
+                    : 'fill-amber-500 text-amber-500'
+                }`}
+              />
               Priority Cleaning
             </button>
           </div>
 
           {/* Date Filters */}
           <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
-            <span className="text-sm font-medium text-slate-600 shrink-0">
-              Date:
-            </span>
+            <span className="text-sm font-medium text-slate-600 shrink-0">Date:</span>
             <select
               value={dateFilter}
               onChange={(e) => onDateFilterChange(e.target.value)}
@@ -196,7 +198,7 @@ function OrderFiltersInner({
               <option value="custom">Custom Range</option>
             </select>
 
-            {dateFilter === "custom" && (
+            {dateFilter === 'custom' && (
               <div className="flex items-center gap-2 shrink-0">
                 <Input
                   type="date"
@@ -228,7 +230,10 @@ function OrderFiltersInner({
             />
           </div>
 
-          {(selectedCount > 0 || statusFilter !== "ALL" || dateFilter !== "ALL" || initialQuery !== "") && (
+          {(selectedCount > 0 ||
+            statusFilter !== 'ALL' ||
+            dateFilter !== 'ALL' ||
+            initialQuery !== '') && (
             <div className="flex flex-wrap items-center gap-3">
               {selectedCount > 0 && (
                 <span className="text-sm font-semibold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md">
@@ -241,10 +246,10 @@ function OrderFiltersInner({
                     Clear Selection
                   </Button>
                 )}
-                {(statusFilter !== "ALL" || dateFilter !== "ALL" || initialQuery !== "") && (
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
+                {(statusFilter !== 'ALL' || dateFilter !== 'ALL' || initialQuery !== '') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={onResetFilters}
                     className="text-xs border-slate-200 hover:bg-slate-50 hover:text-slate-900"
                   >
@@ -261,6 +266,6 @@ function OrderFiltersInner({
 }
 
 const OrderFilters = React.memo(OrderFiltersInner);
-OrderFilters.displayName = "OrderFilters";
+OrderFilters.displayName = 'OrderFilters';
 
 export default OrderFilters;

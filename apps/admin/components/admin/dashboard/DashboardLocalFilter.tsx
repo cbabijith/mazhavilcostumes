@@ -1,18 +1,24 @@
-"use client";
+'use client';
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-export function DashboardLocalFilter({ 
-  paramName, 
-  options, 
+export function DashboardLocalFilter({
+  paramName,
+  options,
   defaultValue,
-  placeholder = "Select..."
-}: { 
-  paramName: string, 
-  options: { label: string, value: string }[],
-  defaultValue: string,
-  placeholder?: string
+  placeholder = 'Select...',
+}: {
+  paramName: string;
+  options: { label: string; value: string }[];
+  defaultValue: string;
+  placeholder?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,7 +36,7 @@ export function DashboardLocalFilter({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        {options.map(opt => (
+        {options.map((opt) => (
           <SelectItem key={opt.value} value={opt.value} className="text-[10px]">
             {opt.label}
           </SelectItem>

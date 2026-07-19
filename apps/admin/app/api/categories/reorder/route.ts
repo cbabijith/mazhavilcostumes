@@ -16,10 +16,7 @@ export async function PATCH(request: NextRequest) {
     const items: { id: string; sort_order: number }[] = body.items;
 
     if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: 'items array is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'items array is required' }, { status: 400 });
     }
 
     const supabase = createAdminClient();
@@ -27,10 +24,7 @@ export async function PATCH(request: NextRequest) {
     // Update each category's sort_order and check results
     const results = await Promise.all(
       items.map((item) =>
-        supabase
-          .from('categories')
-          .update({ sort_order: item.sort_order })
-          .eq('id', item.id)
+        supabase.from('categories').update({ sort_order: item.sort_order }).eq('id', item.id)
       )
     );
 
@@ -38,7 +32,10 @@ export async function PATCH(request: NextRequest) {
     if (failures.length > 0) {
       console.error('Reorder partial failure:', failures);
       return NextResponse.json(
-        { error: `Failed to update ${failures.length} of ${items.length} categories`, details: failures[0].error },
+        {
+          error: `Failed to update ${failures.length} of ${items.length} categories`,
+          details: failures[0].error,
+        },
         { status: 500 }
       );
     }
@@ -46,9 +43,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error reordering categories:', error);
-    return NextResponse.json(
-      { error: 'Failed to reorder categories' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to reorder categories' }, { status: 500 });
   }
 }

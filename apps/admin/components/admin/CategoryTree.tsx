@@ -20,10 +20,10 @@
  * <CategoryTree categories={allCategories} />
  */
 
-"use client";
+'use client';
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   closestCenter,
@@ -32,14 +32,14 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-} from "@dnd-kit/core";
+} from '@dnd-kit/core';
 import {
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   ChevronRight,
   ChevronDown,
@@ -48,14 +48,14 @@ import {
   GripVertical,
   Layers,
   Tag,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { type Category } from "@/domain/types/category";
-import CategoryTreeActions from "@/components/admin/CategoryTreeActions";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/query-client";
-import { useAppStore, useAppSelectors } from "@/stores";
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { type Category } from '@/domain/types/category';
+import CategoryTreeActions from '@/components/admin/CategoryTreeActions';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-client';
+import { useAppStore, useAppSelectors } from '@/stores';
 
 /** Thumbnail or fallback icon for a category row. */
 function CategoryImage({ url, name }: { url: string | null; name: string }) {
@@ -79,9 +79,7 @@ function CategoryImage({ url, name }: { url: string | null; name: string }) {
 function buildHierarchy(categories: Category[]) {
   const mains = categories.filter((c) => !c.parent_id);
   const subs = categories.filter(
-    (c) =>
-      c.parent_id &&
-      categories.find((p) => p.id === c.parent_id && !p.parent_id)
+    (c) => c.parent_id && categories.find((p) => p.id === c.parent_id && !p.parent_id)
   );
   const variants = categories.filter((c) => {
     const parent = categories.find((p) => p.id === c.parent_id);
@@ -102,20 +100,15 @@ function SortableRow({
     ref: (node: HTMLElement | null) => void;
   }) => React.ReactNode;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    position: "relative" as const,
+    position: 'relative' as const,
     zIndex: isDragging ? 50 : undefined,
   };
 
@@ -180,16 +173,16 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
         sort_order: index,
       }));
       try {
-        const res = await fetch("/api/categories/reorder", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
+        const res = await fetch('/api/categories/reorder', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: payload }),
         });
-        if (!res.ok) throw new Error("Failed to save order");
+        if (!res.ok) throw new Error('Failed to save order');
         await queryClient.invalidateQueries({ queryKey: queryKeys.categories });
-        showSuccess("Order updated");
+        showSuccess('Order updated');
       } catch {
-        showError("Failed to save sort order");
+        showError('Failed to save sort order');
       }
     },
     [queryClient, showSuccess, showError]
@@ -270,15 +263,8 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
   const sortedMains = [...mains].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleMainDragEnd}
-    >
-      <SortableContext
-        items={sortedMains.map((m) => m.id)}
-        strategy={verticalListSortingStrategy}
-      >
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleMainDragEnd}>
+      <SortableContext items={sortedMains.map((m) => m.id)} strategy={verticalListSortingStrategy}>
         <div className="space-y-6">
           {sortedMains.map((main) => {
             const mainSubs = subs
@@ -294,9 +280,7 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                       {/* Main header — clickable to navigate */}
                       <div
                         className="bg-slate-50 border-b border-slate-100 p-4 cursor-pointer hover:bg-slate-100 transition-colors"
-                        onClick={() =>
-                          router.push(`/dashboard/categories/${main.id}`)
-                        }
+                        onClick={() => router.push(`/dashboard/categories/${main.id}`)}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
@@ -315,7 +299,7 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                 toggle(main.id);
                               }}
                               className="p-1 hover:bg-slate-200 rounded-md transition-colors flex-shrink-0"
-                              title={isMainOpen ? "Collapse" : "Expand"}
+                              title={isMainOpen ? 'Collapse' : 'Expand'}
                             >
                               {isMainOpen ? (
                                 <ChevronDown className="w-5 h-5 text-slate-500" />
@@ -323,27 +307,25 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                 <ChevronRight className="w-5 h-5 text-slate-500" />
                               )}
                             </button>
-                            <CategoryImage
-                              url={main.image_url}
-                              name={main.name}
-                            />
+                            <CategoryImage url={main.image_url} name={main.name} />
                             <div>
                               <div className="flex items-center gap-2">
                                 <FolderOpen className="w-4 h-4 text-primary" />
-                                <span className="font-semibold text-slate-900">
-                                  {main.name}
-                                </span>
+                                <span className="font-semibold text-slate-900">{main.name}</span>
                                 <Badge
                                   className={
                                     main.is_active
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : "bg-gray-100 text-gray-700"
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : 'bg-gray-100 text-gray-700'
                                   }
                                 >
-                                  {main.is_active ? "Active" : "Inactive"}
+                                  {main.is_active ? 'Active' : 'Inactive'}
                                 </Badge>
                                 {main.gst_percentage != null && (
-                                  <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs border-blue-200 text-blue-700 bg-blue-50"
+                                  >
                                     {main.gst_percentage}% GST
                                   </Badge>
                                 )}
@@ -372,9 +354,7 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                               {mainSubs.map((sub) => {
                                 const subVariants = variants
                                   .filter((v) => v.parent_id === sub.id)
-                                  .sort(
-                                    (a, b) => a.sort_order - b.sort_order
-                                  );
+                                  .sort((a, b) => a.sort_order - b.sort_order);
                                 const isSubOpen = expanded.has(sub.id);
 
                                 return (
@@ -388,18 +368,14 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                         <div
                                           className="p-4 pl-12 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
                                           onClick={() =>
-                                            router.push(
-                                              `/dashboard/categories/${sub.id}`
-                                            )
+                                            router.push(`/dashboard/categories/${sub.id}`)
                                           }
                                         >
                                           <div className="flex items-center gap-3">
                                             {/* Drag handle */}
                                             <button
                                               {...subDragProps}
-                                              onClick={(e) =>
-                                                e.stopPropagation()
-                                              }
+                                              onClick={(e) => e.stopPropagation()}
                                               className="p-1 hover:bg-slate-200 rounded-md transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
                                               title="Drag to reorder"
                                             >
@@ -413,9 +389,7 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                               }}
                                               className="p-1 hover:bg-slate-200 rounded-md transition-colors flex-shrink-0"
                                               title={
-                                                isSubOpen
-                                                  ? "Collapse variants"
-                                                  : "Expand variants"
+                                                isSubOpen ? 'Collapse variants' : 'Expand variants'
                                               }
                                             >
                                               {isSubOpen ? (
@@ -424,26 +398,21 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                                 <ChevronRight className="w-4 h-4 text-slate-400" />
                                               )}
                                             </button>
-                                            <CategoryImage
-                                              url={sub.image_url}
-                                              name={sub.name}
-                                            />
+                                            <CategoryImage url={sub.image_url} name={sub.name} />
                                             <div>
                                               <div className="flex items-center gap-2">
                                                 <Layers className="w-4 h-4 text-blue-500" />
                                                 <span className="font-medium text-slate-800">
                                                   {sub.name}
                                                 </span>
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-xs"
-                                                >
-                                                  {sub.is_active
-                                                    ? "Active"
-                                                    : "Inactive"}
+                                                <Badge variant="outline" className="text-xs">
+                                                  {sub.is_active ? 'Active' : 'Inactive'}
                                                 </Badge>
                                                 {sub.gst_percentage != null && (
-                                                  <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs border-blue-200 text-blue-700 bg-blue-50"
+                                                  >
                                                     {sub.gst_percentage}% GST
                                                   </Badge>
                                                 )}
@@ -457,110 +426,87 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                                         </div>
 
                                         {/* Variants — hidden when sub is collapsed */}
-                                        {isSubOpen &&
-                                          subVariants.length > 0 && (
-                                            <DndContext
-                                              sensors={sensors}
-                                              collisionDetection={
-                                                closestCenter
-                                              }
-                                              onDragEnd={createVariantDragEnd(
-                                                sub.id
-                                              )}
+                                        {isSubOpen && subVariants.length > 0 && (
+                                          <DndContext
+                                            sensors={sensors}
+                                            collisionDetection={closestCenter}
+                                            onDragEnd={createVariantDragEnd(sub.id)}
+                                          >
+                                            <SortableContext
+                                              items={subVariants.map((v) => v.id)}
+                                              strategy={verticalListSortingStrategy}
                                             >
-                                              <SortableContext
-                                                items={subVariants.map(
-                                                  (v) => v.id
-                                                )}
-                                                strategy={
-                                                  verticalListSortingStrategy
-                                                }
-                                              >
-                                                <div className="divide-y divide-slate-50">
-                                                  {subVariants.map(
-                                                    (variant) => (
-                                                      <SortableRow
-                                                        key={variant.id}
-                                                        id={variant.id}
+                                              <div className="divide-y divide-slate-50">
+                                                {subVariants.map((variant) => (
+                                                  <SortableRow key={variant.id} id={variant.id}>
+                                                    {({
+                                                      dragHandleProps: varDragProps,
+                                                      style: varStyle,
+                                                      ref: varRef,
+                                                    }) => (
+                                                      <div
+                                                        ref={varRef}
+                                                        style={varStyle}
+                                                        className="p-4 pl-20 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
+                                                        onClick={() =>
+                                                          router.push(
+                                                            `/dashboard/categories/${variant.id}`
+                                                          )
+                                                        }
                                                       >
-                                                        {({
-                                                          dragHandleProps:
-                                                            varDragProps,
-                                                          style: varStyle,
-                                                          ref: varRef,
-                                                        }) => (
-                                                          <div
-                                                            ref={varRef}
-                                                            style={varStyle}
-                                                            className="p-4 pl-20 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer"
-                                                            onClick={() =>
-                                                              router.push(
-                                                                `/dashboard/categories/${variant.id}`
-                                                              )
-                                                            }
+                                                        <div className="flex items-center gap-3">
+                                                          {/* Drag handle */}
+                                                          <button
+                                                            {...varDragProps}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="p-1 hover:bg-slate-200 rounded-md transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
+                                                            title="Drag to reorder"
                                                           >
-                                                            <div className="flex items-center gap-3">
-                                                              {/* Drag handle */}
-                                                              <button
-                                                                {...varDragProps}
-                                                                onClick={(e) =>
-                                                                  e.stopPropagation()
-                                                                }
-                                                                className="p-1 hover:bg-slate-200 rounded-md transition-colors flex-shrink-0 cursor-grab active:cursor-grabbing touch-none"
-                                                                title="Drag to reorder"
+                                                            <GripVertical className="w-3.5 h-3.5 text-slate-400" />
+                                                          </button>
+                                                          {/* Spacer */}
+                                                          <div className="w-4 flex-shrink-0" />
+                                                          <CategoryImage
+                                                            url={variant.image_url}
+                                                            name={variant.name}
+                                                          />
+                                                          <div>
+                                                            <div className="flex items-center gap-2">
+                                                              <Tag className="w-4 h-4 text-amber-500" />
+                                                              <span className="font-medium text-slate-700">
+                                                                {variant.name}
+                                                              </span>
+                                                              <Badge
+                                                                variant="outline"
+                                                                className="text-xs"
                                                               >
-                                                                <GripVertical className="w-3.5 h-3.5 text-slate-400" />
-                                                              </button>
-                                                              {/* Spacer */}
-                                                              <div className="w-4 flex-shrink-0" />
-                                                              <CategoryImage
-                                                                url={
-                                                                  variant.image_url
-                                                                }
-                                                                name={
-                                                                  variant.name
-                                                                }
-                                                              />
-                                                              <div>
-                                                                <div className="flex items-center gap-2">
-                                                                  <Tag className="w-4 h-4 text-amber-500" />
-                                                                  <span className="font-medium text-slate-700">
-                                                                    {
-                                                                      variant.name
-                                                                    }
-                                                                  </span>
-                                                                  <Badge
-                                                                    variant="outline"
-                                                                    className="text-xs"
-                                                                  >
-                                                                    {variant.is_active
-                                                                      ? "Active"
-                                                                      : "Inactive"}
-                                                                  </Badge>
-                                                                  {variant.gst_percentage != null && (
-                                                                    <Badge variant="outline" className="text-xs border-blue-200 text-blue-700 bg-blue-50">
-                                                                      {variant.gst_percentage}% GST
-                                                                    </Badge>
-                                                                  )}
-                                                                </div>
-                                                                <p className="text-sm text-slate-500">
-                                                                  {variant.description ||
-                                                                    variant.slug}
-                                                                </p>
-                                                              </div>
+                                                                {variant.is_active
+                                                                  ? 'Active'
+                                                                  : 'Inactive'}
+                                                              </Badge>
+                                                              {variant.gst_percentage != null && (
+                                                                <Badge
+                                                                  variant="outline"
+                                                                  className="text-xs border-blue-200 text-blue-700 bg-blue-50"
+                                                                >
+                                                                  {variant.gst_percentage}% GST
+                                                                </Badge>
+                                                              )}
                                                             </div>
-                                                            <CategoryTreeActions
-                                                              category={variant}
-                                                            />
+                                                            <p className="text-sm text-slate-500">
+                                                              {variant.description || variant.slug}
+                                                            </p>
                                                           </div>
-                                                        )}
-                                                      </SortableRow>
-                                                    )
-                                                  )}
-                                                </div>
-                                              </SortableContext>
-                                            </DndContext>
-                                          )}
+                                                        </div>
+                                                        <CategoryTreeActions category={variant} />
+                                                      </div>
+                                                    )}
+                                                  </SortableRow>
+                                                ))}
+                                              </div>
+                                            </SortableContext>
+                                          </DndContext>
+                                        )}
                                       </div>
                                     )}
                                   </SortableRow>
@@ -574,8 +520,7 @@ export default function CategoryTree({ categories }: CategoryTreeProps) {
                       {/* Collapsed placeholder showing count */}
                       {!isMainOpen && mainSubs.length > 0 && (
                         <div className="px-4 py-2 bg-slate-50/50 border-t border-slate-100 text-xs text-slate-500">
-                          {mainSubs.length} sub{" "}
-                          {mainSubs.length === 1 ? "category" : "categories"}{" "}
+                          {mainSubs.length} sub {mainSubs.length === 1 ? 'category' : 'categories'}{' '}
                           hidden
                         </div>
                       )}

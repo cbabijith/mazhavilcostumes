@@ -8,11 +8,11 @@
  * @module app/api/customers/route
  */
 
-import { NextRequest } from "next/server";
-import { customerService } from "@/services/customerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { customerService } from '@/services/customerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiInternalError } from '@/lib/apiResponse';
 
 /** GET /api/customers — fetch all customers */
 export async function GET(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to fetch customers');
     }
-    
+
     // Result.data is already CustomerSearchResult containing { customers, total, page, etc. }
     return apiSuccess(result.data);
   } catch (err) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const result = await customerService.createCustomer(body);
-    
+
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to create customer');
     }

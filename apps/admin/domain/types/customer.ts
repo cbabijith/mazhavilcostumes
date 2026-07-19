@@ -21,7 +21,7 @@ export interface Customer extends BaseEntity {
   id_type?: IdType | null;
   id_number?: string | null;
   id_documents?: IdDocument[];
-  
+
   // Audit fields
   created_by?: string | null;
   created_at_branch_id?: string | null;

@@ -1,46 +1,57 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { 
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import {
   useIsGSTEnabled,
   useUpdateIsGSTEnabled,
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
-  useUpdateSetting
-} from "@/hooks";
-import { useAppStore } from "@/stores";
+  useDefaultRentalDuration,
+  useUpdateSetting,
+} from '@/hooks';
+import { useAppStore } from '@/stores';
 
 export default function SettingsPage() {
   const { data: isGstEnabledResult, isLoading: loadingGstEnabled } = useIsGSTEnabled();
   const { updateIsGSTEnabled, isLoading: updatingGstEnabled } = useUpdateIsGSTEnabled();
-  
+
   const { updateSetting, isLoading: updatingSettings } = useUpdateSetting();
   const { showSuccess, showError, user } = useAppStore();
-  
+
   // Invoice settings hooks
   const { data: invoicePrefixResult, isLoading: loadingPrefix } = useInvoicePrefix();
   const { data: paymentTermsResult, isLoading: loadingTerms } = usePaymentTerms();
   const { data: signatureResult, isLoading: loadingSig } = useAuthorizedSignature();
-  
+  const { data: durationResult, isLoading: loadingDuration } = useDefaultRentalDuration();
+
   // Derive GST enabled from query result
-  const isGstEnabled = (isGstEnabledResult?.success && isGstEnabledResult.data !== null) ? isGstEnabledResult.data : false;
-  
+  const isGstEnabled =
+    isGstEnabledResult?.success && isGstEnabledResult.data !== null
+      ? isGstEnabledResult.data
+      : false;
+
   // Invoice settings state
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [authorizedSignature, setAuthorizedSignature] = useState('');
+  const [defaultRentalDuration, setDefaultRentalDuration] = useState('3');
 
-  // Sync invoice hooks with state when data loads
+  // Sync invoice & rental hooks with state when data loads
   useEffect(() => {
-    if (invoicePrefixResult?.success && invoicePrefixResult.data) setInvoicePrefix(invoicePrefixResult.data.value);
-    if (paymentTermsResult?.success && paymentTermsResult.data) setPaymentTerms(paymentTermsResult.data.value);
-    if (signatureResult?.success && signatureResult.data) setAuthorizedSignature(signatureResult.data.value);
-  }, [invoicePrefixResult, paymentTermsResult, signatureResult]);
+    if (invoicePrefixResult?.success && invoicePrefixResult.data)
+      setInvoicePrefix(invoicePrefixResult.data.value);
+    if (paymentTermsResult?.success && paymentTermsResult.data)
+      setPaymentTerms(paymentTermsResult.data.value);
+    if (signatureResult?.success && signatureResult.data)
+      setAuthorizedSignature(signatureResult.data.value);
+    if (durationResult?.success && durationResult.data)
+      setDefaultRentalDuration(durationResult.data.value);
+  }, [invoicePrefixResult, paymentTermsResult, signatureResult, durationResult]);
 
   const handleSaveInvoiceSettings = async () => {
     try {
@@ -49,7 +60,24 @@ export default function SettingsPage() {
         updateSetting({ key: 'payment_terms', value: paymentTerms }),
         updateSetting({ key: 'authorized_signature', value: authorizedSignature }),
       ]);
-      showSuccess("Invoice settings saved successfully");
+      showSuccess('Invoice settings saved successfully');
+    } catch (err) {
+      // updateSetting hook will handle showing the error toast
+    }
+  };
+
+  const handleSaveRentalSettings = async () => {
+    try {
+      const durationVal = parseInt(defaultRentalDuration, 10);
+      if (isNaN(durationVal) || durationVal < 1) {
+        showError(
+          'Validation Error',
+          'Default rental duration must be a number greater than or equal to 1.'
+        );
+        return;
+      }
+      await updateSetting({ key: 'default_rental_duration', value: defaultRentalDuration });
+      showSuccess('Rental settings saved successfully');
     } catch (err) {
       // updateSetting hook will handle showing the error toast
     }
@@ -72,7 +100,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border border-slate-200">
               <div>
                 <h3 className="text-sm font-semibold text-slate-900">Enable GST Calculation</h3>
-                <p className="text-xs text-slate-500 mt-0.5">When enabled, GST will be applied to all new orders based on category GST rates (5%, 12%, or 18%).</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  When enabled, GST will be applied to all new orders based on category GST rates
+                  (5%, 12%, or 18%).
+                </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -82,20 +113,63 @@ export default function SettingsPage() {
                   disabled={loadingGstEnabled || updatingGstEnabled}
                   className="sr-only peer"
                 />
-                <div className={`w-11 h-6 rounded-full transition-colors ${updatingGstEnabled ? 'bg-slate-300 animate-pulse' : 'bg-slate-200'} peer-checked:bg-slate-900 peer-focus:ring-2 peer-focus:ring-slate-900/20`}></div>
-                <div className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${isGstEnabled ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                <div
+                  className={`w-11 h-6 rounded-full transition-colors ${updatingGstEnabled ? 'bg-slate-300 animate-pulse' : 'bg-slate-200'} peer-checked:bg-slate-900 peer-focus:ring-2 peer-focus:ring-slate-900/20`}
+                ></div>
+                <div
+                  className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full transition-transform ${isGstEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+                ></div>
               </label>
             </div>
 
             {isGstEnabled && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-sm text-blue-800 font-medium">💡 GST rates are set per category</p>
+                <p className="text-sm text-blue-800 font-medium">
+                  💡 GST rates are set per category
+                </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Each category has its own GST rate (5%, 12%, or 18%). Products inherit the GST rate from their category. 
-                  You can configure GST rates in the Category management section.
+                  Each category has its own GST rate (5%, 12%, or 18%). Products inherit the GST
+                  rate from their category. You can configure GST rates in the Category management
+                  section.
                 </p>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Rental Settings */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="border-b border-slate-100">
+          <CardTitle className="text-xl text-slate-900">Rental Settings</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">
+                Default Rental Duration (Days)
+              </label>
+              <Input
+                type="number"
+                min="1"
+                value={defaultRentalDuration}
+                onChange={(e) => setDefaultRentalDuration(e.target.value)}
+                className="bg-slate-50 border-slate-200 focus:border-primary max-w-xs"
+                placeholder="3"
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                The default rental duration in days. The base price of costumes covers this
+                duration, and any additional days will increase/multiply the rental price.
+              </p>
+            </div>
+
+            <Button
+              onClick={handleSaveRentalSettings}
+              disabled={updatingSettings || loadingDuration}
+              className="shadow-lg shadow-primary/25 bg-slate-900 text-white hover:bg-slate-800"
+            >
+              {updatingSettings ? 'Saving...' : 'Save Rental Settings'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -142,12 +216,12 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleSaveInvoiceSettings}
               disabled={updatingSettings || loadingPrefix || loadingTerms || loadingSig}
               className="shadow-lg shadow-primary/25 bg-slate-900 text-white hover:bg-slate-800"
             >
-              {updatingSettings ? "Saving..." : "Save Invoice Settings"}
+              {updatingSettings ? 'Saving...' : 'Save Invoice Settings'}
             </Button>
           </div>
         </CardContent>
@@ -182,7 +256,9 @@ export default function SettingsPage() {
               <label className="text-sm font-semibold text-slate-700">Role</label>
               <Input
                 type="text"
-                value={user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'}
+                value={
+                  user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Unknown'
+                }
                 disabled
                 className="bg-slate-50 border-slate-200 focus:border-primary opacity-60"
               />

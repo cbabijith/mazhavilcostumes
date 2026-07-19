@@ -73,7 +73,10 @@ export function useCreateGalleryItem() {
 
   return useMutation({
     mutationFn: ({ silent, ...data }: CreateGalleryItemDTO & { silent?: boolean }) =>
-      apiFetch<ApiSuccessResponse<GalleryItem>>('/api/gallery', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<GalleryItem>>('/api/gallery', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async (result, variables) => {
       queryClient.invalidateQueries({ queryKey: galleryKeys.all });
       if (!variables.silent) {
@@ -95,7 +98,10 @@ export function useUpdateGalleryItem() {
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateGalleryItemDTO }) =>
-      apiFetch<ApiSuccessResponse<GalleryItem>>(`/api/gallery/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<GalleryItem>>(`/api/gallery/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onSuccess: async (result, variables) => {
       queryClient.invalidateQueries({ queryKey: galleryKeys.all });
       queryClient.setQueryData(galleryKeys.detail(variables.id), result.data);
@@ -136,23 +142,30 @@ export function useReorderGalleryItems() {
 
   return useMutation({
     mutationFn: (galleryItems: { id: string; sort_order: number }[]) =>
-      apiFetch<ApiSuccessResponse<null>>('/api/gallery/reorder', { method: 'POST', body: JSON.stringify({ galleryItems }) }),
+      apiFetch<ApiSuccessResponse<null>>('/api/gallery/reorder', {
+        method: 'POST',
+        body: JSON.stringify({ galleryItems }),
+      }),
     onMutate: async (newOrder) => {
       await queryClient.cancelQueries({ queryKey: galleryKeys.all });
-      const previousQueries = queryClient.getQueriesData<GalleryItem[]>({ queryKey: galleryKeys.all });
+      const previousQueries = queryClient.getQueriesData<GalleryItem[]>({
+        queryKey: galleryKeys.all,
+      });
 
       queryClient.setQueriesData<GalleryItem[]>({ queryKey: galleryKeys.all }, (old) => {
         if (!old || !Array.isArray(old)) return old;
-        return old.map((item) => {
-          const update = newOrder.find((o) => o.id === item.id);
-          if (update) {
-            return {
-              ...item,
-              sort_order: update.sort_order,
-            };
-          }
-          return item;
-        }).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        return old
+          .map((item) => {
+            const update = newOrder.find((o) => o.id === item.id);
+            if (update) {
+              return {
+                ...item,
+                sort_order: update.sort_order,
+              };
+            }
+            return item;
+          })
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
       });
 
       return { previousQueries };

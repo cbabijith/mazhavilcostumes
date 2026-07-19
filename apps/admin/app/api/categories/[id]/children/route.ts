@@ -15,10 +15,10 @@
  * @module app/api/categories/[id]/children/route
  */
 
-import { NextRequest } from "next/server";
-import { categoryService } from "@/services/categoryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiNotFound, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { categoryService } from '@/services/categoryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -40,10 +40,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return apiInternalError(childrenResult.error?.message || 'Failed to fetch children');
     }
 
-    return apiSuccess({ 
-      parent: parentResult.data, 
+    return apiSuccess({
+      parent: parentResult.data,
       children: childrenResult.data || [],
-      level: parentResult.data.level 
+      level: parentResult.data.level,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

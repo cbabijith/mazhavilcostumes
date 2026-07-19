@@ -166,6 +166,20 @@ export interface ProductWithRelations extends Product {
     id: string;
     name: string;
   };
+  product_inventory?: Array<{
+    id: string;
+    product_id: string;
+    branch_id: string;
+    quantity: number;
+    available_quantity: number;
+    low_stock_threshold: number;
+    created_at: string;
+    updated_at: string;
+    branches?: {
+      id: string;
+      name: string;
+    };
+  }>;
 }
 
 // Product Inventory Info
@@ -261,7 +275,12 @@ export interface ProductValidationResult {
 
 // Domain Events
 export interface ProductDomainEvent {
-  type: 'product_created' | 'product_updated' | 'product_deleted' | 'product_activated' | 'product_deactivated';
+  type:
+    | 'product_created'
+    | 'product_updated'
+    | 'product_deleted'
+    | 'product_activated'
+    | 'product_deactivated';
   product_id: string;
   data: Record<string, any>;
   timestamp: string;
@@ -274,7 +293,7 @@ export interface ProductAggregate {
   inventory: ProductInventory;
   pricing: ProductPricing;
   analytics: ProductAnalytics;
-  
+
   // Business logic methods
   canBeDeleted(): boolean;
   isInStock(): boolean;
@@ -287,14 +306,16 @@ export interface ProductAggregate {
 
 // Type Guards
 export const isValidProduct = (obj: any): obj is Product => {
-  return obj && 
-         typeof obj.id === 'string' &&
-         typeof obj.store_id === 'string' &&
-         typeof obj.name === 'string' &&
-         typeof obj.slug === 'string' &&
-         typeof obj.price_per_day === 'number' &&
-         typeof obj.quantity === 'number' &&
-         typeof obj.available_quantity === 'number';
+  return (
+    obj &&
+    typeof obj.id === 'string' &&
+    typeof obj.store_id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.slug === 'string' &&
+    typeof obj.price_per_day === 'number' &&
+    typeof obj.quantity === 'number' &&
+    typeof obj.available_quantity === 'number'
+  );
 };
 
 export const isActiveProduct = (product: Product): boolean => {
@@ -302,8 +323,7 @@ export const isActiveProduct = (product: Product): boolean => {
 };
 
 export const isLowStockProduct = (product: Product): boolean => {
-  return product.track_inventory && 
-         product.available_quantity <= product.low_stock_threshold;
+  return product.track_inventory && product.available_quantity <= product.low_stock_threshold;
 };
 
 export const isOutOfStockProduct = (product: Product): boolean => {

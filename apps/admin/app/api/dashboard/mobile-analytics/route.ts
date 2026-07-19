@@ -17,10 +17,15 @@ import { apiGuard } from '@/lib/apiGuard';
 import { apiInternalError, apiSuccess, apiForbidden } from '@/lib/apiResponse';
 import { dashboardService } from '@/services/dashboardService';
 import {
-  startOfDay, endOfDay,
-  startOfWeek, endOfWeek,
-  startOfMonth, endOfMonth,
-  subDays, subWeeks, subMonths,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  subDays,
+  subWeeks,
+  subMonths,
 } from 'date-fns';
 
 export const dynamic = 'force-dynamic';

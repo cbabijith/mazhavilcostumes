@@ -18,10 +18,7 @@ import { orderService } from '@/services/orderService';
 import { apiGuard } from '@/lib/apiGuard';
 import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const guard = await apiGuard(request, 'products');
     if (guard.error) return guard.error;
@@ -34,6 +31,7 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const start = searchParams.get('start');
     const end = searchParams.get('end');
+    const branchId = searchParams.get('branchId') || undefined;
 
     if (!start || !end) {
       return apiBadRequest('start and end query parameters are required (YYYY-MM-DD)');
@@ -55,7 +53,7 @@ export async function GET(
       return apiBadRequest('Date range cannot exceed 90 days');
     }
 
-    const result = await orderService.getProductAvailabilityCalendar(id, start, end);
+    const result = await orderService.getProductAvailabilityCalendar(id, start, end, branchId);
 
     if (!result.success) {
       return apiInternalError(result.error?.message || 'Failed to fetch availability');

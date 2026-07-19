@@ -8,12 +8,12 @@
  * @module components/admin/dashboard/DailyReportToggle
  */
 
-"use client";
+'use client';
 
-import { useState } from "react";
-import { BarChart4 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import DailyReportPanel from "./DailyReportPanel";
+import { useState } from 'react';
+import { BarChart4 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import DailyReportPanel from './DailyReportPanel';
 
 export default function DailyReportToggle() {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,12 +21,12 @@ export default function DailyReportToggle() {
   return (
     <>
       <Button
-        variant={isOpen ? "default" : "outline"}
+        variant={isOpen ? 'default' : 'outline'}
         size="sm"
         className={`gap-2 transition-all ${
           isOpen
-            ? "bg-slate-900 text-white hover:bg-slate-800"
-            : "border-slate-200 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50"
+            ? 'bg-slate-900 text-white hover:bg-slate-800'
+            : 'border-slate-200 text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50'
         }`}
         onClick={() => setIsOpen(!isOpen)}
       >

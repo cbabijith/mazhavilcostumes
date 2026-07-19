@@ -9,11 +9,11 @@
  * @module app/api/banners/[id]/route
  */
 
-import { NextRequest } from "next/server";
-import { bannerService } from "@/services/bannerService";
-import { apiGuard } from "@/lib/apiGuard";
-import { getAuthUser } from "@/lib/auth";
-import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { bannerService } from '@/services/bannerService';
+import { apiGuard } from '@/lib/apiGuard';
+import { getAuthUser } from '@/lib/auth';
+import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;

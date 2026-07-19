@@ -7,13 +7,13 @@
  * @module components/ui/delete-confirmation
  */
 
-"use client";
+'use client';
 
-import * as React from "react";
-import { useState } from "react";
-import { AlertCircle, Loader2, Trash2 } from "lucide-react";
-import { Button } from "./button";
-import { cn } from "@/lib/utils";
+import * as React from 'react';
+import { useState } from 'react';
+import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
+import { Button } from './button';
+import { cn } from '@/lib/utils';
 
 export interface DeleteConfirmationProps {
   /** Whether the dialog is open */
@@ -48,7 +48,7 @@ export function DeleteConfirmation({
       await onConfirm();
       onClose();
     } catch (error) {
-      console.error("Delete failed:", error);
+      console.error('Delete failed:', error);
     } finally {
       setIsDeleting(false);
     }
@@ -71,13 +71,11 @@ export function DeleteConfirmation({
           <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
             <Trash2 className="w-7 h-7 text-red-600" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900">
-            Delete {entityType}?
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-900">Delete {entityType}?</h3>
           <p className="text-sm text-slate-500 mt-1 text-center px-6">
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-slate-700">"{entityName}"</span>?
-            This action cannot be undone.
+            Are you sure you want to delete{' '}
+            <span className="font-medium text-slate-700">"{entityName}"</span>? This action cannot
+            be undone.
           </p>
         </div>
 

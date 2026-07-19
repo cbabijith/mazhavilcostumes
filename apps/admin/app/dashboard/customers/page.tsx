@@ -8,11 +8,11 @@
  * @module app/dashboard/customers/page
  */
 
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Search,
   Plus,
@@ -25,22 +25,22 @@ import {
   AlertTriangle,
   Phone,
   Mail,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import Modal from "@/components/admin/Modal";
-import { useCustomers, useDeleteCustomer } from "@/hooks";
-import { useAppStore, useAppSelectors } from "@/stores";
-import { type Customer } from "@/domain";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import Modal from '@/components/admin/Modal';
+import { useCustomers, useDeleteCustomer } from '@/hooks';
+import { useAppStore, useAppSelectors } from '@/stores';
+import { type Customer } from '@/domain';
 
 export default function CustomersPage() {
   const router = useRouter();
 
   // ── Search + Pagination state ──────────────────────────────────────
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -58,14 +58,7 @@ export default function CustomersPage() {
   }, [searchInput]);
 
   // ── Data fetching ──────────────────────────────────────────────────
-  const {
-    customers,
-    isLoading,
-    total,
-    totalPages,
-    hasNext,
-    hasPrev,
-  } = useCustomers({
+  const { customers, isLoading, total, totalPages, hasNext, hasPrev } = useCustomers({
     query: debouncedQuery,
     limit: pageSize,
     page,
@@ -97,9 +90,7 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Customers
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Customers</h1>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
             <Users className="w-4 h-4 text-slate-400" />
             <span>{total} total customers</span>
@@ -150,12 +141,12 @@ export default function CustomersPage() {
           <div className="p-16 text-center">
             <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-700 mb-1">
-              {debouncedQuery ? "No customers found" : "No customers yet"}
+              {debouncedQuery ? 'No customers found' : 'No customers yet'}
             </h3>
             <p className="text-sm text-slate-500 mb-6">
               {debouncedQuery
-                ? "Try adjusting your search query"
-                : "Add your first customer to get started"}
+                ? 'Try adjusting your search query'
+                : 'Add your first customer to get started'}
             </p>
             {!debouncedQuery && (
               <Button asChild className="bg-slate-900 text-white hover:bg-slate-800 gap-2">
@@ -195,10 +186,7 @@ export default function CustomersPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {customers.map((customer: Customer) => (
-                    <tr
-                      key={customer.id}
-                      className="hover:bg-slate-50/50 transition-colors group"
-                    >
+                    <tr key={customer.id} className="hover:bg-slate-50/50 transition-colors group">
                       {/* Name + avatar */}
                       <td className="p-4">
                         <Link
@@ -215,9 +203,9 @@ export default function CustomersPage() {
                             ) : (
                               <span className="text-sm font-semibold text-slate-500">
                                 {customer.name
-                                  .split(" ")
+                                  .split(' ')
                                   .map((n) => n[0])
-                                  .join("")
+                                  .join('')
                                   .slice(0, 2)
                                   .toUpperCase()}
                               </span>
@@ -267,10 +255,10 @@ export default function CustomersPage() {
 
                       {/* Date added */}
                       <td className="p-4 text-sm text-slate-500">
-                        {new Date(customer.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
+                        {new Date(customer.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
                         })}
                       </td>
 
@@ -330,7 +318,12 @@ export default function CustomersPage() {
                           />
                         ) : (
                           <span className="text-sm font-semibold text-slate-500">
-                            {customer.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                            {customer.name
+                              .split(' ')
+                              .map((n) => n[0])
+                              .join('')
+                              .slice(0, 2)
+                              .toUpperCase()}
                           </span>
                         )}
                       </div>
@@ -373,13 +366,9 @@ export default function CustomersPage() {
         <div className="flex items-center justify-between text-sm text-slate-600">
           <div className="flex items-center gap-1.5">
             <span>Showing</span>
-            <span className="font-semibold text-slate-900">
-              {(page - 1) * pageSize + 1}
-            </span>
+            <span className="font-semibold text-slate-900">{(page - 1) * pageSize + 1}</span>
             <span>to</span>
-            <span className="font-semibold text-slate-900">
-              {Math.min(page * pageSize, total)}
-            </span>
+            <span className="font-semibold text-slate-900">{Math.min(page * pageSize, total)}</span>
             <span>of</span>
             <span className="font-semibold text-slate-900">{total}</span>
             <span>customers</span>
@@ -446,16 +435,11 @@ export default function CustomersPage() {
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-slate-900 mb-1">
-                Confirm Deletion
-              </h4>
+              <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to permanently delete{" "}
-                <span className="font-semibold text-slate-900">
-                  {customerToDelete?.name}
-                </span>
-                ? This will also remove their photos and ID documents. This action
-                cannot be undone.
+                Are you sure you want to permanently delete{' '}
+                <span className="font-semibold text-slate-900">{customerToDelete?.name}</span>? This
+                will also remove their photos and ID documents. This action cannot be undone.
               </p>
             </div>
           </div>
@@ -472,7 +456,7 @@ export default function CustomersPage() {
               onClick={handleConfirmDelete}
               disabled={deleteCustomer.isLoading}
             >
-              {deleteCustomer.isLoading ? "Deleting..." : "Delete Customer"}
+              {deleteCustomer.isLoading ? 'Deleting...' : 'Delete Customer'}
             </Button>
           </div>
         </div>

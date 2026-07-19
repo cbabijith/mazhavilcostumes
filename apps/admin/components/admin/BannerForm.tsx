@@ -7,28 +7,41 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileUpload } from "@/components/ui/file-upload";
-import { useCreateBanner, useUpdateBanner, useRemainingSlots, useCategories, useProducts, useBanners } from "@/hooks";
-import { useRouter } from "next/navigation";
-import { Banner, BannerRedirectType, BannerType, BannerPosition, BANNER_TYPE_LIMITS } from "@/domain";
-import { AlertCircle, ArrowLeft, Check } from "lucide-react";
-import { useAppStore } from "@/stores";
+import { useState, useEffect, useMemo } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FileUpload } from '@/components/ui/file-upload';
+import {
+  useCreateBanner,
+  useUpdateBanner,
+  useRemainingSlots,
+  useCategories,
+  useProducts,
+  useBanners,
+} from '@/hooks';
+import { useRouter } from 'next/navigation';
+import {
+  Banner,
+  BannerRedirectType,
+  BannerType,
+  BannerPosition,
+  BANNER_TYPE_LIMITS,
+} from '@/domain';
+import { AlertCircle, ArrowLeft, Check } from 'lucide-react';
+import { useAppStore } from '@/stores';
 
 interface BannerFormProps {
-  mode?: "create" | "edit";
+  mode?: 'create' | 'edit';
   initialData?: Banner;
 }
 
-export default function BannerForm({ mode = "create", initialData }: BannerFormProps) {
+export default function BannerForm({ mode = 'create', initialData }: BannerFormProps) {
   const router = useRouter();
   const user = useAppStore((s) => s.user);
-  const isEdit = mode === "edit";
-  const [error, setError] = useState("");
+  const isEdit = mode === 'edit';
+  const [error, setError] = useState('');
   const { data: remainingSlots } = useRemainingSlots();
   const { data: categories } = useCategories();
   const { data: productsData } = useProducts();
@@ -70,19 +83,33 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
 
   const [formData, setFormData] = useState({
     banner_type: initialData?.banner_type || BannerType.HERO,
-    position: initialData?.position || "",
-    title: initialData?.title || "",
-    subtitle: initialData?.subtitle || "",
-    description: initialData?.description || "",
-    call_to_action: initialData?.call_to_action || "",
-    web_image_url: initialData?.web_image_url || "",
+    position: initialData?.position || '',
+    title: initialData?.title || '',
+    subtitle: initialData?.subtitle || '',
+    description: initialData?.description || '',
+    call_to_action: initialData?.call_to_action || '',
+    web_image_url: initialData?.web_image_url || '',
     redirect_type: initialData?.redirect_type || BannerRedirectType.NONE,
-    redirect_target_id: initialData?.redirect_target_id || "",
-    redirect_url: initialData?.redirect_url || "",
+    redirect_target_id: initialData?.redirect_target_id || '',
+    redirect_url: initialData?.redirect_url || '',
     is_active: initialData?.is_active ?? true,
-    start_date: initialData?.start_date || "",
-    end_date: initialData?.end_date || "",
-  } as { banner_type: BannerType; position: string | null; title: string; subtitle: string; description: string; call_to_action: string; web_image_url: string; redirect_type: BannerRedirectType; redirect_target_id: string; redirect_url: string; is_active: boolean; start_date: string; end_date: string });
+    start_date: initialData?.start_date || '',
+    end_date: initialData?.end_date || '',
+  } as {
+    banner_type: BannerType;
+    position: string | null;
+    title: string;
+    subtitle: string;
+    description: string;
+    call_to_action: string;
+    web_image_url: string;
+    redirect_type: BannerRedirectType;
+    redirect_target_id: string;
+    redirect_url: string;
+    is_active: boolean;
+    start_date: string;
+    end_date: string;
+  });
 
   // Auto-select first available hero slot on create
   useEffect(() => {
@@ -110,39 +137,39 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
   const isLoading = isCreating || isUpdating;
 
   const clearZeroOnFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.value === "0") {
-      e.target.value = "";
+    if (e.target.value === '0') {
+      e.target.value = '';
     }
   };
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (e.target instanceof HTMLInputElement && e.target.type === "number") {
+      if (e.target instanceof HTMLInputElement && e.target.type === 'number') {
         e.preventDefault();
       }
     };
 
-    document.addEventListener("wheel", handleWheel, { passive: false });
-    return () => document.removeEventListener("wheel", handleWheel);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => document.removeEventListener('wheel', handleWheel);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setError('');
 
     if (!formData.web_image_url) {
-      setError("Web banner image is required");
+      setError('Web banner image is required');
       return;
     }
 
     // Validate position based on banner type
     if (formData.banner_type === BannerType.HERO && !formData.position) {
-      setError("Position is required for hero banners (1-10)");
+      setError('Position is required for hero banners (1-10)');
       return;
     }
 
     if (formData.banner_type === BannerType.SPLIT && !formData.position) {
-      setError("Position is required for split banners (left or right)");
+      setError('Position is required for split banners (left or right)');
       return;
     }
 
@@ -171,16 +198,19 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
     };
 
     if (isEdit && initialData?.id) {
-      updateBanner({ id: initialData.id, data: cleanData }, {
-        onSuccess: () => {
-          router.push('/dashboard/banners');
+      updateBanner(
+        { id: initialData.id, data: cleanData },
+        {
+          onSuccess: () => {
+            router.push('/dashboard/banners');
+          },
         }
-      });
+      );
     } else {
       createBanner(cleanData, {
         onSuccess: () => {
           router.push('/dashboard/banners');
-        }
+        },
       });
     }
   };
@@ -193,17 +223,19 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
           <Button
             variant="outline"
             size="icon"
-            onClick={() => router.push("/dashboard/banners")}
+            onClick={() => router.push('/dashboard/banners')}
             className="w-9 h-9 border-slate-200 text-slate-500 hover:text-slate-900 bg-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
-              {isEdit ? "Edit Banner" : "Create Banner"}
+              {isEdit ? 'Edit Banner' : 'Create Banner'}
             </h1>
             <p className="text-sm text-slate-500">
-              {isEdit ? "Update banner details and settings" : "Add promotional banners to your storefront"}
+              {isEdit
+                ? 'Update banner details and settings'
+                : 'Add promotional banners to your storefront'}
             </p>
           </div>
         </div>
@@ -222,7 +254,6 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* ── LEFT COLUMN (2/3) ────────────────────────────────────── */}
           <div className="lg:col-span-2 space-y-6">
-
             {/* Banner Type Selection */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
               <h3 className="text-sm font-semibold text-slate-900">Banner Type</h3>
@@ -236,7 +267,11 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                   } ${!isEdit && remainingSlots?.hero === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => {
                     if (!isEdit && remainingSlots?.hero === 0) return;
-                    setFormData((prev) => ({ ...prev, banner_type: BannerType.HERO, position: '' }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      banner_type: BannerType.HERO,
+                      position: '',
+                    }));
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -254,7 +289,8 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                     </div>
                     {!isEdit && (
                       <span className="text-xs font-medium text-slate-500">
-                        {BANNER_TYPE_LIMITS[BannerType.HERO] - (remainingSlots?.hero ?? 10)}/{BANNER_TYPE_LIMITS[BannerType.HERO]}
+                        {BANNER_TYPE_LIMITS[BannerType.HERO] - (remainingSlots?.hero ?? 10)}/
+                        {BANNER_TYPE_LIMITS[BannerType.HERO]}
                       </span>
                     )}
                   </div>
@@ -273,7 +309,11 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                   } ${!isEdit && remainingSlots?.editorial === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => {
                     if (!isEdit && remainingSlots?.editorial === 0) return;
-                    setFormData((prev) => ({ ...prev, banner_type: BannerType.EDITORIAL, position: null }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      banner_type: BannerType.EDITORIAL,
+                      position: null,
+                    }));
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -291,7 +331,9 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                     </div>
                     {!isEdit && (
                       <span className="text-xs font-medium text-slate-500">
-                        {BANNER_TYPE_LIMITS[BannerType.EDITORIAL] - (remainingSlots?.editorial ?? 1)}/{BANNER_TYPE_LIMITS[BannerType.EDITORIAL]}
+                        {BANNER_TYPE_LIMITS[BannerType.EDITORIAL] -
+                          (remainingSlots?.editorial ?? 1)}
+                        /{BANNER_TYPE_LIMITS[BannerType.EDITORIAL]}
                       </span>
                     )}
                   </div>
@@ -310,7 +352,11 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                   } ${!isEdit && remainingSlots?.split === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => {
                     if (!isEdit && remainingSlots?.split === 0) return;
-                    setFormData((prev) => ({ ...prev, banner_type: BannerType.SPLIT, position: '' }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      banner_type: BannerType.SPLIT,
+                      position: '',
+                    }));
                   }}
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -328,7 +374,8 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                     </div>
                     {!isEdit && (
                       <span className="text-xs font-medium text-slate-500">
-                        {BANNER_TYPE_LIMITS[BannerType.SPLIT] - (remainingSlots?.split ?? 2)}/{BANNER_TYPE_LIMITS[BannerType.SPLIT]}
+                        {BANNER_TYPE_LIMITS[BannerType.SPLIT] - (remainingSlots?.split ?? 2)}/
+                        {BANNER_TYPE_LIMITS[BannerType.SPLIT]}
                       </span>
                     )}
                   </div>
@@ -381,9 +428,15 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                         {isOccupied && occupant?.web_image_url && (
                           <span className="absolute inset-0 bg-black/50 rounded-[6px]" />
                         )}
-                        <span className={`text-sm font-bold relative z-10 ${
-                          isSelected ? 'text-slate-900' : isOccupied ? 'text-white' : 'text-slate-500'
-                        }`}>
+                        <span
+                          className={`text-sm font-bold relative z-10 ${
+                            isSelected
+                              ? 'text-slate-900'
+                              : isOccupied
+                                ? 'text-white'
+                                : 'text-slate-500'
+                          }`}
+                        >
                           {slot}
                         </span>
                         {isSelected && (
@@ -391,10 +444,22 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                             <Check className="w-2.5 h-2.5 text-white" />
                           </span>
                         )}
-                        <span className={`text-[9px] font-medium relative z-10 mt-0.5 ${
-                          isSelected ? 'text-slate-700' : isOccupied ? 'text-white/80' : 'text-slate-400'
-                        }`}>
-                          {isSelected ? 'Selected' : isOccupied ? (occupant?.title ? occupant.title.slice(0, 8) : 'Taken') : 'Available'}
+                        <span
+                          className={`text-[9px] font-medium relative z-10 mt-0.5 ${
+                            isSelected
+                              ? 'text-slate-700'
+                              : isOccupied
+                                ? 'text-white/80'
+                                : 'text-slate-400'
+                          }`}
+                        >
+                          {isSelected
+                            ? 'Selected'
+                            : isOccupied
+                              ? occupant?.title
+                                ? occupant.title.slice(0, 8)
+                                : 'Taken'
+                              : 'Available'}
                         </span>
                       </button>
                     );
@@ -447,15 +512,33 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                             <Check className="w-2.5 h-2.5 text-white" />
                           </span>
                         )}
-                        <span className={`text-sm font-bold relative z-10 ${
-                          isSelected ? 'text-slate-900' : isOccupied ? 'text-white' : 'text-slate-600'
-                        }`}>
+                        <span
+                          className={`text-sm font-bold relative z-10 ${
+                            isSelected
+                              ? 'text-slate-900'
+                              : isOccupied
+                                ? 'text-white'
+                                : 'text-slate-600'
+                          }`}
+                        >
                           {label}
                         </span>
-                        <span className={`text-[10px] font-medium relative z-10 mt-0.5 ${
-                          isSelected ? 'text-slate-600' : isOccupied ? 'text-white/80' : 'text-slate-400'
-                        }`}>
-                          {isSelected ? 'Selected' : isOccupied ? (occupant?.title ? occupant.title.slice(0, 12) : 'Taken') : 'Available'}
+                        <span
+                          className={`text-[10px] font-medium relative z-10 mt-0.5 ${
+                            isSelected
+                              ? 'text-slate-600'
+                              : isOccupied
+                                ? 'text-white/80'
+                                : 'text-slate-400'
+                          }`}
+                        >
+                          {isSelected
+                            ? 'Selected'
+                            : isOccupied
+                              ? occupant?.title
+                                ? occupant.title.slice(0, 12)
+                                : 'Taken'
+                              : 'Available'}
                         </span>
                       </button>
                     );
@@ -463,8 +546,6 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                 </div>
               </div>
             )}
-
-
 
             {/* Banner Content */}
             <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-4">
@@ -512,13 +593,10 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                 />
               </div>
             </div>
-
-
           </div>
 
           {/* ── RIGHT COLUMN (1/3) ───────────────────────────────────── */}
           <div className="space-y-6">
-
             {/* Status Toggle — custom toggle matching OrderForm */}
             <div className="bg-white border border-slate-200 rounded-lg p-5">
               <div className="flex items-center justify-between">
@@ -534,7 +612,9 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                     className="sr-only peer"
                   />
                   <div className="w-8 h-[18px] bg-slate-200 peer-focus:ring-2 peer-focus:ring-slate-900/20 rounded-full peer peer-checked:bg-slate-900 transition-colors"></div>
-                  <div className={`absolute left-0.5 top-[1px] w-4 h-4 bg-white rounded-full transition-transform ${formData.is_active ? 'translate-x-3.5' : 'translate-x-0'}`}></div>
+                  <div
+                    className={`absolute left-0.5 top-[1px] w-4 h-4 bg-white rounded-full transition-transform ${formData.is_active ? 'translate-x-3.5' : 'translate-x-0'}`}
+                  ></div>
                 </label>
               </div>
             </div>
@@ -550,7 +630,7 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                 folder="banners"
                 value={formData.web_image_url ? [formData.web_image_url] : []}
                 onChange={(urls) =>
-                  setFormData((prev) => ({ ...prev, web_image_url: urls[0] || "" }))
+                  setFormData((prev) => ({ ...prev, web_image_url: urls[0] || '' }))
                 }
                 helperText="Drag & drop or click to upload (max 5MB, recommended: 1920×600px)"
               />
@@ -561,7 +641,9 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
               <h3 className="text-sm font-semibold text-slate-900">Schedule</h3>
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Start Date</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Start Date
+                  </label>
                   <Input
                     type="date"
                     value={formData.start_date}
@@ -570,7 +652,9 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">End Date</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    End Date
+                  </label>
                   <Input
                     type="date"
                     value={formData.end_date}
@@ -587,10 +671,19 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
               <h3 className="text-sm font-semibold text-slate-900">Redirect Settings</h3>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Redirect Type</label>
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Redirect Type
+                </label>
                 <select
                   value={formData.redirect_type}
-                  onChange={(e) => setFormData({ ...formData, redirect_type: e.target.value as any, redirect_target_id: '', redirect_url: '' })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      redirect_type: e.target.value as any,
+                      redirect_target_id: '',
+                      redirect_url: '',
+                    })
+                  }
                   className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
                 >
                   <option value="none">None</option>
@@ -604,15 +697,21 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
 
               {formData.redirect_type === 'category' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Select Category</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Select Category
+                  </label>
                   <select
                     value={formData.redirect_target_id || ''}
-                    onChange={(e) => setFormData({ ...formData, redirect_target_id: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, redirect_target_id: e.target.value })
+                    }
                     className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
                   >
                     <option value="">Select a category</option>
                     {categories?.map((cat: any) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -620,15 +719,21 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
 
               {formData.redirect_type === 'product' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Select Product</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Select Product
+                  </label>
                   <select
                     value={formData.redirect_target_id || ''}
-                    onChange={(e) => setFormData({ ...formData, redirect_target_id: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, redirect_target_id: e.target.value })
+                    }
                     className="w-full h-9 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
                   >
                     <option value="">Select a product</option>
                     {products?.map((prod: any) => (
-                      <option key={prod.id} value={prod.id}>{prod.name}</option>
+                      <option key={prod.id} value={prod.id}>
+                        {prod.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -636,7 +741,9 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
 
               {formData.redirect_type === 'url' && (
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Redirect URL</label>
+                  <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    Redirect URL
+                  </label>
                   <Input
                     value={formData.redirect_url}
                     onChange={(e) => setFormData({ ...formData, redirect_url: e.target.value })}
@@ -646,7 +753,6 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
                 </div>
               )}
             </div>
-
           </div>
         </div>
 
@@ -656,7 +762,7 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push("/dashboard/banners")}
+              onClick={() => router.push('/dashboard/banners')}
               className="h-10 border-slate-200 text-slate-600 hover:text-slate-900"
             >
               Cancel
@@ -667,8 +773,12 @@ export default function BannerForm({ mode = "create", initialData }: BannerFormP
               className="h-10 px-6 bg-slate-900 text-white hover:bg-slate-800 font-semibold"
             >
               {isLoading
-                ? (isEdit ? "Saving..." : "Creating...")
-                : (isEdit ? "Save Changes" : "Create Banner")}
+                ? isEdit
+                  ? 'Saving...'
+                  : 'Creating...'
+                : isEdit
+                  ? 'Save Changes'
+                  : 'Create Banner'}
             </Button>
           </div>
         </div>

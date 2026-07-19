@@ -208,7 +208,9 @@ class OrderItem extends Equatable {
       quantity: json['quantity'] as int? ?? 0,
       pricePerDay: (json['price_per_day'] as num?)?.toDouble() ?? 0.0,
       originalPricePerDay: (json['original_price_per_day'] as num?)?.toDouble(),
-      totalPrice: (json['total_price'] as num?)?.toDouble() ?? 0.0,
+      totalPrice: (json['total_price'] as num?)?.toDouble() ??
+          (((json['base_amount'] as num?)?.toDouble() ?? 0.0) +
+           ((json['gst_amount'] as num?)?.toDouble() ?? 0.0)),
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       discount: (json['discount'] as num?)?.toDouble() ?? 0.0,
       discountType: json['discount_type']?.toString() ?? 'flat',
@@ -304,6 +306,12 @@ class Order extends Equatable {
   final bool advanceCollected;
   final PaymentMethod? advancePaymentMethod;
   final String? advanceCollectedAt;
+  final double securityDeposit;
+  final bool depositCollected;
+  final PaymentMethod? depositPaymentMethod;
+  final String? depositCollectedAt;
+  final bool depositReturned;
+  final String? depositReturnedAt;
   final double amountPaid;
   final PaymentStatus paymentStatus;
   final bool hasPriorityCleaning;
@@ -328,9 +336,6 @@ class Order extends Equatable {
   final List<OrderItem>? items;
   final BranchInfo? branch;
 
-  // Legacy field support for UI/views compatibility
-  double get securityDeposit => advanceAmount;
-
   const Order({
     required this.id,
     required this.storeId,
@@ -347,6 +352,12 @@ class Order extends Equatable {
     this.advanceCollected = false,
     this.advancePaymentMethod,
     this.advanceCollectedAt,
+    required this.securityDeposit,
+    this.depositCollected = false,
+    this.depositPaymentMethod,
+    this.depositCollectedAt,
+    this.depositReturned = false,
+    this.depositReturnedAt,
     required this.amountPaid,
     required this.paymentStatus,
     this.hasPriorityCleaning = false,
@@ -389,6 +400,12 @@ class Order extends Equatable {
         advanceCollected,
         advancePaymentMethod,
         advanceCollectedAt,
+        securityDeposit,
+        depositCollected,
+        depositPaymentMethod,
+        depositCollectedAt,
+        depositReturned,
+        depositReturnedAt,
         amountPaid,
         paymentStatus,
         hasPriorityCleaning,
@@ -427,19 +444,20 @@ class Order extends Equatable {
       totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       gstAmount: (json['gst_amount'] as num?)?.toDouble() ?? 0.0,
-      advanceAmount: (json['advance_amount'] as num?)?.toDouble() ??
-          (json['security_deposit'] as num?)?.toDouble() ??
-          0.0,
-      advanceCollected: json['advance_collected'] as bool? ??
-          json['deposit_collected'] as bool? ??
-          false,
+      advanceAmount: (json['advance_amount'] as num?)?.toDouble() ?? 0.0,
+      advanceCollected: json['advance_collected'] as bool? ?? false,
       advancePaymentMethod: json['advance_payment_method'] != null
           ? _parsePaymentMethod(json['advance_payment_method'].toString())
-          : json['deposit_payment_method'] != null
-              ? _parsePaymentMethod(json['deposit_payment_method'].toString())
-              : null,
-      advanceCollectedAt: json['advance_collected_at']?.toString() ??
-          json['deposit_collected_at']?.toString(),
+          : null,
+      advanceCollectedAt: json['advance_collected_at']?.toString(),
+      securityDeposit: (json['security_deposit'] as num?)?.toDouble() ?? 0.0,
+      depositCollected: json['deposit_collected'] as bool? ?? false,
+      depositPaymentMethod: json['deposit_payment_method'] != null
+          ? _parsePaymentMethod(json['deposit_payment_method'].toString())
+          : null,
+      depositCollectedAt: json['deposit_collected_at']?.toString(),
+      depositReturned: json['deposit_returned'] as bool? ?? false,
+      depositReturnedAt: json['deposit_returned_at']?.toString(),
       amountPaid: (json['amount_paid'] as num?)?.toDouble() ?? 0.0,
       paymentStatus: _parsePaymentStatus(json['payment_status']?.toString() ?? 'pending'),
       hasPriorityCleaning: json['has_priority_cleaning'] as bool? ?? false,

@@ -1,22 +1,27 @@
 # Flutter MVVM Architecture Rules
 
 ## 🚨 MANDATORY: Post-Work Build Verification
+
 **After EVERY code change in this module, the agent MUST:**
+
 1. Run `flutter analyze --no-pub`.
 2. Fix ALL `error` and `warning` level issues before delivering to the user.
 3. Verify there are no runtime issues.
 
 ## 🚫 No Automatic Git Push
+
 - Never run `git add`, `git commit`, or `git push` automatically.
 - If requested to push, target branch is `abijithcb`. NEVER push to `main`.
 
 ## 📝 Mandatory Change Explanations
+
 - For every code change, provide a clear explanation of:
   - **What** was changed
   - **Why** the change was necessary
   - **How** the fix works
 
 ## 🔍 Mandatory Graphify Usage & Token Optimization
+
 - **Use Graphify First**: For any codebase, directory, or structural questions, you **MUST** run `graphify query` or `query_graph` instead of doing broad grep or file searches.
 - **Reference Exact Files**: Always ask the user for specific file references (e.g. `@file`) or search the graph to target files precisely, preventing unnecessary loading of files to keep prompt sizes small.
 - **Atomic Tasks**: Break feature development down into small, step-by-step components (Model -> Repository -> Provider -> View) to maintain maximum accuracy and lowest token usage.
@@ -49,16 +54,16 @@ Always use:
 lib/
 ├── core/
 ├── features/
-│   ├── auth/
-│   ├── products/
-│   ├── categories/
-│   ├── customers/
-│   ├── orders/
-│   ├── payments/
-│   ├── staff/
-│   ├── branches/
-│   ├── reports/
-│   └── settings/
+│ ├── auth/
+│ ├── products/
+│ ├── categories/
+│ ├── customers/
+│ ├── orders/
+│ ├── payments/
+│ ├── staff/
+│ ├── branches/
+│ ├── reports/
+│ └── settings/
 
 Every feature must contain:
 
@@ -75,18 +80,21 @@ Never create random folders.
 ## MVVM Rules
 
 Views:
+
 - UI only
 - No business logic
 - No Supabase calls
 - No complex calculations
 
 ViewModels:
+
 - Manage state
 - Call repositories
 - Handle loading and error states
 - No UI widgets
 
 Repositories:
+
 - Supabase queries only
 - CRUD operations only
 - Return typed models
@@ -98,12 +106,14 @@ Repositories:
 Use Riverpod only.
 
 Do not use:
+
 - Provider
 - GetX
 - Bloc
 - setState for business state
 
 Use:
+
 - AsyncNotifier
 - Notifier
 - Riverpod Generator
@@ -305,25 +315,30 @@ Always reuse existing ViewModels and repositories when possible.
 ## Mazhavil Business Rules
 
 Products:
+
 - Must support inventory tracking
 - Must support branch assignment
 - Must support image uploads
 
 Orders:
+
 - Check availability before booking
 - Validate stock before confirmation
 - Prevent double booking
 
 Customers:
+
 - Support KYC documents
 - Support rental history
 
 Payments:
+
 - Support Cash
 - Support UPI
 - Support Bank Transfer
 
 Reports:
+
 - Revenue
 - Top Costumes
 - Top Customers

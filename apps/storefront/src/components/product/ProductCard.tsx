@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShoppingBag, Check } from 'lucide-react';
@@ -18,34 +18,49 @@ interface ProductCardProps {
 export default function ProductCard({ product, badge }: ProductCardProps) {
   const imageUrls = getProductImageUrls(product.images);
   const imageUrl = imageUrls.length > 0 ? imageUrls[0] : null;
-  const [added, setAdded] = useState(false);
+  const [isInCart, setIsInCart] = useState(false);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
+  useEffect(() => {
+    const checkCart = () => {
+      const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
+      setIsInCart(cart.some((item: any) => item.id === product.id));
+    };
+
+    checkCart();
+
+    window.addEventListener('paris_cart_updated', checkCart);
+    return () => {
+      window.removeEventListener('paris_cart_updated', checkCart);
+    };
+  }, [product.id]);
+
+  const handleCartToggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+    const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
     const exists = cart.some((item: any) => item.id === product.id);
-    if (!exists) {
+
+    let newCart;
+    if (exists) {
+      newCart = cart.filter((item: any) => item.id !== product.id);
+    } else {
       const newItem = {
         id: product.id,
         name: product.name,
         price_per_day: product.price_per_day,
         images: product.images,
       };
-      const newCart = [...cart, newItem];
-      localStorage.setItem("paris_cart", JSON.stringify(newCart));
-      window.dispatchEvent(new CustomEvent("paris_cart_updated", { detail: newCart.length }));
+      newCart = [...cart, newItem];
     }
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+
+    localStorage.setItem('paris_cart', JSON.stringify(newCart));
+    setIsInCart(!exists);
+    window.dispatchEvent(new CustomEvent('paris_cart_updated', { detail: newCart.length }));
   };
 
   return (
-    <Link
-      href={`/product/${product.id}`}
-      className="group block"
-    >
+    <Link href={`/product/${product.id}`} className="group block">
       {/* Image Container — square aspect ratio matching reference */}
       <div className="relative aspect-square overflow-hidden rounded-xl sm:rounded-2xl bg-gray-50">
         {imageUrl ? (
@@ -82,11 +97,15 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
         </h3>
         <div className="flex items-center justify-end">
           <button
-            onClick={handleAddToCart}
-            aria-label="Add to cart"
-            className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-rosegold text-white hover:bg-rosegold-dark transition-colors duration-300 active:scale-95"
+            onClick={handleCartToggle}
+            aria-label={isInCart ? 'Remove from cart' : 'Add to cart'}
+            className={`flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-lg transition-colors duration-300 active:scale-95 ${
+              isInCart
+                ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                : 'bg-rosegold text-white hover:bg-rosegold-dark'
+            }`}
           >
-            {added ? (
+            {isInCart ? (
               <Check size={16} strokeWidth={2.5} />
             ) : (
               <ShoppingBag size={16} strokeWidth={2} />

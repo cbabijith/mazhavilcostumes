@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 /**
  * Merge Tailwind CSS classes with clsx
@@ -12,9 +12,9 @@ export function cn(...inputs: ClassValue[]) {
  * Format currency in Indian Rupees
  */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
@@ -24,11 +24,11 @@ export function formatCurrency(amount: number): string {
  * Format date to readable format
  */
 export function formatDate(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   }).format(d);
 }
 
@@ -67,9 +67,9 @@ export function calculateGST(subtotal: number, gstRate: number = 18): number {
 export function generateSlug(text: string): string {
   return text
     .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/--+/g, "-")
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/--+/g, '-')
     .trim();
 }
 
@@ -78,7 +78,7 @@ export function generateSlug(text: string): string {
  */
 export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + "...";
+  return text.slice(0, maxLength) + '...';
 }
 
 /**
@@ -94,7 +94,7 @@ export function isValidEmail(email: string): boolean {
  */
 export function isValidPhone(phone: string): boolean {
   const phoneRegex = /^[6-9]\d{9}$/;
-  return phoneRegex.test(phone.replace(/\D/g, ""));
+  return phoneRegex.test(phone.replace(/\D/g, ''));
 }
 
 /**
@@ -166,3 +166,24 @@ export function throttle<T extends (...args: any[]) => any>(
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Shared branding configuration
+ */
+export const BRAND_CONFIG = {
+  get name() {
+    return process.env.NEXT_PUBLIC_APP_NAME || 'Paris Bridals';
+  },
+  get shortName() {
+    return process.env.NEXT_PUBLIC_APP_NAME || 'Paris Bridals';
+  },
+  get email() {
+    return process.env.NEXT_PUBLIC_APP_EMAIL || 'admin@parisbridals.com';
+  },
+  get slug() {
+    return process.env.NEXT_PUBLIC_APP_SLUG || 'paris-bridals';
+  },
+  get defaultLogo() {
+    return process.env.NEXT_PUBLIC_APP_LOGO || '/logo.svg';
+  },
+};

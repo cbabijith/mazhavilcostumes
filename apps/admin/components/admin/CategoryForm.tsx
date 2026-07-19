@@ -6,34 +6,27 @@
  * @component
  */
 
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/query-client";
-import {
-  AlertCircle,
-  ArrowLeft,
-  FolderTree,
-  Hash,
-  ImageIcon,
-  RefreshCw,
-} from "lucide-react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-client';
+import { AlertCircle, ArrowLeft, FolderTree, Hash, ImageIcon, RefreshCw } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileUpload } from "@/components/ui/file-upload";
-import { Switch } from "@/components/ui/switch";
-import { type Category, GST_OPTIONS } from "@/domain/types/category";
-import { useAppStore } from "@/stores";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { FileUpload } from '@/components/ui/file-upload';
+import { Switch } from '@/components/ui/switch';
+import { type Category, GST_OPTIONS } from '@/domain/types/category';
+import { useAppStore } from '@/stores';
 import {
   CategoryFieldLabel,
   CategoryFormPanel,
   CategoryPlacementSummary,
   categoryLevelConfig,
   type CategoryLevelName,
-} from "@/components/admin/category/CategoryFormPrimitives";
+} from '@/components/admin/category/CategoryFormPrimitives';
 
 interface CategoryFormProps {
   /** Existing category for edit mode; when omitted, form operates in create mode */
@@ -55,29 +48,29 @@ export default function CategoryForm({
   const isEdit = Boolean(category);
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [formData, setFormData] = useState({
-    name: category?.name || "",
-    slug: category?.slug || "",
-    description: category?.description || "",
-    image_url: category?.image_url || "",
+    name: category?.name || '',
+    slug: category?.slug || '',
+    description: category?.description || '',
+    image_url: category?.image_url || '',
     sort_order: category?.sort_order || 0,
     is_active: category?.is_active ?? true,
     is_global: true, // Always global — Mazhavil Dance Costumes is a single-shop business
     parent_id: (category?.parent_id ?? defaultParentId ?? null) as string | null,
     store_id: user?.store_id || null,
     gst_percentage: category?.gst_percentage ?? 5,
-    has_buffer: category?.has_buffer ?? true,
+    has_buffer: category?.has_buffer ?? false,
   });
 
   const generateSlug = (name: string): string =>
     name
       .toLowerCase()
       .trim()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-      .replace(/--+/g, "-");
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/--+/g, '-');
 
   useEffect(() => {
     if (!slugManuallyEdited) {
@@ -87,12 +80,12 @@ export default function CategoryForm({
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      if (e.target instanceof HTMLInputElement && e.target.type === "number") {
+      if (e.target instanceof HTMLInputElement && e.target.type === 'number') {
         e.preventDefault();
       }
     };
-    document.addEventListener("wheel", handleWheel, { passive: false });
-    return () => document.removeEventListener("wheel", handleWheel);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    return () => document.removeEventListener('wheel', handleWheel);
   }, []);
 
   const mains = allCategories.filter((c) => !c.parent_id && c.id !== category?.id);
@@ -106,25 +99,25 @@ export default function CategoryForm({
   const isParentLocked = !isEdit;
 
   const getLevel = (): CategoryLevelName => {
-    if (!formData.parent_id) return "main";
+    if (!formData.parent_id) return 'main';
     const parent = allCategories.find((c) => c.id === formData.parent_id);
-    if (!parent?.parent_id) return "sub";
-    return "variant";
+    if (!parent?.parent_id) return 'sub';
+    return 'variant';
   };
 
   const level = getLevel();
   const levelConfig = categoryLevelConfig[level];
   const LevelIcon = levelConfig.Icon;
-  const title = isEdit ? "Edit Category" : `Add ${levelConfig.label}`;
+  const title = isEdit ? 'Edit Category' : `Add ${levelConfig.label}`;
   const subtitle = isEdit
-    ? "Update details, placement, visibility, and category media"
+    ? 'Update details, placement, visibility, and category media'
     : selectedParent
-    ? `Creating inside ${selectedParent.name}`
-    : "Create a top-level category for the catalogue";
+      ? `Creating inside ${selectedParent.name}`
+      : 'Create a top-level category for the catalogue';
 
   const clearZeroOnFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    if (e.target.value === "0") {
-      e.target.value = "";
+    if (e.target.value === '0') {
+      e.target.value = '';
     }
   };
 
@@ -133,26 +126,30 @@ export default function CategoryForm({
       router.push(`/dashboard/categories/${category.id}`);
       return;
     }
-    router.push(formData.parent_id ? `/dashboard/categories/${formData.parent_id}` : "/dashboard/categories");
+    router.push(
+      formData.parent_id ? `/dashboard/categories/${formData.parent_id}` : '/dashboard/categories'
+    );
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
 
     try {
-      const endpoint = isEdit && category ? `/api/categories/${category.id}` : "/api/categories";
-      const method = isEdit && category ? "PATCH" : "POST";
+      const endpoint = isEdit && category ? `/api/categories/${category.id}` : '/api/categories';
+      const method = isEdit && category ? 'PATCH' : 'POST';
       const res = await fetch(endpoint, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(payload.error?.message || payload.error || `Request failed (${res.status})`);
+        throw new Error(
+          payload.error?.message || payload.error || `Request failed (${res.status})`
+        );
       }
 
       // Clear TanStack cache so list page fetches fresh data
@@ -162,13 +159,13 @@ export default function CategoryForm({
         isEdit && category
           ? `/dashboard/categories/${category.id}`
           : formData.parent_id
-          ? `/dashboard/categories/${formData.parent_id}`
-          : "/dashboard/categories";
+            ? `/dashboard/categories/${formData.parent_id}`
+            : '/dashboard/categories';
 
       router.push(redirectTo);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred";
-      console.error("Error saving category:", err);
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('Error saving category:', err);
       setError(message);
     } finally {
       setLoading(false);
@@ -190,10 +187,10 @@ export default function CategoryForm({
           </Button>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                {title}
-              </h1>
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelConfig.badgeClass}`}>
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">{title}</h1>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${levelConfig.badgeClass}`}
+              >
                 <LevelIcon className="h-3.5 w-3.5" />
                 {levelConfig.label}
               </span>
@@ -239,9 +236,7 @@ export default function CategoryForm({
               <CategoryFieldLabel>Description</CategoryFieldLabel>
               <textarea
                 value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="Short note about the collection, occasion, or style"
                 rows={4}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none resize-y"
@@ -260,9 +255,7 @@ export default function CategoryForm({
               maxSize={5 * 1024 * 1024}
               folder="categories"
               value={formData.image_url ? [formData.image_url] : []}
-              onChange={(urls) =>
-                setFormData((prev) => ({ ...prev, image_url: urls[0] || "" }))
-              }
+              onChange={(urls) => setFormData((prev) => ({ ...prev, image_url: urls[0] || '' }))}
               helperText="Upload one square-friendly image, max 5MB."
             />
           </CategoryFormPanel>
@@ -270,7 +263,7 @@ export default function CategoryForm({
 
         <div className="space-y-6">
           {/* Hierarchy — hidden for main category creation since it's redundant */}
-          {(isEdit || level !== "main") && (
+          {(isEdit || level !== 'main') && (
             <CategoryFormPanel
               title="Hierarchy"
               description="Placement controls where this category appears"
@@ -286,7 +279,7 @@ export default function CategoryForm({
                 <div className="space-y-1.5">
                   <CategoryFieldLabel>Parent Category</CategoryFieldLabel>
                   <select
-                    value={formData.parent_id || ""}
+                    value={formData.parent_id || ''}
                     onChange={(e) =>
                       setFormData({ ...formData, parent_id: e.target.value || null })
                     }
@@ -304,7 +297,8 @@ export default function CategoryForm({
                       <optgroup label="Sub Categories">
                         {subs.map((sub) => (
                           <option key={sub.id} value={sub.id}>
-                            {allCategories.find((p) => p.id === sub.parent_id)?.name} &gt; {sub.name}
+                            {allCategories.find((p) => p.id === sub.parent_id)?.name} &gt;{' '}
+                            {sub.name}
                           </option>
                         ))}
                       </optgroup>
@@ -314,8 +308,6 @@ export default function CategoryForm({
               )}
             </CategoryFormPanel>
           )}
-
-
 
           <CategoryFormPanel
             title="GST Rate"
@@ -337,7 +329,8 @@ export default function CategoryForm({
                 ))}
               </select>
               <p className="text-xs text-slate-500">
-                This GST rate will apply to all products under this category when GST is enabled in Settings.
+                This GST rate will apply to all products under this category when GST is enabled in
+                Settings.
               </p>
             </div>
           </CategoryFormPanel>
@@ -372,14 +365,13 @@ export default function CategoryForm({
               <div className="space-y-0.5">
                 <CategoryFieldLabel>Cleaning Buffer Required</CategoryFieldLabel>
                 <p className="text-[10px] text-slate-500 max-w-[180px]">
-                  Enforces a mandatory 1-day cleaning gap between rentals. Disable for items like ornaments.
+                  Enforces a mandatory 1-day cleaning gap between rentals. Disable for items like
+                  ornaments.
                 </p>
               </div>
               <Switch
                 checked={formData.has_buffer}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, has_buffer: checked })
-                }
+                onCheckedChange={(checked) => setFormData({ ...formData, has_buffer: checked })}
               />
             </div>
           </CategoryFormPanel>
@@ -401,7 +393,7 @@ export default function CategoryForm({
             disabled={loading}
             className="h-10 px-6 bg-slate-900 text-white hover:bg-slate-800 font-semibold"
           >
-            {loading ? "Saving..." : isEdit ? "Save Changes" : `Create ${levelConfig.label}`}
+            {loading ? 'Saving...' : isEdit ? 'Save Changes' : `Create ${levelConfig.label}`}
           </Button>
         </div>
       </div>

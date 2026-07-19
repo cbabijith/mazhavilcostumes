@@ -10,12 +10,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  Category,
-  CreateCategoryDTO,
-  UpdateCategoryDTO,
-  CategoryWithRelations,
-} from '@/domain';
+import { Category, CreateCategoryDTO, UpdateCategoryDTO, CategoryWithRelations } from '@/domain';
 import { useAppStore } from '@/stores';
 import { useCallback } from 'react';
 import type { ApiSuccessResponse } from '@/lib/apiResponse';
@@ -85,7 +80,9 @@ export function useCategoryChildren(parentId: string) {
   const query = useQuery({
     queryKey: queryKeys.categoryChildren(parentId),
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<{ children: Category[]; parent: Category; level: string }>>(`/api/categories/${parentId}/children`);
+      const response = await apiFetch<
+        ApiSuccessResponse<{ children: Category[]; parent: Category; level: string }>
+      >(`/api/categories/${parentId}/children`);
       return response.data.children;
     },
     enabled: !!parentId,
@@ -156,8 +153,7 @@ export function useDeleteCategory() {
   const { showSuccess, showError } = useAppStore();
 
   const mutation = useMutation({
-    mutationFn: (id: string) =>
-      apiFetch(`/api/categories/${id}`, { method: 'DELETE' }),
+    mutationFn: (id: string) => apiFetch(`/api/categories/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.categories });
       showSuccess('Category deleted successfully');
@@ -179,7 +175,9 @@ export function useCanDeleteCategory(id: string) {
   const query = useQuery({
     queryKey: ['category-can-delete', id],
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<{ canDelete: boolean; reason?: string }>>(`/api/categories/${id}/can-delete`);
+      const response = await apiFetch<ApiSuccessResponse<{ canDelete: boolean; reason?: string }>>(
+        `/api/categories/${id}/can-delete`
+      );
       return response.data;
     },
     enabled: !!id,
@@ -206,10 +204,11 @@ export function useCategorySearch(query: string, enabled: boolean = true) {
     };
   }
 
-  const filteredCategories = categories.filter(category =>
-    category.name.toLowerCase().includes(query.toLowerCase()) ||
-    category.slug.toLowerCase().includes(query.toLowerCase()) ||
-    (category.description && category.description.toLowerCase().includes(query.toLowerCase()))
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name.toLowerCase().includes(query.toLowerCase()) ||
+      category.slug.toLowerCase().includes(query.toLowerCase()) ||
+      (category.description && category.description.toLowerCase().includes(query.toLowerCase()))
   );
 
   return {
@@ -229,10 +228,12 @@ export function useCategoryTree() {
       children: CategoryNode[];
     }
 
-    const categoryMap = new Map(categories.map(cat => [cat.id, { ...cat, children: [] } as CategoryNode]));
+    const categoryMap = new Map(
+      categories.map((cat) => [cat.id, { ...cat, children: [] } as CategoryNode])
+    );
     const roots: CategoryNode[] = [];
 
-    categories.forEach(category => {
+    categories.forEach((category) => {
       const node = categoryMap.get(category.id);
       if (category.parent_id && categoryMap.has(category.parent_id)) {
         const parent = categoryMap.get(category.parent_id);

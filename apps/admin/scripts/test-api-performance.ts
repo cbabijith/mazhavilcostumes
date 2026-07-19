@@ -20,9 +20,9 @@ const AUTH_HEADER = { 'x-bypass-auth': 'true' };
 
 // Latency budgets (ms) — adjust based on your requirements
 const BUDGETS = {
-  fast: 100,   // List endpoints, simple CRUD
+  fast: 100, // List endpoints, simple CRUD
   medium: 300, // Aggregation, search, availability
-  slow: 1000,  // Reports, complex joins
+  slow: 1000, // Reports, complex joins
 };
 
 interface TestResult {
@@ -44,20 +44,36 @@ const tests: { name: string; method: string; path: string; budget: number; body?
   { name: 'Customers List', method: 'GET', path: '/api/customers?limit=10', budget: BUDGETS.fast },
 
   // Detail endpoints
-  { name: 'Order Detail', method: 'GET', path: '/api/orders/00000000-0000-0000-0000-000000000000', budget: BUDGETS.fast },
+  {
+    name: 'Order Detail',
+    method: 'GET',
+    path: '/api/orders/00000000-0000-0000-0000-000000000000',
+    budget: BUDGETS.fast,
+  },
 
   // Medium endpoints
-  { name: 'Availability Check', method: 'POST', path: '/api/orders/check-availability', budget: BUDGETS.medium, body: {
-    items: [{ product_id: '00000000-0000-0000-0000-000000000000', quantity: 1 }],
-    start_date: '2026-07-01',
-    end_date: '2026-07-05',
-  }},
+  {
+    name: 'Availability Check',
+    method: 'POST',
+    path: '/api/orders/check-availability',
+    budget: BUDGETS.medium,
+    body: {
+      items: [{ product_id: '00000000-0000-0000-0000-000000000000', quantity: 1 }],
+      start_date: '2026-07-01',
+      end_date: '2026-07-05',
+    },
+  },
 
   // Dashboard (aggregation — may be slow)
-  { name: 'Dashboard Overview', method: 'GET', path: '/api/dashboard/overview', budget: BUDGETS.slow },
+  {
+    name: 'Dashboard Overview',
+    method: 'GET',
+    path: '/api/dashboard/overview',
+    budget: BUDGETS.slow,
+  },
 ];
 
-async function runTest(test: typeof tests[0]): Promise<TestResult> {
+async function runTest(test: (typeof tests)[0]): Promise<TestResult> {
   const start = performance.now();
 
   try {
@@ -118,10 +134,10 @@ async function main() {
   }
 
   // Summary
-  const passed = results.filter(r => r.pass).length;
+  const passed = results.filter((r) => r.pass).length;
   const failed = results.length - passed;
   const avgTime = Math.round(results.reduce((sum, r) => sum + r.durationMs, 0) / results.length);
-  const maxTime = Math.max(...results.map(r => r.durationMs));
+  const maxTime = Math.max(...results.map((r) => r.durationMs));
 
   console.log('');
   console.log('   ' + '─'.repeat(70));
@@ -131,7 +147,7 @@ async function main() {
 
   if (failed > 0) {
     console.log('  ⚠️  Slow endpoints:');
-    for (const r of results.filter(r => !r.pass)) {
+    for (const r of results.filter((r) => !r.pass)) {
       console.log(`     • ${r.endpoint}: ${r.durationMs}ms (budget: ${r.budget}ms)`);
     }
     console.log('');

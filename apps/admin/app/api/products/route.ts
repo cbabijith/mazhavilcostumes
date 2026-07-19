@@ -14,11 +14,17 @@ import { CreateProductDTO, ProductSearchSchema, ClientCreateProductSchema } from
 import { z } from 'zod';
 import { apiGuard } from '@/lib/apiGuard';
 import { getAuthUser } from '@/lib/auth';
-import { apiSuccess, apiRepositoryError, apiZodError, apiInternalError, apiBadRequest } from '@/lib/apiResponse';
+import {
+  apiSuccess,
+  apiRepositoryError,
+  apiZodError,
+  apiInternalError,
+  apiBadRequest,
+} from '@/lib/apiResponse';
 
 /**
  * GET /api/products
- * 
+ *
  * Query parameters:
  * - query: Search query string
  * - category_id: Filter by category
@@ -40,7 +46,7 @@ export async function GET(request: NextRequest) {
     if (guard.error) return guard.error;
 
     const { searchParams } = new URL(request.url);
-    
+
     // Parse and validate query parameters
     const params = ProductSearchSchema.parse({
       query: searchParams.get('query') || undefined,
@@ -50,16 +56,26 @@ export async function GET(request: NextRequest) {
       store_id: searchParams.get('store_id') || undefined,
       branch_id: searchParams.get('branch_id') || undefined,
       status: searchParams.get('status') || undefined,
-      is_featured: searchParams.get('is_featured') === 'true' ? true : 
-                   searchParams.get('is_featured') === 'false' ? false : undefined,
-      min_price: searchParams.get('min_price') ? 
-                parseFloat(searchParams.get('min_price')!) : undefined,
-      max_price: searchParams.get('max_price') ? 
-                parseFloat(searchParams.get('max_price')!) : undefined,
-      in_stock: searchParams.get('in_stock') === 'true' ? true : 
-                searchParams.get('in_stock') === 'false' ? false : undefined,
+      is_featured:
+        searchParams.get('is_featured') === 'true'
+          ? true
+          : searchParams.get('is_featured') === 'false'
+            ? false
+            : undefined,
+      min_price: searchParams.get('min_price')
+        ? parseFloat(searchParams.get('min_price')!)
+        : undefined,
+      max_price: searchParams.get('max_price')
+        ? parseFloat(searchParams.get('max_price')!)
+        : undefined,
+      in_stock:
+        searchParams.get('in_stock') === 'true'
+          ? true
+          : searchParams.get('in_stock') === 'false'
+            ? false
+            : undefined,
       sort_by: searchParams.get('sort_by') || undefined,
-      sort_order: searchParams.get('sort_order') as 'asc' | 'desc' || undefined,
+      sort_order: (searchParams.get('sort_order') as 'asc' | 'desc') || undefined,
       page: searchParams.get('page') ? parseInt(searchParams.get('page')!) : undefined,
       limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined,
     });
@@ -71,10 +87,9 @@ export async function GET(request: NextRequest) {
     }
 
     return apiSuccess(result.data);
-
   } catch (error) {
     console.error('Products API - GET Error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return apiZodError(error);
     }
@@ -85,9 +100,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/products
- * 
+ *
  * Request body: ClientCreateProductInput (no store_id required)
- * 
+ *
  * The server injects store_id from the authenticated session cookie.
  * This implements Server-Authoritative Identity Injection (Zero-Trust):
  * the client can never influence which store a product belongs to.
@@ -101,24 +116,26 @@ export async function POST(request: NextRequest) {
     // ── Step 1: Extract identity from encrypted auth cookie ──────────
     // This is the Zero-Trust layer. We NEVER trust JSON body for identity.
     const authUser = await getAuthUser(request);
-    
+
     // Reject early if we cannot determine store context
     if (!authUser?.store_id) {
       return apiBadRequest('Cannot determine store context. Please log out and log back in.');
     }
 
     // Set user context in service for audit fields
-    productService.setUserContext(
-      authUser.staff_id, 
-      authUser.branch_id, 
-      authUser.store_id
-    );
+    productService.setUserContext(authUser.staff_id, authUser.branch_id, authUser.store_id);
 
     // ── Step 2: Validate client input using CLIENT schema ───────────
     // ClientCreateProductSchema has NO store_id — the client doesn't
     // need to know about it. This is Boundary Separation in action.
     const body = await request.json();
     const clientInput = ClientCreateProductSchema.parse(body);
+
+    // Enforce user branch lock for manager/staff
+    let branchId = clientInput.branch_id || undefined;
+    if (authUser.role !== 'admin' && authUser.role !== 'super_admin') {
+      branchId = authUser.branch_id || undefined;
+    }
 
     // ── Step 3: Merge server context into validated data ─────────────
     // The server forcefully injects store_id from the auth cookie.
@@ -127,6 +144,7 @@ export async function POST(request: NextRequest) {
     const productData: CreateProductDTO = {
       ...clientInput,
       store_id: authUser.store_id,
+      branch_id: branchId,
       category_id: clientInput.category_id || undefined,
       subcategory_id: clientInput.subcategory_id || undefined,
       subvariant_id: clientInput.subvariant_id || undefined,
@@ -140,10 +158,9 @@ export async function POST(request: NextRequest) {
     }
 
     return apiSuccess(result.data, { status: 201, message: 'Product created successfully' });
-
   } catch (error) {
     console.error('Products API - POST Error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return apiZodError(error);
     }

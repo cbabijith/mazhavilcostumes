@@ -1,9 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Instagram, Facebook, Twitter, Phone } from "lucide-react";
-import { Store, Category } from "@/lib/supabase/queries";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Instagram, Facebook, Twitter, Phone } from 'lucide-react';
+import { Store, Category } from '@/lib/supabase/queries';
+import { BRAND_CONFIG } from 'shared-utils';
 
 interface FooterProps {
   store: Store | null;
@@ -22,17 +23,17 @@ export default function Footer({ store, categories: initialCategories }: FooterP
     const storeId = store.id;
 
     async function loadCategories() {
-      const { createClient } = await import("@/lib/supabase/client");
+      const { createClient } = await import('@/lib/supabase/client');
       const supabase = createClient();
       const { data } = await supabase
-        .from("categories")
-        .select("*")
-        .eq("store_id", storeId)
-        .eq("is_active", true)
-        .is("parent_id", null)
-        .is("deleted_at", null)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
+        .from('categories')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('is_active', true)
+        .is('parent_id', null)
+        .is('deleted_at', null)
+        .order('sort_order', { ascending: true })
+        .order('name', { ascending: true });
       if (data) {
         setCategories(data);
       }
@@ -40,8 +41,8 @@ export default function Footer({ store, categories: initialCategories }: FooterP
     loadCategories();
   }, [store?.id, initialCategories]);
 
-  const storeName = store?.name || "Mazhavil Dance Costumes";
-  const storeEmail = "mazhavildancecostumes@gmail.com";
+  const storeName = store?.name || BRAND_CONFIG.name;
+  const storeEmail = BRAND_CONFIG.email;
 
   return (
     <footer className="bg-[#1a1a1a] text-white pb-28 lg:pb-0">
@@ -52,14 +53,15 @@ export default function Footer({ store, categories: initialCategories }: FooterP
           <div className="lg:col-span-1">
             <Link href="/" className="block mb-4">
               <span className="text-lg sm:text-xl font-bold tracking-wide uppercase text-rosegold block">
-                Mazhavil Dance Costumes
+                {BRAND_CONFIG.name}
               </span>
               <span className="text-[10px] sm:text-[11px] tracking-[0.3em] text-white/40 uppercase block mt-1.5">
-                Karamana | Trivandrum
+                Kayamkulam, Kerala
               </span>
             </Link>
             <p className="text-sm text-white/50 leading-relaxed mb-6 max-w-xs">
-              Premium classical and traditional dance costumes for rent. Crafted with heritage, designed for the stage.
+              Premium bridal jewelry and accessories for rent. Crafted with heritage, designed to
+              make your special day shine.
             </p>
             <div className="flex gap-3">
               {[Instagram, Facebook, Twitter].map((Icon, idx) => (
@@ -76,16 +78,21 @@ export default function Footer({ store, categories: initialCategories }: FooterP
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">Quick Links</h4>
+            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">
+              Quick Links
+            </h4>
             <ul className="space-y-3">
               {[
-                { label: "About Us", href: "/about" },
-                { label: "Gallery", href: "/gallery" },
-                { label: "Costume Care", href: "/care" },
-                { label: "FAQs", href: "/faqs" },
+                { label: 'About Us', href: '/about' },
+                { label: 'Gallery', href: '/gallery' },
+                { label: 'Costume Care', href: '/care' },
+                { label: 'FAQs', href: '/faqs' },
               ].map((link) => (
                 <li key={link.label}>
-                  <Link href={link.href} className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300">
+                  <Link
+                    href={link.href}
+                    className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300"
+                  >
                     {link.label}
                   </Link>
                 </li>
@@ -95,15 +102,23 @@ export default function Footer({ store, categories: initialCategories }: FooterP
 
           {/* Policies */}
           <div>
-            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">Policies</h4>
+            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">
+              Policies
+            </h4>
             <ul className="space-y-3">
               <li>
-                <Link href="/legal/terms" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300">
+                <Link
+                  href="/legal/terms"
+                  className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300"
+                >
                   Terms of Service
                 </Link>
               </li>
               <li>
-                <Link href="/legal/privacy" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300">
+                <Link
+                  href="/legal/privacy"
+                  className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300"
+                >
                   Privacy Policy
                 </Link>
               </li>
@@ -112,32 +127,36 @@ export default function Footer({ store, categories: initialCategories }: FooterP
 
           {/* Contact */}
           <div>
-            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">Get in Touch</h4>
+            <h4 className="text-xs uppercase tracking-[0.2em] font-semibold text-white/80 mb-5">
+              Get in Touch
+            </h4>
             <ul className="space-y-4">
               <li>
-                <a href={`mailto:${storeEmail}`} className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 block">
+                <a
+                  href={`mailto:${storeEmail}`}
+                  className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 block"
+                >
                   {storeEmail}
                 </a>
               </li>
               <li>
                 <a
-                  href="https://www.google.com/maps/search/?api=1&query=8.481222,76.965056"
+                  href="https://www.google.com/maps/search/?api=1&query=9.18014716987313,76.5576453469383"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 leading-relaxed block max-w-[240px]"
                 >
-                  Karamana Main Road, near QRS, Karamana, Thiruvananthapuram, Kerala 695002
+                  Thazhava Jn, Kayamkulam - Pathanapuram Rd, Kattanam, Kayamkulam, Kerala 690503
                 </a>
               </li>
               <li>
                 <div className="flex flex-col gap-2.5">
-                  <a href="tel:9446961765" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2">
+                  <a
+                    href="tel:8129668157"
+                    className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2"
+                  >
                     <Phone size={13} strokeWidth={1.8} className="text-rosegold" />
-                    +91 94469 61765
-                  </a>
-                  <a href="tel:9447961765" className="text-sm text-white/50 hover:text-rosegold transition-colors duration-300 flex items-center gap-2">
-                    <Phone size={13} strokeWidth={1.8} className="text-rosegold" />
-                    +91 94479 61765
+                    +91 81296 68157
                   </a>
                 </div>
               </li>
@@ -150,9 +169,7 @@ export default function Footer({ store, categories: initialCategories }: FooterP
           <p className="text-xs text-white/40 text-center sm:text-left">
             © 2026 {storeName}. All rights reserved.
           </p>
-          <p className="text-xs text-white/40">
-            Handcrafted with Love in Kerala
-          </p>
+          <p className="text-xs text-white/40">Handcrafted with Love in Kerala</p>
         </div>
       </div>
     </footer>

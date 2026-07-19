@@ -11,23 +11,40 @@ export const CreateBranchInventorySchema = z.object({
   product_id: z.string().uuid('Invalid product ID format'),
   quantity: z.number().int().min(0, 'Quantity must be non-negative').optional(),
   available_quantity: z.number().int().min(0, 'Available quantity must be non-negative').optional(),
-  low_stock_threshold: z.number().int().min(0, 'Low stock threshold must be non-negative').optional(),
+  low_stock_threshold: z
+    .number()
+    .int()
+    .min(0, 'Low stock threshold must be non-negative')
+    .optional(),
   is_active: z.boolean().optional(),
 });
 
-export const UpdateBranchInventorySchema = z.object({
-  quantity: z.number().int().min(0, 'Quantity must be non-negative').optional(),
-  available_quantity: z.number().int().min(0, 'Available quantity must be non-negative').optional(),
-  low_stock_threshold: z.number().int().min(0, 'Low stock threshold must be non-negative').optional(),
-  is_active: z.boolean().optional(),
-}).refine((data) => {
-  if (data.available_quantity !== undefined && data.quantity !== undefined) {
-    return data.available_quantity <= data.quantity;
-  }
-  return true;
-}, {
-  message: 'Available quantity cannot exceed total quantity',
-});
+export const UpdateBranchInventorySchema = z
+  .object({
+    quantity: z.number().int().min(0, 'Quantity must be non-negative').optional(),
+    available_quantity: z
+      .number()
+      .int()
+      .min(0, 'Available quantity must be non-negative')
+      .optional(),
+    low_stock_threshold: z
+      .number()
+      .int()
+      .min(0, 'Low stock threshold must be non-negative')
+      .optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.available_quantity !== undefined && data.quantity !== undefined) {
+        return data.available_quantity <= data.quantity;
+      }
+      return true;
+    },
+    {
+      message: 'Available quantity cannot exceed total quantity',
+    }
+  );
 
 export const InventoryAdjustmentSchema = z.object({
   branch_id: z.string().uuid('Invalid branch ID format'),

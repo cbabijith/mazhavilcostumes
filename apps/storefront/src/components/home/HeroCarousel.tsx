@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
-import Image from "next/image";
-import { Banner, getBannerLink } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useCallback } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Banner, getBannerLink } from '@/lib/supabase/queries';
+import { cn } from '@/lib/utils';
 
 interface HeroCarouselProps {
   banners: Banner[];
@@ -88,7 +88,7 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
                     <>
                       <Image
                         src={banner.mobile_image_url || banner.web_image_url}
-                        alt={banner.alt_text || banner.title || "Banner"}
+                        alt={banner.alt_text || banner.title || 'Banner'}
                         fill
                         priority={index === 0}
                         sizes="(max-width: 640px) 100vw, 1px"
@@ -96,7 +96,7 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
                       />
                       <Image
                         src={banner.web_image_url}
-                        alt={banner.alt_text || banner.title || "Banner"}
+                        alt={banner.alt_text || banner.title || 'Banner'}
                         fill
                         priority={index === 0}
                         sizes="(min-width: 640px) 100vw, 1024px"
@@ -119,13 +119,16 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
                         {hasSubtitle && (
                           <h2
                             className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif mb-5 sm:mb-6 md:mb-8 tracking-tight leading-[1.1] animate-fadeInUp"
-                            style={{ animationDelay: "0.15s" }}
+                            style={{ animationDelay: '0.15s' }}
                           >
                             {banner.subtitle}
                           </h2>
                         )}
                         {hasCTA && (
-                          <div className="animate-fadeInUp absolute bottom-8 left-4 sm:bottom-8 sm:left-6 md:bottom-8 md:left-8 lg:bottom-8 lg:left-10" style={{ animationDelay: "0.3s" }}>
+                          <div
+                            className="animate-fadeInUp absolute bottom-8 left-4 sm:bottom-8 sm:left-6 md:bottom-8 md:left-8 lg:bottom-8 lg:left-10"
+                            style={{ animationDelay: '0.3s' }}
+                          >
                             <div className="shimmer-btn inline-block px-4 py-2 sm:px-5 sm:py-2.5 md:px-8 md:py-3 lg:px-10 lg:py-3.5 rounded-full text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-medium tracking-wide">
                               {banner.call_to_action}
                             </div>
@@ -179,10 +182,10 @@ export default function HeroCarousel({ banners }: HeroCarouselProps) {
                       key={i}
                       onClick={() => goTo(i)}
                       className={cn(
-                        "h-[3px] rounded-full transition-all duration-500",
+                        'h-[3px] rounded-full transition-all duration-500',
                         current === i
-                          ? "w-8 sm:w-10 md:w-12 bg-rosegold-light"
-                          : "w-3 sm:w-4 bg-white/40 hover:bg-white/60"
+                          ? 'w-8 sm:w-10 md:w-12 bg-rosegold-light'
+                          : 'w-3 sm:w-4 bg-white/40 hover:bg-white/60'
                       )}
                       aria-label={`Go to slide ${i + 1}`}
                     />

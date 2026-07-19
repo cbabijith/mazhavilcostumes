@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 interface PasswordInputProps {
   name: string;
@@ -20,7 +20,7 @@ interface PasswordInputProps {
  */
 export default function PasswordInput({
   name,
-  placeholder = "Enter password",
+  placeholder = 'Enter password',
   required = false,
   minLength,
   className,
@@ -32,12 +32,12 @@ export default function PasswordInput({
     <div className="relative">
       <Input
         name={name}
-        type={show ? "text" : "password"}
+        type={show ? 'text' : 'password'}
         placeholder={placeholder}
         required={required}
         minLength={minLength}
         defaultValue={defaultValue}
-        className={cn("pr-10", className)}
+        className={cn('pr-10', className)}
       />
       <button
         type="button"

@@ -62,7 +62,7 @@ export function apiSuccess<T>(
     status?: number;
     message?: string;
     meta?: PaginationMeta;
-  } = {},
+  } = {}
 ): NextResponse<ApiSuccessResponse<T>> {
   const body: ApiSuccessResponse<T> = {
     success: true,
@@ -84,7 +84,7 @@ export function apiError(
     status?: number;
     code?: string;
     details?: Record<string, unknown> | unknown;
-  } = {},
+  } = {}
 ): NextResponse<ApiErrorResponse> {
   const body: ApiErrorResponse = {
     success: false,
@@ -152,7 +152,7 @@ export function apiZodError(error: z.ZodError) {
  */
 export function apiRepositoryError(
   error: { message?: string; code?: string; details?: unknown } | null,
-  fallbackMessage: string,
+  fallbackMessage: string
 ) {
   const message = error?.message || fallbackMessage;
   const code = error?.code || 'UNKNOWN';

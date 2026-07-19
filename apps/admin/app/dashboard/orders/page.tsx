@@ -20,25 +20,22 @@
  * @module app/dashboard/orders/page
  */
 
-"use client";
+'use client';
 
-import { useState, useCallback, useMemo, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Plus, Store, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  useOrders,
-  useUpdateOrder,
-} from "@/hooks";
-import { useAppStore } from "@/stores";
-import { OrderStatus, type OrderWithRelations } from "@/domain";
+import { useState, useCallback, useMemo, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { Plus, Store, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useOrders, useUpdateOrder } from '@/hooks';
+import { useAppStore } from '@/stores';
+import { OrderStatus, type OrderWithRelations } from '@/domain';
 import {
   OrderFilters,
   OrderListTable,
   OrderPagination,
   OrderCancelModal,
-} from "@/components/admin/orders";
+} from '@/components/admin/orders';
 
 export default function OrdersPage() {
   return (
@@ -64,20 +61,54 @@ function OrdersContent() {
   const selectedBranchId = useAppStore((s) => s.selectedBranchId);
 
   // ── URL-driven state (single source of truth) ──────────────────────────
-  const page = parseInt(searchParams.get("page") || "1", 10);
-  const pageSize = parseInt(searchParams.get("limit") || "25", 10);
-  const urlQuery = searchParams.get("query") || "";
-  const statusParams = searchParams.getAll("status");
-  const statusFilter =
-    (statusParams[0] || "ALL") as OrderStatus | "ALL" | "stock_conflict";
-  const dateFilter = searchParams.get("date_filter") || "ALL";
-  const dateField = (searchParams.get("date_field") || undefined) as 'created_at' | 'start_date' | 'end_date' | undefined;
-  const dateFrom = searchParams.get("date_from") || "";
-  const dateTo = searchParams.get("date_to") || "";
-  const paymentStatusFilter = searchParams.getAll("payment_status");
-  const excludeStatusFilter = searchParams.getAll("exclude_status") as OrderStatus[];
-  const sortBy = (searchParams.get("sort_by") || undefined) as 'customer' | 'created_at' | 'phone' | 'dates' | 'items' | 'amount' | 'status' | undefined;
-  const sortOrder = (searchParams.get("sort_order") || undefined) as 'asc' | 'desc' | undefined;
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = parseInt(searchParams.get('limit') || '25', 10);
+  const urlQuery = searchParams.get('query') || '';
+  const statusParams = searchParams.getAll('status');
+  const dateField = (searchParams.get('date_field') || undefined) as
+    | 'created_at'
+    | 'start_date'
+    | 'end_date'
+    | undefined;
+
+  const rawStatusFilter = (statusParams[0] || 'ALL') as
+    | OrderStatus
+    | 'ALL'
+    | 'stock_conflict'
+    | 'priority_cleaning';
+
+  // Map UI tab highlight for dashboard click-throughs
+  const statusFilter = useMemo(() => {
+    if (rawStatusFilter === 'ALL') {
+      if (dateField === 'end_date') {
+        return OrderStatus.ONGOING;
+      }
+      if (dateField === 'start_date') {
+        return OrderStatus.SCHEDULED;
+      }
+    } else if ((rawStatusFilter as string) === 'damaged') {
+      return OrderStatus.FLAGGED;
+    } else if ((rawStatusFilter as string) === 'action_needed') {
+      return OrderStatus.PENDING;
+    }
+    return rawStatusFilter;
+  }, [rawStatusFilter, dateField]);
+
+  const dateFilter = searchParams.get('date_filter') || 'ALL';
+  const dateFrom = searchParams.get('date_from') || '';
+  const dateTo = searchParams.get('date_to') || '';
+  const paymentStatusFilter = searchParams.getAll('payment_status');
+  const excludeStatusFilter = searchParams.getAll('exclude_status') as OrderStatus[];
+  const sortBy = (searchParams.get('sort_by') || undefined) as
+    | 'customer'
+    | 'created_at'
+    | 'phone'
+    | 'dates'
+    | 'items'
+    | 'amount'
+    | 'status'
+    | undefined;
+  const sortOrder = (searchParams.get('sort_order') || undefined) as 'asc' | 'desc' | undefined;
 
   // ── Centralised URL updater (idempotent) ───────────────────────────────
   const updateParams = useCallback(
@@ -87,7 +118,7 @@ function OrdersContent() {
 
       Object.entries(updates).forEach(([key, value]) => {
         const current = params.get(key);
-        if (value === null || value === "") {
+        if (value === null || value === '') {
           if (current !== null) {
             params.delete(key);
             hasChanges = true;
@@ -113,18 +144,23 @@ function OrdersContent() {
     limit: pageSize,
     page,
     branch_id: selectedBranchId || undefined,
-    status: (statusFilter === "ALL" || statusFilter === "stock_conflict") ? undefined : (statusParams.length > 1 ? statusParams as OrderStatus[] : statusFilter),
+    status:
+      rawStatusFilter === 'ALL' || rawStatusFilter === 'stock_conflict'
+        ? undefined
+        : statusParams.length > 1
+          ? (statusParams as OrderStatus[])
+          : (rawStatusFilter as OrderStatus),
     exclude_status: excludeStatusFilter.length > 0 ? excludeStatusFilter : undefined,
     payment_status: paymentStatusFilter.length > 0 ? paymentStatusFilter : undefined,
     date_filter:
-      dateFilter === "ALL"
+      dateFilter === 'ALL'
         ? undefined
-        : (dateFilter as "today" | "yesterday" | "this_week" | "this_month" | "custom"),
+        : (dateFilter as 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom'),
     date_field: dateField,
-    date_from: dateFilter === "custom" && dateFrom ? dateFrom : undefined,
-    date_to: dateFilter === "custom" && dateTo ? dateTo : undefined,
-    has_damage_charges: searchParams.get("has_damage_charges") === "true" || undefined,
-    has_stock_conflict: statusFilter === "stock_conflict" ? true : undefined,
+    date_from: dateFilter === 'custom' && dateFrom ? dateFrom : undefined,
+    date_to: dateFilter === 'custom' && dateTo ? dateTo : undefined,
+    has_damage_charges: searchParams.get('has_damage_charges') === 'true' || undefined,
+    has_stock_conflict: rawStatusFilter === 'stock_conflict' ? true : undefined,
     sort_by: sortBy,
     sort_order: sortOrder,
   });
@@ -155,89 +191,82 @@ function OrdersContent() {
   }, [visibleOrders]);
 
   const handleToggleSelect = useCallback((id: string) => {
-    setSelectedOrders((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setSelectedOrders((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   }, []);
 
   const clearSelection = useCallback(() => setSelectedOrders([]), []);
 
-  const [cancelTarget, setCancelTarget] = useState<OrderWithRelations | null>(
-    null
-  );
+  const [cancelTarget, setCancelTarget] = useState<OrderWithRelations | null>(null);
 
-  const openCancelModal = useCallback(
-    (order: OrderWithRelations) => setCancelTarget(order),
-    []
-  );
+  const openCancelModal = useCallback((order: OrderWithRelations) => setCancelTarget(order), []);
   const closeCancelModal = useCallback(() => setCancelTarget(null), []);
 
-
-
-  const handleConfirmCancel = useCallback((reason: string) => {
-    if (!cancelTarget) return;
-    try {
-      updateOrder({
-        id: cancelTarget.id,
-        data: {
-          status: OrderStatus.CANCELLED,
-          cancellation_reason: reason,
-          cancelled_at: new Date().toISOString(),
-        } as any,
-      });
-      closeCancelModal();
-    } catch {
-      // Handled in hook
-    }
-  }, [cancelTarget, updateOrder, closeCancelModal]);
+  const handleConfirmCancel = useCallback(
+    (reason: string) => {
+      if (!cancelTarget) return;
+      try {
+        updateOrder({
+          id: cancelTarget.id,
+          data: {
+            status: OrderStatus.CANCELLED,
+            cancellation_reason: reason,
+            cancelled_at: new Date().toISOString(),
+          } as any,
+        });
+        closeCancelModal();
+      } catch {
+        // Handled in hook
+      }
+    },
+    [cancelTarget, updateOrder, closeCancelModal]
+  );
 
   // ── Filter callbacks (stable references) ───────────────────────────────
   const handleStatusChange = useCallback(
-    (status: string) => updateParams({ 
-      status, 
-      date_filter: "ALL", 
-      date_field: null,
-      date_from: null,
-      date_to: null,
-      exclude_status: null,
-      page: "1" 
-    }),
+    (status: string) =>
+      updateParams({
+        status,
+        date_filter: 'ALL',
+        date_field: null,
+        date_from: null,
+        date_to: null,
+        exclude_status: null,
+        page: '1',
+      }),
     [updateParams]
   );
 
   const handleDateFilterChange = useCallback(
-    (filter: string) => updateParams({ 
-      date_filter: filter, 
-      date_field: filter === 'ALL' ? null : (dateField || null), 
-      date_from: null, 
-      date_to: null,
-      page: "1" 
-    }),
+    (filter: string) =>
+      updateParams({
+        date_filter: filter,
+        date_field: filter === 'ALL' ? null : dateField || null,
+        date_from: null,
+        date_to: null,
+        page: '1',
+      }),
     [dateField, updateParams]
   );
 
   const handleDateFromChange = useCallback(
-    (date: string) => updateParams({ date_from: date, page: "1" }),
+    (date: string) => updateParams({ date_from: date, page: '1' }),
     [updateParams]
   );
 
   const handleDateToChange = useCallback(
-    (date: string) => updateParams({ date_to: date, page: "1" }),
+    (date: string) => updateParams({ date_to: date, page: '1' }),
     [updateParams]
   );
 
   const handleSearchChange = useCallback(
-    (query: string) => updateParams({ query, page: "1" }),
+    (query: string) => updateParams({ query, page: '1' }),
     [updateParams]
   );
-  
-  const handleResetFilters = useCallback(
-    () => {
-      // Clear all URL params by navigating to the base pathname
-      router.replace(pathname, { scroll: false });
-    },
-    [router, pathname]
-  );
+
+  const handleResetFilters = useCallback(() => {
+    // Clear all URL params by navigating to the base pathname
+    router.replace(pathname, { scroll: false });
+  }, [router, pathname]);
 
   const handlePageChange = useCallback(
     (p: number) => updateParams({ page: p.toString() }),
@@ -245,7 +274,7 @@ function OrdersContent() {
   );
 
   const handlePageSizeChange = useCallback(
-    (size: number) => updateParams({ limit: size.toString(), page: "1" }),
+    (size: number) => updateParams({ limit: size.toString(), page: '1' }),
     [updateParams]
   );
 
@@ -266,14 +295,12 @@ function OrdersContent() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Orders
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Orders</h1>
           <p className="text-sm text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
             <Store className="w-4 h-4 text-slate-400" />
             <span>Viewing orders for</span>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
-              {selectedBranchId ? "Selected Branch" : "All Branches"}
+              {selectedBranchId ? 'Selected Branch' : 'All Branches'}
             </span>
             <span>• {total} total records</span>
           </p>
@@ -332,8 +359,6 @@ function OrdersContent() {
           onPageSizeChange={handlePageSizeChange}
         />
       )}
-
-
 
       <OrderCancelModal
         open={cancelTarget !== null}

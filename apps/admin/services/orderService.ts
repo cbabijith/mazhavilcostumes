@@ -7,8 +7,8 @@
  */
 
 import { RepositoryResult } from '@/repository';
-import { 
-  Order, 
+import {
+  Order,
   OrderWithRelations,
   OrderStatus,
   PaymentStatus,
@@ -17,7 +17,7 @@ import {
   OrderSearchParams,
   ReturnOrderDTO,
   ConditionRating,
-  OrderSearchResult
+  OrderSearchResult,
 } from '@/domain/types/order';
 import { orderRepository, cleaningRepository, paymentRepository } from '@/repository';
 import { settingsService } from './settingsService';
@@ -51,7 +51,7 @@ export class OrderService {
    */
   private async recalculateProductPriorityCleaning(
     productId: string,
-    branchId: string,
+    branchId: string
   ): Promise<void> {
     // 1. Get all active orders for this product, sorted by end_date
     const activeResult = await orderRepository.findActiveOrdersForProduct(productId, branchId);
@@ -62,7 +62,7 @@ export class OrderService {
     // 2. Get product total stock quantity and category buffer setting
     const productInfo = await orderRepository.getProductBufferInfo(productId);
     if (!productInfo.success || !productInfo.data) return;
-    
+
     const { quantity: totalStock, has_buffer: categoryHasBuffer } = productInfo.data;
 
     if (totalStock === 0) return;
@@ -115,7 +115,8 @@ export class OrderService {
 
           // Is this order's rental or cleaning period active on the buffer day?
           const isRentalDay = otherStart <= bufferDayMs && otherEnd >= bufferDayMs;
-          const isCleaningDay = !isRentalDay && otherEnd < bufferDayMs && otherBufferEnd >= bufferDayMs;
+          const isCleaningDay =
+            !isRentalDay && otherEnd < bufferDayMs && otherBufferEnd >= bufferDayMs;
 
           if (isRentalDay || isCleaningDay) {
             totalBlockedOnBufferDay += otherOrder.quantity;
@@ -134,7 +135,8 @@ export class OrderService {
     // 4. Update cleaning records and order flags for ALL active orders
     // Fetch all cleaning records for this product at once to avoid N database queries in the loop
     const cleaningRecordsRes = await cleaningRepository.findMany({ product_id: productId });
-    const cleaningRecords = cleaningRecordsRes.success && cleaningRecordsRes.data ? cleaningRecordsRes.data : [];
+    const cleaningRecords =
+      cleaningRecordsRes.success && cleaningRecordsRes.data ? cleaningRecordsRes.data : [];
 
     const priorityTrueIds: string[] = [];
     const priorityFalseIds: string[] = [];
@@ -145,7 +147,7 @@ export class OrderService {
       let flagChanged = false;
 
       // Find cleaning record for this order+product in-memory
-      const record = cleaningRecords.find(r => r.order_id === order.orderId);
+      const record = cleaningRecords.find((r) => r.order_id === order.orderId);
       if (record) {
         // Skip if cleaning is already done
         if (record.status === CleaningStatus.COMPLETED) continue;
@@ -153,7 +155,10 @@ export class OrderService {
         const currentlyUrgent = record.priority === CleaningPriority.URGENT;
 
         // Only update if priority state actually changed
-        if (shouldBeUrgent && (!currentlyUrgent || record.priority_order_id !== priorityForOrderId)) {
+        if (
+          shouldBeUrgent &&
+          (!currentlyUrgent || record.priority_order_id !== priorityForOrderId)
+        ) {
           await cleaningRepository.update(record.id, {
             priority: CleaningPriority.URGENT,
             priority_order_id: priorityForOrderId!,
@@ -174,7 +179,7 @@ export class OrderService {
         // HEALING LOGIC: Recreate missing cleaning record
         // Status: IN_PROGRESS if order is returned/flagged, else SCHEDULED
         const isAlreadyBack = ['returned', 'flagged'].includes(order.status);
-        
+
         await cleaningRepository.create({
           product_id: productId,
           order_id: order.orderId,
@@ -186,7 +191,7 @@ export class OrderService {
           priority_order_id: shouldBeUrgent ? priorityForOrderId! : undefined,
           expected_return_date: order.endDate,
           started_at: isAlreadyBack ? new Date().toISOString() : undefined,
-          notes: `Auto-healed record during priority recalculation. ${shouldBeUrgent ? 'Marked as URGENT.' : ''}`
+          notes: `Auto-healed record during priority recalculation. ${shouldBeUrgent ? 'Marked as URGENT.' : ''}`,
         });
         flagChanged = true;
       }
@@ -203,8 +208,12 @@ export class OrderService {
 
     // Execute bulk updates in parallel to dramatically reduce DB round-trips
     await Promise.all([
-      priorityTrueIds.length > 0 ? orderRepository.updateOrderPriorityFlags(priorityTrueIds, true) : Promise.resolve(),
-      priorityFalseIds.length > 0 ? orderRepository.updateOrderPriorityFlags(priorityFalseIds, false) : Promise.resolve(),
+      priorityTrueIds.length > 0
+        ? orderRepository.updateOrderPriorityFlags(priorityTrueIds, true)
+        : Promise.resolve(),
+      priorityFalseIds.length > 0
+        ? orderRepository.updateOrderPriorityFlags(priorityFalseIds, false)
+        : Promise.resolve(),
     ]);
   }
 
@@ -249,7 +258,23 @@ export class OrderService {
   /**
    * Check product availability for given date range (Sweep Line)
    */
-  async checkAvailability(productId: string, startDate: string, endDate: string, branchId?: string, excludeOrderId?: string): Promise<RepositoryResult<{ available: number; availableWithPriority: number; total: number; peakReserved: number; overlappingOrders: any[]; priorityCleaningNeeded: boolean; priorityCleaningInfo: any[] }>> {
+  async checkAvailability(
+    productId: string,
+    startDate: string,
+    endDate: string,
+    branchId?: string,
+    excludeOrderId?: string
+  ): Promise<
+    RepositoryResult<{
+      available: number;
+      availableWithPriority: number;
+      total: number;
+      peakReserved: number;
+      overlappingOrders: any[];
+      priorityCleaningNeeded: boolean;
+      priorityCleaningInfo: any[];
+    }>
+  > {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (start > end) {
@@ -257,19 +282,30 @@ export class OrderService {
         data: null,
         error: {
           message: 'Rental end date cannot be before start date',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
     }
-    return await orderRepository.checkAvailability(productId, startDate, endDate, branchId, excludeOrderId);
+    return await orderRepository.checkAvailability(
+      productId,
+      startDate,
+      endDate,
+      branchId,
+      excludeOrderId
+    );
   }
 
   /**
    * Get per-day availability calendar for a product
    */
-  async getProductAvailabilityCalendar(productId: string, rangeStart: string, rangeEnd: string) {
-    return await orderRepository.getAvailabilityCalendar(productId, rangeStart, rangeEnd);
+  async getProductAvailabilityCalendar(
+    productId: string,
+    rangeStart: string,
+    rangeEnd: string,
+    branchId?: string
+  ) {
+    return await orderRepository.getAvailabilityCalendar(productId, rangeStart, rangeEnd, branchId);
   }
 
   /**
@@ -300,7 +336,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Customer ID is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -311,7 +347,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Branch ID is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -322,7 +358,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Order must have at least one item',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -333,7 +369,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Rental start and end dates are required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -342,13 +378,13 @@ export class OrderService {
     // Validate rental dates
     const startDate = new Date(data.rental_start_date);
     const endDate = new Date(data.rental_end_date);
-    
+
     if (startDate > endDate) {
       return {
         data: null,
         error: {
           message: 'Rental end date cannot be before start date',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -357,13 +393,31 @@ export class OrderService {
     // Validate items
     for (const item of data.items) {
       if (!item.product_id) {
-        return { data: null, error: { message: 'Product ID is required for all items', code: 'VALIDATION_ERROR' } as any, success: false };
+        return {
+          data: null,
+          error: {
+            message: 'Product ID is required for all items',
+            code: 'VALIDATION_ERROR',
+          } as any,
+          success: false,
+        };
       }
       if (!item.quantity || item.quantity < 1) {
-        return { data: null, error: { message: 'Quantity must be at least 1', code: 'VALIDATION_ERROR' } as any, success: false };
+        return {
+          data: null,
+          error: { message: 'Quantity must be at least 1', code: 'VALIDATION_ERROR' } as any,
+          success: false,
+        };
       }
       if (!item.price_per_day || item.price_per_day < 0) {
-        return { data: null, error: { message: 'Rent price must be a positive number', code: 'VALIDATION_ERROR' } as any, success: false };
+        return {
+          data: null,
+          error: {
+            message: 'Rent price must be a positive number',
+            code: 'VALIDATION_ERROR',
+          } as any,
+          success: false,
+        };
       }
     }
 
@@ -379,8 +433,11 @@ export class OrderService {
 
     const [isGstEnabledResult, productsResult, branchResponse] = await Promise.all([
       settingsService.getIsGSTEnabled(),
-      adminClient.from('products').select('id, price_per_day, category_id, categories:category_id(gst_percentage)').in('id', productIds),
-      adminClient.from('branches').select('store_id').eq('id', data.branch_id).single()
+      adminClient
+        .from('products')
+        .select('id, price_per_day, category_id, categories:category_id(gst_percentage)')
+        .in('id', productIds),
+      adminClient.from('branches').select('store_id').eq('id', data.branch_id).single(),
     ]);
 
     const isGstEnabled = !!(isGstEnabledResult.success && isGstEnabledResult.data);
@@ -400,7 +457,7 @@ export class OrderService {
             data: null,
             error: {
               message: `Price for a product cannot be lower than the original price (${productPrice})`,
-              code: 'PRICE_BELOW_ORIGINAL'
+              code: 'PRICE_BELOW_ORIGINAL',
             } as any,
             success: false,
           };
@@ -413,7 +470,7 @@ export class OrderService {
     }
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
-    let perItemGstRates: Map<string, number> = new Map();
+    const perItemGstRates: Map<string, number> = new Map();
     if (isGstEnabled && products) {
       for (const p of products) {
         const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
@@ -438,7 +495,13 @@ export class OrderService {
 
     // Create advance payment record through PaymentRepository (correct audit fields)
     // This is awaited — not background — so payment failures are visible, not silently swallowed.
-    if (result.success && result.data && data.advance_collected && data.advance_amount && data.advance_amount > 0) {
+    if (
+      result.success &&
+      result.data &&
+      data.advance_collected &&
+      data.advance_amount &&
+      data.advance_amount > 0
+    ) {
       const paymentResult = await paymentRepository.create({
         order_id: result.data.id,
         payment_type: PaymentType.ADVANCE,
@@ -448,7 +511,34 @@ export class OrderService {
       });
 
       if (!paymentResult.success) {
-        console.error('[OrderService.createOrder] Failed to create advance payment record:', paymentResult.error);
+        console.error(
+          '[OrderService.createOrder] Failed to create advance payment record:',
+          paymentResult.error
+        );
+      }
+    }
+
+    // Create security deposit payment record through PaymentRepository
+    if (
+      result.success &&
+      result.data &&
+      data.deposit_collected &&
+      data.security_deposit &&
+      data.security_deposit > 0
+    ) {
+      const depositPaymentResult = await paymentRepository.create({
+        order_id: result.data.id,
+        payment_type: PaymentType.DEPOSIT,
+        amount: data.security_deposit,
+        payment_mode: (data.deposit_payment_method as unknown as PaymentMode) || PaymentMode.CASH,
+        notes: 'Security deposit collected at order creation',
+      });
+
+      if (!depositPaymentResult.success) {
+        console.error(
+          '[OrderService.createOrder] Failed to create deposit payment record:',
+          depositPaymentResult.error
+        );
       }
     }
 
@@ -465,53 +555,71 @@ export class OrderService {
         const endDateStr = new Date(newOrder.end_date).toISOString().split('T')[0];
 
         // 1. Auto-schedule cleaning records in parallel
-        await Promise.all((newOrder.items || []).map(async (item) => {
-          if (!item.product_id) return;
+        await Promise.all(
+          (newOrder.items || []).map(async (item) => {
+            if (!item.product_id) return;
 
-          // Check if the product's category requires a buffer
-          const product = (item as any).product;
-          const category = Array.isArray(product?.category) ? product.category[0] : product?.category;
-          const categoryHasBuffer = category?.has_buffer ?? true;
-          if (!categoryHasBuffer) return;
+            // Check if the product's category requires a buffer
+            const product = (item as any).product;
+            const category = Array.isArray(product?.category)
+              ? product.category[0]
+              : product?.category;
+            const categoryHasBuffer = category?.has_buffer ?? true;
+            if (!categoryHasBuffer) return;
 
-          // Create a scheduled cleaning record for this item
-          await cleaningRepository.create({
-            product_id: item.product_id,
-            order_id: newOrderId,
-            branch_id: data.branch_id,
-            store_id: storeId,
-            quantity: item.quantity,
-            status: CleaningStatus.SCHEDULED,
-            priority: CleaningPriority.NORMAL,
-            expected_return_date: endDateStr,
-            notes: `Scheduled at order creation — expected return ${endDateStr}`,
-          });
-        }));
+            // Create a scheduled cleaning record for this item
+            await cleaningRepository.create({
+              product_id: item.product_id,
+              order_id: newOrderId,
+              branch_id: data.branch_id,
+              store_id: storeId,
+              quantity: item.quantity,
+              status: CleaningStatus.SCHEDULED,
+              priority: CleaningPriority.NORMAL,
+              expected_return_date: endDateStr,
+              notes: `Scheduled at order creation — expected return ${endDateStr}`,
+            });
+          })
+        );
 
         // 2. Recalculate priority cleaning and sync conflicts in parallel
-        await Promise.all((newOrder.items || []).map(async (item) => {
-          if (!item.product_id) return;
-          const product = (item as any).product;
-          const category = Array.isArray(product?.category) ? product.category[0] : product?.category;
-          const categoryHasBuffer = category?.has_buffer ?? true;
-          if (!categoryHasBuffer) return;
+        await Promise.all(
+          (newOrder.items || []).map(async (item) => {
+            if (!item.product_id) return;
+            const product = (item as any).product;
+            const category = Array.isArray(product?.category)
+              ? product.category[0]
+              : product?.category;
+            const categoryHasBuffer = category?.has_buffer ?? true;
+            if (!categoryHasBuffer) return;
 
-          await this.recalculateProductPriorityCleaning(item.product_id, data.branch_id);
-          await orderRepository.syncProductConflictsForRange(item.product_id, newOrder.start_date, newOrder.end_date);
-        }));
+            await this.recalculateProductPriorityCleaning(item.product_id, data.branch_id);
+            await orderRepository.syncProductConflictsForRange(
+              item.product_id,
+              newOrder.start_date,
+              newOrder.end_date
+            );
+          })
+        );
 
         const recalcDuration = performance.now() - recalcStart;
-        console.log(`[OrderService.createOrder] Background cleaning auto-schedule & priority recalc finished in ${recalcDuration.toFixed(2)}ms`);
-      })().catch(err => {
-        console.error('[OrderService.createOrder] Background auto-schedule/recalculation failed:', err);
+        console.log(
+          `[OrderService.createOrder] Background cleaning auto-schedule & priority recalc finished in ${recalcDuration.toFixed(2)}ms`
+        );
+      })().catch((err) => {
+        console.error(
+          '[OrderService.createOrder] Background auto-schedule/recalculation failed:',
+          err
+        );
       });
     }
 
     const totalDuration = performance.now() - totalStart;
-    console.log(`[OrderService.createOrder] Total createOrder flow duration: ${totalDuration.toFixed(2)}ms`);
+    console.log(
+      `[OrderService.createOrder] Total createOrder flow duration: ${totalDuration.toFixed(2)}ms`
+    );
     return result;
   }
-
 
   /**
    * Update an existing order
@@ -527,7 +635,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Order not found',
-          code: 'ORDER_NOT_FOUND'
+          code: 'ORDER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -541,8 +649,18 @@ export class OrderService {
       // Define allowed transitions
       const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
         [OrderStatus.PENDING]: [OrderStatus.SCHEDULED, OrderStatus.CANCELLED, OrderStatus.RETURNED],
-        [OrderStatus.CONFIRMED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED, OrderStatus.RETURNED], // legacy fallback
-        [OrderStatus.SCHEDULED]: [OrderStatus.DELIVERED, OrderStatus.ONGOING, OrderStatus.CANCELLED, OrderStatus.RETURNED],
+        [OrderStatus.CONFIRMED]: [
+          OrderStatus.DELIVERED,
+          OrderStatus.ONGOING,
+          OrderStatus.CANCELLED,
+          OrderStatus.RETURNED,
+        ], // legacy fallback
+        [OrderStatus.SCHEDULED]: [
+          OrderStatus.DELIVERED,
+          OrderStatus.ONGOING,
+          OrderStatus.CANCELLED,
+          OrderStatus.RETURNED,
+        ],
         [OrderStatus.DELIVERED]: [OrderStatus.IN_USE, OrderStatus.ONGOING, OrderStatus.CANCELLED],
         [OrderStatus.IN_USE]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
         [OrderStatus.ONGOING]: [OrderStatus.RETURNED, OrderStatus.PARTIAL, OrderStatus.FLAGGED],
@@ -559,28 +677,30 @@ export class OrderService {
           data: null,
           error: {
             message: `Cannot transition from ${currentStatus} to ${newStatus}`,
-            code: 'INVALID_STATUS_TRANSITION'
+            code: 'INVALID_STATUS_TRANSITION',
           } as any,
           success: false,
         };
       }
 
-      const isBackfillReturn = newStatus === OrderStatus.RETURNED &&
+      const isBackfillReturn =
+        newStatus === OrderStatus.RETURNED &&
         ['pending', 'confirmed', 'scheduled'].includes(currentStatus);
       if (isBackfillReturn && !(data as any).backfill_note?.trim()) {
         return {
           data: null,
           error: {
             message: 'A note is required when recording an untracked order as returned',
-            code: 'BACKFILL_NOTE_REQUIRED'
+            code: 'BACKFILL_NOTE_REQUIRED',
           } as any,
           success: false,
         };
       }
 
       // Block starting a rental if its scheduled return date has already passed (except for backdated orders)
-      const isStarting = ['ongoing', 'in_use', 'delivered'].includes(newStatus) &&
-                         !['ongoing', 'in_use', 'delivered', 'returned', 'completed'].includes(currentStatus);
+      const isStarting =
+        ['ongoing', 'in_use', 'delivered'].includes(newStatus) &&
+        !['ongoing', 'in_use', 'delivered', 'returned', 'completed'].includes(currentStatus);
       if (isStarting) {
         const creationDateStr = new Date(existingOrder.data.created_at).toLocaleDateString('en-CA');
         const isBackdated = existingOrder.data.start_date < creationDateStr;
@@ -589,13 +709,18 @@ export class OrderService {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           const endDateVal = new Date(existingOrder.data.end_date);
-          const endDate = new Date(endDateVal.getFullYear(), endDateVal.getMonth(), endDateVal.getDate());
+          const endDate = new Date(
+            endDateVal.getFullYear(),
+            endDateVal.getMonth(),
+            endDateVal.getDate()
+          );
           if (endDate < today) {
             return {
               data: null,
               error: {
-                message: 'Cannot start a rental whose return date has already passed. Please create a new order instead.',
-                code: 'VALIDATION_ERROR'
+                message:
+                  'Cannot start a rental whose return date has already passed. Please create a new order instead.',
+                code: 'VALIDATION_ERROR',
               } as any,
               success: false,
             };
@@ -608,16 +733,16 @@ export class OrderService {
     if (data.start_date || data.end_date) {
       const startDateVal = data.start_date || existingOrder.data.start_date;
       const endDateVal = data.end_date || existingOrder.data.end_date;
-      
+
       const startDate = new Date(startDateVal);
       const endDate = new Date(endDateVal);
-      
+
       if (startDate > endDate) {
         return {
           data: null,
           error: {
             message: 'Rental end date cannot be before start date',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -627,14 +752,23 @@ export class OrderService {
     // Block financial adjustments on finalized orders
     const currentStatus = existingOrder.data.status;
     if (currentStatus === OrderStatus.COMPLETED || currentStatus === OrderStatus.CANCELLED) {
-      const financialFields = ['discount', 'discount_type', 'late_fee', 'damage_charges_total', 'total_amount', 'subtotal'];
-      const attemptedFinancialChange = financialFields.some(field => (data as any)[field] !== undefined);
+      const financialFields = [
+        'discount',
+        'discount_type',
+        'late_fee',
+        'damage_charges_total',
+        'total_amount',
+        'subtotal',
+      ];
+      const attemptedFinancialChange = financialFields.some(
+        (field) => (data as any)[field] !== undefined
+      );
       if (attemptedFinancialChange) {
         return {
           data: null,
           error: {
             message: `Cannot modify financial fields on a ${currentStatus} order`,
-            code: 'ORDER_FINALIZED'
+            code: 'ORDER_FINALIZED',
           } as any,
           success: false,
         };
@@ -663,7 +797,7 @@ export class OrderService {
               data: null,
               error: {
                 message: `Price for a product cannot be lower than the original price (${productPrice})`,
-                code: 'PRICE_BELOW_ORIGINAL'
+                code: 'PRICE_BELOW_ORIGINAL',
               } as any,
               success: false,
             };
@@ -681,11 +815,115 @@ export class OrderService {
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.updateOrder] DB update duration: ${dbDuration.toFixed(2)}ms`);
 
+    // Create security deposit payment record through PaymentRepository if toggled to collected now
+    if (
+      result.success &&
+      data.deposit_collected === true &&
+      !existingOrder.data.deposit_collected
+    ) {
+      const depositVal = data.security_deposit ?? existingOrder.data.security_deposit ?? 0;
+      if (depositVal > 0) {
+        paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
+        const depositPaymentResult = await paymentRepository.create({
+          order_id: id,
+          payment_type: PaymentType.DEPOSIT,
+          amount: depositVal,
+          payment_mode:
+            (data.deposit_payment_method as unknown as PaymentMode) ||
+            (existingOrder.data.deposit_payment_method as unknown as PaymentMode) ||
+            PaymentMode.CASH,
+          notes: 'Security deposit collected at order update',
+        });
+
+        if (depositPaymentResult.success) {
+          try {
+            const { paymentService } = await import('./paymentService');
+            await paymentService.syncOrderPaymentStatus(id);
+          } catch (err) {
+            console.error('[OrderService.updateOrder] Failed to sync order payment status:', err);
+          }
+        } else {
+          console.error(
+            '[OrderService.updateOrder] Failed to create deposit payment record:',
+            depositPaymentResult.error
+          );
+        }
+      }
+    }
+
+    // Delete deposit payment record if deposit_collected was toggled from true to false
+    if (
+      result.success &&
+      data.deposit_collected === false &&
+      existingOrder.data.deposit_collected === true
+    ) {
+      const paymentsRes = await paymentRepository.findByOrderId(id);
+      if (paymentsRes.success && paymentsRes.data) {
+        const depositPayment = paymentsRes.data.find((p) => p.payment_type === PaymentType.DEPOSIT);
+        if (depositPayment) {
+          const deleteRes = await paymentRepository.delete(depositPayment.id);
+          if (deleteRes.success) {
+            try {
+              const { paymentService } = await import('./paymentService');
+              await paymentService.syncOrderPaymentStatus(id);
+            } catch (err) {
+              console.error(
+                '[OrderService.updateOrder] Failed to sync order payment status on delete:',
+                err
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Update existing deposit payment record if security_deposit amount changed and is already collected
+    if (
+      result.success &&
+      data.security_deposit !== undefined &&
+      existingOrder.data.deposit_collected === true
+    ) {
+      const depositVal = data.security_deposit;
+      if (depositVal !== existingOrder.data.security_deposit) {
+        const paymentsRes = await paymentRepository.findByOrderId(id);
+        if (paymentsRes.success && paymentsRes.data) {
+          const depositPayment = paymentsRes.data.find(
+            (p) => p.payment_type === PaymentType.DEPOSIT
+          );
+          if (depositPayment) {
+            paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
+            const updateRes = await paymentRepository.update(depositPayment.id, {
+              amount: depositVal,
+            });
+            if (updateRes.success) {
+              try {
+                const { paymentService } = await import('./paymentService');
+                await paymentService.syncOrderPaymentStatus(id);
+              } catch (err) {
+                console.error(
+                  '[OrderService.updateOrder] Failed to sync order payment status on update:',
+                  err
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
     // If this was a backfill return, record the explanatory note in status history
-    if (result.success && data.status === OrderStatus.RETURNED && (data as any).backfill_note?.trim()) {
+    if (
+      result.success &&
+      data.status === OrderStatus.RETURNED &&
+      (data as any).backfill_note?.trim()
+    ) {
       const currentStatus = existingOrder.data.status;
       if (['pending', 'confirmed', 'scheduled'].includes(currentStatus)) {
-        await orderRepository.addStatusHistory(id, OrderStatus.RETURNED, `Backfill: ${(data as any).backfill_note}`);
+        await orderRepository.addStatusHistory(
+          id,
+          OrderStatus.RETURNED,
+          `Backfill: ${(data as any).backfill_note}`
+        );
       }
     }
 
@@ -693,7 +931,7 @@ export class OrderService {
     // Run in background — auto-complete is only relevant for returned/paid orders,
     // not for scheduled→ongoing transitions. Saves 1 blocking DB round-trip.
     if (result.success && (data.payment_status || data.status)) {
-      this.checkAndAutoComplete(id).catch(err => {
+      this.checkAndAutoComplete(id).catch((err) => {
         console.error('[OrderService.updateOrder] Background auto-complete check failed:', err);
       });
     }
@@ -713,10 +951,10 @@ export class OrderService {
           // ─── CANCELLATION ──────────────────────────────────────────────
           // 1. Clear priority flag and stock conflict flags on the cancelled order itself
           //    (recalculate only processes active orders, so this order would be skipped)
-          await orderRepository.update(id, { 
+          await orderRepository.update(id, {
             has_priority_cleaning: false,
             has_stock_conflict: false,
-            conflict_details: []
+            conflict_details: [],
           } as any);
 
           // 2. Delete this cancelled order's own scheduled cleaning records
@@ -730,58 +968,79 @@ export class OrderService {
           }
 
           // 3. Recalculate for each product in the order in parallel
-          await Promise.all((order.items || []).map(async (item) => {
-            if (!item.product_id) return;
-            await this.recalculateProductPriorityCleaning(item.product_id, branchId);
-            await orderRepository.syncProductConflictsForRange(item.product_id, order.start_date, order.end_date);
-          }));
+          await Promise.all(
+            (order.items || []).map(async (item) => {
+              if (!item.product_id) return;
+              await this.recalculateProductPriorityCleaning(item.product_id, branchId);
+              await orderRepository.syncProductConflictsForRange(
+                item.product_id,
+                order.start_date,
+                order.end_date
+              );
+            })
+          );
         } else if (data.start_date || data.end_date) {
           // ─── DATE CHANGE ───────────────────────────────────────────────
           // Update expected_return_date on cleaning records, then recalculate in parallel
           const newEndDate = data.end_date || order.end_date;
           const endDateStr = new Date(newEndDate).toISOString().split('T')[0];
 
-          await Promise.all((order.items || []).map(async (item) => {
-            if (!item.product_id) return;
+          await Promise.all(
+            (order.items || []).map(async (item) => {
+              if (!item.product_id) return;
 
-            // Update the expected return date on this order's cleaning record
-            const cleaningRecord = await cleaningRepository.findByOrderAndProduct(id, item.product_id);
-            if (cleaningRecord.success && cleaningRecord.data) {
-              await cleaningRepository.update(cleaningRecord.data.id, {
-                expected_return_date: endDateStr,
-              });
-            }
+              // Update the expected return date on this order's cleaning record
+              const cleaningRecord = await cleaningRepository.findByOrderAndProduct(
+                id,
+                item.product_id
+              );
+              if (cleaningRecord.success && cleaningRecord.data) {
+                await cleaningRepository.update(cleaningRecord.data.id, {
+                  expected_return_date: endDateStr,
+                });
+              }
 
-            await this.recalculateProductPriorityCleaning(item.product_id, branchId);
-            await orderRepository.syncProductConflictsForRange(item.product_id, order.start_date, order.end_date);
-            await orderRepository.syncProductConflictsForRange(
-              item.product_id,
-              data.start_date || order.start_date,
-              data.end_date || order.end_date
-            );
-          }));
+              await this.recalculateProductPriorityCleaning(item.product_id, branchId);
+              await orderRepository.syncProductConflictsForRange(
+                item.product_id,
+                order.start_date,
+                order.end_date
+              );
+              await orderRepository.syncProductConflictsForRange(
+                item.product_id,
+                data.start_date || order.start_date,
+                data.end_date || order.end_date
+              );
+            })
+          );
         }
 
         if (data.items) {
           // ─── ITEM CHANGE ───────────────────────────────────────────────
           // Recalculate for BOTH old products (might lose priority) and
           // new products (might gain priority) in parallel
-          const oldProductIds = new Set((order.items || []).map((i: any) => i.product_id).filter(Boolean));
+          const oldProductIds = new Set(
+            (order.items || []).map((i: any) => i.product_id).filter(Boolean)
+          );
           const newProductIds = new Set(data.items.map((i: any) => i.product_id).filter(Boolean));
 
           // All affected products = union of old and new
           const allProductIds = new Set([...oldProductIds, ...newProductIds]);
           const finalStart = data.start_date || order.start_date;
           const finalEnd = data.end_date || order.end_date;
-          
-          await Promise.all(Array.from(allProductIds).map(async (productId) => {
-            await this.recalculateProductPriorityCleaning(productId, branchId);
-            await orderRepository.syncProductConflictsForRange(productId, finalStart, finalEnd);
-          }));
+
+          await Promise.all(
+            Array.from(allProductIds).map(async (productId) => {
+              await this.recalculateProductPriorityCleaning(productId, branchId);
+              await orderRepository.syncProductConflictsForRange(productId, finalStart, finalEnd);
+            })
+          );
         }
         const recalcDuration = performance.now() - recalcStart;
-        console.log(`[OrderService.updateOrder] Background priority recalculation & conflict sync finished in ${recalcDuration.toFixed(2)}ms`);
-      })().catch(err => {
+        console.log(
+          `[OrderService.updateOrder] Background priority recalculation & conflict sync finished in ${recalcDuration.toFixed(2)}ms`
+        );
+      })().catch((err) => {
         console.error('[OrderService.updateOrder] Background priority recalculation failed:', err);
       });
     }
@@ -795,7 +1054,9 @@ export class OrderService {
     }
 
     const totalDuration = performance.now() - totalStart;
-    console.log(`[OrderService.updateOrder] Total updateOrder flow duration: ${totalDuration.toFixed(2)}ms`);
+    console.log(
+      `[OrderService.updateOrder] Total updateOrder flow duration: ${totalDuration.toFixed(2)}ms`
+    );
     return result;
   }
 
@@ -810,7 +1071,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Order not found',
-          code: 'ORDER_NOT_FOUND'
+          code: 'ORDER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -843,10 +1104,16 @@ export class OrderService {
     // 3. Recalculate priority cleaning for each affected product in parallel in the background (non-blocking)
     //    (runs AFTER delete so the deleted order won't appear in active orders)
     if (deleteResult.success) {
-      Promise.all(affectedProductIds.map(async (productId) => {
-        await this.recalculateProductPriorityCleaning(productId, branchId);
-        await orderRepository.syncProductConflictsForRange(productId, order.start_date, order.end_date);
-      })).catch(err => {
+      Promise.all(
+        affectedProductIds.map(async (productId) => {
+          await this.recalculateProductPriorityCleaning(productId, branchId);
+          await orderRepository.syncProductConflictsForRange(
+            productId,
+            order.start_date,
+            order.end_date
+          );
+        })
+      ).catch((err) => {
         console.error('[OrderService.deleteOrder] Background priority recalculation failed:', err);
       });
     }
@@ -895,7 +1162,10 @@ export class OrderService {
   /**
    * Process order return with condition assessment
    */
-  async processOrderReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
+  async processOrderReturn(
+    orderId: string,
+    returnData: ReturnOrderDTO
+  ): Promise<RepositoryResult<Order>> {
     // Check if order exists
     const existingOrder = await orderRepository.findById(orderId);
     if (!existingOrder.success || !existingOrder.data) {
@@ -903,7 +1173,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Order not found',
-          code: 'ORDER_NOT_FOUND'
+          code: 'ORDER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -911,12 +1181,16 @@ export class OrderService {
 
     // Validate order is in correct status for return
     const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL) {
+    if (
+      currentStatus !== OrderStatus.IN_USE &&
+      currentStatus !== OrderStatus.ONGOING &&
+      currentStatus !== OrderStatus.PARTIAL
+    ) {
       return {
         data: null,
         error: {
           message: 'Order must be in use, ongoing, or partial to process return',
-          code: 'INVALID_STATUS'
+          code: 'INVALID_STATUS',
         } as any,
         success: false,
       };
@@ -928,7 +1202,7 @@ export class OrderService {
         data: null,
         error: {
           message: 'Return data must include at least one item',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -941,7 +1215,7 @@ export class OrderService {
           data: null,
           error: {
             message: 'Item ID is required for all return items',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -951,7 +1225,7 @@ export class OrderService {
           data: null,
           error: {
             message: 'Condition rating is required for all items',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -961,7 +1235,7 @@ export class OrderService {
           data: null,
           error: {
             message: 'Damage charges cannot be negative',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -969,10 +1243,14 @@ export class OrderService {
     }
 
     const result = await orderRepository.processReturn(orderId, returnData);
-    
+
     if (result.success && result.data) {
       // Clear dashboard cache immediately (in-memory, non-blocking)
-      try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
+      try {
+        dashboardService.clearCache();
+      } catch (err) {
+        console.error('Failed to clear dashboard cache:', err);
+      }
 
       // ─── POST-RETURN HOUSEKEEPING (BACKGROUND, NON-BLOCKING) ─────────────
       // Auto-complete check, cleaning record transitions, and damage assessments
@@ -986,13 +1264,16 @@ export class OrderService {
         const orderItems = itemsResult.data || [];
 
         // 1. Auto-complete check (returned + paid → completed)
-        await this.checkAndAutoComplete(orderId).catch(err =>
+        await this.checkAndAutoComplete(orderId).catch((err) =>
           console.error('[OrderService.processOrderReturn] Background auto-complete failed:', err)
         );
 
         // 2. Transition cleaning records: scheduled → in_progress
         try {
-          const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
+          const productReturnMap = new Map<
+            string,
+            { quantity: number; returnedQuantity: number }
+          >();
           for (const item of orderItems) {
             if (!item.product_id) continue;
             productReturnMap.set(item.product_id, {
@@ -1001,54 +1282,59 @@ export class OrderService {
             });
           }
 
-          await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
-            const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
-            if (!scheduledRecord.success || !scheduledRecord.data) return;
+          await Promise.all(
+            Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
+              const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(
+                orderId,
+                productId
+              );
+              if (!scheduledRecord.success || !scheduledRecord.data) return;
 
-            const record = scheduledRecord.data;
-            const totalQty = info.quantity;
-            const returnedQty = info.returnedQuantity;
+              const record = scheduledRecord.data;
+              const totalQty = info.quantity;
+              const returnedQty = info.returnedQuantity;
 
-            if (returnedQty >= totalQty) {
-              await cleaningRepository.update(record.id, {
-                status: CleaningStatus.IN_PROGRESS,
-                started_at: new Date().toISOString(),
-                quantity: record.quantity,
-                notes: record.notes
-                  ? `${record.notes} — all items returned, cleaning started`
-                  : 'All items returned, cleaning started',
-              });
-            } else {
-              const justReturnedQty = Math.min(returnedQty, record.quantity);
-              const remainingQty = record.quantity - justReturnedQty;
-
-              if (justReturnedQty > 0) {
+              if (returnedQty >= totalQty) {
                 await cleaningRepository.update(record.id, {
                   status: CleaningStatus.IN_PROGRESS,
                   started_at: new Date().toISOString(),
-                  quantity: justReturnedQty,
+                  quantity: record.quantity,
                   notes: record.notes
-                    ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
-                    : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
+                    ? `${record.notes} — all items returned, cleaning started`
+                    : 'All items returned, cleaning started',
                 });
+              } else {
+                const justReturnedQty = Math.min(returnedQty, record.quantity);
+                const remainingQty = record.quantity - justReturnedQty;
 
-                if (remainingQty > 0) {
-                  await cleaningRepository.create({
-                    product_id: productId,
-                    order_id: orderId,
-                    branch_id: returnedOrderData.branch_id,
-                    store_id: record.store_id,
-                    quantity: remainingQty,
-                    status: CleaningStatus.SCHEDULED,
-                    priority: record.priority,
-                    priority_order_id: record.priority_order_id || undefined,
-                    expected_return_date: record.expected_return_date || undefined,
-                    notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+                if (justReturnedQty > 0) {
+                  await cleaningRepository.update(record.id, {
+                    status: CleaningStatus.IN_PROGRESS,
+                    started_at: new Date().toISOString(),
+                    quantity: justReturnedQty,
+                    notes: record.notes
+                      ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
+                      : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
                   });
+
+                  if (remainingQty > 0) {
+                    await cleaningRepository.create({
+                      product_id: productId,
+                      order_id: orderId,
+                      branch_id: returnedOrderData.branch_id,
+                      store_id: record.store_id,
+                      quantity: remainingQty,
+                      status: CleaningStatus.SCHEDULED,
+                      priority: record.priority,
+                      priority_order_id: record.priority_order_id || undefined,
+                      expected_return_date: record.expected_return_date || undefined,
+                      notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+                    });
+                  }
                 }
               }
-            }
-          }));
+            })
+          );
         } catch (err) {
           console.error('Failed to transition cleaning records:', err);
         }
@@ -1056,8 +1342,10 @@ export class OrderService {
         // 3. Auto-create damage assessments for damaged items
         try {
           const damagedItems = returnData.items
-            .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
-            .map(item => {
+            .filter(
+              (item) => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0
+            )
+            .map((item) => {
               const orderItem = orderItems.find((i: any) => i.id === item.item_id);
               return {
                 order_item_id: item.item_id,
@@ -1066,7 +1354,7 @@ export class OrderService {
                 damaged_quantity: item.damaged_quantity || 0,
               };
             })
-            .filter(item => item.product_id);
+            .filter((item) => item.product_id);
 
           if (damagedItems.length > 0) {
             await damageAssessmentService.createAssessments({
@@ -1077,8 +1365,11 @@ export class OrderService {
         } catch (err) {
           console.error('Failed to auto-create damage assessments:', err);
         }
-      })().catch(err => {
-        console.error('[OrderService.processOrderReturn] Background post-return housekeeping failed:', err);
+      })().catch((err) => {
+        console.error(
+          '[OrderService.processOrderReturn] Background post-return housekeeping failed:',
+          err
+        );
       });
     }
 
@@ -1088,12 +1379,15 @@ export class OrderService {
   /**
    * Update damage details for a specific order item incrementally.
    */
-  async updateOrderItemDamage(itemId: string, data: {
-    condition_rating: ConditionRating;
-    damage_description: string | null;
-    damage_charges: number;
-    damaged_quantity: number;
-  }): Promise<RepositoryResult<any>> {
+  async updateOrderItemDamage(
+    itemId: string,
+    data: {
+      condition_rating: ConditionRating;
+      damage_description: string | null;
+      damage_charges: number;
+      damaged_quantity: number;
+    }
+  ): Promise<RepositoryResult<any>> {
     // Basic validation
     if (!itemId) {
       return {
@@ -1139,7 +1433,7 @@ export class OrderService {
     const order = orderResult.data;
 
     const paymentDone = order.payment_status === PaymentStatus.PAID;
-    
+
     // Status-based "items done" check
     let itemsDone = order.status === OrderStatus.RETURNED || order.status === OrderStatus.COMPLETED;
 
@@ -1148,15 +1442,19 @@ export class OrderService {
       const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
       if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
         const assessments = assessmentResult.data;
-        const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
-        
+        const allDone = assessments.every((a) => a.decision !== DamageDecision.PENDING);
+
         // If all are assessed, transition order from FLAGGED to RETURNED status
         if (allDone) {
           await orderRepository.update(orderId, { status: OrderStatus.RETURNED } as any);
           // Sync priority flag (clears it for returned/completed orders)
           await orderRepository.syncOrderPriorityFlag(orderId);
           // Add status history entry
-          await orderRepository.addStatusHistory(orderId, OrderStatus.RETURNED, 'Damage assessment complete: all units resolved');
+          await orderRepository.addStatusHistory(
+            orderId,
+            OrderStatus.RETURNED,
+            'Damage assessment complete: all units resolved'
+          );
           order.status = OrderStatus.RETURNED;
           itemsDone = true;
         }
@@ -1168,7 +1466,11 @@ export class OrderService {
       // Sync priority flag (clears it for completed orders)
       await orderRepository.syncOrderPriorityFlag(orderId);
       // Add status history entry
-      await orderRepository.addStatusHistory(orderId, OrderStatus.COMPLETED, 'Auto-completed: items returned/reused + payment settled');
+      await orderRepository.addStatusHistory(
+        orderId,
+        OrderStatus.COMPLETED,
+        'Auto-completed: items returned/reused + payment settled'
+      );
     }
   }
 

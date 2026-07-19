@@ -30,16 +30,16 @@ Always use:
 lib/
 ├── core/
 ├── features/
-│   ├── auth/
-│   ├── products/
-│   ├── categories/
-│   ├── customers/
-│   ├── orders/
-│   ├── payments/
-│   ├── staff/
-│   ├── branches/
-│   ├── reports/
-│   └── settings/
+│ ├── auth/
+│ ├── products/
+│ ├── categories/
+│ ├── customers/
+│ ├── orders/
+│ ├── payments/
+│ ├── staff/
+│ ├── branches/
+│ ├── reports/
+│ └── settings/
 
 Every feature must contain:
 
@@ -56,18 +56,21 @@ Never create random folders.
 ## MVVM Rules
 
 Views:
+
 - UI only
 - No business logic
 - No Supabase calls
 - No complex calculations
 
 ViewModels:
+
 - Manage state
 - Call repositories
 - Handle loading and error states
 - No UI widgets
 
 Repositories:
+
 - Supabase queries only
 - CRUD operations only
 - Return typed models
@@ -79,12 +82,14 @@ Repositories:
 Use Riverpod only.
 
 Do not use:
+
 - Provider
 - GetX
 - Bloc
 - setState for business state
 
 Use:
+
 - AsyncNotifier
 - Notifier
 - Riverpod Generator
@@ -286,25 +291,30 @@ Always reuse existing ViewModels and repositories when possible.
 ## Mazhavil Business Rules
 
 Products:
+
 - Must support inventory tracking
 - Must support branch assignment
 - Must support image uploads
 
 Orders:
+
 - Check availability before booking
 - Validate stock before confirmation
 - Prevent double booking
 
 Customers:
+
 - Support KYC documents
 - Support rental history
 
 Payments:
+
 - Support Cash
 - Support UPI
 - Support Bank Transfer
 
 Reports:
+
 - Revenue
 - Top Costumes
 - Top Customers

@@ -42,7 +42,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Cron auto-status failed:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      {
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

@@ -1,19 +1,45 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import {
-  Package, CheckCircle2, AlertTriangle, Loader2, Info,
-  ArrowLeft, XCircle, Phone, Banknote, Smartphone, Building2, Edit3, ReceiptText, ScanBarcode, Save, MapPin, FileText,
-  CalendarDays, Clock, Box, CircleDollarSign, Truck, RotateCcw
-} from "lucide-react";
+  Package,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  Info,
+  ArrowLeft,
+  XCircle,
+  Phone,
+  Banknote,
+  Smartphone,
+  Building2,
+  Edit3,
+  ReceiptText,
+  ScanBarcode,
+  Save,
+  MapPin,
+  FileText,
+  CalendarDays,
+  Clock,
+  Box,
+  CircleDollarSign,
+  Truck,
+  RotateCcw,
+} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import Modal from "@/components/admin/Modal";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import Modal from '@/components/admin/Modal';
 import {
   useOrder,
   useOrderStatusHistory,
@@ -23,18 +49,20 @@ import {
   useOrderPayments,
   useLookupProductByBarcode,
   useUpdateOrderItemDamage,
-  useUpdatePayment
-} from "@/hooks";
-import { useAppStore, useAppSelectors } from "@/stores";
-import { formatCurrency } from "@/lib/shared-utils";
-import { OrderStatus, ConditionRating, PaymentStatus } from "@/domain/types/order";
-import { PaymentType, PaymentMode } from "@/domain/types/payment";
-import { startOfDay } from "date-fns";
+  useUpdatePayment,
+  useDeletePayment,
+} from '@/hooks';
+import { useAppStore, useAppSelectors } from '@/stores';
+import { formatCurrency } from '@/lib/shared-utils';
+import { OrderStatus, ConditionRating, PaymentStatus } from '@/domain/types/order';
+import { PaymentType, PaymentMode } from '@/domain/types/payment';
+import { startOfDay } from 'date-fns';
 import dynamic from 'next/dynamic';
 
 const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
-const DamageAssessmentPanel = dynamic(() => import('./orders/DamageAssessmentPanel'), { ssr: false });
-
+const DamageAssessmentPanel = dynamic(() => import('./orders/DamageAssessmentPanel'), {
+  ssr: false,
+});
 
 export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const router = useRouter();
@@ -45,6 +73,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { updateOrder, isLoading: isUpdating } = useUpdateOrder();
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
   const { updatePayment, isPending: isUpdatingPayment } = useUpdatePayment();
+  const { deletePayment, isLoading: isDeletingPayment } = useDeletePayment();
   const showSuccess = useAppSelectors.showSuccess();
   const showError = useAppSelectors.showError();
   const { lookupByBarcode } = useLookupProductByBarcode();
@@ -55,37 +84,38 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [paymentEditForm, setPaymentEditForm] = useState({
     paymentMode: PaymentMode.CASH,
-    notes: ""
+    amount: '0',
+    notes: '',
   });
   const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
-    amount: "0",
+    amount: '0',
     paymentMode: PaymentMode.CASH,
     paymentType: PaymentType.FINAL,
-    notes: ""
+    notes: '',
   });
   const [refundForm, setRefundForm] = useState({
     paymentMode: PaymentMode.CASH,
-    notes: "",
-    amount: "0",
+    notes: '',
+    amount: '0',
   });
   const [isCancellationRefund, setIsCancellationRefund] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReason, setCancelReason] = useState('');
   const [isReturnConfirmOpen, setIsReturnConfirmOpen] = useState(false);
 
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({
     type: 'discount' as 'discount' | 'late_fee' | 'damage_fee' | 'extra_charge',
-    amount: "0",
-    notes: ""
+    amount: '0',
+    notes: '',
   });
   const [isEditingDeposit, setIsEditingDeposit] = useState(false);
-  const [editDepositValue, setEditDepositValue] = useState("");
+  const [editDepositValue, setEditDepositValue] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isKeepMoneyModalOpen, setIsKeepMoneyModalOpen] = useState(false);
   const [isBackfillModalOpen, setIsBackfillModalOpen] = useState(false);
-  const [backfillNote, setBackfillNote] = useState("");
+  const [backfillNote, setBackfillNote] = useState('');
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -93,15 +123,22 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   // Start Rental stock check
   const [isCheckingStock, setIsCheckingStock] = useState(false);
   const [isStockErrorModalOpen, setIsStockErrorModalOpen] = useState(false);
-  const [stockCheckResults, setStockCheckResults] = useState<{ product_name: string; requested: number; available: number; isAvailable: boolean }[]>([]);
+  const [stockCheckResults, setStockCheckResults] = useState<
+    { product_name: string; requested: number; available: number; isAvailable: boolean }[]
+  >([]);
 
   // Local state for the return checklist
-  const [returnItems, setReturnItems] = useState<Record<string, {
-    status: 'excellent' | 'damaged' | 'missing' | null,
-    damage_fee: number,
-    damaged_quantity: number,
-    notes: string,
-  }>>({});
+  const [returnItems, setReturnItems] = useState<
+    Record<
+      string,
+      {
+        status: 'excellent' | 'damaged' | 'missing' | null;
+        damage_fee: number;
+        damaged_quantity: number;
+        notes: string;
+      }
+    >
+  >({});
 
   const [lateFee, setLateFee] = useState<number>(0);
   const [discount, setDiscount] = useState<number>(0);
@@ -110,16 +147,25 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { data: paymentsResponse, isLoading: isLoadingPayments } = useOrderPayments(orderId);
   const payments = paymentsResponse || [];
 
-  const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.PARTIAL;
-  const isFinalized = order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
+  const isReturnable =
+    order?.status === OrderStatus.IN_USE ||
+    order?.status === OrderStatus.ONGOING ||
+    order?.status === OrderStatus.PARTIAL;
+  const isFinalized =
+    order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
+  const isProductReturned =
+    order?.status === OrderStatus.RETURNED ||
+    order?.status === OrderStatus.COMPLETED ||
+    order?.status === OrderStatus.CANCELLED;
 
   // Signature to detect when order items actually change (not just order refetch)
-  const itemsSignature = order?.items?.map(i => `${i.id}:${i.condition_rating}:${i.is_returned}`).join('|') || '';
+  const itemsSignature =
+    order?.items?.map((i) => `${i.id}:${i.condition_rating}:${i.is_returned}`).join('|') || '';
 
   useEffect(() => {
     if (order && isReturnable) {
       const initial: any = {};
-      order.items?.forEach(item => {
+      order.items?.forEach((item) => {
         // Pre-fill from existing data if it exists (for incremental save recovery)
         let status: any = null;
         if (item.condition_rating === 'damaged') status = 'damaged';
@@ -129,7 +175,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           status: status,
           damage_fee: item.damage_charges || 0,
           damaged_quantity: item.damaged_quantity || item.quantity,
-          notes: item.damage_description || ""
+          notes: item.damage_description || '',
         };
       });
       setReturnItems(initial);
@@ -137,7 +183,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   }, [itemsSignature, isReturnable]);
 
   // Projected amount due including pending return fees (live preview)
-  const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
+  const calculatedDamage = Object.values(returnItems).reduce(
+    (sum, item) => sum + (item.damage_fee || 0),
+    0
+  );
 
   // Calculate if the order is overdue based on current date vs end_date
   const todayStr = typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '';
@@ -145,35 +194,51 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   // Base order total before any return-time adjustments (damage, late fee)
   const originalOrderTotalBeforeReturn = order
-    ? (order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0))
+    ? order.total_amount - (order.damage_charges_total || 0) - (order.late_fee || 0)
     : 0;
 
   const projected_total = order
-    ? (isReturnable
+    ? isReturnable
       ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount
-      : order.total_amount)
+      : order.total_amount
     : 0;
 
   const amount_due = order
-    ? (isReturnable
+    ? isReturnable
       ? Math.max(0, projected_total - (order.amount_paid || 0))
-      : Math.max(0, order.total_amount - (order.amount_paid || 0)))
+      : Math.max(0, order.total_amount - (order.amount_paid || 0))
     : 0;
 
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
   const totalDeductions = calculatedDamage + lateFee - discount;
 
   // Reactive settlement variables for the receipt sidebar
-  const displayLateFee = isReturnable ? (order ? order.late_fee + lateFee : 0) : (order ? order.late_fee : 0);
-  const displayOrderDiscount = isReturnable ? (order ? order.discount + discount : 0) : (order ? order.discount : 0);
-  const displayDamageCharges = isReturnable ? calculatedDamage : (order ? order.damage_charges_total : 0);
+  const displayLateFee = isReturnable
+    ? order
+      ? order.late_fee + lateFee
+      : 0
+    : order
+      ? order.late_fee
+      : 0;
+  const displayOrderDiscount = isReturnable
+    ? order
+      ? order.discount + discount
+      : 0
+    : order
+      ? order.discount
+      : 0;
+  const displayDamageCharges = isReturnable
+    ? calculatedDamage
+    : order
+      ? order.damage_charges_total
+      : 0;
   const displayGrandTotal = projected_total;
   const displayBalanceDue = amount_due;
 
   // Console log for financial calculations to help debugging as requested by user
   useEffect(() => {
     if (isReturnable && order) {
-      console.log("[Return Financial Live Calculation]:", {
+      console.log('[Return Financial Live Calculation]:', {
         orderId: order.id,
         status: order.status,
         persistedTotal: order.total_amount,
@@ -186,21 +251,37 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         localAdditionalLateFee: lateFee,
         localAdditionalDiscount: discount,
         liveProjectedTotal: projected_total,
-        liveAmountDue: amount_due
+        liveAmountDue: amount_due,
       });
     }
-  }, [isReturnable, order, calculatedDamage, lateFee, discount, projected_total, amount_due, isOverdue]);
+  }, [
+    isReturnable,
+    order,
+    calculatedDamage,
+    lateFee,
+    discount,
+    projected_total,
+    amount_due,
+    isOverdue,
+  ]);
 
   const getImageUrl = (product: any) => {
-    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) return null;
+    if (!product?.images || !Array.isArray(product.images) || product.images.length === 0)
+      return null;
     const img = product.images[0];
-    return typeof img === "string" ? img : img?.url || null;
+    return typeof img === 'string' ? img : img?.url || null;
   };
 
   const handleMarkAllExcellent = () => {
     const updated: any = {};
-    Object.keys(returnItems).forEach(key => {
-      updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, damaged_quantity: 0, notes: "" };
+    Object.keys(returnItems).forEach((key) => {
+      updated[key] = {
+        ...returnItems[key],
+        status: 'excellent',
+        damage_fee: 0,
+        damaged_quantity: 0,
+        notes: '',
+      };
     });
     setReturnItems(updated);
   };
@@ -213,7 +294,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       if (!product) return;
 
       // Find matching item in the order
-      const matchingItem = order.items?.find(item => {
+      const matchingItem = order.items?.find((item) => {
         const itemProduct = (item as any).product;
         return itemProduct?.id === product.id || item.product_id === product.id;
       });
@@ -228,9 +309,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       setTimeout(() => setHighlightedItemId(null), 2000);
 
       // Auto-mark as excellent
-      setReturnItems(prev => ({
+      setReturnItems((prev) => ({
         ...prev,
-        [matchingItem.id]: { ...prev[matchingItem.id], status: 'excellent', damage_fee: 0, notes: '' }
+        [matchingItem.id]: {
+          ...prev[matchingItem.id],
+          status: 'excellent',
+          damage_fee: 0,
+          notes: '',
+        },
       }));
       showSuccess('Item Scanned', `${product.name} marked as Good condition`);
       setBarcodeInput('');
@@ -258,7 +344,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     const todayDate = new Date(today);
     const endDate = new Date(order.end_date);
     if (!isBackdated && endDate < todayDate) {
-      showError("Rental Expired", "Cannot start a rental whose scheduled return date has already passed. Please create a new order instead.");
+      showError(
+        'Rental Expired',
+        'Cannot start a rental whose scheduled return date has already passed. Please create a new order instead.'
+      );
       return;
     }
 
@@ -272,16 +361,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       data: {
         status: OrderStatus.ONGOING,
         start_date: checkStartDate,
-      }
+      },
     });
   };
 
   const handleItemUpdate = (itemId: string, field: string, value: any) => {
-    setReturnItems(prev => {
+    setReturnItems((prev) => {
       const updated = { ...prev, [itemId]: { ...prev[itemId], [field]: value } };
       // Auto-set damaged_quantity to full quantity when status changes to damaged
       if (field === 'status' && value === 'damaged') {
-        const item = order?.items?.find(i => i.id === itemId);
+        const item = order?.items?.find((i) => i.id === itemId);
         if (item && !updated[itemId].damaged_quantity) {
           updated[itemId].damaged_quantity = item.quantity;
         }
@@ -303,11 +392,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     updateOrderItemDamage({
       itemId,
       data: {
-        condition_rating: rItem.status === 'damaged' ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
+        condition_rating:
+          rItem.status === 'damaged' ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
         damage_description: rItem.notes || null,
         damage_charges: rItem.damage_fee || 0,
         damaged_quantity: rItem.damaged_quantity || 0,
-      }
+      },
     });
   };
 
@@ -315,47 +405,81 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     setEditingPayment(payment);
     setPaymentEditForm({
       paymentMode: payment.payment_mode,
-      notes: payment.notes || ""
+      amount: payment.amount.toString(),
+      notes: payment.notes || '',
     });
     setIsPaymentEditModalOpen(true);
   };
 
+  const handleDeletePayment = async () => {
+    if (!editingPayment) return;
+    if (
+      !confirm(
+        "Are you sure you want to delete this payment record? This action will update the order's financial balance and status, and cannot be undone."
+      )
+    )
+      return;
+
+    try {
+      deletePayment(editingPayment.id, {
+        onSuccess: () => {
+          setIsPaymentEditModalOpen(false);
+          setEditingPayment(null);
+        },
+      });
+    } catch (e) {
+      console.error(e);
+      showError('Error', 'Failed to delete payment.');
+    }
+  };
+
   const handleSavePaymentEdit = async () => {
     if (!editingPayment) return;
+
+    const amountVal = parseFloat(paymentEditForm.amount) || 0;
+    if (amountVal <= 0) {
+      showError(
+        'Validation Error',
+        "Amount must be greater than 0. If you want to undo/delete this payment, please click the 'Delete Payment' button."
+      );
+      return;
+    }
 
     try {
       updatePayment(
         {
           id: editingPayment.id,
           data: {
+            amount: amountVal,
             payment_mode: paymentEditForm.paymentMode,
-            notes: paymentEditForm.notes
-          }
+            notes: paymentEditForm.notes,
+          },
         },
         {
           onSuccess: () => {
             setIsPaymentEditModalOpen(false);
             setEditingPayment(null);
-          }
+          },
         }
       );
     } catch (e) {
       console.error(e);
-      showError("Error", "Failed to update payment mode.");
+      showError('Error', 'Failed to update payment.');
     }
   };
 
   const handleCollectPayment = async () => {
     const amountVal = parseFloat(paymentForm.amount) || 0;
-    const maxAmount = amount_due;
+    const isDeposit = paymentForm.paymentType === PaymentType.DEPOSIT;
+    const maxAmount = isDeposit ? order?.security_deposit || 0 : amount_due;
 
     if (!order || amountVal <= 0) {
-      showError("Validation Error", "Amount must be greater than 0");
+      showError('Validation Error', 'Amount must be greater than 0');
       return;
     }
 
     if (amountVal > maxAmount) {
-      showError("Validation Error", `Amount cannot exceed ${formatCurrency(maxAmount)}`);
+      showError('Validation Error', `Amount cannot exceed ${formatCurrency(maxAmount)}`);
       return;
     }
 
@@ -366,22 +490,42 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           payment_type: paymentForm.paymentType,
           amount: amountVal,
           payment_mode: paymentForm.paymentMode,
-          notes: paymentForm.notes,
+          notes: paymentForm.notes || (isDeposit ? 'Security Deposit Collection' : ''),
         },
         {
           onSuccess: () => {
-            const newAmountPaid = (order.amount_paid || 0) + amountVal;
-            const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
-            updateOrder({
-              id: order.id,
-              data: {
-                amount_paid: newAmountPaid,
-                payment_status: newStatus,
-              },
-            });
+            if (isDeposit) {
+              updateOrder({
+                id: order.id,
+                data: {
+                  deposit_collected: true,
+                  deposit_collected_at: new Date().toISOString(),
+                } as any,
+              });
+              showSuccess(
+                'Security Deposit Collected',
+                'Security deposit was successfully recorded.'
+              );
+            } else {
+              const newAmountPaid = (order.amount_paid || 0) + amountVal;
+              const newStatus =
+                newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+              updateOrder({
+                id: order.id,
+                data: {
+                  amount_paid: newAmountPaid,
+                  payment_status: newStatus,
+                },
+              });
+              showSuccess('Payment Recorded', 'Payment was successfully processed.');
+            }
             setIsPaymentModalOpen(false);
-            setPaymentForm({ amount: "0", paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
-            showSuccess("Payment Recorded", "Payment was successfully processed.");
+            setPaymentForm({
+              amount: '0',
+              paymentMode: PaymentMode.CASH,
+              paymentType: PaymentType.FINAL,
+              notes: '',
+            });
           },
         }
       );
@@ -391,9 +535,46 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleRefundDeposit = async () => {
-    // Deposit refund is no longer applicable — security deposit has been removed.
-    // This function is kept as a stub for backwards compatibility.
-    return;
+    if (!order) return;
+    const amountVal = order.security_deposit || 0;
+    if (amountVal <= 0) return;
+
+    try {
+      createPayment(
+        {
+          order_id: order.id,
+          payment_type: PaymentType.REFUND,
+          amount: amountVal,
+          payment_mode: refundForm.paymentMode,
+          notes: refundForm.notes || 'Security Deposit Refund',
+        },
+        {
+          onSuccess: () => {
+            updateOrder(
+              {
+                id: order.id,
+                data: {
+                  deposit_returned: true,
+                  deposit_returned_at: new Date().toISOString(),
+                } as any,
+              },
+              {
+                onSuccess: () => {
+                  setIsRefundModalOpen(false);
+                  setRefundForm({ paymentMode: PaymentMode.CASH, notes: '', amount: '0' });
+                  showSuccess(
+                    'Deposit Refunded',
+                    `${formatCurrency(amountVal)} security deposit has been refunded.`
+                  );
+                },
+              }
+            );
+          },
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const submitReturn = () => {
@@ -403,22 +584,28 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     const returnPayload = {
       order_id: order.id,
       notes: `Late Fee: ${lateFee}, Discount: ${discount}`,
-      items: order.items?.map(item => {
-        const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "" };
-        const isDamaged = rItem.status === 'damaged';
-        const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
-        // Auto-mark remaining quantity as Good
-        const returnedQty = rItem.status === 'missing' ? 0 : item.quantity;
-        return {
-          item_id: item.id,
-          returned_quantity: returnedQty,
-          condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
-          damage_description: rItem.notes || "",
-          damage_charges: rItem.damage_fee || 0,
-          damaged_quantity: damagedQty,
-          // The good quantity is implicitly: item.quantity - damagedQty
-        };
-      }) || [],
+      items:
+        order.items?.map((item) => {
+          const rItem = returnItems[item.id] || {
+            status: null,
+            damage_fee: 0,
+            damaged_quantity: 0,
+            notes: '',
+          };
+          const isDamaged = rItem.status === 'damaged';
+          const damagedQty = isDamaged ? rItem.damaged_quantity || item.quantity : 0;
+          // Auto-mark remaining quantity as Good
+          const returnedQty = rItem.status === 'missing' ? 0 : item.quantity;
+          return {
+            item_id: item.id,
+            returned_quantity: returnedQty,
+            condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
+            damage_description: rItem.notes || '',
+            damage_charges: rItem.damage_fee || 0,
+            damaged_quantity: damagedQty,
+            // The good quantity is implicitly: item.quantity - damagedQty
+          };
+        }) || [],
       late_fee: lateFee,
       discount: discount,
     };
@@ -430,13 +617,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (!order) return;
 
     // Bulletproof validation check across all order items
-    const unmarked = order.items?.filter(item => {
-      const rItem = returnItems[item.id];
-      return !rItem || rItem.status === null;
-    }) || [];
+    const unmarked =
+      order.items?.filter((item) => {
+        const rItem = returnItems[item.id];
+        return !rItem || rItem.status === null;
+      }) || [];
 
     if (unmarked.length > 0) {
-      showError("Incomplete Checkup", "Please mark the condition of all items before settling.");
+      showError('Incomplete Checkup', 'Please mark the condition of all items before settling.');
       return;
     }
 
@@ -479,21 +667,45 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     }
 
     switch (status) {
-      case OrderStatus.CONFIRMED: case OrderStatus.SCHEDULED: return { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Scheduled' };
-      case OrderStatus.ONGOING: case OrderStatus.IN_USE: return { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Ongoing' };
+      case OrderStatus.CONFIRMED:
+      case OrderStatus.SCHEDULED:
+        return { color: 'bg-blue-100 text-blue-800 border-blue-200', label: 'Scheduled' };
+      case OrderStatus.ONGOING:
+      case OrderStatus.IN_USE:
+        return { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Ongoing' };
       // LATE_RETURN removed - now handled by is_late boolean flag
-      case OrderStatus.PARTIAL: return { color: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Partial' };
-      case OrderStatus.RETURNED: case OrderStatus.COMPLETED: return { color: 'bg-slate-100 text-slate-600 border-slate-200', label: 'Returned' };
-      case OrderStatus.FLAGGED: return { color: 'bg-purple-100 text-purple-800 border-purple-200', label: '⚠️ Flagged' };
-      case OrderStatus.CANCELLED: return { color: 'bg-slate-800 text-slate-300 border-slate-700 line-through', label: 'Cancelled' };
-      default: return { color: 'bg-slate-100 text-slate-600 border-slate-200', label: status };
+      case OrderStatus.PARTIAL:
+        return { color: 'bg-orange-100 text-orange-800 border-orange-200', label: 'Partial' };
+      case OrderStatus.RETURNED:
+      case OrderStatus.COMPLETED:
+        return { color: 'bg-slate-100 text-slate-600 border-slate-200', label: 'Returned' };
+      case OrderStatus.FLAGGED:
+        return { color: 'bg-purple-100 text-purple-800 border-purple-200', label: '⚠️ Flagged' };
+      case OrderStatus.CANCELLED:
+        return {
+          color: 'bg-slate-800 text-slate-300 border-slate-700 line-through',
+          label: 'Cancelled',
+        };
+      default:
+        return { color: 'bg-slate-100 text-slate-600 border-slate-200', label: status };
     }
   };
 
   const statusDisplay = getStatusDisplay(order.status, order.end_date);
-  const rentalDurationDays = Math.max(1, Math.ceil((new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  const rentalDurationDays = Math.max(
+    1,
+    Math.ceil(
+      (new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) /
+        (1000 * 60 * 60 * 24)
+    ) + 1
+  );
   const totalItemQuantity = order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-  const paymentStatusLabel = order.payment_status === PaymentStatus.PAID ? 'Paid' : order.payment_status === PaymentStatus.PARTIAL ? 'Partial Payment' : order.payment_status;
+  const paymentStatusLabel =
+    order.payment_status === PaymentStatus.PAID
+      ? 'Paid'
+      : order.payment_status === PaymentStatus.PARTIAL
+        ? 'Partial Payment'
+        : order.payment_status;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
@@ -511,24 +723,34 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   Inventory Fulfillment Conflict Detected
                 </h3>
                 <p className="text-sm text-red-700 mt-1 font-medium leading-relaxed">
-                  Total inventory for one or more items in this order has dropped below required levels due to damage or write-offs.
-                  This order is currently at risk of incomplete fulfillment.
+                  Total inventory for one or more items in this order has dropped below required
+                  levels due to damage or write-offs. This order is currently at risk of incomplete
+                  fulfillment.
                 </p>
 
-                {order.conflict_details && Array.isArray(order.conflict_details) && order.conflict_details.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    {order.conflict_details.map((conflict: any, idx: number) => (
-                      <div key={idx} className="bg-white/80 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-3 shadow-sm">
-                        <div className="bg-red-50 px-2 py-0.5 rounded text-[10px] font-black text-red-700 uppercase tracking-wider">Conflict</div>
-                        <span className="text-xs font-bold text-red-900 uppercase tracking-tight">{conflict.productName}</span>
-                        <div className="w-px h-3 bg-red-200" />
-                        <span className="text-xs text-red-700 font-bold">
-                          Shortfall: {conflict.shortfall} unit(s)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {order.conflict_details &&
+                  Array.isArray(order.conflict_details) &&
+                  order.conflict_details.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {order.conflict_details.map((conflict: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="bg-white/80 border border-red-100 rounded-xl px-3 py-2 flex items-center gap-3 shadow-sm"
+                        >
+                          <div className="bg-red-50 px-2 py-0.5 rounded text-[10px] font-black text-red-700 uppercase tracking-wider">
+                            Conflict
+                          </div>
+                          <span className="text-xs font-bold text-red-900 uppercase tracking-tight">
+                            {conflict.productName}
+                          </span>
+                          <div className="w-px h-3 bg-red-200" />
+                          <span className="text-xs text-red-700 font-bold">
+                            Shortfall: {conflict.shortfall} unit(s)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
               </div>
               <div className="flex flex-col gap-2">
                 <Button
@@ -547,25 +769,38 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-3">
-            <Button variant="ghost" onClick={() => router.push("/dashboard/orders")} className="h-9 px-0 text-slate-600 hover:bg-transparent hover:text-slate-900">
+            <Button
+              variant="ghost"
+              onClick={() => router.push('/dashboard/orders')}
+              className="h-9 px-0 text-slate-600 hover:bg-transparent hover:text-slate-900"
+            >
               <ArrowLeft className="w-4 h-4 mr-2" /> Orders
             </Button>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-slate-900">
                 {order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}
               </h1>
-              <div className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wide ${statusDisplay.color}`}>
+              <div
+                className={`px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wide ${statusDisplay.color}`}
+              >
                 {statusDisplay.label}
               </div>
             </div>
             <p className="text-sm text-slate-500">
-              Created on {format(new Date(order.created_at), "dd MMM, yyyy • h:mm a")} by Admin
+              Created on {format(new Date(order.created_at), 'dd MMM, yyyy • h:mm a')} by{' '}
+              <span className="font-semibold">{order.creator?.name || 'Admin'}</span>
             </p>
+            {order.updated_at && order.updater && (
+              <p className="text-xs text-slate-400 mt-1">
+                Last updated on {format(new Date(order.updated_at), 'dd MMM, yyyy • h:mm a')} by{' '}
+                <span className="font-semibold">{order.updater.name}</span>
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-            {!isFinalized && (
-              amount_due > 0 ? (
+            {!isFinalized &&
+              (amount_due > 0 ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
                   Due {formatCurrency(amount_due)}
                 </div>
@@ -573,55 +808,82 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700">
                   Paid
                 </div>
-              )
-            )}
-            {(order.status === OrderStatus.PENDING || order.status === OrderStatus.CONFIRMED || order.status === OrderStatus.SCHEDULED) && (() => {
-              const today = startOfDay(new Date());
-              const rentalStart = startOfDay(new Date(order.start_date));
-              const rentalEnd = startOfDay(new Date(order.end_date));
-              const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
-              const isBackdated = order.start_date < creationDateStr;
-              const isExpired = !isBackdated && today > rentalEnd;
-              const isEarlyStart = today < rentalStart;
+              ))}
+            {(order.status === OrderStatus.PENDING ||
+              order.status === OrderStatus.CONFIRMED ||
+              order.status === OrderStatus.SCHEDULED) &&
+              (() => {
+                const today = startOfDay(new Date());
+                const rentalStart = startOfDay(new Date(order.start_date));
+                const rentalEnd = startOfDay(new Date(order.end_date));
+                const creationDateStr = new Date(order.created_at).toLocaleDateString('en-CA');
+                const isBackdated = order.start_date < creationDateStr;
+                const isExpired = !isBackdated && today > rentalEnd;
+                const isEarlyStart = today < rentalStart;
 
-              if (isExpired) {
+                if (isExpired) {
+                  return (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+                        Rental period expired
+                      </div>
+                      <Button
+                        onClick={() => setIsBackfillModalOpen(true)}
+                        disabled={isUpdating}
+                        className="h-11 bg-amber-600 px-5 font-semibold text-white hover:bg-amber-700"
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" /> Record Returned
+                      </Button>
+                      <Button
+                        onClick={() => setIsCancelModalOpen(true)}
+                        disabled={isUpdating}
+                        variant="outline"
+                        className="h-11 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" /> Cancel
+                      </Button>
+                    </div>
+                  );
+                }
+
                 return (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
-                      Rental period expired
-                    </div>
-                    <Button onClick={() => setIsBackfillModalOpen(true)} disabled={isUpdating} className="h-11 bg-amber-600 px-5 font-semibold text-white hover:bg-amber-700">
-                      <CheckCircle2 className="w-4 h-4 mr-2" /> Record Returned
+                  <>
+                    <Button
+                      onClick={handleStartOrder}
+                      disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict}
+                      className="h-12 bg-blue-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isCheckingStock ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...
+                        </>
+                      ) : order.has_stock_conflict ? (
+                        'Stock Conflict'
+                      ) : (
+                        'Start Rental'
+                      )}
                     </Button>
-                    <Button onClick={() => setIsCancelModalOpen(true)} disabled={isUpdating} variant="outline" className="h-11 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50">
-                      <XCircle className="w-4 h-4 mr-2" /> Cancel
+                    <Button
+                      onClick={() => setIsCancelModalOpen(true)}
+                      disabled={isUpdating}
+                      variant="outline"
+                      className="h-12 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      Cancel
                     </Button>
-                  </div>
-                );
-              }
-
-              return (
-                <>
-                  <Button onClick={handleStartOrder} disabled={isUpdating || isCheckingStock || !!order.has_stock_conflict} className="h-12 bg-blue-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-                    {isCheckingStock ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...</>
-                    ) : (
-                      order.has_stock_conflict ? 'Stock Conflict' : 'Start Rental'
+                    {isEarlyStart && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
+                        Pickup: {format(rentalStart, 'dd MMM, yyyy')}
+                      </div>
                     )}
-                  </Button>
-                  <Button onClick={() => setIsCancelModalOpen(true)} disabled={isUpdating} variant="outline" className="h-12 border-red-200 px-5 font-semibold text-red-600 hover:bg-red-50">
-                    Cancel
-                  </Button>
-                  {isEarlyStart && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700">
-                      Pickup: {format(rentalStart, "dd MMM, yyyy")}
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+                  </>
+                );
+              })()}
             {order.status !== OrderStatus.SCHEDULED && !isFinalized && amount_due > 0 && (
-              <Button onClick={() => setIsPaymentModalOpen(true)} className="h-12 bg-red-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-red-700">
+              <Button
+                onClick={() => setIsPaymentModalOpen(true)}
+                className="h-12 bg-red-600 px-7 text-base font-semibold text-white shadow-sm hover:bg-red-700"
+              >
                 Collect Payment
               </Button>
             )}
@@ -634,17 +896,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <CalendarDays className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Pickup</p>
-              <p className="text-sm font-bold text-slate-900">{format(new Date(order.start_date), "dd MMM, yyyy")}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Pickup
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                {format(new Date(order.start_date), 'dd MMM, yyyy')}
+              </p>
             </div>
           </div>
-          <div className={`flex items-center gap-3 border-b border-slate-100 p-4 xl:border-b-0 xl:border-r ${order.is_late ? 'bg-red-50' : ''}`}>
-            <div className={`flex h-10 w-10 items-center justify-center rounded-full ${order.is_late ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+          <div
+            className={`flex items-center gap-3 border-b border-slate-100 p-4 xl:border-b-0 xl:border-r ${order.is_late ? 'bg-red-50' : ''}`}
+          >
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-full ${order.is_late ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'}`}
+            >
               <CalendarDays className="h-5 w-5" />
             </div>
             <div>
-              <p className={`text-[10px] font-bold uppercase tracking-wider ${order.is_late ? 'text-red-500' : 'text-slate-400'}`}>Return</p>
-              <p className={`text-sm font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}>{format(new Date(order.end_date), "dd MMM, yyyy")}</p>
+              <p
+                className={`text-[10px] font-bold uppercase tracking-wider ${order.is_late ? 'text-red-500' : 'text-slate-400'}`}
+              >
+                Return
+              </p>
+              <p
+                className={`text-sm font-bold ${order.is_late ? 'text-red-700' : 'text-slate-900'}`}
+              >
+                {format(new Date(order.end_date), 'dd MMM, yyyy')}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 border-b border-slate-100 p-4 sm:border-r xl:border-b-0">
@@ -652,8 +930,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Duration</p>
-              <p className="text-sm font-bold text-slate-900">{rentalDurationDays} Day{rentalDurationDays !== 1 ? 's' : ''}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Duration
+              </p>
+              <p className="text-sm font-bold text-slate-900">
+                {rentalDurationDays} Day{rentalDurationDays !== 1 ? 's' : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 border-b border-slate-100 p-4 xl:border-b-0 xl:border-r">
@@ -662,7 +944,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Items</p>
-              <p className="text-sm font-bold text-slate-900">{totalItemQuantity} Piece{totalItemQuantity !== 1 ? 's' : ''}</p>
+              <p className="text-sm font-bold text-slate-900">
+                {totalItemQuantity} Piece{totalItemQuantity !== 1 ? 's' : ''}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3 p-4">
@@ -670,7 +954,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <CircleDollarSign className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Payment
+              </p>
               <p className="text-sm font-bold text-slate-900 capitalize">{paymentStatusLabel}</p>
             </div>
           </div>
@@ -682,19 +968,57 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           {[
             { label: 'Created', active: true, icon: CalendarDays },
             { label: 'Payment', active: order.amount_paid > 0, icon: Banknote },
-            { label: 'Ready', active: [OrderStatus.CONFIRMED, OrderStatus.SCHEDULED, OrderStatus.ONGOING, OrderStatus.IN_USE, OrderStatus.PARTIAL, OrderStatus.RETURNED, OrderStatus.COMPLETED].includes(order.status), icon: Package },
-            { label: 'Rented', active: [OrderStatus.ONGOING, OrderStatus.IN_USE, OrderStatus.PARTIAL, OrderStatus.RETURNED, OrderStatus.COMPLETED].includes(order.status), icon: Truck },
-            { label: order.status === OrderStatus.CANCELLED ? 'Cancelled' : 'Completed', active: [OrderStatus.RETURNED, OrderStatus.COMPLETED, OrderStatus.CANCELLED].includes(order.status), icon: order.status === OrderStatus.CANCELLED ? XCircle : CheckCircle2 },
+            {
+              label: 'Ready',
+              active: [
+                OrderStatus.CONFIRMED,
+                OrderStatus.SCHEDULED,
+                OrderStatus.ONGOING,
+                OrderStatus.IN_USE,
+                OrderStatus.PARTIAL,
+                OrderStatus.RETURNED,
+                OrderStatus.COMPLETED,
+              ].includes(order.status),
+              icon: Package,
+            },
+            {
+              label: 'Rented',
+              active: [
+                OrderStatus.ONGOING,
+                OrderStatus.IN_USE,
+                OrderStatus.PARTIAL,
+                OrderStatus.RETURNED,
+                OrderStatus.COMPLETED,
+              ].includes(order.status),
+              icon: Truck,
+            },
+            {
+              label: order.status === OrderStatus.CANCELLED ? 'Cancelled' : 'Completed',
+              active: [OrderStatus.RETURNED, OrderStatus.COMPLETED, OrderStatus.CANCELLED].includes(
+                order.status
+              ),
+              icon: order.status === OrderStatus.CANCELLED ? XCircle : CheckCircle2,
+            },
           ].map((step, index) => {
             const Icon = step.icon;
             return (
               <div key={step.label} className="relative flex items-center gap-3">
-                {index > 0 && <div className={`hidden md:block absolute -left-1/2 top-5 h-px w-full ${step.active ? 'bg-blue-200' : 'bg-slate-200'}`} />}
-                <div className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${step.active ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                {index > 0 && (
+                  <div
+                    className={`hidden md:block absolute -left-1/2 top-5 h-px w-full ${step.active ? 'bg-blue-200' : 'bg-slate-200'}`}
+                  />
+                )}
+                <div
+                  className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${step.active ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-200 bg-slate-50 text-slate-400'}`}
+                >
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className={`text-xs font-bold ${step.active ? 'text-slate-900' : 'text-slate-400'}`}>{step.label}</p>
+                  <p
+                    className={`text-xs font-bold ${step.active ? 'text-slate-900' : 'text-slate-400'}`}
+                  >
+                    {step.label}
+                  </p>
                   <p className="text-[10px] text-slate-400">Step {index + 1}</p>
                 </div>
               </div>
@@ -713,46 +1037,90 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         {isLoadingPayments ? (
           <div className="p-8 text-center text-slate-500 font-medium">Loading payments...</div>
         ) : payments.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 font-medium bg-slate-50/50">No payments recorded yet.</div>
+          <div className="p-8 text-center text-slate-500 font-medium bg-slate-50/50">
+            No payments recorded yet.
+          </div>
         ) : (
           <div className="divide-y divide-slate-100 overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
                 <tr className="bg-white">
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">Date & Time</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">Type & Mode</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4 text-right">Amount</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">Handled By</th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">
+                    Date & Time
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">
+                    Type & Mode
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4 text-right">
+                    Amount
+                  </th>
+                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider w-1/4">
+                    Handled By
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
                 {payments.map((payment: any) => (
                   <tr key={payment.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-900">{format(new Date(payment.payment_date || payment.created_at), "dd MMM, yyyy")}</div>
-                      <div className="text-xs text-slate-500">{format(new Date(payment.payment_date || payment.created_at), "h:mm a")}</div>
+                      <div className="text-sm font-bold text-slate-900">
+                        {format(
+                          new Date(payment.payment_date || payment.created_at),
+                          'dd MMM, yyyy'
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {format(new Date(payment.payment_date || payment.created_at), 'h:mm a')}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md border ${payment.payment_type === PaymentType.REFUND ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                            payment.payment_type === PaymentType.DEPOSIT ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                              'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          }`}>
+                        <span
+                          className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md border ${
+                            payment.payment_type === PaymentType.REFUND
+                              ? 'bg-orange-50 text-orange-700 border-orange-200'
+                              : payment.payment_type === PaymentType.DEPOSIT
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
                           {payment.payment_type}
                         </span>
                         <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md uppercase border border-slate-200">
                           {payment.payment_mode}
                         </span>
                       </div>
-                      {payment.notes && <div className="text-xs text-slate-500 mt-1.5 truncate max-w-[200px]" title={payment.notes}>{payment.notes}</div>}
+                      {payment.notes && (
+                        <div
+                          className="text-xs text-slate-500 mt-1.5 truncate max-w-[200px]"
+                          title={payment.notes}
+                        >
+                          {payment.notes}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className={`text-base font-black ${payment.payment_type === PaymentType.REFUND ? 'text-orange-600' : 'text-emerald-600'}`}>
-                        {payment.payment_type === PaymentType.REFUND ? '-' : '+'}{formatCurrency(payment.amount)}
+                      <span
+                        className={`text-base font-black ${payment.payment_type === PaymentType.REFUND ? 'text-orange-600' : 'text-emerald-600'}`}
+                      >
+                        {payment.payment_type === PaymentType.REFUND ? '-' : '+'}
+                        {formatCurrency(payment.amount)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-slate-700">{(payment as any).staff?.name || (payment.created_by ? `Staff #${payment.created_by.slice(0, 6)}` : 'System')}</div>
+                      <div className="text-sm font-bold text-slate-700">
+                        {payment.updater?.name ||
+                          payment.staff?.name ||
+                          (payment.created_by
+                            ? `Staff #${payment.created_by.slice(0, 6)}`
+                            : 'System')}
+                      </div>
+                      {payment.updater?.name && payment.updater.id !== payment.staff?.id && (
+                        <div className="text-[10px] text-slate-400">
+                          Originally:{' '}
+                          {payment.staff?.name || `Staff #${payment.created_by?.slice(0, 6)}`}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <Button
@@ -774,25 +1142,29 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
       {/* 3. Split View */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-
         {/* Left Column: Order Items */}
         <div className="xl:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="bg-slate-50 px-6 py-5 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-              <h2 className="text-lg font-bold text-slate-900 uppercase tracking-wide">Order Items</h2>
+              <h2 className="text-lg font-bold text-slate-900 uppercase tracking-wide">
+                Order Items
+              </h2>
               {isReturnable && (
                 <div className="flex items-center gap-2">
-                  <Button onClick={handleMarkAllExcellent} variant="outline" className="font-bold border-slate-300 text-slate-700">
+                  <Button
+                    onClick={handleMarkAllExcellent}
+                    variant="outline"
+                    className="font-bold border-slate-300 text-slate-700"
+                  >
                     <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Mark All Good
                   </Button>
                 </div>
               )}
             </div>
 
-
             <div className="divide-y divide-slate-100">
               {order.items?.map((item) => {
-                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: "" };
+                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: '' };
                 const isExcellent = rItem.status === 'excellent';
                 const isDamaged = rItem.status === 'damaged';
                 const isMissing = rItem.status === 'missing';
@@ -800,11 +1172,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 const imgUrl = getImageUrl(product);
 
                 return (
-                  <div key={item.id} className={`p-6 transition-all duration-300 ${highlightedItemId === item.id ? 'bg-emerald-100/80 ring-2 ring-emerald-400' : isExcellent ? 'bg-emerald-50/50' : isDamaged ? 'bg-orange-50/50' : isMissing ? 'bg-red-50/50' : ''}`}>
+                  <div
+                    key={item.id}
+                    className={`p-6 transition-all duration-300 ${highlightedItemId === item.id ? 'bg-emerald-100/80 ring-2 ring-emerald-400' : isExcellent ? 'bg-emerald-50/50' : isDamaged ? 'bg-orange-50/50' : isMissing ? 'bg-red-50/50' : ''}`}
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-center gap-6">
                       <div className="w-20 h-20 rounded-xl bg-slate-100 flex-shrink-0 border-2 border-slate-200 overflow-hidden shadow-sm">
                         {imgUrl ? (
-                          <img src={imgUrl} alt={product?.name} className="w-full h-full object-cover" />
+                          <img
+                            src={imgUrl}
+                            alt={product?.name}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-300">
                             <Package className="w-8 h-8" />
@@ -812,7 +1191,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         )}
                       </div>
                       <div className="flex-1">
-                        <h4 className="text-lg font-bold text-slate-900">{product?.name || `Product #${item.product_id?.slice(0, 6).toUpperCase()}`}</h4>
+                        <h4 className="text-lg font-bold text-slate-900">
+                          {product?.name ||
+                            `Product #${item.product_id?.slice(0, 6).toUpperCase()}`}
+                        </h4>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                           <p className="text-sm font-bold text-slate-700">
                             Qty: {item.quantity} × {formatCurrency(item.price_per_day)}
@@ -820,7 +1202,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                           {item.discount > 0 && (
                             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                              -{item.discount_type === 'percent' ? `${item.discount}%` : formatCurrency(item.discount)} Off
+                              -
+                              {item.discount_type === 'percent'
+                                ? `${item.discount}%`
+                                : formatCurrency(item.discount)}{' '}
+                              Off
                             </span>
                           )}
 
@@ -833,7 +1219,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                         {(item.gst_amount > 0 || item.discount > 0) && (
                           <p className="text-[10px] text-slate-400 mt-1 font-medium">
-                            Base: {formatCurrency(item.base_amount)} + GST: {formatCurrency(item.gst_amount)}
+                            Base: {formatCurrency(item.base_amount)} + GST:{' '}
+                            {formatCurrency(item.gst_amount)}
                           </p>
                         )}
                       </div>
@@ -846,7 +1233,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             variant="outline"
                             className={`h-12 px-4 font-bold rounded-xl transition-all ${isExcellent ? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'}`}
                           >
-                            <CheckCircle2 className={`w-5 h-5 mr-2 ${isExcellent ? 'text-white' : 'text-emerald-500'}`} /> Good
+                            <CheckCircle2
+                              className={`w-5 h-5 mr-2 ${isExcellent ? 'text-white' : 'text-emerald-500'}`}
+                            />{' '}
+                            Good
                           </Button>
                           <Button
                             type="button"
@@ -854,12 +1244,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             variant="outline"
                             className={`h-12 px-4 font-bold rounded-xl transition-all ${isDamaged ? 'bg-orange-500 text-white border-orange-500 hover:bg-orange-600 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200'}`}
                           >
-                            <AlertTriangle className={`w-5 h-5 mr-2 ${isDamaged ? 'text-white' : 'text-orange-500'}`} /> Damaged
+                            <AlertTriangle
+                              className={`w-5 h-5 mr-2 ${isDamaged ? 'text-white' : 'text-orange-500'}`}
+                            />{' '}
+                            Damaged
                           </Button>
                         </div>
                       ) : (
-                        <span className={`text-sm font-bold px-3 py-1.5 rounded-lg border-2 ${item.is_returned ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                          {item.is_returned ? "Returned" : "Pending"}
+                        <span
+                          className={`text-sm font-bold px-3 py-1.5 rounded-lg border-2 ${item.is_returned ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
+                        >
+                          {item.is_returned ? 'Returned' : 'Pending'}
                         </span>
                       )}
                     </div>
@@ -868,7 +1263,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <div className="mt-4 p-4 bg-white border-2 border-orange-200 rounded-xl space-y-3 shadow-sm">
                         <div className="flex flex-col sm:flex-row gap-4 items-start">
                           <div className="flex-1 space-y-2 w-full">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Damage Notes</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                              Damage Notes
+                            </label>
                             <Input
                               value={rItem.notes}
                               onChange={(e) => handleItemUpdate(item.id, 'notes', e.target.value)}
@@ -877,10 +1274,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             />
                           </div>
                           <div className="w-full sm:w-32 space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Damaged Qty</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                              Damaged Qty
+                            </label>
                             <Input
                               type="number"
-                              value={rItem.damaged_quantity || ""}
+                              value={rItem.damaged_quantity || ''}
                               min={1}
                               max={item.quantity}
                               onChange={(e) => {
@@ -896,7 +1295,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                               }}
                               onBlur={() => {
                                 // Clamp to valid range on blur
-                                const clamped = Math.max(1, Math.min(item.quantity, rItem.damaged_quantity || 1));
+                                const clamped = Math.max(
+                                  1,
+                                  Math.min(item.quantity, rItem.damaged_quantity || 1)
+                                );
                                 handleItemUpdate(item.id, 'damaged_quantity', clamped);
                               }}
                               placeholder="0"
@@ -905,30 +1307,49 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             <p className="text-[10px] text-slate-400">of {item.quantity} total</p>
                           </div>
                           <div className="w-full sm:w-40 space-y-2">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fee (₹)</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                              Fee (₹)
+                            </label>
                             <Input
                               type="number"
-                              value={rItem.damage_fee || ""}
-                              onChange={(e) => handleItemUpdate(item.id, 'damage_fee', parseFloat(e.target.value) || 0)}
+                              value={rItem.damage_fee || ''}
+                              onChange={(e) =>
+                                handleItemUpdate(
+                                  item.id,
+                                  'damage_fee',
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
                               placeholder="0"
                               className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
                             />
                           </div>
                           <div className="w-full sm:w-32 space-y-2">
-                            <label className="text-xs font-bold text-transparent select-none uppercase tracking-widest">Save</label>
+                            <label className="text-xs font-bold text-transparent select-none uppercase tracking-widest">
+                              Save
+                            </label>
                             {(() => {
-                              const dbItem = order.items?.find(i => i.id === item.id);
+                              const dbItem = order.items?.find((i) => i.id === item.id);
                               if (!dbItem) return null;
 
-                              const dbStatus = dbItem.condition_rating === 'damaged' ? 'damaged' : (dbItem.condition_rating === 'excellent' ? 'excellent' : null);
-                              const dbDamagedQty = dbItem.condition_rating === 'damaged' ? (dbItem.damaged_quantity || 0) : 0;
-                              const currentDamagedQty = rItem.status === 'damaged' ? (rItem.damaged_quantity || 0) : 0;
+                              const dbStatus =
+                                dbItem.condition_rating === 'damaged'
+                                  ? 'damaged'
+                                  : dbItem.condition_rating === 'excellent'
+                                    ? 'excellent'
+                                    : null;
+                              const dbDamagedQty =
+                                dbItem.condition_rating === 'damaged'
+                                  ? dbItem.damaged_quantity || 0
+                                  : 0;
+                              const currentDamagedQty =
+                                rItem.status === 'damaged' ? rItem.damaged_quantity || 0 : 0;
 
                               const isDirty =
                                 rItem.status !== dbStatus ||
                                 rItem.damage_fee !== (dbItem.damage_charges || 0) ||
                                 currentDamagedQty !== dbDamagedQty ||
-                                rItem.notes !== (dbItem.damage_description || "");
+                                rItem.notes !== (dbItem.damage_description || '');
 
                               if (isDirty) {
                                 return (
@@ -973,7 +1394,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         {rItem.damaged_quantity < item.quantity && (
                           <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{item.quantity - rItem.damaged_quantity} of {item.quantity} units auto-marked as <strong>Good</strong></span>
+                            <span>
+                              {item.quantity - rItem.damaged_quantity} of {item.quantity} units
+                              auto-marked as <strong>Good</strong>
+                            </span>
                           </div>
                         )}
                       </div>
@@ -983,16 +1407,24 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     {!isReturnable && item.is_returned && (
                       <div className="mt-3 space-y-2">
                         {item.condition_rating && (
-                          <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded border ${item.condition_rating === 'damaged' || item.condition_rating === 'fair'
-                              ? 'bg-orange-50 text-orange-700 border-orange-200'
-                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}>
-                            Condition: {item.condition_rating.charAt(0).toUpperCase() + item.condition_rating.slice(1)}
+                          <span
+                            className={`inline-block text-[10px] font-bold px-2 py-1 rounded border ${
+                              item.condition_rating === 'damaged' ||
+                              item.condition_rating === 'fair'
+                                ? 'bg-orange-50 text-orange-700 border-orange-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                          >
+                            Condition:{' '}
+                            {item.condition_rating.charAt(0).toUpperCase() +
+                              item.condition_rating.slice(1)}
                           </span>
                         )}
                         {item.damage_description && (
                           <div className="px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
-                            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-0.5">Damage Notes</p>
+                            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-0.5">
+                              Damage Notes
+                            </p>
                             <p className="text-xs text-orange-700">{item.damage_description}</p>
                           </div>
                         )}
@@ -1010,11 +1442,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </div>
 
             {/* Damage Assessment Panel — for flagged/returned orders with damage */}
-            {(order.status === OrderStatus.FLAGGED || order.items?.some(i => i.condition_rating === 'damaged')) && !isReturnable && (
-              <div className="p-6 border-t border-slate-200">
-                <DamageAssessmentPanel order={order} />
-              </div>
-            )}
+            {(order.status === OrderStatus.FLAGGED ||
+              order.items?.some((i) => i.condition_rating === 'damaged')) &&
+              !isReturnable && (
+                <div className="p-6 border-t border-slate-200">
+                  <DamageAssessmentPanel order={order} />
+                </div>
+              )}
 
             {/* Settlement Footer (Only visible when processing returns) */}
             {isReturnable && (
@@ -1022,10 +1456,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 {/* Live projected total with damage fees */}
                 {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
                   <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
-                    <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">
+                      Projected Settlement
+                    </p>
                     <div className="flex justify-between text-sm text-slate-700">
                       <span>Base Order Total</span>
-                      <span className="font-bold">{formatCurrency(originalOrderTotalBeforeReturn)}</span>
+                      <span className="font-bold">
+                        {formatCurrency(originalOrderTotalBeforeReturn)}
+                      </span>
                     </div>
                     {calculatedDamage > 0 && (
                       <div className="flex justify-between text-sm text-orange-700">
@@ -1051,11 +1489,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">Less: Paid</span>
-                      <span className="font-bold text-emerald-600">−{formatCurrency(order.amount_paid || 0)}</span>
+                      <span className="font-bold text-emerald-600">
+                        −{formatCurrency(order.amount_paid || 0)}
+                      </span>
                     </div>
                     <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
                       <span>Balance Due</span>
-                      <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
+                      <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>
+                        {formatCurrency(amount_due)}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1065,10 +1507,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold shadow-sm transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
                     <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">On-Time Return Warning</p>
+                      <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">
+                        On-Time Return Warning
+                      </p>
                       <p className="mt-0.5 leading-relaxed text-amber-850">
-                        This order is being returned on-time (due by {order ? format(new Date(order.end_date), "dd MMM yyyy") : ""}).
-                        Are you sure you want to charge a late fee of {formatCurrency(lateFee)}?
+                        This order is being returned on-time (due by{' '}
+                        {order ? format(new Date(order.end_date), 'dd MMM yyyy') : ''}). Are you
+                        sure you want to charge a late fee of {formatCurrency(lateFee)}?
                       </p>
                     </div>
                   </div>
@@ -1081,13 +1526,22 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-red-800">Payment Due — {formatCurrency(amount_due)}</p>
-                      <p className="text-xs text-red-600 mt-0.5">Collect the remaining balance before or after completing the return.</p>
+                      <p className="text-sm font-bold text-red-800">
+                        Payment Due — {formatCurrency(amount_due)}
+                      </p>
+                      <p className="text-xs text-red-600 mt-0.5">
+                        Collect the remaining balance before or after completing the return.
+                      </p>
                     </div>
                     <Button
                       type="button"
                       onClick={() => {
-                        setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                        setPaymentForm({
+                          amount: amount_due.toString(),
+                          paymentMode: PaymentMode.CASH,
+                          paymentType: PaymentType.FINAL,
+                          notes: '',
+                        });
                         setIsPaymentModalOpen(true);
                       }}
                       className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
@@ -1100,12 +1554,28 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
                   <div className="flex gap-4 w-full sm:w-auto">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extra Late Fee</label>
-                      <Input type="number" value={lateFee || ""} onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        Extra Late Fee
+                      </label>
+                      <Input
+                        type="number"
+                        value={lateFee || ''}
+                        onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)}
+                        className="w-32 h-12 font-bold text-lg"
+                        placeholder="0"
+                      />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</label>
-                      <Input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                        Discount
+                      </label>
+                      <Input
+                        type="number"
+                        value={discount || ''}
+                        onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
+                        className="w-32 h-12 font-bold text-lg"
+                        placeholder="0"
+                      />
                     </div>
                   </div>
                   <Button
@@ -1113,7 +1583,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     disabled={isReturning}
                     className="w-full sm:w-auto h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-md"
                   >
-                    {isReturning ? "Processing..." : "Complete Return Process"}
+                    {isReturning ? 'Processing...' : 'Complete Return Process'}
                   </Button>
                 </div>
               </div>
@@ -1123,12 +1593,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
         {/* Right Column: Customer & Money */}
         <div className="space-y-6">
-
           {/* Customer Card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
             <div>
-              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Customer</h2>
-              <p className="text-2xl font-black text-slate-900 leading-tight">{order.customer?.name}</p>
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                Customer
+              </h2>
+              <p className="text-2xl font-black text-slate-900 leading-tight">
+                {order.customer?.name}
+              </p>
               <a
                 href={`tel:${order.customer?.phone}`}
                 className="mt-4 flex items-center justify-center gap-3 w-full bg-green-50 hover:bg-green-100 text-green-700 border-2 border-green-200 py-3.5 rounded-xl font-black text-lg transition-colors shadow-sm"
@@ -1180,20 +1653,34 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <ReceiptText className="w-4 h-4" /> Financial Receipt
               </h2>
-              {!isFinalized && <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => setIsAdjustmentModalOpen(true)}>
-                <Edit3 className="w-3 h-3 mr-1" /> Adjust
-              </Button>}
+              {!isFinalized && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-primary"
+                  onClick={() => setIsAdjustmentModalOpen(true)}
+                >
+                  <Edit3 className="w-3 h-3 mr-1" /> Adjust
+                </Button>
+              )}
             </div>
 
             {(() => {
               // Calculate breakdown from items (more accurate than order summary fields)
-              const rawSubtotal = order.items?.reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0;
-              const afterItemDiscountTotal = order.items?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) || 0;
+              const rawSubtotal =
+                order.items?.reduce((sum, item) => sum + (item.subtotal || 0), 0) || 0;
+              const afterItemDiscountTotal =
+                order.items?.reduce(
+                  (sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0),
+                  0
+                ) || 0;
               const itemDiscountsTotal = rawSubtotal - afterItemDiscountTotal;
 
               // Base amount excluding GST is the sum of all item base_amounts
-              const totalBaseExclGst = order.items?.reduce((sum, item) => sum + (item.base_amount || 0), 0) || 0;
-              const totalGst = order.items?.reduce((sum, item) => sum + (item.gst_amount || 0), 0) || 0;
+              const totalBaseExclGst =
+                order.items?.reduce((sum, item) => sum + (item.base_amount || 0), 0) || 0;
+              const totalGst =
+                order.items?.reduce((sum, item) => sum + (item.gst_amount || 0), 0) || 0;
 
               return (
                 <div className="space-y-4">
@@ -1220,7 +1707,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           if (itemDisc <= 0) return null;
 
                           return (
-                            <div key={item.id} className="flex justify-between text-[11px] text-orange-500 font-medium italic">
+                            <div
+                              key={item.id}
+                              className="flex justify-between text-[11px] text-orange-500 font-medium italic"
+                            >
                               <span className="truncate max-w-[150px]">{item.product?.name}</span>
                               <span>- {formatCurrency(itemDisc)}</span>
                             </div>
@@ -1294,20 +1784,28 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         <span className="uppercase text-[10px] tracking-wider">Damage Charges</span>
                         <span>+ {formatCurrency(displayDamageCharges)}</span>
                       </div>
-                      {isReturnable && order.items?.some(item => (returnItems[item.id]?.damage_fee || 0) > 0) && (
-                        <div className="pl-4 space-y-0.5">
-                          {order.items?.map((item) => {
-                            const fee = returnItems[item.id]?.damage_fee || 0;
-                            if (fee <= 0) return null;
-                            return (
-                              <div key={item.id} className="flex justify-between text-[11px] text-amber-500 font-medium italic">
-                                <span className="truncate max-w-[150px]">{item.product?.name}</span>
-                                <span>+ {formatCurrency(fee)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                      {isReturnable &&
+                        order.items?.some(
+                          (item) => (returnItems[item.id]?.damage_fee || 0) > 0
+                        ) && (
+                          <div className="pl-4 space-y-0.5">
+                            {order.items?.map((item) => {
+                              const fee = returnItems[item.id]?.damage_fee || 0;
+                              if (fee <= 0) return null;
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="flex justify-between text-[11px] text-amber-500 font-medium italic"
+                                >
+                                  <span className="truncate max-w-[150px]">
+                                    {item.product?.name}
+                                  </span>
+                                  <span>+ {formatCurrency(fee)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                     </div>
                   )}
 
@@ -1316,11 +1814,44 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <div>
                       <span className="text-base">Grand Total</span>
                       {totalGst > 0 && (
-                        <span className="block text-[10px] text-slate-400 font-medium mt-0.5">Inclusive of GST</span>
+                        <span className="block text-[10px] text-slate-400 font-medium mt-0.5">
+                          Inclusive of GST
+                        </span>
                       )}
                     </div>
                     <span className="text-2xl">{formatCurrency(displayGrandTotal)}</span>
                   </div>
+
+                  {order.security_deposit > 0 && (
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex justify-between text-slate-800 font-bold text-sm">
+                        <span>Security Deposit (Refundable)</span>
+                        <span className="font-extrabold">
+                          {formatCurrency(order.security_deposit)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium">Status</span>
+                        <div className="flex items-center gap-1.5 font-bold">
+                          {order.deposit_collected ? (
+                            order.deposit_returned ? (
+                              <span className="text-orange-700 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
+                                Refunded
+                              </span>
+                            ) : (
+                              <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 font-black">
+                                Collected
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              Pending Collection
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* 7. Payments & Balance — contextual based on order status */}
                   {order.status === OrderStatus.CANCELLED ? (
@@ -1374,14 +1905,25 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                       {/* Cancellation info */}
                       <div className="pt-2 space-y-2">
-                        <span className="text-lg font-black text-slate-400 uppercase tracking-wider text-xs">Order Cancelled</span>
+                        <span className="text-lg font-black text-slate-400 uppercase tracking-wider text-xs">
+                          Order Cancelled
+                        </span>
                         {order.cancellation_reason && (
                           <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-xs font-semibold text-red-700 mb-1">Cancellation Reason</p>
+                            <p className="text-xs font-semibold text-red-700 mb-1">
+                              Cancellation Reason
+                            </p>
                             <p className="text-sm text-red-600">{order.cancellation_reason}</p>
                             {order.cancelled_at && (
                               <p className="text-[10px] text-red-400 mt-1">
-                                Cancelled on {new Date(order.cancelled_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                Cancelled on{' '}
+                                {new Date(order.cancelled_at).toLocaleDateString(undefined, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
                               </p>
                             )}
                           </div>
@@ -1393,15 +1935,23 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <div className="space-y-1.5 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                         <div className="flex justify-between text-emerald-800 font-extrabold text-sm">
                           <span className="flex items-center gap-1">Total Settled</span>
-                          <span className="text-xl font-black text-emerald-600">{formatCurrency(order.amount_paid || 0)}</span>
+                          <span className="text-xl font-black text-emerald-600">
+                            {formatCurrency(order.amount_paid || 0)}
+                          </span>
                         </div>
                         {payments.length > 0 && (
                           <div className="pl-4 space-y-1 border-t border-emerald-200/40 pt-2 mt-2">
                             {payments.map((p: any) => (
-                              <div key={p.id} className="flex justify-between text-[11px] text-emerald-600 font-medium italic">
+                              <div
+                                key={p.id}
+                                className="flex justify-between text-[11px] text-emerald-600 font-medium italic"
+                              >
                                 <span className="flex items-center gap-1.5">
                                   <span className="h-1 w-1 rounded-full bg-emerald-400" />
-                                  {p.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} ({p.payment_mode})
+                                  {p.payment_type?.toUpperCase() === 'ADVANCE'
+                                    ? 'Advance Paid'
+                                    : 'Payment Collected'}{' '}
+                                  ({p.payment_mode})
                                 </span>
                                 <span>{formatCurrency(p.amount)}</span>
                               </div>
@@ -1420,10 +1970,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         {payments.length > 0 && (
                           <div className="pl-4 space-y-1 border-t border-emerald-200/40 pt-2 mt-2">
                             {payments.map((p: any) => (
-                              <div key={p.id} className="flex justify-between text-[11px] text-emerald-600 font-medium italic">
+                              <div
+                                key={p.id}
+                                className="flex justify-between text-[11px] text-emerald-600 font-medium italic"
+                              >
                                 <span className="flex items-center gap-1.5">
                                   <span className="h-1 w-1 rounded-full bg-emerald-400" />
-                                  {p.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} ({p.payment_mode})
+                                  {p.payment_type?.toUpperCase() === 'ADVANCE'
+                                    ? 'Advance Paid'
+                                    : 'Payment Collected'}{' '}
+                                  ({p.payment_mode})
                                 </span>
                                 <span>- {formatCurrency(p.amount)}</span>
                               </div>
@@ -1434,7 +1990,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                       <div className="flex justify-between items-center pt-2 px-1">
                         <span className="text-lg font-black text-slate-900">Balance Due</span>
-                        <span className={`text-2xl font-black ${displayBalanceDue > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        <span
+                          className={`text-2xl font-black ${displayBalanceDue > 0 ? 'text-red-600' : 'text-emerald-600'}`}
+                        >
                           {formatCurrency(displayBalanceDue)}
                         </span>
                       </div>
@@ -1449,7 +2007,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           {!isFinalized && amount_due > 0 && (
             <Button
               onClick={() => {
-                setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                setPaymentForm({
+                  amount: amount_due.toString(),
+                  paymentMode: PaymentMode.CASH,
+                  paymentType: PaymentType.FINAL,
+                  notes: '',
+                });
                 setIsPaymentModalOpen(true);
               }}
               className="w-full mt-6 h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold text-base rounded-xl shadow-md"
@@ -1458,7 +2021,57 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </Button>
           )}
 
+          {/* Security Deposit Actions */}
+          {!isFinalized && order && order.security_deposit > 0 && !order.deposit_collected && (
+            <Button
+              onClick={() => {
+                setPaymentForm({
+                  amount: order.security_deposit.toString(),
+                  paymentMode: PaymentMode.CASH,
+                  paymentType: PaymentType.DEPOSIT,
+                  notes: 'Security Deposit Collection',
+                });
+                setIsPaymentModalOpen(true);
+              }}
+              className="w-full mt-3 h-12 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Banknote className="w-4 h-4" /> Collect Security Deposit (
+              {formatCurrency(order.security_deposit)})
+            </Button>
+          )}
 
+          {order &&
+            order.security_deposit > 0 &&
+            order.deposit_collected &&
+            !order.deposit_returned && (
+              <div className="space-y-1.5 mt-3">
+                <Button
+                  disabled={!isProductReturned}
+                  onClick={() => {
+                    setIsCancellationRefund(false);
+                    setRefundForm({
+                      paymentMode: PaymentMode.CASH,
+                      notes: 'Security Deposit Refund',
+                      amount: order.security_deposit.toString(),
+                    });
+                    setIsRefundModalOpen(true);
+                  }}
+                  className={`w-full h-12 font-bold text-sm rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 ${
+                    !isProductReturned
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                      : 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4" /> Refund Security Deposit (
+                  {formatCurrency(order.security_deposit)})
+                </Button>
+                {!isProductReturned && (
+                  <p className="text-xs text-amber-600 font-semibold text-center flex items-center justify-center gap-1">
+                    <span>⚠️ Security deposit can be returned once the product is returned.</span>
+                  </p>
+                )}
+              </div>
+            )}
 
           {/* Cancellation Refund — for cancelled orders */}
           {order.status === OrderStatus.CANCELLED && (
@@ -1469,7 +2082,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <Button
                     onClick={() => {
                       setIsCancellationRefund(true);
-                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "Cancellation Refund", amount: String(order.amount_paid || 0) });
+                      setRefundForm({
+                        paymentMode: PaymentMode.CASH,
+                        notes: 'Cancellation Refund',
+                        amount: String(order.amount_paid || 0),
+                      });
                       setIsRefundModalOpen(true);
                     }}
                     className="w-full h-12 bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 font-bold text-sm rounded-xl shadow-sm transition-colors truncate"
@@ -1495,42 +2112,55 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </div>
           )}
         </div>
-
       </div>
 
       {/* Payment Modal */}
       <Modal
         open={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        title={paymentForm.paymentType === PaymentType.DEPOSIT ? "Collect Security Deposit" : "Collect Payment"}
+        title={
+          paymentForm.paymentType === PaymentType.DEPOSIT
+            ? 'Collect Security Deposit'
+            : 'Collect Payment'
+        }
       >
         <div className="p-6 space-y-6">
           {/* Summary Box */}
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 flex justify-between items-center shadow-sm">
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
-                {'Remaining Due'}
+                {paymentForm.paymentType === PaymentType.DEPOSIT
+                  ? 'Security Deposit'
+                  : 'Remaining Due'}
               </p>
               <p className="text-2xl font-black text-slate-900">
-                {formatCurrency(amount_due)}
+                {paymentForm.paymentType === PaymentType.DEPOSIT
+                  ? formatCurrency(order?.security_deposit || 0)
+                  : formatCurrency(amount_due)}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Paying</p>
-              <p className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (amount_due) ? 'text-red-600' : 'text-emerald-600'}`}>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+                Paying
+              </p>
+              <p
+                className={`text-2xl font-black ${parseFloat(paymentForm.amount) > (paymentForm.paymentType === PaymentType.DEPOSIT ? order?.security_deposit || 0 : amount_due) ? 'text-red-600' : 'text-emerald-600'}`}
+              >
                 {formatCurrency(parseFloat(paymentForm.amount) || 0)}
               </p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Method</Label>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Payment Method
+            </Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
-                { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
-                { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+                { id: PaymentMode.CASH, label: 'Cash', icon: Banknote },
+                { id: PaymentMode.UPI, label: 'UPI', icon: Smartphone },
+                { id: PaymentMode.GPAY, label: 'GPay', icon: Smartphone },
+                { id: PaymentMode.BANK_TRANSFER, label: 'Bank', icon: Building2 },
               ].map((method) => {
                 const Icon = method.icon;
                 const isSelected = paymentForm.paymentMode === method.id;
@@ -1539,15 +2169,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     key={method.id}
                     type="button"
                     onClick={() => setPaymentForm({ ...paymentForm, paymentMode: method.id })}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${isSelected
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                      isSelected
                         ? 'border-slate-900 bg-slate-900 text-white shadow-md'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
+                    }`}
                   >
-                    <Icon className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                    <Icon
+                      className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`}
+                    />
                     <span className="text-sm font-bold">{method.label}</span>
                   </button>
-                )
+                );
               })}
             </div>
           </div>
@@ -1557,10 +2190,20 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <span>Amount (₹)</span>
               <button
                 type="button"
-                onClick={() => setPaymentForm({ ...paymentForm, amount: (amount_due).toString() })}
+                onClick={() =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    amount: (paymentForm.paymentType === PaymentType.DEPOSIT
+                      ? order?.security_deposit || 0
+                      : amount_due
+                    ).toString(),
+                  })
+                }
                 className="text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full text-[10px]"
               >
-                PAY FULL AMOUNT
+                {paymentForm.paymentType === PaymentType.DEPOSIT
+                  ? 'PAY FULL DEPOSIT'
+                  : 'PAY FULL AMOUNT'}
               </button>
             </Label>
             <Input
@@ -1568,7 +2211,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               value={paymentForm.amount}
               onChange={(e) => {
                 const val = e.target.value;
-                const maxPayable = amount_due;
+                const maxPayable =
+                  paymentForm.paymentType === PaymentType.DEPOSIT
+                    ? order?.security_deposit || 0
+                    : amount_due;
                 if (parseFloat(val) > maxPayable) {
                   setPaymentForm({ ...paymentForm, amount: maxPayable.toString() });
                 } else {
@@ -1581,7 +2227,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID <span className="text-slate-400 font-normal capitalize">(Optional)</span></Label>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Notes / Ref ID{' '}
+              <span className="text-slate-400 font-normal capitalize">(Optional)</span>
+            </Label>
             <Input
               value={paymentForm.notes}
               onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
@@ -1591,9 +2240,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-            <Button onClick={handleCollectPayment} disabled={isCreatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
-              {isCreatingPayment ? "Processing..." : "Confirm Payment"}
+            <Button
+              variant="outline"
+              onClick={() => setIsPaymentModalOpen(false)}
+              className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCollectPayment}
+              disabled={isCreatingPayment}
+              className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md"
+            >
+              {isCreatingPayment ? 'Processing...' : 'Confirm Payment'}
             </Button>
           </div>
         </div>
@@ -1603,35 +2262,61 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       <Modal
         open={isPaymentEditModalOpen}
         onClose={() => setIsPaymentEditModalOpen(false)}
-        title="Edit Payment Mode"
+        title="Edit Payment"
       >
         <div className="p-6 space-y-6">
           {editingPayment && (
             <>
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Payment Amount</p>
-                <p className="text-2xl font-black text-slate-900">{formatCurrency(editingPayment.amount)}</p>
-                <p className="text-xs text-slate-500 mt-1">{editingPayment.payment_type}</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">
+                  Payment Type
+                </p>
+                <p className="text-sm font-bold text-slate-700 capitalize">
+                  {editingPayment.payment_type}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Original Amount: {formatCurrency(editingPayment.amount)}
+                </p>
               </div>
 
               <div className="space-y-3">
-                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Payment Mode</Label>
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+                  Payment Amount (₹)
+                </Label>
+                <Input
+                  type="number"
+                  value={paymentEditForm.amount}
+                  onChange={(e) =>
+                    setPaymentEditForm({ ...paymentEditForm, amount: e.target.value })
+                  }
+                  className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+                  Payment Mode
+                </Label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
-                    { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                    { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
-                    { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+                    { id: PaymentMode.CASH, label: 'Cash', icon: Banknote },
+                    { id: PaymentMode.UPI, label: 'UPI', icon: Smartphone },
+                    { id: PaymentMode.GPAY, label: 'GPay', icon: Smartphone },
+                    { id: PaymentMode.BANK_TRANSFER, label: 'Bank', icon: Building2 },
                   ].map((method) => {
                     const Icon = method.icon;
                     return (
                       <button
                         key={method.id}
-                        onClick={() => setPaymentEditForm({ ...paymentEditForm, paymentMode: method.id })}
-                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${paymentEditForm.paymentMode === method.id
+                        onClick={() =>
+                          setPaymentEditForm({ ...paymentEditForm, paymentMode: method.id })
+                        }
+                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                          paymentEditForm.paymentMode === method.id
                             ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                             : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
+                        }`}
                       >
                         <Icon className="w-6 h-6" />
                         <span className="text-xs font-bold">{method.label}</span>
@@ -1642,20 +2327,46 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </div>
 
               <div className="space-y-3">
-                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID <span className="text-slate-400 font-normal capitalize">(Optional)</span></Label>
+                <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+                  Notes / Ref ID{' '}
+                  <span className="text-slate-400 font-normal capitalize">(Optional)</span>
+                </Label>
                 <Input
                   value={paymentEditForm.notes}
-                  onChange={(e) => setPaymentEditForm({ ...paymentEditForm, notes: e.target.value })}
+                  onChange={(e) =>
+                    setPaymentEditForm({ ...paymentEditForm, notes: e.target.value })
+                  }
                   className="w-full h-12 rounded-xl border-slate-300 bg-slate-50 focus:bg-white px-4"
                   placeholder="E.g. UPI Ref #123456"
                 />
               </div>
 
-              <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-                <Button variant="outline" onClick={() => setIsPaymentEditModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
-                <Button onClick={handleSavePaymentEdit} disabled={isUpdatingPayment} className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
-                  {isUpdatingPayment ? "Saving..." : "Save Changes"}
+              <div className="pt-6 flex flex-col sm:flex-row justify-between gap-4 border-t border-slate-100">
+                <Button
+                  variant="ghost"
+                  type="button"
+                  onClick={handleDeletePayment}
+                  disabled={isDeletingPayment || isUpdatingPayment}
+                  className="h-12 px-4 rounded-xl font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 w-full sm:w-auto"
+                >
+                  Delete Payment
                 </Button>
+                <div className="flex gap-3 w-full sm:w-auto justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsPaymentEditModalOpen(false)}
+                    className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50 flex-1 sm:flex-initial"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSavePaymentEdit}
+                    disabled={isUpdatingPayment || isDeletingPayment}
+                    className="h-12 px-8 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md flex-1 sm:flex-initial"
+                  >
+                    {isUpdatingPayment ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
               </div>
             </>
           )}
@@ -1665,14 +2376,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       {/* Refund Modal (Deposit or Cancellation) */}
       <Modal
         open={isRefundModalOpen}
-        onClose={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }}
-        title={isCancellationRefund ? "Refund Payment" : "Refund Security Deposit"}
+        onClose={() => {
+          setIsRefundModalOpen(false);
+          setIsCancellationRefund(false);
+        }}
+        title={isCancellationRefund ? 'Refund Payment' : 'Refund Security Deposit'}
       >
         <div className="p-6 space-y-6">
           {/* Amount Display / Edit */}
           {isCancellationRefund ? (
             <div className="space-y-3">
-              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Amount (₹)</Label>
+              <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+                Refund Amount (₹)
+              </Label>
               <Input
                 type="number"
                 value={refundForm.amount}
@@ -1688,25 +2404,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 className="w-full h-14 text-2xl font-black rounded-xl border-slate-300 bg-slate-50 focus:bg-white shadow-inner px-4"
                 placeholder="0"
               />
-              <p className="text-xs text-slate-500">Maximum refundable: {formatCurrency(order?.amount_paid || 0)}</p>
+              <p className="text-xs text-slate-500">
+                Maximum refundable: {formatCurrency(order?.amount_paid || 0)}
+              </p>
             </div>
           ) : (
             <div className="bg-orange-50 p-5 rounded-2xl border border-orange-200 flex justify-between items-center shadow-sm">
               <div>
-                <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">Refund Amount</p>
-                <p className="text-2xl font-black text-orange-900">{formatCurrency(0 || 0)}</p>
+                <p className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-1">
+                  Refund Amount
+                </p>
+                <p className="text-2xl font-black text-orange-900">
+                  {formatCurrency(order?.security_deposit || 0)}
+                </p>
               </div>
             </div>
           )}
 
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Refund Method</Label>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Refund Method
+            </Label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { id: PaymentMode.CASH, label: "Cash", icon: Banknote },
-                { id: PaymentMode.UPI, label: "UPI", icon: Smartphone },
-                { id: PaymentMode.GPAY, label: "GPay", icon: Smartphone },
-                { id: PaymentMode.BANK_TRANSFER, label: "Bank", icon: Building2 },
+                { id: PaymentMode.CASH, label: 'Cash', icon: Banknote },
+                { id: PaymentMode.UPI, label: 'UPI', icon: Smartphone },
+                { id: PaymentMode.GPAY, label: 'GPay', icon: Smartphone },
+                { id: PaymentMode.BANK_TRANSFER, label: 'Bank', icon: Building2 },
               ].map((method) => {
                 const Icon = method.icon;
                 const isSelected = refundForm.paymentMode === method.id;
@@ -1715,21 +2439,26 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     key={method.id}
                     type="button"
                     onClick={() => setRefundForm({ ...refundForm, paymentMode: method.id })}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${isSelected
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                      isSelected
                         ? 'border-orange-500 bg-orange-500 text-white shadow-md'
                         : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                      }`}
+                    }`}
                   >
-                    <Icon className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
+                    <Icon
+                      className={`w-6 h-6 mb-2 ${isSelected ? 'text-white' : 'text-slate-400'}`}
+                    />
                     <span className="text-sm font-bold">{method.label}</span>
                   </button>
-                )
+                );
               })}
             </div>
           </div>
 
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Notes / Ref ID</Label>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Notes / Ref ID
+            </Label>
             <Input
               value={refundForm.notes}
               onChange={(e) => setRefundForm({ ...refundForm, notes: e.target.value })}
@@ -1739,34 +2468,52 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => { setIsRefundModalOpen(false); setIsCancellationRefund(false); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsRefundModalOpen(false);
+                setIsCancellationRefund(false);
+              }}
+              className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
             <Button
               onClick={() => {
                 if (isCancellationRefund) {
                   // Cancellation refund — server handles order update atomically
                   const refundAmount = parseFloat(refundForm.amount) || 0;
                   if (!order || refundAmount <= 0) {
-                    showError("Validation Error", "Amount must be greater than 0");
+                    showError('Validation Error', 'Amount must be greater than 0');
                     return;
                   }
                   if (refundAmount > (order.amount_paid || 0)) {
-                    showError("Validation Error", `Refund cannot exceed paid amount (${formatCurrency(order.amount_paid)})`);
+                    showError(
+                      'Validation Error',
+                      `Refund cannot exceed paid amount (${formatCurrency(order.amount_paid)})`
+                    );
                     return;
                   }
-                  createPayment({
-                    order_id: order.id,
-                    payment_type: PaymentType.REFUND,
-                    amount: refundAmount,
-                    payment_mode: refundForm.paymentMode,
-                    notes: refundForm.notes || "Cancellation Refund",
-                  }, {
-                    onSuccess: () => {
-                      setIsRefundModalOpen(false);
-                      setIsCancellationRefund(false);
-                      setRefundForm({ paymentMode: PaymentMode.CASH, notes: "", amount: "0" });
-                      showSuccess("Refund Processed", `${formatCurrency(refundAmount)} has been refunded.`);
+                  createPayment(
+                    {
+                      order_id: order.id,
+                      payment_type: PaymentType.REFUND,
+                      amount: refundAmount,
+                      payment_mode: refundForm.paymentMode,
+                      notes: refundForm.notes || 'Cancellation Refund',
                     },
-                  });
+                    {
+                      onSuccess: () => {
+                        setIsRefundModalOpen(false);
+                        setIsCancellationRefund(false);
+                        setRefundForm({ paymentMode: PaymentMode.CASH, notes: '', amount: '0' });
+                        showSuccess(
+                          'Refund Processed',
+                          `${formatCurrency(refundAmount)} has been refunded.`
+                        );
+                      },
+                    }
+                  );
                 } else {
                   // Deposit refund
                   handleRefundDeposit();
@@ -1775,7 +2522,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               disabled={isCreatingPayment || isUpdating}
               className="h-12 px-8 rounded-xl font-bold text-white bg-orange-600 hover:bg-orange-700 shadow-md"
             >
-              {isCreatingPayment || isUpdating ? "Processing..." : "Confirm Refund"}
+              {isCreatingPayment || isUpdating ? 'Processing...' : 'Confirm Refund'}
             </Button>
           </div>
         </div>
@@ -1789,9 +2536,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       >
         <div className="p-6 space-y-6">
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Adjustment Type</Label>
-            <Select value={adjustmentForm.type} onValueChange={(v: any) => setAdjustmentForm({ ...adjustmentForm, type: v })}>
-              <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Adjustment Type
+            </Label>
+            <Select
+              value={adjustmentForm.type}
+              onValueChange={(v: any) => setAdjustmentForm({ ...adjustmentForm, type: v })}
+            >
+              <SelectTrigger className="h-12">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="discount">Discount (reduces total)</SelectItem>
                 <SelectItem value="late_fee">Late Fee (increases total)</SelectItem>
@@ -1801,53 +2555,107 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </Select>
           </div>
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Amount (₹)</Label>
-            <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })} className="h-14 text-2xl font-black" placeholder="0" />
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Amount (₹)
+            </Label>
+            <Input
+              type="number"
+              value={adjustmentForm.amount}
+              onChange={(e) => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })}
+              className="h-14 text-2xl font-black"
+              placeholder="0"
+            />
           </div>
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Reason / Notes</Label>
-            <Input value={adjustmentForm.notes} onChange={e => setAdjustmentForm({ ...adjustmentForm, notes: e.target.value })} className="h-12" placeholder="E.g. Loyal customer discount" />
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">
+              Reason / Notes
+            </Label>
+            <Input
+              value={adjustmentForm.notes}
+              onChange={(e) => setAdjustmentForm({ ...adjustmentForm, notes: e.target.value })}
+              className="h-12"
+              placeholder="E.g. Loyal customer discount"
+            />
           </div>
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold">Cancel</Button>
-            <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating || isCreatingPayment} onClick={() => {
-              if (!order) return;
-              const val = parseFloat(adjustmentForm.amount) || 0;
-              if (val <= 0) { showError('Invalid', 'Amount must be greater than 0'); return; }
-
-              const isDeduction = adjustmentForm.type === 'discount';
-              const newTotal = isDeduction ? Math.max(0, order.total_amount - val) : order.total_amount + val;
-              const newLateFee = adjustmentForm.type === 'late_fee' ? (order.late_fee || 0) + val : (order.late_fee || 0);
-              const newDiscount = adjustmentForm.type === 'discount' ? (order.discount || 0) + val : (order.discount || 0);
-              const newDamage = adjustmentForm.type === 'damage_fee' ? (order.damage_charges_total || 0) + val : (order.damage_charges_total || 0);
-              const newAmountPaid = order.amount_paid || 0;
-              const newPaymentStatus = newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
-
-              // Record as adjustment payment
-              const label = adjustmentForm.type === 'discount' ? 'Discount' : adjustmentForm.type === 'late_fee' ? 'Late Fee' : adjustmentForm.type === 'damage_fee' ? 'Damage Fee' : 'Extra Charge';
-              createPayment({
-                order_id: order.id,
-                payment_type: PaymentType.ADJUSTMENT,
-                amount: val,
-                payment_mode: PaymentMode.CASH,
-                notes: `${label}: ${adjustmentForm.notes || 'N/A'}`,
-              }, {
-                onSuccess: () => {
-                  updateOrder({
-                    id: order.id, data: {
-                      total_amount: newTotal,
-                      late_fee: newLateFee,
-                      discount: newDiscount,
-                      damage_charges_total: newDamage,
-                      payment_status: newPaymentStatus,
-                    }
-                  });
-                  setIsAdjustmentModalOpen(false);
-                  setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
-                  showSuccess('Adjustment Applied', `${label} of ${formatCurrency(val)} has been applied.`);
+            <Button
+              variant="outline"
+              onClick={() => setIsAdjustmentModalOpen(false)}
+              className="h-12 px-6 rounded-xl font-bold"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800"
+              disabled={isUpdating || isCreatingPayment}
+              onClick={() => {
+                if (!order) return;
+                const val = parseFloat(adjustmentForm.amount) || 0;
+                if (val <= 0) {
+                  showError('Invalid', 'Amount must be greater than 0');
+                  return;
                 }
-              });
-            }}>
+
+                const isDeduction = adjustmentForm.type === 'discount';
+                const newTotal = isDeduction
+                  ? Math.max(0, order.total_amount - val)
+                  : order.total_amount + val;
+                const newLateFee =
+                  adjustmentForm.type === 'late_fee'
+                    ? (order.late_fee || 0) + val
+                    : order.late_fee || 0;
+                const newDiscount =
+                  adjustmentForm.type === 'discount'
+                    ? (order.discount || 0) + val
+                    : order.discount || 0;
+                const newDamage =
+                  adjustmentForm.type === 'damage_fee'
+                    ? (order.damage_charges_total || 0) + val
+                    : order.damage_charges_total || 0;
+                const newAmountPaid = order.amount_paid || 0;
+                const newPaymentStatus =
+                  newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+
+                // Record as adjustment payment
+                const label =
+                  adjustmentForm.type === 'discount'
+                    ? 'Discount'
+                    : adjustmentForm.type === 'late_fee'
+                      ? 'Late Fee'
+                      : adjustmentForm.type === 'damage_fee'
+                        ? 'Damage Fee'
+                        : 'Extra Charge';
+                createPayment(
+                  {
+                    order_id: order.id,
+                    payment_type: PaymentType.ADJUSTMENT,
+                    amount: val,
+                    payment_mode: PaymentMode.CASH,
+                    notes: `${label}: ${adjustmentForm.notes || 'N/A'}`,
+                  },
+                  {
+                    onSuccess: () => {
+                      updateOrder({
+                        id: order.id,
+                        data: {
+                          total_amount: newTotal,
+                          late_fee: newLateFee,
+                          discount: newDiscount,
+                          damage_charges_total: newDamage,
+                          payment_status: newPaymentStatus,
+                        },
+                      });
+                      setIsAdjustmentModalOpen(false);
+                      setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
+                      showSuccess(
+                        'Adjustment Applied',
+                        `${label} of ${formatCurrency(val)} has been applied.`
+                      );
+                    },
+                  }
+                );
+              }}
+            >
               {isUpdating || isCreatingPayment ? 'Processing...' : 'Apply Adjustment'}
             </Button>
           </div>
@@ -1860,7 +2668,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         return (
           <Modal
             open={isCancelModalOpen}
-            onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
+            onClose={() => {
+              setIsCancelModalOpen(false);
+              setCancelReason('');
+            }}
             title="Cancel Order"
             maxWidth="max-w-lg"
           >
@@ -1870,9 +2681,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <XCircle className="w-5 h-5 text-red-600" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
+                  <h4 className="text-sm font-semibold text-slate-900 mb-1">
+                    Confirm Cancellation
+                  </h4>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">{order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}</span>? This action cannot be undone.
+                    Are you sure you want to cancel order{' '}
+                    <span className="font-semibold text-slate-900">
+                      {order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}
+                    </span>
+                    ? This action cannot be undone.
                   </p>
                 </div>
               </div>
@@ -1908,7 +2725,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsCancelModalOpen(false);
+                    setCancelReason('');
+                  }}
+                  className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+                >
+                  Keep Order
+                </Button>
                 <Button
                   onClick={() => {
                     updateOrder({
@@ -1920,12 +2746,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       } as any,
                     });
                     setIsCancelModalOpen(false);
-                    setCancelReason("");
+                    setCancelReason('');
                   }}
                   disabled={isUpdating || !cancelReason.trim()}
                   className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
                 >
-                  {isUpdating ? "Cancelling..." : "Cancel Order"}
+                  {isUpdating ? 'Cancelling...' : 'Cancel Order'}
                 </Button>
               </div>
             </div>
@@ -1948,7 +2774,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">Insufficient Stock</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Some items don't have enough stock for today. Please edit the order to adjust quantities before starting the rental.
+                Some items don't have enough stock for today. Please edit the order to adjust
+                quantities before starting the rental.
               </p>
             </div>
           </div>
@@ -1958,10 +2785,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Item</th>
-                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Ordered</th>
-                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Available</th>
-                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">Status</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">
+                    Item
+                  </th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">
+                    Ordered
+                  </th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">
+                    Available
+                  </th>
+                  <th className="text-center px-4 py-2.5 text-xs font-bold text-slate-500 uppercase">
+                    Status
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1969,7 +2804,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <tr key={idx} className={!item.isAvailable ? 'bg-red-50/50' : ''}>
                     <td className="px-4 py-3 font-medium text-slate-900">{item.product_name}</td>
                     <td className="px-4 py-3 text-center text-slate-600">{item.requested}</td>
-                    <td className="px-4 py-3 text-center font-bold text-slate-900">{item.available}</td>
+                    <td className="px-4 py-3 text-center font-bold text-slate-900">
+                      {item.available}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       {item.isAvailable ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold text-xs">
@@ -1988,7 +2825,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setIsStockErrorModalOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Close</Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsStockErrorModalOpen(false)}
+              className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
+            >
+              Close
+            </Button>
             <Button
               onClick={() => {
                 setIsStockErrorModalOpen(false);
@@ -2003,34 +2846,63 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       </Modal>
 
       {/* Return Confirmation Modal */}
-      <Modal open={isReturnConfirmOpen} onClose={() => setIsReturnConfirmOpen(false)} title="Confirm Return">
+      <Modal
+        open={isReturnConfirmOpen}
+        onClose={() => setIsReturnConfirmOpen(false)}
+        title="Confirm Return"
+      >
         <div className="p-6 space-y-5">
-          <p className="text-sm text-slate-600">Please review the return summary before confirming.</p>
+          <p className="text-sm text-slate-600">
+            Please review the return summary before confirming.
+          </p>
 
           {/* Items Summary */}
           <div className="space-y-2">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
               {order.items?.map((item) => {
-                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
+                const rItem = returnItems[item.id] || {
+                  status: null,
+                  damage_fee: 0,
+                  damaged_quantity: 0,
+                  notes: '',
+                };
                 const product = (item as any).product;
                 return (
-                  <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between px-4 py-3 bg-white"
+                  >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
+                      <span className="text-sm font-semibold text-slate-900 truncate">
+                        {product?.name || 'Product'}
+                      </span>
                       <span className="text-xs text-slate-400">×{item.quantity}</span>
                       {rItem.status === 'damaged' && rItem.damaged_quantity < item.quantity && (
                         <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity} good
+                          {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity}{' '}
+                          good
                         </span>
                       )}
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        rItem.status === 'damaged' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                          rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
-                            'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}>
-                      {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Missing' : 'Unmarked'}
+                    <span
+                      className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
+                        rItem.status === 'excellent'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : rItem.status === 'damaged'
+                            ? 'bg-orange-50 text-orange-700 border-orange-200'
+                            : rItem.status === 'missing'
+                              ? 'bg-red-50 text-red-700 border-red-200'
+                              : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {rItem.status === 'excellent'
+                        ? 'Good'
+                        : rItem.status === 'damaged'
+                          ? 'Damaged'
+                          : rItem.status === 'missing'
+                            ? 'Missing'
+                            : 'Unmarked'}
                     </span>
                   </div>
                 );
@@ -2039,12 +2911,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           {/* Zero Damage Fee Warning */}
-          {Object.values(returnItems).some(r => r.status === 'damaged' && (r.damage_fee || 0) <= 0) && (
+          {Object.values(returnItems).some(
+            (r) => r.status === 'damaged' && (r.damage_fee || 0) <= 0
+          ) && (
             <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
               <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
               <div>
                 <p className="text-sm font-bold text-amber-800">Warning: ₹0 Damage Fee</p>
-                <p className="text-xs text-amber-600">One or more damaged items have no damage fee set. You can still complete the return, but the fee won't be charged.</p>
+                <p className="text-xs text-amber-600">
+                  One or more damaged items have no damage fee set. You can still complete the
+                  return, but the fee won't be charged.
+                </p>
               </div>
             </div>
           )}
@@ -2055,7 +2932,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               {calculatedDamage > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-orange-700 font-medium">Damage Charges</span>
-                  <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
+                  <span className="font-bold text-orange-700">
+                    {formatCurrency(calculatedDamage)}
+                  </span>
                 </div>
               )}
               {lateFee > 0 && (
@@ -2079,7 +2958,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
               <div>
                 <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
-                <p className="text-xs text-emerald-600">All charges including fees have been collected.</p>
+                <p className="text-xs text-emerald-600">
+                  All charges including fees have been collected.
+                </p>
               </div>
             </div>
           )}
@@ -2089,15 +2970,23 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div>
-                <p className="text-sm font-bold text-red-800">Payment still due: {formatCurrency(amount_due)}</p>
-                <p className="text-xs text-red-600">You can collect the payment after completing the return.</p>
+                <p className="text-sm font-bold text-red-800">
+                  Payment still due: {formatCurrency(amount_due)}
+                </p>
+                <p className="text-xs text-red-600">
+                  You can collect the payment after completing the return.
+                </p>
               </div>
             </div>
           )}
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setIsReturnConfirmOpen(false)} className="h-12 px-6 rounded-xl font-bold border-slate-200">
+            <Button
+              variant="outline"
+              onClick={() => setIsReturnConfirmOpen(false)}
+              className="h-12 px-6 rounded-xl font-bold border-slate-200"
+            >
               Go Back
             </Button>
             <Button
@@ -2121,14 +3010,20 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl">
             <p className="text-sm font-bold text-teal-800 mb-1">No refund will be issued</p>
             <p className="text-xs text-teal-600 leading-relaxed">
-              You are choosing to keep <span className="font-black">{formatCurrency(order?.amount_paid || 0)}</span> from this cancelled order.
-              This action will mark the refund as waived and the amount will remain in your revenue.
+              You are choosing to keep{' '}
+              <span className="font-black">{formatCurrency(order?.amount_paid || 0)}</span> from
+              this cancelled order. This action will mark the refund as waived and the amount will
+              remain in your revenue.
             </p>
           </div>
 
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Amount to Keep</p>
-            <p className="text-3xl font-black text-slate-900">{formatCurrency(order?.amount_paid || 0)}</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+              Amount to Keep
+            </p>
+            <p className="text-3xl font-black text-slate-900">
+              {formatCurrency(order?.amount_paid || 0)}
+            </p>
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -2141,7 +3036,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             </Button>
             <Button
               onClick={() => {
-                updateOrder({ id: orderId, data: { payment_status: PaymentStatus.REFUND_WAIVED } as any });
+                updateOrder({
+                  id: orderId,
+                  data: { payment_status: PaymentStatus.REFUND_WAIVED } as any,
+                });
                 setIsKeepMoneyModalOpen(false);
               }}
               disabled={isUpdating}
@@ -2155,21 +3053,26 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       {/* Backfill Return Modal — Record untracked order as returned */}
       <Modal
         open={isBackfillModalOpen}
-        onClose={() => { setIsBackfillModalOpen(false); setBackfillNote(""); }}
+        onClose={() => {
+          setIsBackfillModalOpen(false);
+          setBackfillNote('');
+        }}
         title="Record as Returned"
       >
         <div className="p-6 space-y-5">
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
             <p className="text-sm font-bold text-amber-800 mb-1">Recording an untracked rental</p>
             <p className="text-xs text-amber-700 leading-relaxed">
-              This order was never marked as delivered or ongoing in the system, but the return date has passed.
-              Use this to record that the costume was actually given and has been returned.
-              A note explaining why it wasn't tracked is required.
+              This order was never marked as delivered or ongoing in the system, but the return date
+              has passed. Use this to record that the costume was actually given and has been
+              returned. A note explaining why it wasn't tracked is required.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-bold text-slate-700">Reason / Note <span className="text-red-500">*</span></Label>
+            <Label className="text-sm font-bold text-slate-700">
+              Reason / Note <span className="text-red-500">*</span>
+            </Label>
             <textarea
               value={backfillNote}
               onChange={(e) => setBackfillNote(e.target.value)}
@@ -2182,7 +3085,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="flex gap-3 pt-2">
             <Button
               variant="outline"
-              onClick={() => { setIsBackfillModalOpen(false); setBackfillNote(""); }}
+              onClick={() => {
+                setIsBackfillModalOpen(false);
+                setBackfillNote('');
+              }}
               className="flex-1 h-12 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50"
             >
               Cancel
@@ -2198,7 +3104,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   data: { status: OrderStatus.RETURNED, backfill_note: backfillNote } as any,
                 });
                 setIsBackfillModalOpen(false);
-                setBackfillNote("");
+                setBackfillNote('');
               }}
               disabled={isUpdating || !backfillNote.trim()}
               className="flex-1 h-12 rounded-xl font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-md"

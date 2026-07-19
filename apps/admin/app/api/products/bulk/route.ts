@@ -2,7 +2,7 @@
  * Products Bulk Operations API Route
  *
  * POST /api/products/bulk
- * 
+ *
  * Handles bulk operations on multiple products:
  * - activate/deactivate
  * - feature/unfeature
@@ -21,9 +21,9 @@ import { apiSuccess, apiRepositoryError, apiZodError, apiInternalError } from '@
 
 /**
  * POST /api/products/bulk
- * 
+ *
  * Request body: BulkProductOperation
- * 
+ *
  * Performs bulk operations on multiple products with validation.
  */
 export async function POST(request: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (guard.error) return guard.error;
 
     const body = await request.json();
-    
+
     // Validate request body
     const validatedData = BulkProductOperationSchema.parse(body);
 
@@ -43,10 +43,9 @@ export async function POST(request: NextRequest) {
     }
 
     return apiSuccess(result.data, { message: 'Bulk operation completed successfully' });
-
   } catch (error) {
     console.error('Products Bulk API - POST Error:', error);
-    
+
     if (error instanceof z.ZodError) {
       return apiZodError(error);
     }

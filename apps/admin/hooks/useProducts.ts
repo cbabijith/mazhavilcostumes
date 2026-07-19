@@ -10,16 +10,16 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Product, 
+import {
+  Product,
   Category,
-  CreateProductDTO, 
-  UpdateProductDTO, 
+  CreateProductDTO,
+  UpdateProductDTO,
   ProductSearchParams,
   ProductSearchResult,
   ProductWithRelations,
   BulkProductOperation,
-  BulkOperationResult
+  BulkOperationResult,
 } from '@/domain';
 import { useAppStore, useProductStore } from '@/stores';
 import { useCallback } from 'react';
@@ -85,7 +85,9 @@ export function useProduct(id: string) {
     queryKey: productKeys.detail(id),
     queryFn: async () => {
       console.log('Fetching product with ID:', id);
-      const response = await apiFetch<ApiSuccessResponse<ProductWithRelations>>(`/api/products/${id}`);
+      const response = await apiFetch<ApiSuccessResponse<ProductWithRelations>>(
+        `/api/products/${id}`
+      );
       console.log('API response:', response);
       if (!response || !response.data) {
         throw new Error('Invalid response from API');
@@ -113,13 +115,18 @@ export function useCreateProduct() {
 
   const mutation = useMutation({
     mutationFn: (data: CreateProductDTO) =>
-      apiFetch<ApiSuccessResponse<ProductWithRelations>>('/api/products', { method: 'POST', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<ProductWithRelations>>('/api/products', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     onMutate: async (newProduct) => {
       // Cancel any outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: productKeys.all });
 
       // Snapshot the previous value
-      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({ queryKey: productKeys.all });
+      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({
+        queryKey: productKeys.all,
+      });
 
       // Optimistically update the list
       queryClient.setQueriesData<ProductSearchResult>({ queryKey: productKeys.all }, (old) => {
@@ -136,9 +143,11 @@ export function useCreateProduct() {
         // server response replaces it with the real SQL JOIN data.
         let category: { id: string; name: string; slug: string } | undefined;
         if (newProduct.category_id) {
-          const cachedCategories = queryClient.getQueryData<{ success: boolean; data: Category[] }>(['categories']);
+          const cachedCategories = queryClient.getQueryData<{ success: boolean; data: Category[] }>(
+            ['categories']
+          );
           if (cachedCategories?.data) {
-            const found = cachedCategories.data.find(c => c.id === newProduct.category_id);
+            const found = cachedCategories.data.find((c) => c.id === newProduct.category_id);
             if (found) {
               category = { id: found.id, name: found.name, slug: found.slug };
             }
@@ -147,12 +156,12 @@ export function useCreateProduct() {
 
         const optimisticId = `temp-${Date.now()}`;
         const optimisticProduct = {
-           id: optimisticId,
-           ...newProduct,
-           category,
-           created_at: new Date().toISOString(),
-           updated_at: new Date().toISOString(),
-           is_active: newProduct.is_active ?? true,
+          id: optimisticId,
+          ...newProduct,
+          category,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          is_active: newProduct.is_active ?? true,
         } as unknown as Product;
 
         return {
@@ -185,7 +194,7 @@ export function useCreateProduct() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: productKeys.all });
-    }
+    },
   });
 
   return {
@@ -205,12 +214,17 @@ export function useUpdateProduct() {
 
   const mutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateProductDTO }) =>
-      apiFetch<ApiSuccessResponse<ProductWithRelations>>(`/api/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+      apiFetch<ApiSuccessResponse<ProductWithRelations>>(`/api/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     onMutate: async ({ id, data }) => {
       await queryClient.cancelQueries({ queryKey: productKeys.all });
       await queryClient.cancelQueries({ queryKey: productKeys.detail(id) });
 
-      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({ queryKey: productKeys.all });
+      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({
+        queryKey: productKeys.all,
+      });
       const previousDetail = queryClient.getQueryData<ProductWithRelations>(productKeys.detail(id));
 
       // Optimistically update the list
@@ -218,7 +232,9 @@ export function useUpdateProduct() {
         if (!old || !Array.isArray(old.products)) return old;
         return {
           ...old,
-          products: old.products.map(p => p.id === id ? { ...p, ...data, updated_at: new Date().toISOString() } as Product : p),
+          products: old.products.map((p) =>
+            p.id === id ? ({ ...p, ...data, updated_at: new Date().toISOString() } as Product) : p
+          ),
         };
       });
 
@@ -228,7 +244,7 @@ export function useUpdateProduct() {
         return {
           ...old,
           ...data,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         } as ProductWithRelations;
       });
 
@@ -242,7 +258,9 @@ export function useUpdateProduct() {
           if (!old || !Array.isArray(old.products)) return old;
           return {
             ...old,
-            products: old.products.map(p => p.id === variables.id ? { ...p, ...res.data } as Product : p),
+            products: old.products.map((p) =>
+              p.id === variables.id ? ({ ...p, ...res.data } as Product) : p
+            ),
           };
         });
       }
@@ -264,7 +282,7 @@ export function useUpdateProduct() {
       if (error) {
         queryClient.invalidateQueries({ queryKey: productKeys.detail(variables.id) });
       }
-    }
+    },
   });
 
   return {
@@ -286,7 +304,9 @@ export function useDeleteProduct() {
     mutationFn: async (id: string) => {
       // Delete product images from R2 in background
       try {
-        const cached = queryClient.getQueriesData<ProductSearchResult>({ queryKey: productKeys.all });
+        const cached = queryClient.getQueriesData<ProductSearchResult>({
+          queryKey: productKeys.all,
+        });
         for (const [, data] of cached) {
           const prod = data?.products?.find((p: Product) => p.id === id);
           if (prod?.images && Array.isArray(prod.images)) {
@@ -304,7 +324,9 @@ export function useDeleteProduct() {
             break;
           }
         }
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
 
       return apiFetch(`/api/products/${id}`, { method: 'DELETE' });
     },
@@ -313,20 +335,19 @@ export function useDeleteProduct() {
       await queryClient.cancelQueries({ queryKey: productKeys.all });
 
       // Snapshot all product query caches
-      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({ queryKey: productKeys.all });
+      const previousQueries = queryClient.getQueriesData<ProductSearchResult>({
+        queryKey: productKeys.all,
+      });
 
       // Optimistically remove the product from ALL cached query results
-      queryClient.setQueriesData<ProductSearchResult>(
-        { queryKey: productKeys.all },
-        (old) => {
-          if (!old || !Array.isArray(old.products)) return old;
-          return {
-            ...old,
-            products: old.products.filter((p: Product) => p.id !== id),
-            total: old.total - 1,
-          };
-        }
-      );
+      queryClient.setQueriesData<ProductSearchResult>({ queryKey: productKeys.all }, (old) => {
+        if (!old || !Array.isArray(old.products)) return old;
+        return {
+          ...old,
+          products: old.products.filter((p: Product) => p.id !== id),
+          total: old.total - 1,
+        };
+      });
 
       return { previousQueries };
     },
@@ -360,7 +381,9 @@ export function useCanDeleteProduct(id: string) {
   const query = useQuery({
     queryKey: ['product-can-delete', id],
     queryFn: async () => {
-      const response = await apiFetch<ApiSuccessResponse<{ canDelete: boolean; reason?: string }>>(`/api/products/${id}/can-delete`);
+      const response = await apiFetch<ApiSuccessResponse<{ canDelete: boolean; reason?: string }>>(
+        `/api/products/${id}/can-delete`
+      );
       return response.data;
     },
     enabled: false, // Manual query
@@ -385,20 +408,21 @@ export function useBulkProductOperation() {
 
   const mutation = useMutation({
     mutationFn: (operation: BulkProductOperation) =>
-      apiFetch<ApiSuccessResponse<BulkOperationResult>>('/api/products/bulk', { method: 'POST', body: JSON.stringify(operation) }),
+      apiFetch<ApiSuccessResponse<BulkOperationResult>>('/api/products/bulk', {
+        method: 'POST',
+        body: JSON.stringify(operation),
+      }),
     onSuccess: (result) => {
       queryClient.refetchQueries({ queryKey: productKeys.all });
       if (result.success && result.data) {
         const { successful, failed, total_successful, total_failed } = result.data;
-        
+
         if (total_failed === 0) {
           showSuccess(`Successfully processed ${total_successful} products`);
         } else {
-          showError(
-            `Processed ${total_successful} products successfully, ${total_failed} failed`
-          );
+          showError(`Processed ${total_successful} products successfully, ${total_failed} failed`);
         }
-        
+
         clearSelection();
         closeBulkDeleteModal();
       } else {
@@ -425,9 +449,12 @@ export function useProductForm(initialData?: Partial<Product>) {
     openCreateModal();
   }, [openCreateModal]);
 
-  const openEdit = useCallback((product: Product) => {
-    openEditModal(product);
-  }, [openEditModal]);
+  const openEdit = useCallback(
+    (product: Product) => {
+      openEditModal(product);
+    },
+    [openEditModal]
+  );
 
   const isEditing = !!currentProduct;
 
@@ -444,29 +471,33 @@ export function useProductForm(initialData?: Partial<Product>) {
  * Hook for product selection management
  */
 export function useProductSelection() {
-  const {
-    selectedProducts,
-    toggleProductSelection,
-    selectAll,
-    clearSelection,
-    isProductSelected,
-  } = useProductStore();
+  const { selectedProducts, toggleProductSelection, selectAll, clearSelection, isProductSelected } =
+    useProductStore();
 
-  const selectProduct = useCallback((productId: string) => {
-    toggleProductSelection(productId);
-  }, [toggleProductSelection]);
+  const selectProduct = useCallback(
+    (productId: string) => {
+      toggleProductSelection(productId);
+    },
+    [toggleProductSelection]
+  );
 
-  const selectAllProducts = useCallback((productIds: string[]) => {
-    selectAll(productIds);
-  }, [selectAll]);
+  const selectAllProducts = useCallback(
+    (productIds: string[]) => {
+      selectAll(productIds);
+    },
+    [selectAll]
+  );
 
   const clear = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
 
-  const isSelected = useCallback((productId: string) => {
-    return isProductSelected(productId);
-  }, [isProductSelected]);
+  const isSelected = useCallback(
+    (productId: string) => {
+      return isProductSelected(productId);
+    },
+    [isProductSelected]
+  );
 
   const selectedCount = selectedProducts.length;
 
@@ -511,4 +542,3 @@ export function useLookupProductByBarcode() {
     isLooking: mutation.isPending,
   };
 }
-

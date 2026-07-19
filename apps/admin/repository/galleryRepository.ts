@@ -7,11 +7,7 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  GalleryItem, 
-  CreateGalleryItemDTO, 
-  UpdateGalleryItemDTO
-} from '@/domain';
+import { GalleryItem, CreateGalleryItemDTO, UpdateGalleryItemDTO } from '@/domain';
 
 export class GalleryRepository extends BaseRepository {
   private readonly tableName = 'gallery';
@@ -20,17 +16,16 @@ export class GalleryRepository extends BaseRepository {
    * Find all gallery items
    */
   async findAll(params?: { is_active?: boolean }): Promise<RepositoryResult<GalleryItem[]>> {
-    let query = this.client
-      .from(this.tableName)
-      .select('*');
+    let query = this.client.from(this.tableName).select('*');
 
     if (params?.is_active !== undefined) {
       query = query.eq('is_active', params.is_active);
     }
 
     // Order by sort_order ascending, then created_at descending
-    query = query.order('sort_order', { ascending: true })
-                 .order('created_at', { ascending: false });
+    query = query
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: false });
 
     const response = await query;
     return this.handleResponse<GalleryItem[]>(response);
@@ -40,11 +35,7 @@ export class GalleryRepository extends BaseRepository {
    * Find gallery item by ID
    */
   async findById(id: string): Promise<RepositoryResult<GalleryItem>> {
-    const response = await this.client
-      .from(this.tableName)
-      .select('*')
-      .eq('id', id)
-      .single();
+    const response = await this.client.from(this.tableName).select('*').eq('id', id).single();
 
     return this.handleResponse<GalleryItem>(response);
   }
@@ -86,10 +77,7 @@ export class GalleryRepository extends BaseRepository {
    * Delete a gallery item
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const response = await this.client.from(this.tableName).delete().eq('id', id);
 
     return this.handleResponse<void>(response);
   }

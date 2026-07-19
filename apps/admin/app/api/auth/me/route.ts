@@ -11,13 +11,13 @@ import { apiSuccess, apiUnauthorized, apiInternalError } from '@/lib/apiResponse
 export async function GET(request: NextRequest) {
   try {
     const authUser = await getAuthUser(request);
-    
+
     if (!authUser) {
       return apiUnauthorized('Not authenticated');
     }
 
     // Resolve staff name for sidebar display (already fetched in getAuthUser)
-    let name = authUser.staff_id ? (authUser as any).name : '';
+    const name = authUser.staff_id ? (authUser as any).name : '';
 
     const response = apiSuccess({
       user: {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Add caching headers - cache for 30 seconds, revalidate in background
     response.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');
-    
+
     return response;
   } catch (error) {
     console.error('[API] GET /api/auth/me error:', error);

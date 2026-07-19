@@ -1,17 +1,19 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function FinalCTA() {
   return (
     <section className="bg-white py-10 sm:py-14 md:py-20 px-4 sm:px-6 md:px-12">
       <div className="max-w-[800px] mx-auto text-center">
         <span className="text-[10px] sm:text-xs uppercase tracking-[0.2em] font-bold text-rosegold">
-          Your Performance Awaits
+          Your Perfect Day Awaits
         </span>
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-heading mt-3 sm:mt-4 leading-tight">
-          Dress for the Spotlight
+          Shine on Your Special Day
         </h2>
         <p className="text-sm sm:text-base text-body mt-3 sm:mt-4 leading-relaxed max-w-xl mx-auto">
-          Rent Kerala's most exquisite collection of classical, folk, and cinematic dance costumes. Crafted with premium fabrics to bring elegance, color, and grace to every movement.
+          Rent Kerala's most exquisite collection of premium bridal jewelry and accessory sets.
+          Exquisitely crafted with traditional Kundan, antique gold, and diamonds to add elegance
+          and grace to your wedding celebrations.
         </p>
 
         <Link

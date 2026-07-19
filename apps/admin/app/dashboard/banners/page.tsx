@@ -7,10 +7,10 @@
  * @module app/dashboard/banners/page
  */
 
-"use client";
+'use client';
 
-import { Suspense, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
+import { Suspense, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Search,
   Trash2,
@@ -22,15 +22,15 @@ import {
   Loader2,
   Eye,
   AlertTriangle,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import Modal from "@/components/admin/Modal";
-import { useBanners, useDeleteBanner, useReorderBanners, useRemainingSlots } from "@/hooks";
-import { useRouter } from "next/navigation";
-import { type Banner, BannerType, BannerPosition, BANNER_TYPE_LIMITS } from "@/domain";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import Modal from '@/components/admin/Modal';
+import { useBanners, useDeleteBanner, useReorderBanners, useRemainingSlots } from '@/hooks';
+import { useRouter } from 'next/navigation';
+import { type Banner, BannerType, BannerPosition, BANNER_TYPE_LIMITS } from '@/domain';
 import {
   DndContext,
   closestCenter,
@@ -51,12 +51,14 @@ import { CSS } from '@dnd-kit/utilities';
 
 export default function BannersPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center p-12 text-slate-500">
-        <Loader2 className="w-6 h-6 animate-spin mr-2" />
-        Loading banners...
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12 text-slate-500">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          Loading banners...
+        </div>
+      }
+    >
       <BannersContent />
     </Suspense>
   );
@@ -64,7 +66,7 @@ export default function BannersPage() {
 
 function BannersContent() {
   const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<BannerType>(BannerType.HERO);
   const { data: banners, isLoading } = useBanners({ banner_type: activeTab });
   const { data: allHeroBanners } = useBanners({ banner_type: BannerType.HERO });
@@ -101,9 +103,9 @@ function BannersContent() {
   const filtered = useMemo(() => {
     if (!searchQuery) return sortedBanners;
     const query = searchQuery.toLowerCase();
-    return sortedBanners.filter((b: Banner) =>
-      b.title?.toLowerCase().includes(query) ||
-      b.subtitle?.toLowerCase().includes(query)
+    return sortedBanners.filter(
+      (b: Banner) =>
+        b.title?.toLowerCase().includes(query) || b.subtitle?.toLowerCase().includes(query)
     );
   }, [sortedBanners, searchQuery]);
 
@@ -125,24 +127,27 @@ function BannersContent() {
     })
   );
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
 
-    if (over && active.id !== over.id && activeTab === BannerType.HERO) {
-      const oldIndex = filtered.findIndex((b) => b.id === active.id);
-      const newIndex = filtered.findIndex((b) => b.id === over.id);
+      if (over && active.id !== over.id && activeTab === BannerType.HERO) {
+        const oldIndex = filtered.findIndex((b) => b.id === active.id);
+        const newIndex = filtered.findIndex((b) => b.id === over.id);
 
-      const reordered = arrayMove(filtered, oldIndex, newIndex);
+        const reordered = arrayMove(filtered, oldIndex, newIndex);
 
-      // Update positions based on new order (1-based)
-      const updates = reordered.map((banner, index) => ({
-        id: banner.id,
-        position: (index + 1).toString(),
-      }));
+        // Update positions based on new order (1-based)
+        const updates = reordered.map((banner, index) => ({
+          id: banner.id,
+          position: (index + 1).toString(),
+        }));
 
-      reorderBanners.mutate(updates);
-    }
-  }, [filtered, activeTab, reorderBanners]);
+        reorderBanners.mutate(updates);
+      }
+    },
+    [filtered, activeTab, reorderBanners]
+  );
 
   const canAddBanner = (type: BannerType) => {
     if (remainingSlots && remainingSlots[type] !== undefined) {
@@ -156,15 +161,19 @@ function BannersContent() {
     const heroCount = allHeroBanners?.length || 0;
     const editorialCount = allEditorialBanners?.length || 0;
     const splitCount = allSplitBanners?.length || 0;
-    const allBanners = [...(allHeroBanners || []), ...(allEditorialBanners || []), ...(allSplitBanners || [])];
+    const allBanners = [
+      ...(allHeroBanners || []),
+      ...(allEditorialBanners || []),
+      ...(allSplitBanners || []),
+    ];
     const activeCount = allBanners.filter((b) => b.is_active).length;
     return { heroCount, editorialCount, splitCount, activeCount, total: allBanners.length };
   }, [allHeroBanners, allEditorialBanners, allSplitBanners]);
 
   const filterChips = [
-    { label: "Hero", value: BannerType.HERO, count: stats.heroCount },
-    { label: "Editorial", value: BannerType.EDITORIAL, count: stats.editorialCount },
-    { label: "Split", value: BannerType.SPLIT, count: stats.splitCount },
+    { label: 'Hero', value: BannerType.HERO, count: stats.heroCount },
+    { label: 'Editorial', value: BannerType.EDITORIAL, count: stats.editorialCount },
+    { label: 'Split', value: BannerType.SPLIT, count: stats.splitCount },
   ];
 
   const showShimmer = isLoading;
@@ -202,12 +211,18 @@ function BannersContent() {
         />
         <StatCard
           label="Editorial"
-          value={showShimmer ? null : `${stats.editorialCount} / ${BANNER_TYPE_LIMITS[BannerType.EDITORIAL]}`}
+          value={
+            showShimmer
+              ? null
+              : `${stats.editorialCount} / ${BANNER_TYPE_LIMITS[BannerType.EDITORIAL]}`
+          }
           subtext="Featured content section"
         />
         <StatCard
           label="Split Banners"
-          value={showShimmer ? null : `${stats.splitCount} / ${BANNER_TYPE_LIMITS[BannerType.SPLIT]}`}
+          value={
+            showShimmer ? null : `${stats.splitCount} / ${BANNER_TYPE_LIMITS[BannerType.SPLIT]}`
+          }
           subtext="Side-by-side promotions"
         />
         <StatCard
@@ -229,8 +244,8 @@ function BannersContent() {
                 onClick={() => setActiveTab(chip.value)}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
                   activeTab === chip.value
-                    ? "bg-slate-900 text-white border-slate-900"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
                 }`}
               >
                 {chip.label}
@@ -284,7 +299,7 @@ function BannersContent() {
           <div className="p-16 text-center">
             <ImageIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-slate-900 mb-1">
-              {searchQuery ? "No Banners Found" : "No Banners Yet"}
+              {searchQuery ? 'No Banners Found' : 'No Banners Yet'}
             </h3>
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
               {searchQuery
@@ -294,7 +309,7 @@ function BannersContent() {
             {!searchQuery && (
               <Button
                 className="mt-6 bg-slate-900 text-white hover:bg-slate-800"
-                onClick={() => router.push("/dashboard/banners/create")}
+                onClick={() => router.push('/dashboard/banners/create')}
               >
                 Add New Banner
               </Button>
@@ -313,19 +328,15 @@ function BannersContent() {
                     <th className="px-4 py-3 w-10"></th>
                     <th className="px-4 py-3">Preview</th>
                     <th className="px-4 py-3">Title</th>
-                    {activeTab === BannerType.HERO && (
-                      <th className="px-4 py-3">Position</th>
-                    )}
-                    {activeTab === BannerType.SPLIT && (
-                      <th className="px-4 py-3">Side</th>
-                    )}
+                    {activeTab === BannerType.HERO && <th className="px-4 py-3">Position</th>}
+                    {activeTab === BannerType.SPLIT && <th className="px-4 py-3">Side</th>}
                     <th className="px-4 py-3">Schedule</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <SortableContext
-                  items={filtered.map(b => b.id)}
+                  items={filtered.map((b) => b.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <tbody className="divide-y divide-slate-100">
@@ -362,14 +373,28 @@ function BannersContent() {
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to permanently delete <span className="font-semibold text-slate-900">{deleteDialog.banner?.title || 'this banner'}</span>? This action cannot be undone.
+                Are you sure you want to permanently delete{' '}
+                <span className="font-semibold text-slate-900">
+                  {deleteDialog.banner?.title || 'this banner'}
+                </span>
+                ? This action cannot be undone.
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setDeleteDialog({ open: false, banner: null })} className="border-slate-200">Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteBanner.isPending}>
-              {deleteBanner.isPending ? "Deleting..." : "Delete Banner"}
+            <Button
+              variant="outline"
+              onClick={() => setDeleteDialog({ open: false, banner: null })}
+              className="border-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteBanner.isPending}
+            >
+              {deleteBanner.isPending ? 'Deleting...' : 'Delete Banner'}
             </Button>
           </div>
         </div>
@@ -378,21 +403,23 @@ function BannersContent() {
   );
 }
 
-const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }: {
+const SortableBannerRow = ({
+  banner,
+  activeTab,
+  isDraggable,
+  onEdit,
+  onDelete,
+}: {
   banner: Banner;
   activeTab: BannerType;
   isDraggable: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: banner.id, disabled: !isDraggable });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: banner.id,
+    disabled: !isDraggable,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -401,11 +428,7 @@ const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }:
   };
 
   return (
-    <tr
-      ref={setNodeRef}
-      style={style}
-      className="hover:bg-slate-50 transition-colors group"
-    >
+    <tr ref={setNodeRef} style={style} className="hover:bg-slate-50 transition-colors group">
       <td className="px-4 py-4">
         {isDraggable && (
           <button
@@ -428,7 +451,9 @@ const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }:
       </td>
       <td className="px-4 py-4">
         <div>
-          <p className="font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">{banner.title || 'Untitled'}</p>
+          <p className="font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
+            {banner.title || 'Untitled'}
+          </p>
           {banner.subtitle && <p className="text-xs text-slate-400 mt-0.5">{banner.subtitle}</p>}
         </div>
       </td>
@@ -441,10 +466,14 @@ const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }:
       )}
       {activeTab === BannerType.SPLIT && (
         <td className="px-4 py-4">
-          <Badge variant="outline" className={banner.position === BannerPosition.LEFT
-            ? "bg-blue-50 text-blue-700 border-blue-200"
-            : "bg-purple-50 text-purple-700 border-purple-200"
-          }>
+          <Badge
+            variant="outline"
+            className={
+              banner.position === BannerPosition.LEFT
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-purple-50 text-purple-700 border-purple-200'
+            }
+          >
             {banner.position === BannerPosition.LEFT ? 'Left' : 'Right'}
           </Badge>
         </td>
@@ -454,9 +483,17 @@ const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }:
           <div className="flex items-center gap-1.5 text-xs text-slate-600">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <span>
-              {banner.start_date && new Date(banner.start_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+              {banner.start_date &&
+                new Date(banner.start_date).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                })}
               {banner.start_date && banner.end_date && ' – '}
-              {banner.end_date && new Date(banner.end_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+              {banner.end_date &&
+                new Date(banner.end_date).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                })}
             </span>
           </div>
         ) : (
@@ -468,8 +505,8 @@ const SortableBannerRow = ({ banner, activeTab, isDraggable, onEdit, onDelete }:
           variant="secondary"
           className={`text-xs font-medium px-2 py-0.5 ${
             banner.is_active
-              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-              : "bg-slate-100 text-slate-600 border border-slate-200"
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-slate-100 text-slate-600 border border-slate-200'
           }`}
         >
           {banner.is_active ? 'Active' : 'Inactive'}
@@ -507,7 +544,7 @@ function StatCard({
   value,
   subtext,
   highlight,
-  alert
+  alert,
 }: {
   label: string;
   value: string | null;
@@ -526,21 +563,19 @@ function StatCard({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
           )}
-          {alert && (
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          )}
+          {alert && <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />}
         </div>
         <div className="space-y-1">
           {value === null ? (
             <div className="h-8 w-16 bg-slate-100 animate-pulse rounded" />
           ) : (
-            <p className={`text-2xl font-bold tracking-tight ${alert ? "text-red-600" : "text-slate-900"}`}>
+            <p
+              className={`text-2xl font-bold tracking-tight ${alert ? 'text-red-600' : 'text-slate-900'}`}
+            >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

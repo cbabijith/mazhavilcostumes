@@ -8,15 +8,15 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Product, 
-  CreateProductDTO, 
-  UpdateProductDTO, 
-  ProductSearchParams, 
+import {
+  Product,
+  CreateProductDTO,
+  UpdateProductDTO,
+  ProductSearchParams,
   ProductSearchResult,
   ProductWithRelations,
   BulkProductOperation,
-  BulkOperationResult
+  BulkOperationResult,
 } from '@/domain';
 
 export class ProductRepository extends BaseRepository {
@@ -83,19 +83,25 @@ export class ProductRepository extends BaseRepository {
       if (normalizedQuery !== query) {
         selectQuery = (selectQuery as any).or(
           `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%,` +
-          `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+            `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
         );
       } else {
-        selectQuery = (selectQuery as any).or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`);
+        selectQuery = (selectQuery as any).or(
+          `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,barcode.ilike.%${query}%`
+        );
       }
     }
 
     // Exclude soft-deleted
     selectQuery = (selectQuery as any).is('deleted_at', null);
-    
+
+    // We do not filter the products table by branch_id because products are global.
+    // The branch-specific quantities are resolved branchwise via product_inventory.
+    /*
     if (branch_id) {
       selectQuery = (selectQuery as any).or(`branch_id.eq.${branch_id},branch_id.is.null`);
     }
+    */
 
     if (min_price !== undefined) {
       selectQuery = (selectQuery as any).gte('price_per_day', min_price);
@@ -211,12 +217,14 @@ export class ProductRepository extends BaseRepository {
   async findById(id: string): Promise<RepositoryResult<ProductWithRelations>> {
     const response = await this.client
       .from(this.tableName)
-      .select(`
+      .select(
+        `
         *,
         category:category_id(id, name, slug, gst_percentage, has_buffer),
         branch:branch_id(id, name),
         product_inventory(id, product_id, branch_id, quantity, available_quantity, low_stock_threshold, created_at, updated_at, branches:branch_id(id, name))
-      `)
+      `
+      )
       .eq('id', id)
       .is('deleted_at', null)
       .single();
@@ -253,18 +261,18 @@ export class ProductRepository extends BaseRepository {
   }
 
   async search(query: string, limit: number = 10): Promise<RepositoryResult<Product[]>> {
-    let selectQuery = this.client
-      .from(this.tableName)
-      .select('*');
+    let selectQuery = this.client.from(this.tableName).select('*');
 
     const normalizedQuery = query.trim().replace(/\s+/g, '-');
     if (normalizedQuery !== query) {
       selectQuery = selectQuery.or(
         `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%,` +
-        `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
+          `name.ilike.%${normalizedQuery}%,slug.ilike.%${normalizedQuery}%,sku.ilike.%${normalizedQuery}%,description.ilike.%${normalizedQuery}%,barcode.ilike.%${normalizedQuery}%`
       );
     } else {
-      selectQuery = selectQuery.or(`name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%`);
+      selectQuery = selectQuery.or(
+        `name.ilike.%${query}%,slug.ilike.%${query}%,sku.ilike.%${query}%,description.ilike.%${query}%,barcode.ilike.%${query}%`
+      );
     }
 
     const response = await selectQuery
@@ -310,7 +318,10 @@ export class ProductRepository extends BaseRepository {
    * @param excludeProductId - Optional product ID to exclude (for edit mode)
    * @returns true if barcode is available, false if already taken
    */
-  async isBarcodeUnique(barcode: string, excludeProductId?: string): Promise<{ unique: boolean; existingProductName?: string }> {
+  async isBarcodeUnique(
+    barcode: string,
+    excludeProductId?: string
+  ): Promise<{ unique: boolean; existingProductName?: string }> {
     let query = this.client
       .from(this.tableName)
       .select('id, name')
@@ -365,12 +376,19 @@ export class ProductRepository extends BaseRepository {
   }
 
   /**
-   * Soft-delete a product (sets deleted_at timestamp)
+   * Soft-delete a product (sets deleted_at timestamp).
+   * Also mangles slug and barcode to free up unique constraints for reuse.
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
+    const deletedSuffix = `-deleted-${Date.now()}`;
     const response = await this.client
       .from(this.tableName)
-      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+        slug: `${id}${deletedSuffix}`,
+        barcode: `DEL-${id.slice(0, 8)}-${Date.now()}`,
+      })
       .eq('id', id);
 
     return this.handleResponse<void>(response);
@@ -379,14 +397,16 @@ export class ProductRepository extends BaseRepository {
   /**
    * Check if product can be deleted (safety checks)
    */
-  async canDelete(id: string): Promise<RepositoryResult<{
-    canDelete: boolean;
-    reason?: string;
-    relatedData?: {
-      ordersCount: number;
-      activeRentalCount: number;
-    };
-  }>> {
+  async canDelete(id: string): Promise<
+    RepositoryResult<{
+      canDelete: boolean;
+      reason?: string;
+      relatedData?: {
+        ordersCount: number;
+        activeRentalCount: number;
+      };
+    }>
+  > {
     try {
       // Check if product exists
       const productResult = await this.findById(id);
@@ -409,7 +429,11 @@ export class ProductRepository extends BaseRepository {
       const reason = canDelete ? undefined : `Product has ${safeCount} order(s) referencing it`;
 
       return {
-        data: { canDelete, reason, relatedData: { ordersCount: safeCount, activeRentalCount: safeCount } },
+        data: {
+          canDelete,
+          reason,
+          relatedData: { ordersCount: safeCount, activeRentalCount: safeCount },
+        },
         error: null,
         success: true,
       };
@@ -426,7 +450,9 @@ export class ProductRepository extends BaseRepository {
   /**
    * Perform bulk operations on products
    */
-  async bulkOperation(operation: BulkProductOperation): Promise<RepositoryResult<BulkOperationResult>> {
+  async bulkOperation(
+    operation: BulkProductOperation
+  ): Promise<RepositoryResult<BulkOperationResult>> {
     const { product_ids, operation: opType, data } = operation;
     const successful: string[] = [];
     const failed: Array<{ product_id: string; error: string }> = [];
@@ -509,7 +535,7 @@ export class ProductRepository extends BaseRepository {
   async getProductCount(filters: Record<string, any> = {}): Promise<RepositoryResult<number>> {
     try {
       let query = this.client.from(this.tableName);
-      
+
       // Apply filters
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
@@ -522,9 +548,9 @@ export class ProductRepository extends BaseRepository {
           }
         });
       }
-      
+
       const { count, error } = await query.select('*', { count: 'exact', head: true });
-      
+
       if (error) {
         return {
           data: null,
@@ -532,7 +558,7 @@ export class ProductRepository extends BaseRepository {
           success: false,
         };
       }
-      
+
       return {
         data: count || 0,
         error: null,
@@ -550,13 +576,10 @@ export class ProductRepository extends BaseRepository {
   /**
    * Update product inventory
    */
-  async updateInventory(
-    id: string, 
-    availableQuantity: number
-  ): Promise<RepositoryResult<Product>> {
+  async updateInventory(id: string, availableQuantity: number): Promise<RepositoryResult<Product>> {
     const response = await this.client
       .from(this.tableName)
-      .update({ 
+      .update({
         available_quantity: availableQuantity,
         updated_at: new Date().toISOString(),
         ...this.getUpdateAuditFields(),

@@ -7,8 +7,8 @@
  * @module app/dashboard/loading
  */
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { CalendarDays, BarChart3 } from "lucide-react";
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { CalendarDays, BarChart3 } from 'lucide-react';
 
 export default function DashboardLoading() {
   return (
@@ -104,12 +104,12 @@ export default function DashboardLoading() {
           </CardHeader>
           <CardContent className="h-[200px] flex items-end gap-2 pt-6 px-6">
             {Array.from({ length: 15 }).map((_, idx) => (
-              <div 
-                key={idx} 
-                className="flex-1 bg-slate-100 animate-pulse rounded-t-md" 
-                style={{ 
-                  height: `${[30, 45, 20, 60, 80, 50, 40, 95, 70, 35, 55, 65, 45, 75, 50][idx]}%` 
-                }} 
+              <div
+                key={idx}
+                className="flex-1 bg-slate-100 animate-pulse rounded-t-md"
+                style={{
+                  height: `${[30, 45, 20, 60, 80, 50, 40, 95, 70, 35, 55, 65, 45, 75, 50][idx]}%`,
+                }}
               />
             ))}
           </CardContent>

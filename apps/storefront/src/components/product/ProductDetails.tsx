@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck } from "lucide-react";
-import WhatsAppOrderModal from "./WhatsAppOrderModal";
-import { getProductImageUrls } from "@/lib/supabase/queries";
-import { cn } from "@/lib/utils";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck } from 'lucide-react';
+import WhatsAppOrderModal from './WhatsAppOrderModal';
+import { getProductImageUrls } from '@/lib/supabase/queries';
+import { cn } from '@/lib/utils';
 
 interface ProductDetailsProps {
   product: {
@@ -33,16 +33,16 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
   const mainImage = images[activeImage] || null;
 
   useEffect(() => {
-    const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+    const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
     setIsInCart(cart.some((item: any) => item.id === product.id));
   }, [product.id]);
 
   const handleCartAction = () => {
     if (isInCart) {
-      router.push("/cart");
+      router.push('/cart');
       return;
     }
-    const cart = JSON.parse(localStorage.getItem("paris_cart") || "[]");
+    const cart = JSON.parse(localStorage.getItem('paris_cart') || '[]');
     const exists = cart.some((item: any) => item.id === product.id);
     if (!exists) {
       const newItem = {
@@ -52,8 +52,8 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         images: product.images,
       };
       const newCart = [...cart, newItem];
-      localStorage.setItem("paris_cart", JSON.stringify(newCart));
-      window.dispatchEvent(new CustomEvent("paris_cart_updated", { detail: newCart.length }));
+      localStorage.setItem('paris_cart', JSON.stringify(newCart));
+      window.dispatchEvent(new CustomEvent('paris_cart_updated', { detail: newCart.length }));
       setIsInCart(true);
     }
   };
@@ -64,9 +64,16 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         <div className="max-w-[1100px] mx-auto px-4 sm:px-6 md:px-12">
           {/* Breadcrumb */}
           <nav className="flex items-center gap-1.5 text-xs text-body mb-5 sm:mb-6 overflow-x-auto hide-scrollbar">
-            <Link href="/" className="hover:text-rosegold transition-colors whitespace-nowrap">Home</Link>
+            <Link href="/" className="hover:text-rosegold transition-colors whitespace-nowrap">
+              Home
+            </Link>
             <ChevronRight size={12} />
-            <Link href="/collections" className="hover:text-rosegold transition-colors whitespace-nowrap">Collections</Link>
+            <Link
+              href="/collections"
+              className="hover:text-rosegold transition-colors whitespace-nowrap"
+            >
+              Collections
+            </Link>
             {product.category && (
               <>
                 <ChevronRight size={12} />
@@ -96,7 +103,9 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-rosegold/5 text-6xl opacity-20">👗</div>
+                  <div className="w-full h-full flex items-center justify-center bg-rosegold/5 text-6xl opacity-20">
+                    👗
+                  </div>
                 )}
               </div>
 
@@ -107,8 +116,10 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                       key={idx}
                       onClick={() => setActiveImage(idx)}
                       className={cn(
-                        "relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-colors",
-                        activeImage === idx ? "border-rosegold" : "border-[#EAEAEA] hover:border-rosegold/40"
+                        'relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden shrink-0 border-2 transition-colors',
+                        activeImage === idx
+                          ? 'border-rosegold'
+                          : 'border-[#EAEAEA] hover:border-rosegold/40'
                       )}
                       aria-label={`View image ${idx + 1}`}
                     >
@@ -139,17 +150,15 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
               </h1>
 
               {product.description && (
-                <p className="text-sm text-body leading-relaxed mb-6">
-                  {product.description}
-                </p>
+                <p className="text-sm text-body leading-relaxed mb-6">{product.description}</p>
               )}
 
               {/* Features */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
                 {[
-                  { icon: ShieldCheck, label: "Certified" },
-                  { icon: Sparkles, label: "Sanitized" },
-                  { icon: Truck, label: "Safe Delivery" },
+                  { icon: ShieldCheck, label: 'Certified' },
+                  { icon: Sparkles, label: 'Sanitized' },
+                  { icon: Truck, label: 'Safe Delivery' },
                 ].map(({ icon: Icon, label }) => (
                   <div
                     key={label}
@@ -176,14 +185,14 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                 <button
                   onClick={handleCartAction}
                   className={cn(
-                    "w-full py-3.5 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-2 border",
+                    'w-full py-3.5 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-2 border',
                     isInCart
-                      ? "bg-heading text-white border-heading"
-                      : "bg-white text-heading border-heading hover:bg-heading/5"
+                      ? 'bg-heading text-white border-heading'
+                      : 'bg-white text-heading border-heading hover:bg-heading/5'
                   )}
                 >
                   <ShoppingBag size={16} strokeWidth={1.8} />
-                  {isInCart ? "Go to Cart" : "Add to Cart"}
+                  {isInCart ? 'Go to Cart' : 'Add to Cart'}
                 </button>
               </div>
 

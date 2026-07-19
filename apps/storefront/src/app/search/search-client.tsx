@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { Search, X, ChevronLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
+import { Search, X, ChevronLeft } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 interface ProductSuggestion {
   id: string;
@@ -20,7 +20,7 @@ interface SearchClientProps {
 }
 
 export default function SearchClient({ storeId, categories, featured }: SearchClientProps) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -43,30 +43,32 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
       setIsLoading(true);
       try {
         let queryBuilder = supabase
-          .from("products")
-          .select("id, name, sku, barcode, category:category_id(name)")
-          .eq("is_active", true)
-          .ilike("name", `%${query}%`)
-          .order("name", { ascending: true })
+          .from('products')
+          .select('id, name, sku, barcode, category:category_id(name)')
+          .eq('is_active', true)
+          .ilike('name', `%${query}%`)
+          .order('name', { ascending: true })
           .range(0, 14); // Fetch first 15 suggestions
-        
+
         if (storeId) {
-          queryBuilder = queryBuilder.eq("store_id", storeId);
+          queryBuilder = queryBuilder.eq('store_id', storeId);
         }
 
         const { data, error } = await queryBuilder;
 
         if (!error && data) {
-          setSuggestions(data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            barcode: p.barcode,
-            category_name: p.category?.name
-          })));
+          setSuggestions(
+            data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              barcode: p.barcode,
+              category_name: p.category?.name,
+            }))
+          );
         }
       } catch (err) {
-        console.error("Search suggestion error:", err);
+        console.error('Search suggestion error:', err);
       } finally {
         setIsLoading(false);
       }
@@ -109,7 +111,7 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
           {query && (
             <button
               type="button"
-              onClick={() => setQuery("")}
+              onClick={() => setQuery('')}
               className="absolute right-3.5 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-rosegold transition-colors cursor-pointer flex items-center justify-center"
             >
               <X size={16} />
@@ -124,7 +126,9 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
           /* Live Suggestions */
           <section className="bg-white rounded-[2.5rem] p-6 border border-[var(--border-silk)] shadow-sm animate-in fade-in duration-300">
             <div className="flex items-center justify-between mb-4 border-b border-[var(--border-silk)] pb-3">
-              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-heading">Suggested Products</h3>
+              <h3 className="text-xs uppercase tracking-[0.2em] font-bold text-heading">
+                Suggested Products
+              </h3>
               {isLoading && (
                 <span className="text-[10px] text-caption animate-pulse">Searching...</span>
               )}
@@ -141,19 +145,28 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
                     className="w-full flex items-center justify-between py-3 hover:text-rosegold transition-colors text-left group cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <Search size={14} className="text-muted-foreground group-hover:text-rosegold transition-colors shrink-0" />
+                      <Search
+                        size={14}
+                        className="text-muted-foreground group-hover:text-rosegold transition-colors shrink-0"
+                      />
                       <span className="text-sm font-medium text-body group-hover:text-rosegold transition-colors truncate">
-                        {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
+                        {product.sku &&
+                        !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
                           <span className="inline-flex items-center gap-1.5">
                             <span className="font-semibold text-rosegold">{product.sku}</span>
                             <span className="text-muted-foreground font-normal">-</span>
-                            <span className="text-muted-foreground font-normal">{product.name}</span>
+                            <span className="text-muted-foreground font-normal">
+                              {product.name}
+                            </span>
                           </span>
-                        ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
+                        ) : product.barcode &&
+                          !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
                           <span className="inline-flex items-center gap-1.5">
                             <span className="font-semibold text-rosegold">{product.barcode}</span>
                             <span className="text-muted-foreground font-normal">-</span>
-                            <span className="text-muted-foreground font-normal">{product.name}</span>
+                            <span className="text-muted-foreground font-normal">
+                              {product.name}
+                            </span>
                           </span>
                         ) : (
                           product.name
@@ -175,9 +188,7 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
           <section className="bg-white rounded-[2.5rem] p-6 border border-[var(--border-silk)] shadow-sm animate-in fade-in duration-300">
             <div className="py-12 text-center">
               <Search size={32} className="text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-caption">
-                Start typing to search for costumes
-              </p>
+              <p className="text-sm text-caption">Start typing to search for costumes</p>
             </div>
           </section>
         )}

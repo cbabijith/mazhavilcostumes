@@ -1,40 +1,41 @@
-import type { Metadata } from "next";
-import { Cormorant_Garamond, DM_Sans } from "next/font/google";
-import "./globals.css";
-import { cn } from "@/lib/utils";
+import type { Metadata } from 'next';
+import { Cormorant_Garamond, DM_Sans } from 'next/font/google';
+import './globals.css';
+import { cn } from '@/lib/utils';
+import { BRAND_CONFIG } from 'shared-utils';
 
 const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-cormorant',
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
 });
 
 const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-dm-sans',
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: "Mazhavil Dance Costumes — Premium Costumes Rental",
+  title: `${BRAND_CONFIG.name} — Premium Jewellery Rental`,
   description:
-    "Luxury bridal costumes rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.",
+    'Luxury bridal jewellery rental for weddings, receptions, and bridal shoots across Kerala. Premium pieces, sanitized and insured.',
   keywords: [
-    "bridal costumes rental",
-    "wedding costumes",
-    "Kerala costumes rental",
-    "Mazhavil Dance Costumes",
-    "premium costumes",
+    'bridal jewellery rental',
+    'wedding jewellery',
+    'Kerala jewellery rental',
+    BRAND_CONFIG.name,
+    'premium jewellery',
   ],
   icons: {
-    icon: "/logo_mazhavil.jpeg",
-    apple: "/logo_mazhavil.jpeg",
+    icon: BRAND_CONFIG.defaultLogo,
+    apple: BRAND_CONFIG.defaultLogo,
   },
 };
 
-import MobileBottomNav from "@/components/home/MobileBottomNav";
+import MobileBottomNav from '@/components/home/MobileBottomNav';
 
 export default function RootLayout({
   children,
@@ -45,11 +46,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(
-        "h-full antialiased",
-        cormorant.variable,
-        dmSans.variable
-      )}
+      className={cn('h-full antialiased', cormorant.variable, dmSans.variable)}
     >
       <body className="min-h-full flex flex-col bg-silk-gradient selection:bg-rosegold/20 selection:text-rosegold-dark">
         {children}

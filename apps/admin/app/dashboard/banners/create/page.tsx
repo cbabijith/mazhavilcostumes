@@ -6,7 +6,7 @@
  * @route /dashboard/banners/create
  */
 
-import BannerForm from "@/components/admin/BannerForm";
+import BannerForm from '@/components/admin/BannerForm';
 
 export default function CreateBannerPage() {
   return (

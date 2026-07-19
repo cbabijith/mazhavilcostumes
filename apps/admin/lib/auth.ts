@@ -35,8 +35,11 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const adminClient = createAdminClient();
-      
-      const { data: { user }, error } = await adminClient.auth.getUser(token);
+
+      const {
+        data: { user },
+        error,
+      } = await adminClient.auth.getUser(token);
       if (!error && user) {
         // Look up the staff record to get role + branch + store
         const { data: staff } = await adminClient
@@ -79,7 +82,10 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
       }
     );
 
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser();
     if (error || !user) return null;
 
     // Look up the staff record to get role + branch + store + name
@@ -90,7 +96,7 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
       .eq('user_id', user.id)
       .eq('is_active', true)
       .maybeSingle();
- 
+
     // If staff record found, use that role
     if (staff) {
       return {
@@ -103,7 +109,7 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
         name: staff.name,
       };
     }
- 
+
     // If no staff record, check user_metadata for role (admin users)
     const metaRole = user.user_metadata?.role as StaffRole | undefined;
     const metaStoreId = user.user_metadata?.store_id as string | undefined;

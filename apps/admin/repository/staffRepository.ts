@@ -74,10 +74,7 @@ export class StaffRepository extends BaseRepository {
   }
 
   async delete(id: string): Promise<RepositoryResult<boolean>> {
-    const { error } = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const { error } = await this.client.from(this.tableName).delete().eq('id', id);
 
     if (error) return { data: null, error, success: false };
     return { data: true, error: null, success: true };
@@ -92,9 +89,13 @@ export class StaffRepository extends BaseRepository {
       .select('user_id')
       .eq('id', staffId)
       .single();
-    
+
     if (!userRecord?.user_id) {
-      return { data: null, error: { message: 'Staff has no linked auth user' } as any, success: false };
+      return {
+        data: null,
+        error: { message: 'Staff has no linked auth user' } as any,
+        success: false,
+      };
     }
 
     // Query orders created by this user's auth ID
@@ -115,10 +116,10 @@ export class StaffRepository extends BaseRepository {
         totalSales,
         totalDiscounts,
         orderCount,
-        recentOrders: orders.slice(0, 5)
+        recentOrders: orders.slice(0, 5),
       },
       error: null,
-      success: true
+      success: true,
     };
   }
 }

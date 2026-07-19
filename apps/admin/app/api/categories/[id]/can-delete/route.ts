@@ -13,10 +13,10 @@
  * @module app/api/categories/[id]/can-delete/route
  */
 
-import { NextRequest } from "next/server";
-import { categoryService } from "@/services/categoryService";
-import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError } from "@/lib/apiResponse";
+import { NextRequest } from 'next/server';
+import { categoryService } from '@/services/categoryService';
+import { apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiInternalError } from '@/lib/apiResponse';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
     const { id } = await params;
     const result = await categoryService.canDeleteCategory(id);
-    
+
     if (!result.success || !result.data) {
       return apiSuccess({
         canDelete: false,

@@ -35,12 +35,21 @@ export interface Payment {
   payment_date: string;
   notes?: string;
   readonly created_by: string | null;
+  readonly updated_by?: string | null;
   readonly created_at: string;
   readonly updated_at?: string;
 }
 
 // Payment with Relations
 export interface PaymentWithRelations extends Payment {
+  staff?: {
+    id: string;
+    name: string;
+  };
+  updater?: {
+    id: string;
+    name: string;
+  };
   order?: {
     id: string;
     customer: {
@@ -63,6 +72,7 @@ export interface CreatePaymentDTO {
 
 // Update Payment DTO
 export interface UpdatePaymentDTO {
+  amount?: number;
   payment_mode?: PaymentMode;
   transaction_id?: string;
   notes?: string;

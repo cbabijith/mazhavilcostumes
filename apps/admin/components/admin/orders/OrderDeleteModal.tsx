@@ -8,13 +8,13 @@
  * @module components/admin/orders/OrderDeleteModal
  */
 
-"use client";
+'use client';
 
-import React from "react";
-import { AlertTriangle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import Modal from "@/components/admin/Modal";
-import { type OrderWithRelations } from "@/domain";
+import React from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Modal from '@/components/admin/Modal';
+import { type OrderWithRelations } from '@/domain';
 
 interface OrderDeleteModalProps {
   open: boolean;
@@ -39,11 +39,9 @@ function OrderDeleteModalInner({
             <AlertTriangle className="w-5 h-5 text-red-600" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-slate-900 mb-1">
-              Confirm Deletion
-            </h4>
+            <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
             <p className="text-sm text-slate-600 leading-relaxed">
-              Are you sure you want to permanently delete order{" "}
+              Are you sure you want to permanently delete order{' '}
               <span className="font-semibold text-slate-900">
                 {order?.invoice_number || `#${order?.id.slice(0, 8)}`}
               </span>
@@ -55,12 +53,8 @@ function OrderDeleteModalInner({
           <Button variant="outline" onClick={onClose} className="border-slate-200">
             Cancel
           </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isPending}
-          >
-            {isPending ? "Deleting..." : "Delete Order"}
+          <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
+            {isPending ? 'Deleting...' : 'Delete Order'}
           </Button>
         </div>
       </div>
@@ -69,6 +63,6 @@ function OrderDeleteModalInner({
 }
 
 const OrderDeleteModal = React.memo(OrderDeleteModalInner);
-OrderDeleteModal.displayName = "OrderDeleteModal";
+OrderDeleteModal.displayName = 'OrderDeleteModal';
 
 export default OrderDeleteModal;

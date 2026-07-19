@@ -245,20 +245,20 @@ class ProductAnalytics extends Equatable {
         .toList();
 
     return ProductAnalytics(
-      totalOrders: analytics['totalOrders'] as int? ?? 0,
-      totalUnitsRented: analytics['totalUnitsRented'] as int? ?? 0,
+      totalOrders: (analytics['totalOrders'] as num?)?.toInt() ?? 0,
+      totalUnitsRented: (analytics['totalUnitsRented'] as num?)?.toInt() ?? 0,
       totalRevenue: (analytics['totalRevenue'] as num?)?.toDouble() ?? 0.0,
-      activeOrders: analytics['activeOrders'] as int? ?? 0,
-      completedOrders: analytics['completedOrders'] as int? ?? 0,
-      cancelledOrders: analytics['cancelledOrders'] as int? ?? 0,
-      uniqueCustomers: analytics['uniqueCustomers'] as int? ?? 0,
+      activeOrders: (analytics['activeOrders'] as num?)?.toInt() ?? 0,
+      completedOrders: (analytics['completedOrders'] as num?)?.toInt() ?? 0,
+      cancelledOrders: (analytics['cancelledOrders'] as num?)?.toInt() ?? 0,
+      uniqueCustomers: (analytics['uniqueCustomers'] as num?)?.toInt() ?? 0,
       monthlyRevenue: monthlyRevenue,
-      usageRate: analytics['usageRate'] as int? ?? 0,
-      avgRentalDuration: analytics['avgRentalDuration'] as int? ?? 0,
-      roi: analytics['roi'] as int?,
+      usageRate: (analytics['usageRate'] as num?)?.toInt() ?? 0,
+      avgRentalDuration: (analytics['avgRentalDuration'] as num?)?.toInt() ?? 0,
+      roi: (analytics['roi'] as num?)?.toInt(),
       purchasePrice: (analytics['purchasePrice'] as num?)?.toDouble() ?? 0.0,
-      totalRentalDays: analytics['totalRentalDays'] as int? ?? 0,
-      daysSinceCreation: analytics['daysSinceCreation'] as int? ?? 0,
+      totalRentalDays: (analytics['totalRentalDays'] as num?)?.toInt() ?? 0,
+      daysSinceCreation: (analytics['daysSinceCreation'] as num?)?.toInt() ?? 0,
       items: items,
     );
   }

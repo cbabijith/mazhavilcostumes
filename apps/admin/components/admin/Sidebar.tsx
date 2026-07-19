@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { createPortal } from "react-dom";
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   LayoutDashboard,
   Sparkles,
@@ -20,30 +20,30 @@ import {
   CalendarDays,
   FolderTree,
   AlertTriangle,
-  FileBarChart
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { usePermissions } from "@/hooks";
-import { useAppStore } from "@/stores";
-import { routePermissionMap, type Permission } from "@/lib/permissions";
+  FileBarChart,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { usePermissions } from '@/hooks';
+import { useAppStore } from '@/stores';
+import { routePermissionMap, type Permission } from '@/lib/permissions';
+import { BRAND_CONFIG } from 'shared-utils';
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Cleaning", href: "/dashboard/cleaning", icon: Sparkles },
-  { name: "Orders", href: "/dashboard/orders", icon: ShoppingCart },
-  { name: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
-  { name: "Products", href: "/dashboard/products", icon: Package },
-  { name: "Categories", href: "/dashboard/categories", icon: FolderTree },
-  { name: "Customers", href: "/dashboard/customers", icon: Users },
-  { name: "Reports", href: "/dashboard/reports", icon: FileBarChart },
-  { name: "Banners", href: "/dashboard/banners", icon: ImageIcon },
-  { name: "Gallery", href: "/dashboard/gallery", icon: Images },
-  { name: "Staff", href: "/dashboard/staff", icon: UserCircle },
-  { name: "Branches", href: "/dashboard/branches", icon: Building2 },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Cleaning', href: '/dashboard/cleaning', icon: Sparkles },
+  { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+  { name: 'Calendar', href: '/dashboard/calendar', icon: CalendarDays },
+  { name: 'Products', href: '/dashboard/products', icon: Package },
+  { name: 'Categories', href: '/dashboard/categories', icon: FolderTree },
+  { name: 'Customers', href: '/dashboard/customers', icon: Users },
+  { name: 'Reports', href: '/dashboard/reports', icon: FileBarChart },
+  { name: 'Banners', href: '/dashboard/banners', icon: ImageIcon },
+  { name: 'Gallery', href: '/dashboard/gallery', icon: Images },
+  { name: 'Staff', href: '/dashboard/staff', icon: UserCircle },
+  { name: 'Branches', href: '/dashboard/branches', icon: Building2 },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
-
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -56,7 +56,7 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.push("/auth/login");
+    router.push('/auth/login');
   };
 
   // Filter navigation items based on user role
@@ -68,15 +68,15 @@ export default function Sidebar() {
 
   // Role labels for the user info section
   const roleLabel: Record<string, string> = {
-    admin: "Shop Admin",
-    manager: "Manager",
-    staff: "Staff",
+    admin: 'Shop Admin',
+    manager: 'Manager',
+    staff: 'Staff',
   };
 
   const roleColor: Record<string, string> = {
-    admin: "from-violet-500 to-purple-600",
-    manager: "from-amber-500 to-orange-600",
-    staff: "from-blue-500 to-cyan-600",
+    admin: 'from-violet-500 to-purple-600',
+    manager: 'from-amber-500 to-orange-600',
+    staff: 'from-blue-500 to-cyan-600',
   };
 
   return (
@@ -84,14 +84,18 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpeg" alt="Mazhavil Dance Costumes" className="w-10 h-10 rounded-lg object-contain" />
+          <img
+            src={BRAND_CONFIG.defaultLogo}
+            alt={BRAND_CONFIG.name}
+            className="w-10 h-10 rounded-lg object-contain"
+          />
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">Mazhavil Dance Costumes</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">{BRAND_CONFIG.name}</h1>
             <p className="text-xs text-slate-400">Admin Dashboard</p>
           </div>
         </div>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-400/25 hover:[&::-webkit-scrollbar-thumb]:bg-slate-400/50 [&::-webkit-scrollbar-thumb]:rounded-full">
         {visibleNav.map((item) => {
@@ -102,10 +106,10 @@ export default function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative",
+                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 relative',
                 isActive
-                  ? "bg-white/15 text-white ring-1 ring-white/20 shadow-lg"
-                  : "text-slate-400 hover:bg-slate-700/50 hover:text-white"
+                  ? 'bg-white/15 text-white ring-1 ring-white/20 shadow-lg'
+                  : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
               )}
             >
               <item.icon className="w-5 h-5" />
@@ -118,18 +122,30 @@ export default function Sidebar() {
       {/* User Info with Dropdown */}
       <div className="p-4 border-t border-slate-700">
         <div className="relative">
-          <button 
+          <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 transition-all duration-200 w-full"
           >
-            <div className={cn("w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-semibold", roleColor[role] || roleColor.admin)}>
+            <div
+              className={cn(
+                'w-10 h-10 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-semibold',
+                roleColor[role] || roleColor.admin
+              )}
+            >
               {(user?.name || role).charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-white truncate">{user?.name || roleLabel[role] || "User"}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.email || "No email"}</p>
+              <p className="text-sm font-medium text-white truncate">
+                {user?.name || roleLabel[role] || 'User'}
+              </p>
+              <p className="text-xs text-slate-400 truncate">{user?.email || 'No email'}</p>
             </div>
-            <ChevronDown className={cn("w-4 h-4 text-slate-400 transition-transform", showUserMenu && "rotate-180")} />
+            <ChevronDown
+              className={cn(
+                'w-4 h-4 text-slate-400 transition-transform',
+                showUserMenu && 'rotate-180'
+              )}
+            />
           </button>
 
           {/* Dropdown Menu */}
@@ -151,34 +167,44 @@ export default function Sidebar() {
       </div>
 
       {/* Logout Confirmation Modal — portaled to body to escape sidebar stacking context */}
-      {showLogoutConfirm && createPortal(
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowLogoutConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-7 h-7 text-amber-600" />
+      {showLogoutConfirm &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowLogoutConfirm(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                <div className="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="w-7 h-7 text-amber-600" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Logout</h3>
+                <p className="text-sm text-slate-500">
+                  Are you sure you want to log out? You will need to sign in again to access the
+                  dashboard.
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Confirm Logout</h3>
-              <p className="text-sm text-slate-500">Are you sure you want to log out? You will need to sign in again to access the dashboard.</p>
+              <div className="flex border-t border-slate-100">
+                <button
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="flex-1 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors border-r border-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 py-3.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
             </div>
-            <div className="flex border-t border-slate-100">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors border-r border-slate-100"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 py-3.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body
+        )}
     </aside>
   );
 }

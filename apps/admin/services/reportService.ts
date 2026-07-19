@@ -37,7 +37,7 @@ export class ReportService {
       timeZone: 'Asia/Kolkata',
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
+      day: '2-digit',
     }).format(now); // "YYYY-MM-DD"
 
     return {
@@ -59,13 +59,21 @@ export class ReportService {
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
-      .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))')
+      .select(
+        'id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))'
+      )
       .gte('start_date', fromDate)
       .lte('start_date', toDate)
       .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
       .order('created_at', { ascending: false });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching day-wise bookings:', error);
@@ -76,7 +84,10 @@ export class ReportService {
       order_id: o.id,
       customer_name: o.customer?.name || 'Unknown',
       customer_phone: o.customer?.phone || '',
-      product_names: (o.order_items || []).map((i: any) => i.product?.name).filter(Boolean).join(', '),
+      product_names: (o.order_items || [])
+        .map((i: any) => i.product?.name)
+        .filter(Boolean)
+        .join(', '),
       start_date: o.start_date,
       end_date: o.end_date,
       total_amount: Number(o.total_amount || 0),
@@ -90,20 +101,28 @@ export class ReportService {
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('orders')
-      .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
+      .select(
+        'id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))'
+      )
       .lte('end_date', toDate)
       .gte('end_date', fromDate)
       .in('status', ['ongoing', 'in_use', 'delivered'])
       .order('end_date', { ascending: true });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
 
     return (data || []).map((o: any) => {
       const returnDate = new Date(o.end_date);
       const todayDate = new Date(today);
       const diffTime = todayDate.getTime() - returnDate.getTime();
       const daysOverdue = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-      
+
       // Dynamically determine status for the report
       let displayStatus = o.status;
       if (daysOverdue > 0 && ['ongoing', 'in_use', 'delivered', 'pending'].includes(o.status)) {
@@ -114,7 +133,10 @@ export class ReportService {
         order_id: o.id,
         customer_name: o.customer?.name || 'Unknown',
         customer_phone: o.customer?.phone || '',
-        product_names: (o.order_items || []).map((i: any) => i.product?.name).filter(Boolean).join(', '),
+        product_names: (o.order_items || [])
+          .map((i: any) => i.product?.name)
+          .filter(Boolean)
+          .join(', '),
         end_date: o.end_date,
         days_overdue: daysOverdue,
         total_amount: o.total_amount,
@@ -126,7 +148,11 @@ export class ReportService {
   }
 
   /** R3: Revenue report - "Fair" Version with Sales vs Cash Separation */
-  async getRevenue(filters: ReportFilters, branchId?: string | null, storeId?: string | null): Promise<RevenueReportData> {
+  async getRevenue(
+    filters: ReportFilters,
+    branchId?: string | null,
+    storeId?: string | null
+  ): Promise<RevenueReportData> {
     const period = filters.period || 'month';
     const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(period);
@@ -134,19 +160,26 @@ export class ReportService {
     const limit = filters.limit || 50;
     const page = filters.page || 1;
     const range = this.formatISTQueryRange(fromDate, toDate);
-    
+
     // Resolve status filter for filtering payments by order status
     const statusFilter = filters.status?.length ? filters.status : null;
 
     // Use unified metrics helper for the summary part
-    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter);
-    
+    const metrics = await this.getUnifiedRevenueMetrics(
+      fromDate,
+      toDate,
+      branchId,
+      storeId,
+      statusFilter
+    );
+
     const offset = (page - 1) * limit;
 
     // 3. Fetch Paginated Details for the table
     let detailsQuery = supabase()
       .from('payments')
-      .select(`
+      .select(
+        `
         id,
         amount,
         payment_mode,
@@ -162,7 +195,9 @@ export class ReportService {
             name
           )
         )
-      `, { count: 'exact' })
+      `,
+        { count: 'exact' }
+      )
       .gte('payment_date', range.start)
       .lte('payment_date', range.end)
       .order('payment_date', { ascending: false })
@@ -178,22 +213,28 @@ export class ReportService {
     const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsQuery;
     if (detailsError) throw new Error(detailsError.message);
 
-    const detailsData = (statusFilter && statusFilter.length > 0)
-      ? (rawDetails || []).filter(p => p.order && statusFilter.includes((p.order as any).status))
-      : (rawDetails || []);
+    const detailsData =
+      statusFilter && statusFilter.length > 0
+        ? (rawDetails || []).filter(
+            (p) => p.order && statusFilter.includes((p.order as any).status)
+          )
+        : rawDetails || [];
 
     const formattedDetails = detailsData.map((p: any) => ({
       order_id: p.order?.id,
       customer_name: p.order?.customer?.name || 'Walk-in',
       date: p.payment_date,
-      amount: p.payment_type === 'refund' || p.payment_type === 'cancelled_keep' ? -Number(p.amount) : Number(p.amount),
+      amount:
+        p.payment_type === 'refund' || p.payment_type === 'cancelled_keep'
+          ? -Number(p.amount)
+          : Number(p.amount),
       payment_mode: p.payment_mode,
       payment_type: p.payment_type,
-      status: p.order?.status
+      status: p.order?.status,
     }));
 
     return {
-      summary: (metrics.summary as any[]),
+      summary: metrics.summary as any[],
       details: formattedDetails as any[],
       total_booking_sales: metrics.total_booking_sales,
       total_cash_collection: metrics.total_cash_collection,
@@ -213,7 +254,7 @@ export class ReportService {
       total_bank_transfer: metrics.total_bank_transfer,
       total_damage_charges: metrics.total_damage_charges,
       total_late_fees: metrics.total_late_fees,
-      total_details_count: statusFilter ? detailsData.length : (totalDetailsCount || 0),
+      total_details_count: statusFilter ? detailsData.length : totalDetailsCount || 0,
     };
   }
 
@@ -222,9 +263,9 @@ export class ReportService {
    * Shared between getRevenue (Report) and Dashboard
    */
   public async getUnifiedRevenueMetrics(
-    fromDate: string, 
-    toDate: string, 
-    branchId?: string | null, 
+    fromDate: string,
+    toDate: string,
+    branchId?: string | null,
     storeId?: string | null,
     statusFilter?: string[] | null
   ) {
@@ -233,7 +274,8 @@ export class ReportService {
     // 1. Fetch Aggregation Data — includes refunds and order details for GST calc
     let aggQuery = supabase()
       .from('payments')
-      .select(`
+      .select(
+        `
         amount,
         payment_mode,
         payment_type,
@@ -249,7 +291,8 @@ export class ReportService {
           store_id,
           customer:customer_id(name)
         )
-      `)
+      `
+      )
       .gte('payment_date', range.start)
       .lte('payment_date', range.end);
 
@@ -263,7 +306,7 @@ export class ReportService {
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .neq('status', 'cancelled'); // Don't count cancelled orders in "won business"
-    
+
     if (branchId) bookingQuery = bookingQuery.eq('branch_id', branchId);
     if (storeId) bookingQuery = bookingQuery.eq('store_id', storeId);
 
@@ -274,7 +317,7 @@ export class ReportService {
       .eq('status', 'cancelled')
       .gt('amount_paid', 0)
       .neq('payment_status', 'refund_waived');
-    
+
     if (branchId) cancelledDueQuery = cancelledDueQuery.eq('branch_id', branchId);
 
     // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance)
@@ -301,19 +344,25 @@ export class ReportService {
     if (storeId) dueChargesQuery.eq('store_id', storeId);
 
     // Execute in parallel
-    const [aggResult, bookingResult, cancelledResult, revenueDueResult, dueChargesResult] = await Promise.all([
-      aggQuery, bookingQuery, cancelledDueQuery, revenueDueQuery, dueChargesQuery
-    ]);
+    const [aggResult, bookingResult, cancelledResult, revenueDueResult, dueChargesResult] =
+      await Promise.all([
+        aggQuery,
+        bookingQuery,
+        cancelledDueQuery,
+        revenueDueQuery,
+        dueChargesQuery,
+      ]);
 
     if (aggResult.error) throw new Error(aggResult.error.message);
     if (bookingResult.error) throw new Error(bookingResult.error.message);
 
     // Filter payments client-side if status filter is active
     const rawPayments = (aggResult.data || []) as any[];
-    const allPayments = (statusFilter && statusFilter.length > 0)
-      ? rawPayments.filter(p => p.order && statusFilter.includes((p.order as any).status))
-      : rawPayments;
-    
+    const allPayments =
+      statusFilter && statusFilter.length > 0
+        ? rawPayments.filter((p) => p.order && statusFilter.includes((p.order as any).status))
+        : rawPayments;
+
     const bookings = (bookingResult.data || []) as any[];
     const cancelledOrders = (cancelledResult.data || []) as any[];
     const revenueDueData = (revenueDueResult.data || []) as any[];
@@ -343,7 +392,7 @@ export class ReportService {
         summaryGroups[key] = this.initSummaryRow(key);
         orderCounts[key] = new Set();
       }
-      
+
       const amount = Number(o.total_amount ?? 0);
       summaryGroups[key].booking_sales += amount;
       totalBookingSales += amount;
@@ -361,7 +410,7 @@ export class ReportService {
         summaryGroups[key] = this.initSummaryRow(key);
         orderCounts[key] = new Set();
       }
-      
+
       const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
       if (due > 0) {
         summaryGroups[key].revenue_due += due;
@@ -406,6 +455,7 @@ export class ReportService {
         g.total_revenue -= amount;
         g.cash_collection -= amount;
         g.gst_collected -= gstPortion;
+        totalGstCollected -= gstPortion;
         g.net_revenue -= netPortion;
         totalNetRevenue -= netPortion;
         dailyTrends[dateKey].cash -= amount;
@@ -422,24 +472,35 @@ export class ReportService {
         g.total_revenue += amount;
         g.cash_collection += amount;
         g.gst_collected += gstPortion;
+        totalGstCollected += gstPortion;
         g.net_revenue += netPortion;
         totalNetRevenue += netPortion;
 
-        if (mode === 'cash') { g.cash_revenue += amount; totalCash += amount; }
-        else if (mode === 'upi') { g.upi_revenue += amount; totalUpi += amount; }
-        else if (mode === 'gpay') { g.gpay_revenue += amount; totalGpay += amount; }
-        else if (mode === 'bank_transfer') { g.bank_transfer_revenue += amount; totalBankTransfer += amount; }
-        else { g.other_revenue += amount; }
+        if (mode === 'cash') {
+          g.cash_revenue += amount;
+          totalCash += amount;
+        } else if (mode === 'upi') {
+          g.upi_revenue += amount;
+          totalUpi += amount;
+        } else if (mode === 'gpay') {
+          g.gpay_revenue += amount;
+          totalGpay += amount;
+        } else if (mode === 'bank_transfer') {
+          g.bank_transfer_revenue += amount;
+          totalBankTransfer += amount;
+        } else {
+          g.other_revenue += amount;
+        }
 
         // Status breakdown
         if (status === 'cancelled') {
-           g.cancelled_revenue += amount;
+          g.cancelled_revenue += amount;
         } else if (['completed', 'returned'].includes(status)) {
-           g.completed_revenue += amount;
+          g.completed_revenue += amount;
         } else if (['ongoing', 'in_use', 'delivered'].includes(status)) {
-           g.ongoing_revenue += amount;
+          g.ongoing_revenue += amount;
         } else {
-           g.scheduled_revenue += amount;
+          g.scheduled_revenue += amount;
         }
       }
     }
@@ -449,33 +510,38 @@ export class ReportService {
       return isNaN(val) ? 0 : val;
     };
     const total_amount_collection = totalReceived - (totalRefunded + totalCancelledKeep);
-    
+
     // Finalize summary
-    const summary = Object.entries(summaryGroups).map(([key, g]) => ({
-      ...g,
-      order_count: orderCounts[key]?.size || 0,
-      booking_sales: r(g.booking_sales),
-      cash_collection: r(g.cash_collection),
-      amount_collection: r(g.cash_collection),
-      net_revenue: r(g.net_revenue),
-      gst_collected: r(g.gst_collected),
-      revenue_due: r(g.revenue_due),
-      total_revenue: r(g.total_revenue),
-      completed_revenue: r(g.completed_revenue),
-      ongoing_revenue: r(g.ongoing_revenue),
-      scheduled_revenue: r(g.scheduled_revenue),
-      cancelled_revenue: r(g.cancelled_revenue),
-      refund_amount: r(g.refund_amount),
-      cash_revenue: r(g.cash_revenue),
-      upi_revenue: r(g.upi_revenue),
-      gpay_revenue: r(g.gpay_revenue),
-      bank_transfer_revenue: r(g.bank_transfer_revenue),
-      other_revenue: r(g.other_revenue),
-    })).sort((a: any, b: any) => b.period.localeCompare(a.period));
+    const summary = Object.entries(summaryGroups)
+      .map(([key, g]) => ({
+        ...g,
+        order_count: orderCounts[key]?.size || 0,
+        booking_sales: r(g.booking_sales),
+        cash_collection: r(g.cash_collection),
+        amount_collection: r(g.cash_collection),
+        net_revenue: r(g.net_revenue),
+        gst_collected: r(g.gst_collected),
+        revenue_due: r(g.revenue_due),
+        total_revenue: r(g.total_revenue),
+        completed_revenue: r(g.completed_revenue),
+        ongoing_revenue: r(g.ongoing_revenue),
+        scheduled_revenue: r(g.scheduled_revenue),
+        cancelled_revenue: r(g.cancelled_revenue),
+        refund_amount: r(g.refund_amount),
+        cash_revenue: r(g.cash_revenue),
+        upi_revenue: r(g.upi_revenue),
+        gpay_revenue: r(g.gpay_revenue),
+        bank_transfer_revenue: r(g.bank_transfer_revenue),
+        other_revenue: r(g.other_revenue),
+      }))
+      .sort((a: any, b: any) => b.period.localeCompare(a.period));
 
     // Process accrual-based charges
     const dueCharges = (dueChargesResult.data || []) as any[];
-    const totalDamageCharges = dueCharges.reduce((sum, o) => sum + Number(o.damage_charges_total || 0), 0);
+    const totalDamageCharges = dueCharges.reduce(
+      (sum, o) => sum + Number(o.damage_charges_total || 0),
+      0
+    );
     const totalLateFees = dueCharges.reduce((sum, o) => sum + Number(o.late_fee || 0), 0);
     const refundDueAmount = cancelledOrders.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
 
@@ -498,7 +564,7 @@ export class ReportService {
       revenue_due_count: revenueDueData.length,
       total_damage_charges: r(totalDamageCharges),
       total_late_fees: r(totalLateFees),
-      dailyTrends: this.padDailyTrends(dailyTrends, fromDate, toDate)
+      dailyTrends: this.padDailyTrends(dailyTrends, fromDate, toDate),
     };
   }
 
@@ -522,16 +588,17 @@ export class ReportService {
       bank_transfer_revenue: 0,
       other_revenue: 0,
       total_revenue: 0,
-      order_count: 0
+      order_count: 0,
     };
   }
-
 
   /** R4: Top costumes */
   async getTopCostumes(filters: ReportFilters): Promise<TopCostumeRow[]> {
     const { data } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date)')
+      .select(
+        'product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date, branch_id)'
+      )
       .not('order.status', 'eq', 'cancelled');
 
     const map: Record<string, TopCostumeRow & { totalDays: number }> = {};
@@ -539,20 +606,39 @@ export class ReportService {
       if (!item.product) continue;
       const order = item.order;
       if (!order || order.status === 'cancelled') continue;
+      if (filters.branch_id && order.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!map[pid]) {
-        map[pid] = { product_id: pid, product_name: item.product.name, category_name: item.product.category?.name || '', rental_count: 0, revenue: 0, avg_rental_days: 0, totalDays: 0 };
+        map[pid] = {
+          product_id: pid,
+          product_name: item.product.name,
+          category_name: item.product.category?.name || '',
+          rental_count: 0,
+          revenue: 0,
+          avg_rental_days: 0,
+          totalDays: 0,
+        };
       }
       map[pid].rental_count += item.quantity || 1;
       map[pid].revenue += Number(item.subtotal || 0);
       if (order.start_date && order.end_date) {
-        map[pid].totalDays += Math.max(1, Math.ceil((new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) / 86400000));
+        map[pid].totalDays += Math.max(
+          1,
+          Math.ceil(
+            (new Date(order.end_date).getTime() - new Date(order.start_date).getTime()) / 86400000
+          )
+        );
       }
     }
 
-    const rows = Object.values(map).map(r => ({ ...r, avg_rental_days: r.rental_count > 0 ? Math.round(r.totalDays / r.rental_count) : 0 }));
+    const rows = Object.values(map).map((r) => ({
+      ...r,
+      avg_rental_days: r.rental_count > 0 ? Math.round(r.totalDays / r.rental_count) : 0,
+    }));
     const rankBy = filters.rank_by || 'count';
-    rows.sort((a, b) => rankBy === 'revenue' ? b.revenue - a.revenue : b.rental_count - a.rental_count);
+    rows.sort((a, b) =>
+      rankBy === 'revenue' ? b.revenue - a.revenue : b.rental_count - a.rental_count
+    );
     return rows.slice(0, filters.limit || 50);
   }
 
@@ -563,19 +649,32 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('orders')
       .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
       .eq('status', 'completed')
       .gte('created_at', range.start)
       .lte('created_at', range.end);
 
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
+
     const map: Record<string, TopCustomerRow> = {};
     for (const o of (data || []) as any[]) {
       if (!o.customer) continue;
       const cid = o.customer_id;
       if (!map[cid]) {
-        map[cid] = { customer_id: cid, customer_name: o.customer.name, customer_phone: o.customer.phone || '', order_count: 0, total_spent: 0, last_order_date: '' };
+        map[cid] = {
+          customer_id: cid,
+          customer_name: o.customer.name,
+          customer_phone: o.customer.phone || '',
+          order_count: 0,
+          total_spent: 0,
+          last_order_date: '',
+        };
       }
       map[cid].order_count++;
       map[cid].total_spent += Number(o.amount_paid || 0);
@@ -598,7 +697,9 @@ export class ReportService {
 
     const { data } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)')
+      .select(
+        'product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status, branch_id)'
+      )
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
@@ -606,9 +707,16 @@ export class ReportService {
     const map: Record<string, RentalFrequencyRow> = {};
     for (const item of (data || []) as any[]) {
       if (!item.product || item.order?.status === 'cancelled') continue;
+      if (filters.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!map[pid]) {
-        map[pid] = { product_id: pid, product_name: item.product.name, category_name: item.product.category?.name || '', rental_count: 0, last_rented: '' };
+        map[pid] = {
+          product_id: pid,
+          product_name: item.product.name,
+          category_name: item.product.category?.name || '',
+          rental_count: 0,
+          last_rented: '',
+        };
       }
       map[pid].rental_count += item.quantity || 1;
       if (!map[pid].last_rented || item.created_at > map[pid].last_rented) {
@@ -637,8 +745,11 @@ export class ReportService {
 
     const { data: items } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status, created_at)')
-      .in('product_id', products.map((p: any) => p.id))
+      .select('product_id, quantity, subtotal, order:order_id(status, created_at, branch_id)')
+      .in(
+        'product_id',
+        products.map((p: any) => p.id)
+      )
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
@@ -646,26 +757,29 @@ export class ReportService {
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
     for (const item of (items || []) as any[]) {
       if (item.order?.status === 'cancelled') continue;
+      if (filters.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!revenueMap[pid]) revenueMap[pid] = { revenue: 0, count: 0 };
       revenueMap[pid].revenue += Number(item.subtotal || 0);
       revenueMap[pid].count += item.quantity || 1;
     }
 
-    return products.map((p: any) => {
-      const rev = revenueMap[p.id] || { revenue: 0, count: 0 };
-      const purchasePrice = Number(p.purchase_price);
-      const profit = rev.revenue - purchasePrice;
-      return {
-        product_id: p.id,
-        product_name: p.name,
-        purchase_price: purchasePrice,
-        total_revenue: Math.round(rev.revenue * 100) / 100,
-        profit: Math.round(profit * 100) / 100,
-        roi_percentage: purchasePrice > 0 ? Math.round((profit / purchasePrice) * 100) : 0,
-        rental_count: rev.count,
-      };
-    }).sort((a: ROIRow, b: ROIRow) => b.roi_percentage - a.roi_percentage);
+    return products
+      .map((p: any) => {
+        const rev = revenueMap[p.id] || { revenue: 0, count: 0 };
+        const purchasePrice = Number(p.purchase_price);
+        const profit = rev.revenue - purchasePrice;
+        return {
+          product_id: p.id,
+          product_name: p.name,
+          purchase_price: purchasePrice,
+          total_revenue: Math.round(rev.revenue * 100) / 100,
+          profit: Math.round(profit * 100) / 100,
+          roi_percentage: purchasePrice > 0 ? Math.round((profit / purchasePrice) * 100) : 0,
+          rental_count: rev.count,
+        };
+      })
+      .sort((a: ROIRow, b: ROIRow) => b.roi_percentage - a.roi_percentage);
   }
 
   /** R8: Dead stock / No-sale */
@@ -688,7 +802,11 @@ export class ReportService {
       .lte('created_at', range.end)
       .not('order.status', 'eq', 'cancelled');
 
-    const rentedIds = new Set((rentedItems || []).filter((i: any) => i.order?.status !== 'cancelled').map((i: any) => i.product_id));
+    const rentedIds = new Set(
+      (rentedItems || [])
+        .filter((i: any) => i.order?.status !== 'cancelled')
+        .map((i: any) => i.product_id)
+    );
 
     // Get last rental date for all products
     const { data: lastRentals } = await supabase()
@@ -711,7 +829,9 @@ export class ReportService {
           category_name: p.category?.name || '',
           price_per_day: Number(p.price_per_day),
           quantity: p.quantity,
-          days_since_last_rental: lastRental ? Math.floor((Date.now() - new Date(lastRental).getTime()) / 86400000) : null,
+          days_since_last_rental: lastRental
+            ? Math.floor((Date.now() - new Date(lastRental).getTime()) / 86400000)
+            : null,
           created_at: p.created_at,
         };
       });
@@ -724,9 +844,10 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
-      .select(`
+      .select(
+        `
         id, 
         status,
         total_amount, 
@@ -735,9 +856,16 @@ export class ReportService {
         created_by, 
         staff:created_by(id, name, email),
         order_items(discount, subtotal)
-      `)
+      `
+      )
       .gte('created_at', range.start)
       .lte('created_at', range.end);
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(error.message);
 
@@ -748,27 +876,30 @@ export class ReportService {
       const isCancelled = o.status === 'cancelled';
 
       if (!map[sid]) {
-        map[sid] = { 
-          staff_id: sid, 
-          staff_name: o.staff.name || 'Unknown', 
-          staff_email: o.staff.email || '', 
-          order_count: 0, 
+        map[sid] = {
+          staff_id: sid,
+          staff_name: o.staff.name || 'Unknown',
+          staff_email: o.staff.email || '',
+          order_count: 0,
           cancelled_order_count: 0,
-          total_revenue: 0, 
+          total_revenue: 0,
           avg_order_value: 0,
           total_item_discount: 0,
           total_order_discount: 0,
           total_discount: 0,
-          discount_percentage: 0
+          discount_percentage: 0,
         };
       }
-      
+
       if (isCancelled) {
         map[sid].cancelled_order_count++;
         continue; // Don't count revenue/discount for cancelled orders
       }
 
-      const itemDiscount = (o.order_items || []).reduce((sum: number, item: any) => sum + Number(item.discount || 0), 0);
+      const itemDiscount = (o.order_items || []).reduce(
+        (sum: number, item: any) => sum + Number(item.discount || 0),
+        0
+      );
       const orderDiscount = Number(o.discount || 0);
       const totalRev = Number(o.amount_paid || o.total_amount || 0);
 
@@ -776,20 +907,24 @@ export class ReportService {
       map[sid].total_revenue += totalRev;
       map[sid].total_item_discount += itemDiscount;
       map[sid].total_order_discount += orderDiscount;
-      map[sid].total_discount += (itemDiscount + orderDiscount);
+      map[sid].total_discount += itemDiscount + orderDiscount;
     }
 
     return Object.values(map)
-      .map(s => {
+      .map((s) => {
         const potentialRevenue = s.total_revenue + s.total_discount;
-        return { 
-          ...s, 
-          total_revenue: Math.round(s.total_revenue * 100) / 100, 
+        return {
+          ...s,
+          total_revenue: Math.round(s.total_revenue * 100) / 100,
           total_item_discount: Math.round(s.total_item_discount * 100) / 100,
           total_order_discount: Math.round(s.total_order_discount * 100) / 100,
           total_discount: Math.round(s.total_discount * 100) / 100,
-          avg_order_value: s.order_count > 0 ? Math.round((s.total_revenue / s.order_count) * 100) / 100 : 0,
-          discount_percentage: potentialRevenue > 0 ? Math.round((s.total_discount / potentialRevenue) * 10000) / 100 : 0
+          avg_order_value:
+            s.order_count > 0 ? Math.round((s.total_revenue / s.order_count) * 100) / 100 : 0,
+          discount_percentage:
+            potentialRevenue > 0
+              ? Math.round((s.total_discount / potentialRevenue) * 10000) / 100
+              : 0,
         };
       })
       .sort((a, b) => b.total_revenue - a.total_revenue);
@@ -802,9 +937,10 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data, error } = await supabase()
+    let query = supabase()
       .from('orders')
-      .select(`
+      .select(
+        `
         id,
         status,
         start_date,
@@ -813,11 +949,18 @@ export class ReportService {
         discount,
         customer:customer_id(name),
         order_items(product:product_id(name), quantity)
-      `)
+      `
+      )
       .eq('created_by', staffId)
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .order('created_at', { ascending: false });
+
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(error.message);
 
@@ -826,45 +969,72 @@ export class ReportService {
       status: o.status,
       date: o.start_date,
       customer: o.customer?.name || 'Unknown',
-      products: (o.order_items || []).map((i: any) => `${i.product?.name} (x${i.quantity})`).join(', '),
+      products: (o.order_items || [])
+        .map((i: any) => `${i.product?.name} (x${i.quantity})`)
+        .join(', '),
       amount: o.total_amount,
-      discount: o.discount
+      discount: o.discount,
     }));
   }
 
   /** R10: Inventory + Revenue */
-  async getInventoryRevenue(): Promise<InventoryRevenueRow[]> {
+  async getInventoryRevenue(filters?: ReportFilters): Promise<InventoryRevenueRow[]> {
     const { data: products } = await supabase()
       .from('products')
-      .select('id, name, quantity, available_quantity, price_per_day, category:category_id(name)');
+      .select(
+        'id, name, quantity, available_quantity, price_per_day, branch_id, category:category_id(name), product_inventory(quantity, available_quantity, branch_id)'
+      );
 
     const { data: items } = await supabase()
       .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status)')
+      .select('product_id, quantity, subtotal, order:order_id(status, branch_id)')
       .not('order.status', 'eq', 'cancelled');
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
     for (const item of (items || []) as any[]) {
       if (item.order?.status === 'cancelled') continue;
+      if (filters?.branch_id && item.order?.branch_id !== filters.branch_id) continue;
       const pid = item.product_id;
       if (!revenueMap[pid]) revenueMap[pid] = { revenue: 0, count: 0 };
       revenueMap[pid].revenue += Number(item.subtotal || 0);
       revenueMap[pid].count += item.quantity || 1;
     }
 
-    return (products || []).map((p: any) => {
-      const rev = revenueMap[p.id] || { revenue: 0, count: 0 };
-      return {
-        product_id: p.id,
-        product_name: p.name,
-        category_name: p.category?.name || '',
-        quantity: p.quantity,
-        available_quantity: p.available_quantity,
-        price_per_day: Number(p.price_per_day),
-        lifetime_revenue: Math.round(rev.revenue * 100) / 100,
-        rental_count: rev.count,
-      };
-    }).sort((a: InventoryRevenueRow, b: InventoryRevenueRow) => b.lifetime_revenue - a.lifetime_revenue);
+    let filteredProducts = products || [];
+    if (filters?.branch_id) {
+      filteredProducts = filteredProducts.filter((p: any) => {
+        if (p.branch_id === filters.branch_id) return true;
+        const inv = p.product_inventory?.find((i: any) => i.branch_id === filters.branch_id);
+        return inv && inv.quantity > 0;
+      });
+    }
+
+    return filteredProducts
+      .map((p: any) => {
+        const rev = revenueMap[p.id] || { revenue: 0, count: 0 };
+        let qty = p.quantity;
+        let availQty = p.available_quantity;
+        if (filters?.branch_id) {
+          const branchInv = p.product_inventory?.find(
+            (inv: any) => inv.branch_id === filters.branch_id
+          );
+          qty = branchInv ? branchInv.quantity : 0;
+          availQty = branchInv ? branchInv.available_quantity : 0;
+        }
+        return {
+          product_id: p.id,
+          product_name: p.name,
+          category_name: p.category?.name || '',
+          quantity: qty,
+          available_quantity: availQty,
+          price_per_day: Number(p.price_per_day),
+          lifetime_revenue: Math.round(rev.revenue * 100) / 100,
+          rental_count: rev.count,
+        };
+      })
+      .sort(
+        (a: InventoryRevenueRow, b: InventoryRevenueRow) => b.lifetime_revenue - a.lifetime_revenue
+      );
   }
 
   /** R11: Customer enquiry log */
@@ -874,16 +1044,22 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
+    let query = supabase()
       .from('customer_enquiries')
       .select('*, logged_by_staff:staff!logged_by(name, email)')
       .gte('created_at', range.start)
       .lte('created_at', range.end)
       .order('created_at', { ascending: false });
 
+    if (filters.branch_id) {
+      query = query.eq('branch_id', filters.branch_id);
+    }
+
+    const { data } = await query;
+
     return (data || []).map((d: any) => ({
       ...d,
-      staff: d.logged_by_staff
+      staff: d.logged_by_staff,
     })) as CustomerEnquiry[];
   }
 
@@ -931,6 +1107,10 @@ export class ReportService {
       orderQuery = orderQuery.in('status', filters.status);
     }
 
+    if (filters.branch_id) {
+      orderQuery = orderQuery.eq('branch_id', filters.branch_id);
+    }
+
     const { data: allOrders } = await orderQuery;
 
     const totalOrderCount = allOrders?.length || 0;
@@ -938,9 +1118,7 @@ export class ReportService {
     // 2. Fetch all order items with their order data
     //    We fetch without date filter and filter client-side by order.created_at
     //    because the !inner join syntax with aliases is unreliable
-    const itemQuery = supabase()
-      .from('order_items')
-      .select(`
+    const itemQuery = supabase().from('order_items').select(`
         id,
         gst_percentage,
         base_amount,
@@ -956,6 +1134,7 @@ export class ReportService {
           created_at,
           total_amount,
           gst_amount,
+          branch_id,
           customer:customer_id (
             name
           )
@@ -972,16 +1151,17 @@ export class ReportService {
     const items = (data || []).filter((item: any) => {
       const order = item.order;
       if (!order || order.status === 'cancelled') return false;
+      if (filters.branch_id && order.branch_id !== filters.branch_id) return false;
       const orderTs = new Date(order.created_at).getTime();
       return orderTs >= fromTs && orderTs <= toTs;
     });
-    
+
     // Group by GST slab
     const slabs: Record<number, { taxable: number; gst: number }> = {
       5: { taxable: 0, gst: 0 },
       12: { taxable: 0, gst: 0 },
       18: { taxable: 0, gst: 0 },
-      28: { taxable: 0, gst: 0 }
+      28: { taxable: 0, gst: 0 },
     };
 
     const invoiceMap: Record<string, any> = {};
@@ -993,7 +1173,7 @@ export class ReportService {
       const order = item.order;
       // Skip items from cancelled orders or if status filter is applied and doesn't match
       if (!order || order.status === 'cancelled') return;
-      
+
       if (filters.status?.length && !filters.status.includes(order.status)) {
         return;
       }
@@ -1006,7 +1186,7 @@ export class ReportService {
         if (!slabs[slab]) slabs[slab] = { taxable: 0, gst: 0 };
         slabs[slab].taxable += taxable;
         slabs[slab].gst += gst;
-        
+
         totalTaxable += taxable;
         totalGst += gst;
       }
@@ -1025,7 +1205,7 @@ export class ReportService {
           const startYY = String(fiscalStartYear).slice(-2);
           const endYY = String(fiscalStartYear + 1).slice(-2);
           const fiscalSuffix = `${startYY}${endYY}`;
-          
+
           const seqNum = orderSequenceMap[order.id] || 1;
           const formattedInvoiceNo = `MAZ-${fiscalSuffix}-${seqNum}`;
 
@@ -1041,10 +1221,10 @@ export class ReportService {
             cgst: 0,
             sgst: 0,
             slabs: new Set(),
-            items: [] as string[]
+            items: [] as string[],
           };
         }
-        
+
         const pName = item.product?.name || 'Unknown';
         const qty = Number(item.quantity || 1);
         invoiceMap[order.id].items.push(`${pName} x${qty}`);
@@ -1052,8 +1232,8 @@ export class ReportService {
         if (gst > 0) {
           invoiceMap[order.id].taxable_value += taxable;
           invoiceMap[order.id].gst_amount += gst;
-          invoiceMap[order.id].cgst += (gst / 2);
-          invoiceMap[order.id].sgst += (gst / 2);
+          invoiceMap[order.id].cgst += gst / 2;
+          invoiceMap[order.id].sgst += gst / 2;
           invoiceMap[order.id].slabs.add(slab);
         }
       }
@@ -1065,9 +1245,9 @@ export class ReportService {
         taxable_value: Math.round(vals.taxable * 100) / 100,
         cgst: Math.round((vals.gst / 2) * 100) / 100,
         sgst: Math.round((vals.gst / 2) * 100) / 100,
-        total_gst: Math.round(vals.gst * 100) / 100
+        total_gst: Math.round(vals.gst * 100) / 100,
       }))
-      .filter(s => s.taxable_value > 0)
+      .filter((s) => s.taxable_value > 0)
       .sort((a, b) => a.slab - b.slab);
 
     const details = Object.values(invoiceMap)
@@ -1078,9 +1258,16 @@ export class ReportService {
         gst_amount: Math.round(inv.gst_amount * 100) / 100,
         cgst: Math.round(inv.cgst * 100) / 100,
         sgst: Math.round(inv.sgst * 100) / 100,
-        slabs: inv.slabs.size > 0 ? Array.from(inv.slabs).sort().map(s => `${s}%`).join(', ') : '-',
-        items_summary: inv.items.join(', ') || '-'
-      })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        slabs:
+          inv.slabs.size > 0
+            ? Array.from(inv.slabs)
+                .sort()
+                .map((s) => `${s}%`)
+                .join(', ')
+            : '-',
+        items_summary: inv.items.join(', ') || '-',
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Correct the GST order count based on actual items processed
     const finalGstOrderCount = Object.keys(invoiceMap).length;
@@ -1092,7 +1279,8 @@ export class ReportService {
         total_orders: totalOrderCount,
         gst_orders: finalGstOrderCount,
         non_gst_orders: totalOrderCount - finalGstOrderCount,
-        gst_percentage: totalOrderCount > 0 ? Math.round((finalGstOrderCount / totalOrderCount) * 100) : 0
+        gst_percentage:
+          totalOrderCount > 0 ? Math.round((finalGstOrderCount / totalOrderCount) * 100) : 0,
       },
       total_taxable: Math.round(totalTaxable * 100) / 100,
       total_cgst: Math.round((totalGst / 2) * 100) / 100,
@@ -1104,7 +1292,12 @@ export class ReportService {
   }
 
   /** Create enquiry */
-  async createEnquiry(dto: CreateEnquiryDTO, staffId: string, branchId: string | null, storeId: string | null): Promise<CustomerEnquiry> {
+  async createEnquiry(
+    dto: CreateEnquiryDTO,
+    staffId: string,
+    branchId: string | null,
+    storeId: string | null
+  ): Promise<CustomerEnquiry> {
     const { data, error } = await supabase()
       .from('customer_enquiries')
       .insert({
@@ -1122,7 +1315,7 @@ export class ReportService {
     if (error) throw new Error(error.message);
     return {
       ...(data as any),
-      staff: (data as any).logged_by_staff
+      staff: (data as any).logged_by_staff,
     } as CustomerEnquiry;
   }
 
@@ -1130,22 +1323,42 @@ export class ReportService {
   private getPeriodStart(period: string): string {
     const { now } = this.getISTDateContext();
     switch (period) {
-      case 'day': return now.toLocaleDateString('en-CA');
-      case 'week': { const d = new Date(now); d.setDate(d.getDate() - 7); return d.toLocaleDateString('en-CA'); }
-      case 'month': { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toLocaleDateString('en-CA'); }
-      case 'year': return `${now.getFullYear()}-01-01`;
-      default: { const d = new Date(now.getFullYear(), now.getMonth(), 1); return d.toLocaleDateString('en-CA'); }
+      case 'day':
+        return now.toLocaleDateString('en-CA');
+      case 'week': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        return d.toLocaleDateString('en-CA');
+      }
+      case 'month': {
+        const d = new Date(now.getFullYear(), now.getMonth(), 1);
+        return d.toLocaleDateString('en-CA');
+      }
+      case 'year':
+        return `${now.getFullYear()}-01-01`;
+      default: {
+        const d = new Date(now.getFullYear(), now.getMonth(), 1);
+        return d.toLocaleDateString('en-CA');
+      }
     }
   }
 
   private getPeriodKey(dateStr: string, period: string): string {
     const d = new Date(dateStr);
     switch (period) {
-      case 'day': return d.toISOString().split('T')[0];
-      case 'week': { const start = new Date(d); start.setDate(start.getDate() - start.getDay() + 1); return `Week of ${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}`; }
-      case 'month': return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      case 'year': return String(d.getFullYear());
-      default: return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      case 'day':
+        return d.toISOString().split('T')[0];
+      case 'week': {
+        const start = new Date(d);
+        start.setDate(start.getDate() - start.getDay() + 1);
+        return `Week of ${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}`;
+      }
+      case 'month':
+        return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      case 'year':
+        return String(d.getFullYear());
+      default:
+        return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
     }
   }
 
@@ -1153,13 +1366,13 @@ export class ReportService {
     const start = new Date(fromDate);
     const end = new Date(toDate);
     const result = [];
-    
+
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateKey = d.toISOString().split('T')[0];
       const data = trends[dateKey] || { date: dateKey, cash: 0, sales: 0 };
       result.push(data);
     }
-    
+
     return result.sort((a, b) => a.date.localeCompare(b.date));
   }
 }

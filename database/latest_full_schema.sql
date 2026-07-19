@@ -246,6 +246,7 @@ CREATE TABLE public.payments (
   payment_date timestamp with time zone DEFAULT now(),
   notes text,
   created_by uuid,
+  updated_by uuid,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now()
 );
@@ -394,6 +395,7 @@ ALTER TABLE public.order_reservations ADD CONSTRAINT order_reservations_product_
 ALTER TABLE public.order_reservations ADD CONSTRAINT order_reservations_branch_id_fkey FOREIGN KEY (branch_id) REFERENCES public.branches(id);
 ALTER TABLE public.payments ADD CONSTRAINT payments_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id);
 ALTER TABLE public.payments ADD CONSTRAINT payments_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.staff(id);
+ALTER TABLE public.payments ADD CONSTRAINT fk_payments_updated_by FOREIGN KEY (updated_by) REFERENCES public.staff(id);
 ALTER TABLE public.cleaning_records ADD CONSTRAINT cleaning_records_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id);
 ALTER TABLE public.banners ADD CONSTRAINT banners_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id);
 ALTER TABLE public.banners ADD CONSTRAINT banners_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.staff(id);

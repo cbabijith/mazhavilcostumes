@@ -270,14 +270,14 @@ export const isValidPhone = (phone: any): phone is string => {
 };
 
 export const isValidMoney = (money: any): money is Money => {
-  return money && 
-         typeof money.amount === 'number' && 
-         typeof money.currency === 'string';
+  return money && typeof money.amount === 'number' && typeof money.currency === 'string';
 };
 
 export const isValidDateRange = (range: any): range is DateRange => {
-  return range && 
-         typeof range.start === 'string' && 
-         typeof range.end === 'string' &&
-         new Date(range.start) <= new Date(range.end);
+  return (
+    range &&
+    typeof range.start === 'string' &&
+    typeof range.end === 'string' &&
+    new Date(range.start) <= new Date(range.end)
+  );
 };

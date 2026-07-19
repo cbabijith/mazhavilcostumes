@@ -1,5 +1,5 @@
-import { reviews } from "@/data/homepage";
-import { Star, Quote } from "lucide-react";
+import { reviews } from '@/data/homepage';
+import { Star, Quote } from 'lucide-react';
 
 export default function CustomerReviews() {
   return (
@@ -27,7 +27,9 @@ export default function CustomerReviews() {
                     <Star
                       key={i}
                       size={14}
-                      className={i < review.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}
+                      className={
+                        i < review.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'
+                      }
                     />
                   ))}
                 </div>
@@ -39,12 +41,8 @@ export default function CustomerReviews() {
               </p>
 
               <div className="mt-4 pt-4 border-t border-[#EAEAEA]">
-                <h4 className="text-sm font-semibold text-heading">
-                  {review.name}
-                </h4>
-                <p className="text-[11px] text-rosegold font-medium mt-0.5">
-                  {review.occasion}
-                </p>
+                <h4 className="text-sm font-semibold text-heading">{review.name}</h4>
+                <p className="text-[11px] text-rosegold font-medium mt-0.5">{review.occasion}</p>
               </div>
             </div>
           ))}

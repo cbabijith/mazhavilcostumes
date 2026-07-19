@@ -219,6 +219,9 @@ importers:
       shadcn:
         specifier: ^4.3.0
         version: 4.4.0(@types/node@20.19.39)(typescript@5.9.3)
+      shared-utils:
+        specifier: workspace:*
+        version: link:../../packages/shared-utils
       tailwind-merge:
         specifier: ^2.6.0
         version: 2.6.1

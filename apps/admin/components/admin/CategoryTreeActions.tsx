@@ -14,15 +14,15 @@
  * <CategoryTreeActions category={category} />
  */
 
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Trash2, Edit, AlertTriangle, X, Eye } from "lucide-react";
-import { type Category } from "@/domain/types/category";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/query-client";
+import { useState } from 'react';
+import { Trash2, Edit, AlertTriangle, X, Eye } from 'lucide-react';
+import { type Category } from '@/domain/types/category';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query-client';
 
 /** Shape returned by GET /api/categories/:id/can-delete */
 interface DeleteStatus {
@@ -45,7 +45,7 @@ export default function CategoryTreeActions({ category }: { category: Category }
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Error message from the last delete attempt, if any
-  const [deleteError, setDeleteError] = useState("");
+  const [deleteError, setDeleteError] = useState('');
 
   /**
    * Handles the initial delete button click.
@@ -53,10 +53,10 @@ export default function CategoryTreeActions({ category }: { category: Category }
    * the category has any linked products or child categories.
    */
   const handleDeleteClick = async () => {
-    setDeleteError("");
+    setDeleteError('');
     try {
       const res = await fetch(`/api/categories/${category.id}/can-delete`);
-      if (!res.ok) throw new Error("Failed to check delete eligibility");
+      if (!res.ok) throw new Error('Failed to check delete eligibility');
       const payload = await res.json();
       const status: DeleteStatus = payload.data ?? payload;
       setDeleteStatus(status);
@@ -65,7 +65,7 @@ export default function CategoryTreeActions({ category }: { category: Category }
         canDelete: false,
         productCount: 0,
         childCount: 0,
-        reason: "Unable to verify category usage. Try again.",
+        reason: 'Unable to verify category usage. Try again.',
       });
     }
     setShowDeleteDialog(true);
@@ -82,10 +82,10 @@ export default function CategoryTreeActions({ category }: { category: Category }
   const confirmDelete = async () => {
     if (!deleteStatus?.canDelete) return;
     setIsDeleting(true);
-    setDeleteError("");
+    setDeleteError('');
     try {
       const res = await fetch(`/api/categories/${category.id}`, {
-        method: "DELETE",
+        method: 'DELETE',
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
@@ -95,8 +95,8 @@ export default function CategoryTreeActions({ category }: { category: Category }
       await queryClient.invalidateQueries({ queryKey: queryKeys.categories });
       setShowDeleteDialog(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Delete failed";
-      console.error("Delete failed:", err);
+      const message = err instanceof Error ? err.message : 'Delete failed';
+      console.error('Delete failed:', err);
       setDeleteError(message);
     } finally {
       setIsDeleting(false);
@@ -133,8 +133,17 @@ export default function CategoryTreeActions({ category }: { category: Category }
 
       {/* Delete Confirmation Modal */}
       {showDeleteDialog && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4" onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(false); }}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowDeleteDialog(false);
+          }}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 {/* Modal title changes based on whether deletion is allowed */}
@@ -162,7 +171,7 @@ export default function CategoryTreeActions({ category }: { category: Category }
               <p className="text-sm text-slate-600">
                 {deleteStatus?.canDelete
                   ? `Are you sure you want to delete "${category.name}"? This action cannot be undone.`
-                  : `"${category.name}" cannot be deleted. ${deleteStatus?.reason ?? ""}`}
+                  : `"${category.name}" cannot be deleted. ${deleteStatus?.reason ?? ''}`}
               </p>
               {/* Show server-side delete errors (e.g., 409 from API) */}
               {deleteError && (
@@ -184,7 +193,7 @@ export default function CategoryTreeActions({ category }: { category: Category }
                   disabled={isDeleting}
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
-                  {isDeleting ? "Deleting..." : "Delete"}
+                  {isDeleting ? 'Deleting...' : 'Delete'}
                 </Button>
               )}
             </div>

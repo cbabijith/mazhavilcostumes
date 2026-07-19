@@ -11,7 +11,7 @@ The Product Module is the core of the Mazhavil Dance Costumes Admin Dashboard, d
 
 2. **Client-Side Image Processing**
    - Images up to 20MB are supported.
-   - Uses the Canvas API to compress images client-side to WebP (<100KB) *before* uploading.
+   - Uses the Canvas API to compress images client-side to WebP (<100KB) _before_ uploading.
    - Parallel uploads to Cloudflare R2 reduce 8-second upload times to under 1 second.
 
 3. **Optimistic Deletion**
@@ -29,6 +29,7 @@ The Product Module is the core of the Mazhavil Dance Costumes Admin Dashboard, d
 ## 🔄 User Flows
 
 ### 1. Product Creation Flow
+
 ```mermaid
 sequenceDiagram
     actor Admin
@@ -55,6 +56,7 @@ sequenceDiagram
 ```
 
 ### 2. Product Deletion Flow
+
 ```mermaid
 sequenceDiagram
     actor Admin
@@ -80,6 +82,7 @@ sequenceDiagram
 ## 🏗 Architecture Details
 
 ### The 5-Layer Strict Pattern
+
 The module adheres to the mandatory 5-layer architecture:
 
 1. **UI Components (`components/admin/ProductForm.tsx`)**
@@ -108,6 +111,7 @@ The module adheres to the mandatory 5-layer architecture:
 ## 📊 Database Schema Summary
 
 The module interacts with three main tables:
+
 1. `products`: Core product details (name, slug, price, images JSONB).
 2. `categories`: Foreign key relationships for hierarchy.
 3. `branch_inventory`: Junction table mapping products to specific store branches and tracking available/total quantities.

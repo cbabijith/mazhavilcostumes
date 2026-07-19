@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Mazhavil Costumes Brand Constants
 class AppColors {
-  static const Color primary = Color(0xFF059669); // Green
+  static const Color primary = Color(0xFFFF3E6C); // Rose Gold/Pink
   static const Color background = Color(0xFFFFFFFF); // White
   static const Color scaffoldBackground = Color(0xFFF9FAFB); // Slate/Grey 50 for page background contrast
   static const Color text = Color(0xFF111827); // Dark text
@@ -12,10 +12,12 @@ class AppColors {
   static const Color success = Color(0xFF10B981); // Green
   static const Color warning = Color(0xFFF59E0B); // Amber
   static const Color info = Color(0xFF3B82F6); // Blue
+  static const Color shimmerBase = Color(0xFFE0E0E0); // Grey 300
+  static const Color shimmerHighlight = Color(0xFFF5F5F5); // Grey 100
 }
 
 class AppStrings {
-  static const String appName = 'Mazhavil costumes';
+  static const String appName = 'Paris Bridals';
   static const String adminDashboard = 'Admin Dashboard';
   static const String signIn = 'Sign In';
   static const String email = 'Email';
@@ -27,7 +29,7 @@ class AppStrings {
   static const String pleaseEnterYourPassword = 'Please enter your password';
   static const String passwordMustBeAtLeast6Characters = 'Password must be at least 6 characters';
   static const String invalidCredentials = 'Invalid credentials. Please try again.';
-  static const String copyright = '© 2025 Mazhavil costumes';
+  static const String copyright = '© 2025 Paris Bridals';
   
   // Dashboard strings
   static const String todaysOverview = "Today's Overview";
@@ -81,6 +83,9 @@ class AppStrings {
   static const String startRental = 'Start Rental';
   static const String confirmStartRental = 'Confirm Start Rental';
   static const String amount = 'AMOUNT';
+  static const String noItemsFound = 'No items found in this order';
+  static const String loadingItems = 'Loading order items...';
+  static const String failedToLoadCalendar = 'Failed to load calendar';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility

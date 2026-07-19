@@ -7,15 +7,15 @@
  */
 
 import { RepositoryResult } from '@/repository';
-import { 
-  Banner, 
-  CreateBannerDTO, 
+import {
+  Banner,
+  CreateBannerDTO,
   UpdateBannerDTO,
   BannerSearchParams,
   BannerType,
   BannerPosition,
   BANNER_TYPE_LIMITS,
-  validateBannerPosition
+  validateBannerPosition,
 } from '@/domain';
 import { bannerRepository } from '@/repository';
 
@@ -23,11 +23,15 @@ export class BannerService {
   private currentUserId: string | null = null;
   private currentStoreId: string | null = null;
   private currentBranchId: string | null = null;
- 
+
   /**
    * Set user context for audit logging and multi-tenancy
    */
-  setUserContext(userId: string | null, branchId: string | null, storeId: string | null = null): void {
+  setUserContext(
+    userId: string | null,
+    branchId: string | null,
+    storeId: string | null = null
+  ): void {
     this.currentUserId = userId;
     this.currentBranchId = branchId;
     this.currentStoreId = storeId;
@@ -58,7 +62,7 @@ export class BannerService {
         data: null,
         error: {
           message: 'Web image URL is required',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -81,7 +85,7 @@ export class BannerService {
         data: null,
         error: {
           message: `${bannerType.charAt(0).toUpperCase() + bannerType.slice(1)} banner limit reached (${maxLimit}/${maxLimit}). Delete an existing ${bannerType} banner to add a new one.`,
-          code: 'LIMIT_EXCEEDED'
+          code: 'LIMIT_EXCEEDED',
         } as any,
         success: false,
       };
@@ -89,7 +93,10 @@ export class BannerService {
 
     // Validate position for split banners
     if (bannerType === BannerType.SPLIT && data.position) {
-      const positionCountResult = await bannerRepository.countByTypeAndPosition(bannerType, data.position);
+      const positionCountResult = await bannerRepository.countByTypeAndPosition(
+        bannerType,
+        data.position
+      );
       if (!positionCountResult.success) {
         return positionCountResult as any;
       }
@@ -99,7 +106,7 @@ export class BannerService {
           data: null,
           error: {
             message: `Split banner already has a ${data.position} position. Choose '${data.position === BannerPosition.LEFT ? BannerPosition.RIGHT : BannerPosition.LEFT}' or delete the existing ${data.position} banner.`,
-            code: 'POSITION_TAKEN'
+            code: 'POSITION_TAKEN',
           } as any,
           success: false,
         };
@@ -113,7 +120,7 @@ export class BannerService {
         data: null,
         error: {
           message: positionValidation.error || 'Invalid position',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -126,7 +133,7 @@ export class BannerService {
           data: null,
           error: {
             message: 'Please enter a redirect URL, or change the redirect type to "None".',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -138,7 +145,7 @@ export class BannerService {
           data: null,
           error: {
             message: `Please select a ${typeLabel} for the banner to link to, or change the redirect type to "None".`,
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -162,7 +169,7 @@ export class BannerService {
         data: null,
         error: {
           message: 'Banner not found',
-          code: 'BANNER_NOT_FOUND'
+          code: 'BANNER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -184,14 +191,15 @@ export class BannerService {
       const maxLimit = BANNER_TYPE_LIMITS[newBannerType];
 
       // Subtract 1 if we're moving from the same type (we're replacing, not adding)
-      const effectiveCount = currentBanner.banner_type === newBannerType ? currentCount : currentCount + 1;
+      const effectiveCount =
+        currentBanner.banner_type === newBannerType ? currentCount : currentCount + 1;
 
       if (effectiveCount > maxLimit) {
         return {
           data: null,
           error: {
             message: `${newBannerType.charAt(0).toUpperCase() + newBannerType.slice(1)} banner limit reached (${maxLimit}/${maxLimit}). Delete an existing ${newBannerType} banner to change the type.`,
-            code: 'LIMIT_EXCEEDED'
+            code: 'LIMIT_EXCEEDED',
           } as any,
           success: false,
         };
@@ -199,8 +207,15 @@ export class BannerService {
     }
 
     // Validate position for split banners if position is being changed
-    if (newBannerType === BannerType.SPLIT && data.position && data.position !== currentBanner.position) {
-      const positionCountResult = await bannerRepository.countByTypeAndPosition(newBannerType, data.position);
+    if (
+      newBannerType === BannerType.SPLIT &&
+      data.position &&
+      data.position !== currentBanner.position
+    ) {
+      const positionCountResult = await bannerRepository.countByTypeAndPosition(
+        newBannerType,
+        data.position
+      );
       if (!positionCountResult.success) {
         return positionCountResult as any;
       }
@@ -210,7 +225,7 @@ export class BannerService {
           data: null,
           error: {
             message: `Split banner already has a ${data.position} position. Choose '${data.position === BannerPosition.LEFT ? BannerPosition.RIGHT : BannerPosition.LEFT}' or delete the existing ${data.position} banner.`,
-            code: 'POSITION_TAKEN'
+            code: 'POSITION_TAKEN',
           } as any,
           success: false,
         };
@@ -224,7 +239,7 @@ export class BannerService {
         data: null,
         error: {
           message: positionValidation.error || 'Invalid position',
-          code: 'VALIDATION_ERROR'
+          code: 'VALIDATION_ERROR',
         } as any,
         success: false,
       };
@@ -237,19 +252,22 @@ export class BannerService {
           data: null,
           error: {
             message: 'Redirect URL is required when redirect type is URL',
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
       }
-    } else if (data.redirect_type && ['category', 'subcategory', 'subvariant', 'product'].includes(data.redirect_type)) {
+    } else if (
+      data.redirect_type &&
+      ['category', 'subcategory', 'subvariant', 'product'].includes(data.redirect_type)
+    ) {
       if (!data.redirect_target_id) {
         const typeLabel = data.redirect_type === 'subvariant' ? 'variant' : data.redirect_type;
         return {
           data: null,
           error: {
             message: `Please select a ${typeLabel} for the banner to link to, or change the redirect type to "None".`,
-            code: 'VALIDATION_ERROR'
+            code: 'VALIDATION_ERROR',
           } as any,
           success: false,
         };
@@ -270,7 +288,7 @@ export class BannerService {
         data: null,
         error: {
           message: 'Banner not found',
-          code: 'BANNER_NOT_FOUND'
+          code: 'BANNER_NOT_FOUND',
         } as any,
         success: false,
       };
@@ -299,7 +317,7 @@ export class BannerService {
         data: null,
         error: {
           message: 'Failed to fetch banner counts',
-          code: 'FETCH_ERROR'
+          code: 'FETCH_ERROR',
         } as any,
         success: false,
       };
@@ -309,7 +327,8 @@ export class BannerService {
       success: true,
       data: {
         [BannerType.HERO]: BANNER_TYPE_LIMITS[BannerType.HERO] - (heroCount.data || 0),
-        [BannerType.EDITORIAL]: BANNER_TYPE_LIMITS[BannerType.EDITORIAL] - (editorialCount.data || 0),
+        [BannerType.EDITORIAL]:
+          BANNER_TYPE_LIMITS[BannerType.EDITORIAL] - (editorialCount.data || 0),
         [BannerType.SPLIT]: BANNER_TYPE_LIMITS[BannerType.SPLIT] - (splitCount.data || 0),
       },
       error: null,
@@ -319,7 +338,9 @@ export class BannerService {
   /**
    * Check if a banner type can be created
    */
-  async canCreateBanner(bannerType: BannerType): Promise<RepositoryResult<{ canCreate: boolean; reason?: string }>> {
+  async canCreateBanner(
+    bannerType: BannerType
+  ): Promise<RepositoryResult<{ canCreate: boolean; reason?: string }>> {
     const countResult = await bannerRepository.countByType(bannerType);
     if (!countResult.success) {
       return countResult as any;

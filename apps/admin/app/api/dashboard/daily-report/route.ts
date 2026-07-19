@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
   if (guard.error) return guard.error;
 
   try {
-    const stats = await dashboardService.getDailyReport();
+    const { searchParams } = new URL(request.url);
+    const branchId = searchParams.get('branch_id') || undefined;
+    const stats = await dashboardService.getDailyReport(branchId);
     return NextResponse.json({ success: true, data: stats });
   } catch (error: any) {
     console.error('[API] GET /api/dashboard/daily-report error:', error);

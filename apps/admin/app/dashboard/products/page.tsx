@@ -10,11 +10,11 @@
  * @module app/dashboard/products/page
  */
 
-"use client";
+'use client';
 
-import { useMemo, useState, useEffect, useRef, Suspense } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useMemo, useState, useEffect, useRef, Suspense } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Search,
   Trash2,
@@ -31,22 +31,24 @@ import {
   Filter,
   X,
   Printer,
-} from "lucide-react";
-import * as XLSX from "xlsx";
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import Modal from "@/components/admin/Modal";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import Modal from '@/components/admin/Modal';
 import {
-  useProducts,
-  useDeleteProduct,
-  useBulkProductOperation,
-  useCategories,
-} from "@/hooks";
-import { useProductStore, useAppStore, useAppSelectors } from "@/stores";
-import { formatCurrency } from "@/lib/shared-utils";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useProducts, useDeleteProduct, useBulkProductOperation, useCategories } from '@/hooks';
+import { useProductStore, useAppStore, useAppSelectors } from '@/stores';
+import { formatCurrency } from '@/lib/shared-utils';
+import { BRAND_CONFIG } from 'shared-utils';
 import {
   downloadBarcode,
   downloadMultipleBarcodes,
@@ -56,31 +58,37 @@ import {
   bulkPrintBarcodesSingleSheet,
   LABEL_SIZES,
   type LabelSizeKey,
-} from "@/lib/barcode";
-import { type Product, type ProductWithRelations } from "@/domain";
-import Image from "next/image";
-
-
+} from '@/lib/barcode';
+import { type Product, type ProductWithRelations } from '@/domain';
+import Image from 'next/image';
 
 export default function ProductsPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center p-12 text-slate-500">
-        <Loader2 className="w-6 h-6 animate-spin mr-2" />
-        Loading catalog...
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center p-12 text-slate-500">
+          <Loader2 className="w-6 h-6 animate-spin mr-2" />
+          Loading catalog...
+        </div>
+      }
+    >
       <ProductsContent />
     </Suspense>
   );
 }
+
+const SINGLE_LABEL_SIZES = {
+  '50x30': { width: 50, height: 30, label: '50mm × 30mm (Standard Roll)' },
+  '40x30': { width: 40, height: 30, label: '40mm × 30mm (Medium Roll)' },
+  '32x20': { width: 32, height: 20, label: '32mm × 20mm (Small Roll)' },
+};
+type SingleLabelSizeKey = keyof typeof SINGLE_LABEL_SIZES;
 
 function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // Read State from URL (The Source of Truth)
   const page = parseInt(searchParams.get("page") || "1", 10);
   const pageSize = parseInt(searchParams.get("limit") || "25", 10);
   const urlQuery = searchParams.get("query") || "";
@@ -115,13 +123,19 @@ function ProductsContent() {
   const updateParams = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
     let hasChanges = false;
-    
+
     Object.entries(updates).forEach(([key, value]) => {
       const current = params.get(key);
-      if (value === null || value === "") {
-        if (current !== null) { params.delete(key); hasChanges = true; }
+      if (value === null || value === '') {
+        if (current !== null) {
+          params.delete(key);
+          hasChanges = true;
+        }
       } else {
-        if (current !== value) { params.set(key, value); hasChanges = true; }
+        if (current !== value) {
+          params.set(key, value);
+          hasChanges = true;
+        }
       }
     });
 
@@ -136,7 +150,7 @@ function ProductsContent() {
     debounceRef.current = setTimeout(() => {
       if (searchInput !== urlQuery) {
         setDebouncedQuery(searchInput);
-        updateParams({ query: searchInput, page: "1" }); // Reset to page 1 on new search
+        updateParams({ query: searchInput, page: '1' }); // Reset to page 1 on new search
       }
     }, 300);
     return () => {
@@ -177,15 +191,17 @@ function ProductsContent() {
   const [exporting, setExporting] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
+  const [selectedSingleLabelSize, setSelectedSingleLabelSize] =
+    useState<SingleLabelSizeKey>('50x30');
   const [printingBarcodes, setPrintingBarcodes] = useState(false);
   const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
   const [printMode, setPrintMode] = useState<'a4' | 'single'>('a4');
 
   const handleExportCatalog = async () => {
     setExporting(true);
-    showSuccess("Export Started", "Fetching products to generate catalog...");
+    showSuccess('Export Started', 'Fetching products to generate catalog...');
     try {
-      let allProducts: any[] = [];
+      const allProducts: any[] = [];
       let pageNum = 1;
       let hasMore = true;
       const limit = 100;
@@ -201,12 +217,15 @@ function ProductsContent() {
         if (urlSubvariantId) {
           searchParams.append('subvariant_id', urlSubvariantId);
         }
+        if (selectedBranchId) {
+          searchParams.append('branch_id', selectedBranchId);
+        }
         searchParams.append('limit', String(limit));
         searchParams.append('page', String(pageNum));
-        
+
         const response = await fetch(`/api/products?${searchParams.toString()}`);
         const result = await response.json();
-        
+
         if (result.success && result.data && result.data.products) {
           allProducts.push(...result.data.products);
           hasMore = result.data.has_next;
@@ -217,55 +236,73 @@ function ProductsContent() {
       }
 
       if (allProducts.length === 0) {
-        showError("No Products", "There are no products to export.");
+        showError('No Products', 'There are no products to export.');
         return;
       }
 
       // Format data to match "Product with GST rent new.xlsx" layout:
       // Row 1: Title
       // Row 2: Headers (Code/Name | Description/SKU | Category | GST | Rent | Purchase Price | Qty)
-      const dataRows = allProducts.map(p => [
-        p.name || p.barcode || '',
-        p.sku || p.description || '',
-        p.category?.name || 'Uncategorized',
-        p.category?.gst_percentage !== undefined ? Number(p.category.gst_percentage) : 5,
-        p.price_per_day || 0,
-        p.purchase_price || 0,
-        p.quantity || 0
-      ]);
+      const dataRows = allProducts.map((p) => {
+        let qty = p.quantity || 0;
+        if (selectedBranchId) {
+          const branchInv = (p as ProductWithRelations).product_inventory?.find(
+            (inv: any) => inv.branch_id === selectedBranchId
+          );
+          qty = branchInv ? branchInv.quantity : 0;
+        }
+        return [
+          p.name || p.barcode || '',
+          p.sku || p.description || '',
+          p.category?.name || 'Uncategorized',
+          p.category?.gst_percentage !== undefined ? Number(p.category.gst_percentage) : 5,
+          p.price_per_day || 0,
+          p.purchase_price || 0,
+          qty,
+        ];
+      });
 
-      const titleRow = ['Mazhavil Dance Costumes Catalog', '', '', '', '', '', ''];
-      const headerRow = ['Code/Name', 'Description/SKU', 'Category', 'GST', 'Rent', 'Purchase Price', 'Qty'];
+      const titleRow = [`${BRAND_CONFIG.name} Catalog`, '', '', '', '', '', ''];
+      const headerRow = [
+        'Code/Name',
+        'Description/SKU',
+        'Category',
+        'GST',
+        'Rent',
+        'Purchase Price',
+        'Qty',
+      ];
 
       const sheetData = [titleRow, headerRow, ...dataRows];
 
       const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Catalog");
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Catalog');
 
       // Set column widths
       worksheet['!cols'] = [
         { wch: 15 }, // Code/Name
         { wch: 45 }, // Description/SKU
         { wch: 20 }, // Category
-        { wch: 8 },  // GST
+        { wch: 8 }, // GST
         { wch: 10 }, // Rent
         { wch: 15 }, // Purchase Price
-        { wch: 8 }   // Qty
+        { wch: 8 }, // Qty
       ];
 
       // Export filename
-      const categoryName = urlCategoryId && categories
-        ? categories.find(c => c.id === urlCategoryId)?.name || 'Filtered'
-        : 'All';
+      const categoryName =
+        urlCategoryId && categories
+          ? categories.find((c) => c.id === urlCategoryId)?.name || 'Filtered'
+          : 'All';
       const cleanCategoryName = categoryName.replace(/[^a-zA-Z0-9]/g, '_');
       const filename = `Catalog_${cleanCategoryName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       XLSX.writeFile(workbook, filename);
-      showSuccess("Export Completed", `Successfully exported ${allProducts.length} products.`);
+      showSuccess('Export Completed', `Successfully exported ${allProducts.length} products.`);
     } catch (err: any) {
       console.error(err);
-      showError("Export Failed", err.message || "Could not generate Excel catalog.");
+      showError('Export Failed', err.message || 'Could not generate Excel catalog.');
     } finally {
       setExporting(false);
     }
@@ -314,82 +351,75 @@ function ProductsContent() {
     try {
       const result = await bulkOperation.performBulkOperation({
         product_ids: selectedProducts,
-        operation: "delete",
+        operation: 'delete',
       });
       if (result.success) {
-        showSuccess(
-          "Deleted",
-          `${selectedProducts.length} product(s) deleted`
-        );
+        showSuccess('Deleted', `${selectedProducts.length} product(s) deleted`);
         clearSelection();
       } else {
         showError(
-          "Cannot Delete",
+          'Cannot Delete',
           (result as { error?: { message?: string } })?.error?.message ||
-            "Some products have order history and cannot be deleted"
+            'Some products have order history and cannot be deleted'
         );
       }
     } catch {
-      showError("Delete Error", "An unexpected error occurred");
+      showError('Delete Error', 'An unexpected error occurred');
     }
   };
 
   const handleBulkDownloadBarcodes = async () => {
-    const list = visibleProducts.filter(
-      (p) => selectedProducts.includes(p.id) && p.barcode
-    );
+    const list = visibleProducts.filter((p) => selectedProducts.includes(p.id) && p.barcode);
     if (list.length === 0) {
-      showError("No Barcodes", "No selected products have barcodes assigned.");
+      showError('No Barcodes', 'No selected products have barcodes assigned.');
       return;
     }
     try {
-      await downloadMultipleBarcodes(
-        list.map((p) => ({ barcode: p.barcode!, name: p.name }))
-      );
-      showSuccess("Success", `Downloaded ${list.length} barcodes`);
+      await downloadMultipleBarcodes(list.map((p) => ({ barcode: p.barcode!, name: p.name })));
+      showSuccess('Success', `Downloaded ${list.length} barcodes`);
     } catch {
-      showError("Download Error", "Failed to download barcodes");
+      showError('Download Error', 'Failed to download barcodes');
     }
   };
 
   const handleBulkPrintBarcodes = async () => {
-    const list = visibleProducts.filter(
-      (p) => selectedProducts.includes(p.id) && p.barcode
-    );
+    const list = visibleProducts.filter((p) => selectedProducts.includes(p.id) && p.barcode);
     if (list.length === 0) {
-      showError("No Barcodes", "No selected products have barcodes assigned.");
+      showError('No Barcodes', 'No selected products have barcodes assigned.');
       return;
     }
     setShowPrintModal(true);
   };
 
   const handleConfirmPrint = async () => {
-    const list = visibleProducts.filter(
-      (p) => selectedProducts.includes(p.id) && p.barcode
-    );
+    const list = visibleProducts.filter((p) => selectedProducts.includes(p.id) && p.barcode);
     if (list.length === 0) {
-      showError("No Barcodes", "No selected products have barcodes assigned.");
+      showError('No Barcodes', 'No selected products have barcodes assigned.');
       setShowPrintModal(false);
       return;
     }
     setPrintingBarcodes(true);
     try {
       if (printMode === 'single') {
+        const sizeObj = SINGLE_LABEL_SIZES[selectedSingleLabelSize];
         await bulkPrintBarcodesSingleSheet(
           list.map((p) => ({ barcode: p.barcode!, name: p.name })),
-          { labelWidth_mm: 32, labelHeight_mm: 20 },
+          { labelWidth_mm: sizeObj.width, labelHeight_mm: sizeObj.height }
         );
-        showSuccess("Print Ready", `Sending ${list.length} barcodes to print (Single Sheet mode)`);
+        showSuccess('Print Ready', `Sending ${list.length} barcodes to print (${sizeObj.label})`);
       } else {
         await bulkPrintBarcodes(
           list.map((p) => ({ barcode: p.barcode!, name: p.name })),
-          selectedLabelSize,
+          selectedLabelSize
         );
-        showSuccess("Print Ready", `Sending ${list.length} barcodes to print (${LABEL_SIZES[selectedLabelSize].label})`);
+        showSuccess(
+          'Print Ready',
+          `Sending ${list.length} barcodes to print (${LABEL_SIZES[selectedLabelSize].label})`
+        );
       }
       setShowPrintModal(false);
     } catch {
-      showError("Print Error", "Failed to generate barcode sheets for printing");
+      showError('Print Error', 'Failed to generate barcode sheets for printing');
     } finally {
       setPrintingBarcodes(false);
     }
@@ -400,16 +430,16 @@ function ProductsContent() {
     try {
       const result = await bulkOperation.performBulkOperation({
         product_ids: selectedProducts,
-        operation: "activate",
+        operation: 'activate',
       });
       if (result.success) {
-        showSuccess("Activated", `${result.data?.successful?.length || 0} product(s) activated`);
+        showSuccess('Activated', `${result.data?.successful?.length || 0} product(s) activated`);
         clearSelection();
       } else {
-        showError("Failed", "Could not activate selected products");
+        showError('Failed', 'Could not activate selected products');
       }
     } catch {
-      showError("Error", "An unexpected error occurred");
+      showError('Error', 'An unexpected error occurred');
     }
   };
 
@@ -418,16 +448,19 @@ function ProductsContent() {
     try {
       const result = await bulkOperation.performBulkOperation({
         product_ids: selectedProducts,
-        operation: "deactivate",
+        operation: 'deactivate',
       });
       if (result.success) {
-        showSuccess("Deactivated", `${result.data?.successful?.length || 0} product(s) deactivated`);
+        showSuccess(
+          'Deactivated',
+          `${result.data?.successful?.length || 0} product(s) deactivated`
+        );
         clearSelection();
       } else {
-        showError("Failed", "Could not deactivate selected products");
+        showError('Failed', 'Could not deactivate selected products');
       }
     } catch {
-      showError("Error", "An unexpected error occurred");
+      showError('Error', 'An unexpected error occurred');
     }
   };
 
@@ -446,8 +479,8 @@ function ProductsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="gap-2 border-slate-200 bg-white text-slate-700 hover:text-slate-900"
             onClick={handleExportCatalog}
             disabled={exporting}
@@ -457,7 +490,7 @@ function ProductsContent() {
             ) : (
               <Download className="w-4 h-4" />
             )}
-            {urlCategoryId ? "Export Category" : "Export Catalog"}
+            {urlCategoryId ? 'Export Category' : 'Export Catalog'}
           </Button>
           <Button asChild className="gap-2 bg-slate-900 text-white hover:bg-slate-800">
             <Link href="/dashboard/products/create">
@@ -593,21 +626,51 @@ function ProductsContent() {
                 {selectedProducts.length} selected
               </span>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="border-slate-200" onClick={handleBulkActivate} disabled={bulkOperation.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-200"
+                  onClick={handleBulkActivate}
+                  disabled={bulkOperation.isPending}
+                >
                   Activate
                 </Button>
-                <Button size="sm" variant="outline" className="border-slate-200" onClick={handleBulkDeactivate} disabled={bulkOperation.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-200"
+                  onClick={handleBulkDeactivate}
+                  disabled={bulkOperation.isPending}
+                >
                   Deactivate
                 </Button>
-                <Button size="sm" variant="outline" className="border-slate-200 gap-1.5" onClick={handleBulkDownloadBarcodes} disabled={bulkOperation.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-200 gap-1.5"
+                  onClick={handleBulkDownloadBarcodes}
+                  disabled={bulkOperation.isPending}
+                >
                   <Download className="w-4 h-4" />
                   Barcodes
                 </Button>
-                <Button size="sm" variant="outline" className="border-slate-200 gap-1.5" onClick={handleBulkPrintBarcodes} disabled={bulkOperation.isPending}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-200 gap-1.5"
+                  onClick={handleBulkPrintBarcodes}
+                  disabled={bulkOperation.isPending}
+                >
                   <Printer className="w-4 h-4" />
                   Print
                 </Button>
-                <Button size="sm" variant="destructive" className="gap-1.5" onClick={handleBulkDelete} disabled={bulkOperation.isPending}>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5"
+                  onClick={handleBulkDelete}
+                  disabled={bulkOperation.isPending}
+                >
                   <Trash2 className="w-4 h-4" />
                   Delete
                 </Button>
@@ -653,10 +716,13 @@ function ProductsContent() {
             <p className="text-sm text-slate-500 max-w-sm mx-auto">
               {searchInput
                 ? `No products matched your search for "${searchInput}".`
-                : "There are no products in the catalog yet."}
+                : 'There are no products in the catalog yet.'}
             </p>
             {!searchInput && (
-              <Button className="mt-6 bg-slate-900 text-white hover:bg-slate-800" onClick={() => router.push("/dashboard/products/create")}>
+              <Button
+                className="mt-6 bg-slate-900 text-white hover:bg-slate-800"
+                onClick={() => router.push('/dashboard/products/create')}
+              >
                 Add New Product
               </Button>
             )}
@@ -687,18 +753,19 @@ function ProductsContent() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleProducts.map((product) => {
-                  const primaryImage = Array.isArray(product.images) && product.images.length > 0
-                    ? typeof product.images[0] === "string"
-                      ? product.images[0]
-                      : product.images[0]?.url
-                    : null;
+                  const primaryImage =
+                    Array.isArray(product.images) && product.images.length > 0
+                      ? typeof product.images[0] === 'string'
+                        ? product.images[0]
+                        : product.images[0]?.url
+                      : null;
                   const selected = isProductSelected(product.id);
 
                   return (
                     <tr
                       key={product.id}
                       className={`hover:bg-slate-50 transition-colors group ${
-                        selected ? "bg-slate-50/80" : ""
+                        selected ? 'bg-slate-50/80' : ''
                       }`}
                     >
                       <td className="px-4 py-4 text-center">
@@ -711,10 +778,19 @@ function ProductsContent() {
                       </td>
 
                       <td className="px-4 py-4">
-                        <Link href={`/dashboard/products/${product.id}`} className="flex items-center gap-3">
+                        <Link
+                          href={`/dashboard/products/${product.id}`}
+                          className="flex items-center gap-3"
+                        >
                           {primaryImage ? (
                             <div className="relative w-12 h-12 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0">
-                              <Image src={primaryImage} alt={product.name} fill sizes="48px" className="object-cover" />
+                              <Image
+                                src={primaryImage}
+                                alt={product.name}
+                                fill
+                                sizes="48px"
+                                className="object-cover"
+                              />
                             </div>
                           ) : (
                             <div className="w-12 h-12 rounded-lg border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center shrink-0">
@@ -725,22 +801,24 @@ function ProductsContent() {
                             <p className="font-semibold text-slate-900 group-hover:text-slate-600 transition-colors">
                               {product.name}
                             </p>
-                            <p className="text-xs text-slate-400 font-mono mt-0.5">
-                              {product.sku || product.slug}
-                            </p>
+                            {product.description && (
+                              <p className="text-xs text-slate-400 mt-0.5">{product.description}</p>
+                            )}
                           </div>
                         </Link>
                       </td>
 
                       <td className="px-4 py-4">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
-                          {(product as ProductWithRelations).category?.name || "Uncategorized"}
+                          {(product as ProductWithRelations).category?.name || 'Uncategorized'}
                         </span>
                       </td>
 
                       {isAdmin && (
                         <td className="px-4 py-4">
-                          <span className="font-semibold text-slate-900">{formatCurrency(product.price_per_day)}</span>
+                          <span className="font-semibold text-slate-900">
+                            {formatCurrency(product.price_per_day)}
+                          </span>
                         </td>
                       )}
 
@@ -748,7 +826,17 @@ function ProductsContent() {
                         <div className="flex items-center gap-1.5">
                           <Box className="w-4 h-4 text-slate-400" />
                           <span className="text-slate-900 font-bold">
-                            {product.quantity || 0}
+                            {(() => {
+                              if (selectedBranchId) {
+                                const branchInv = (
+                                  product as ProductWithRelations
+                                ).product_inventory?.find(
+                                  (inv: any) => inv.branch_id === selectedBranchId
+                                );
+                                return branchInv ? branchInv.quantity : 0;
+                              }
+                              return product.quantity || 0;
+                            })()}
                           </span>
                         </div>
                       </td>
@@ -758,23 +846,33 @@ function ProductsContent() {
                           variant="secondary"
                           className={`text-xs font-medium px-2 py-0.5 ${
                             product.is_active
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}
                         >
-                          {product.is_active ? "Active" : "Inactive"}
+                          {product.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </td>
 
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-400 hover:text-slate-900" asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                            asChild
+                          >
                             <Link href={`/dashboard/products/${product.id}`}>
                               <Eye className="w-4 h-4" />
                             </Link>
                           </Button>
                           {isAdmin && (
-                            <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-400 hover:text-slate-900" asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                              asChild
+                            >
                               <Link href={`/dashboard/products/${product.id}/edit`}>
                                 <Edit className="w-4 h-4" />
                               </Link>
@@ -786,20 +884,78 @@ function ProductsContent() {
                                 variant="ghost"
                                 size="icon"
                                 className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                                onClick={() => product.barcode ? downloadBarcode(product.barcode, product.name) : undefined}
+                                onClick={() =>
+                                  product.barcode
+                                    ? downloadBarcode(product.barcode, product.name)
+                                    : undefined
+                                }
                                 title="Download Barcode"
                               >
                                 <Download className="w-4 h-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="w-8 h-8 text-slate-400 hover:text-slate-900"
-                                onClick={() => product.barcode ? printBarcode(product.barcode, product.name) : undefined}
-                                title="Print Barcode"
-                              >
-                                <Printer className="w-4 h-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                                    title="Print Barcode Options"
+                                  >
+                                    <Printer className="w-4 h-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="bg-white">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcode(product.barcode, product.name)
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print A4 Sheet
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 50,
+                                            labelHeight_mm: 30,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (50x30mm)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 40,
+                                            labelHeight_mm: 30,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (40x30mm)
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      product.barcode
+                                        ? printBarcodeSingleSheet(product.barcode, product.name, {
+                                            labelWidth_mm: 32,
+                                            labelHeight_mm: 20,
+                                          })
+                                        : undefined
+                                    }
+                                    className="cursor-pointer"
+                                  >
+                                    Print Thermal (32x20mm)
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           )}
                           <Button
@@ -830,9 +986,7 @@ function ProductsContent() {
               {Math.min((page - 1) * pageSize + 1, total)}
             </span>
             <span>–</span>
-            <span className="font-semibold text-slate-900">
-              {Math.min(page * pageSize, total)}
-            </span>
+            <span className="font-semibold text-slate-900">{Math.min(page * pageSize, total)}</span>
             <span>of</span>
             <span className="font-semibold text-slate-900">{total}</span>
             <span>products</span>
@@ -844,7 +998,7 @@ function ProductsContent() {
               <span className="text-xs text-slate-500">Rows:</span>
               <select
                 value={pageSize}
-                onChange={(e) => updateParams({ limit: e.target.value, page: "1" })}
+                onChange={(e) => updateParams({ limit: e.target.value, page: '1' })}
                 className="h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-900"
               >
                 <option value={25}>25</option>
@@ -898,14 +1052,22 @@ function ProductsContent() {
             <div>
               <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Deletion</h4>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Are you sure you want to permanently delete <span className="font-semibold text-slate-900">{currentProduct?.name}</span>? This action cannot be undone and will remove all associated data.
+                Are you sure you want to permanently delete{' '}
+                <span className="font-semibold text-slate-900">{currentProduct?.name}</span>? This
+                action cannot be undone and will remove all associated data.
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={closeDeleteModal} className="border-slate-200">Cancel</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProduct.isPending}>
-              {deleteProduct.isPending ? "Deleting..." : "Delete Product"}
+            <Button variant="outline" onClick={closeDeleteModal} className="border-slate-200">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteProduct.isPending}
+            >
+              {deleteProduct.isPending ? 'Deleting...' : 'Delete Product'}
             </Button>
           </div>
         </div>
@@ -937,36 +1099,60 @@ function ProductsContent() {
                     <div className="text-xs font-medium text-slate-500">Products</div>
                   </div>
                   <div>
-                    <div className="text-2xl font-bold text-slate-900">{printMode === 'single' ? totalLabels : sheets}</div>
-                    <div className="text-xs font-medium text-slate-500">{printMode === 'single' ? 'Sheets' : 'Sheets'}</div>
+                    <div className="text-2xl font-bold text-slate-900">
+                      {printMode === 'single' ? totalLabels : sheets}
+                    </div>
+                    <div className="text-xs font-medium text-slate-500">
+                      {printMode === 'single' ? 'Sheets' : 'Sheets'}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Print Mode</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+                  Print Mode
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setPrintMode('a4')}
+                    onClick={() => {
+                      setPrintMode('a4');
+                      setShowLabelSizeOptions(false);
+                    }}
                     disabled={printingBarcodes}
                     className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
-                      printMode === 'a4' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
+                      printMode === 'a4'
+                        ? 'bg-slate-900 text-white'
+                        : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
                     }`}
                   >
                     <div className="font-semibold">A4 Sheet</div>
-                    <div className={`text-xs ${printMode === 'a4' ? 'text-slate-300' : 'text-slate-500'}`}>Multiple labels per sheet</div>
+                    <div
+                      className={`text-xs ${printMode === 'a4' ? 'text-slate-300' : 'text-slate-500'}`}
+                    >
+                      Multiple labels per sheet
+                    </div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setPrintMode('single')}
+                    onClick={() => {
+                      setPrintMode('single');
+                      setShowLabelSizeOptions(false);
+                    }}
                     disabled={printingBarcodes}
                     className={`flex-1 rounded-lg px-4 py-3 text-left transition-colors ${
-                      printMode === 'single' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
+                      printMode === 'single'
+                        ? 'bg-slate-900 text-white'
+                        : 'hover:bg-slate-50 text-slate-700 border border-slate-200'
                     }`}
                   >
                     <div className="font-semibold">Single Sheet</div>
-                    <div className={`text-xs ${printMode === 'single' ? 'text-slate-300' : 'text-slate-500'}`}>One barcode per sheet (Roller)</div>
+                    <div
+                      className={`text-xs ${printMode === 'single' ? 'text-slate-300' : 'text-slate-500'}`}
+                    >
+                      One barcode per sheet (Roller)
+                    </div>
                   </button>
                 </div>
               </div>
@@ -976,8 +1162,12 @@ function ProductsContent() {
                   <div className="rounded-xl border border-slate-200 bg-white p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
-                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label size</div>
-                        <div className="mt-1 text-lg font-bold text-slate-900">{selectedSize.label}</div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Label size
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">
+                          {selectedSize.label}
+                        </div>
                         <div className="mt-0.5 text-sm text-slate-500">Best for costume labels</div>
                       </div>
                       <button
@@ -1006,20 +1196,83 @@ function ProductsContent() {
                             }}
                             disabled={printingBarcodes}
                             className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
-                              isSelected ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                              isSelected
+                                ? 'bg-slate-900 text-white'
+                                : 'hover:bg-slate-50 text-slate-700'
                             }`}
                           >
                             <div className="flex items-center justify-between gap-3">
                               <div>
                                 <div className="font-semibold">{size.label}</div>
-                                <div className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}>{size.perSheet} labels per sheet</div>
+                                <div
+                                  className={`text-xs ${isSelected ? 'text-slate-200' : 'text-slate-500'}`}
+                                >
+                                  {size.perSheet} labels per sheet
+                                </div>
                               </div>
                               {key === 'costume-label' && (
-                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}>
+                                <span
+                                  className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase ${isSelected ? 'bg-white text-slate-900' : 'bg-slate-100 text-slate-600'}`}
+                                >
                                   Best
                                 </span>
                               )}
                             </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {printMode === 'single' && (
+                <>
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                          Label Size (Thermal Roll)
+                        </div>
+                        <div className="mt-1 text-lg font-bold text-slate-900">
+                          {SINGLE_LABEL_SIZES[selectedSingleLabelSize].label}
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-500 font-medium">
+                          Matches thermal roll width × height
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowLabelSizeOptions(!showLabelSizeOptions)}
+                        disabled={printingBarcodes}
+                        className="shrink-0 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  </div>
+
+                  {showLabelSizeOptions && (
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-2">
+                      {(Object.keys(SINGLE_LABEL_SIZES) as SingleLabelSizeKey[]).map((key) => {
+                        const size = SINGLE_LABEL_SIZES[key];
+                        const isSelected = selectedSingleLabelSize === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSingleLabelSize(key);
+                              setShowLabelSizeOptions(false);
+                            }}
+                            disabled={printingBarcodes}
+                            className={`w-full rounded-lg px-3 py-3 text-left transition-colors ${
+                              isSelected
+                                ? 'bg-slate-900 text-white'
+                                : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div className="font-semibold">{size.label}</div>
                           </button>
                         );
                       })}
@@ -1059,8 +1312,6 @@ function ProductsContent() {
           );
         })()}
       </Modal>
-
-
     </div>
   );
 }
@@ -1070,7 +1321,7 @@ function StatCard({
   label,
   value,
   subtext,
-  alert
+  alert,
 }: {
   label: string;
   value: string | null;
@@ -1080,18 +1331,20 @@ function StatCard({
   return (
     <Card className="shadow-sm border-slate-200 bg-white overflow-hidden">
       <CardContent className="p-5 text-center">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">{label}</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+          {label}
+        </p>
         <div className="space-y-1">
           {value === null ? (
             <div className="h-8 w-16 bg-slate-100 animate-pulse rounded mx-auto" />
           ) : (
-            <p className={`text-2xl font-bold tracking-tight ${alert ? "text-red-600" : "text-slate-900"}`}>
+            <p
+              className={`text-2xl font-bold tracking-tight ${alert ? 'text-red-600' : 'text-slate-900'}`}
+            >
               {value}
             </p>
           )}
-          {subtext && (
-            <p className="text-xs font-medium text-slate-500">{subtext}</p>
-          )}
+          {subtext && <p className="text-xs font-medium text-slate-500">{subtext}</p>}
         </div>
       </CardContent>
     </Card>

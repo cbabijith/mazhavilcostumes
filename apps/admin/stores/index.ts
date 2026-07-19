@@ -9,14 +9,6 @@
 export { useProductStore } from './productStore';
 export { useAppStore, appUtils, useAppSelectors } from './appStore';
 
-export type { 
-  Product, 
-  ProductFilters, 
-  ProductUIState 
-} from './productStore';
+export type { Product, ProductFilters, ProductUIState } from './productStore';
 
-export type { 
-  Notification, 
-  User, 
-  AppUIState 
-} from './appStore';
+export type { Notification, User, AppUIState } from './appStore';

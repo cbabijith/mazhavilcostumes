@@ -27,11 +27,13 @@ All API endpoints require authentication via Bearer token.
 **Endpoint**: `POST /api/auth/login`
 
 **Request Headers**:
+
 ```
 Content-Type: application/json
 ```
 
 **Request Body**:
+
 ```json
 {
   "email": "user@example.com",
@@ -40,6 +42,7 @@ Content-Type: application/json
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -57,6 +60,7 @@ Content-Type: application/json
 ```
 
 **Error Response** (401 Unauthorized):
+
 ```json
 {
   "success": false,
@@ -74,12 +78,12 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 
 ### User Roles
 
-| Role | Permissions |
-|------|-------------|
-| `super_admin` | Full access to all resources |
-| `admin` | Full access to store resources |
-| `manager` | Access to products, categories, orders |
-| `staff` | Limited access (orders, customers) |
+| Role          | Permissions                            |
+| ------------- | -------------------------------------- |
+| `super_admin` | Full access to all resources           |
+| `admin`       | Full access to store resources         |
+| `manager`     | Access to products, categories, orders |
+| `staff`       | Limited access (orders, customers)     |
 
 ---
 
@@ -93,28 +97,30 @@ Authorization: Bearer eyJhbGciOiJFUzI1NiIs...
 
 **Query Parameters**:
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `query` | string | Search by name, SKU, barcode, slug (case-insensitive, partial match) | - |
-| `category_id` | string | Filter by category UUID | - |
-| `store_id` | string | Filter by store UUID | - |
-| `branch_id` | string | Filter by branch UUID | - |
-| `status` | string | `active` or `inactive` | - |
-| `is_featured` | boolean | Filter featured products | - |
-| `in_stock` | boolean | Filter in-stock products | - |
-| `min_price` | number | Minimum price filter | - |
-| `max_price` | number | Maximum price filter | - |
-| `sort_by` | string | Sort field: `name`, `price`, `created_at`, `stock` | `name` |
-| `sort_order` | string | `asc` or `desc` | `asc` |
-| `page` | number | Page number | `1` |
-| `limit` | number | Items per page (max 100) | `20` |
+| Parameter     | Type    | Description                                                          | Default |
+| ------------- | ------- | -------------------------------------------------------------------- | ------- |
+| `query`       | string  | Search by name, SKU, barcode, slug (case-insensitive, partial match) | -       |
+| `category_id` | string  | Filter by category UUID                                              | -       |
+| `store_id`    | string  | Filter by store UUID                                                 | -       |
+| `branch_id`   | string  | Filter by branch UUID                                                | -       |
+| `status`      | string  | `active` or `inactive`                                               | -       |
+| `is_featured` | boolean | Filter featured products                                             | -       |
+| `in_stock`    | boolean | Filter in-stock products                                             | -       |
+| `min_price`   | number  | Minimum price filter                                                 | -       |
+| `max_price`   | number  | Maximum price filter                                                 | -       |
+| `sort_by`     | string  | Sort field: `name`, `price`, `created_at`, `stock`                   | `name`  |
+| `sort_order`  | string  | `asc` or `desc`                                                      | `asc`   |
+| `page`        | number  | Page number                                                          | `1`     |
+| `limit`       | number  | Items per page (max 100)                                             | `20`    |
 
 **Example Request**:
+
 ```bash
 GET /api/products?limit=100&status=active
 ```
 
 **Search Examples**:
+
 ```bash
 # Search by name
 GET /api/products?query=bharathanattyam
@@ -130,6 +136,7 @@ GET /api/products?query=red&limit=20&page=1
 ```
 
 **Search Behavior**:
+
 - Server-side search using Supabase database queries
 - Case-insensitive matching
 - Partial string matching (wildcards)
@@ -138,6 +145,7 @@ GET /api/products?query=red&limit=20&page=1
 - OR logic: matches if ANY field contains the search term
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -225,21 +233,23 @@ GET /api/products?query=red&limit=20&page=1
 
 **Query Parameters**:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `category_id` | string | Filter by category UUID |
-| `store_id` | string | Filter by store UUID |
-| `branch_id` | string | Filter by branch UUID |
-| `status` | string | `active` or `inactive` |
+| Parameter     | Type    | Description              |
+| ------------- | ------- | ------------------------ |
+| `category_id` | string  | Filter by category UUID  |
+| `store_id`    | string  | Filter by store UUID     |
+| `branch_id`   | string  | Filter by branch UUID    |
+| `status`      | string  | `active` or `inactive`   |
 | `is_featured` | boolean | Filter featured products |
-| `in_stock` | boolean | Filter in-stock products |
+| `in_stock`    | boolean | Filter in-stock products |
 
 **Example Request**:
+
 ```bash
 GET /api/products/count?status=active
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -256,11 +266,13 @@ GET /api/products/count?status=active
 **Authentication**: Required
 
 **Example Request**:
+
 ```bash
 GET /api/products/product-uuid
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -287,12 +299,14 @@ GET /api/products/product-uuid
 **Authentication**: Required (super_admin, admin, manager)
 
 **Request Headers**:
+
 ```
 Content-Type: application/json
 Authorization: Bearer <token>
 ```
 
 **Request Body**:
+
 ```json
 {
   "name": "New Product",
@@ -320,6 +334,7 @@ Authorization: Bearer <token>
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "success": true,
@@ -339,6 +354,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Request Body** (all fields optional):
+
 ```json
 {
   "name": "Updated Product Name",
@@ -348,6 +364,7 @@ Authorization: Bearer <token>
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -366,6 +383,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -380,6 +398,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -400,6 +419,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -423,6 +443,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -455,6 +476,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -480,6 +502,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -502,6 +525,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -523,6 +547,7 @@ Authorization: Bearer <token>
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -541,6 +566,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Request Body**:
+
 ```json
 {
   "name": "New Category",
@@ -557,6 +583,7 @@ Authorization: Bearer <token>
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "success": true,
@@ -576,6 +603,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Request Body** (all fields optional):
+
 ```json
 {
   "name": "Updated Category Name",
@@ -585,6 +613,7 @@ Authorization: Bearer <token>
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -603,6 +632,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -617,6 +647,7 @@ Authorization: Bearer <token>
 **Authentication**: Required (super_admin, admin, manager)
 
 **Request Body**:
+
 ```json
 {
   "categoryIds": ["uuid1", "uuid2", "uuid3"]
@@ -624,6 +655,7 @@ Authorization: Bearer <token>
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -650,15 +682,16 @@ Authorization: Bearer <token>
 
 The category system supports 3 levels of hierarchy:
 
-| Level | Description | parent_id |
-|-------|-------------|-----------|
-| `main` | Top-level category | `null` |
-| `sub` | Child of main category | Main category UUID |
-| `variant` | Child of sub category | Sub category UUID |
+| Level     | Description            | parent_id          |
+| --------- | ---------------------- | ------------------ |
+| `main`    | Top-level category     | `null`             |
+| `sub`     | Child of main category | Main category UUID |
+| `variant` | Child of sub category  | Sub category UUID  |
 
 **Maximum depth**: 3 levels (Main → Sub → Variant)
 
 **Example Hierarchy**:
+
 ```
 Bharathanattyam (main)
   ├── Costumes (sub)
@@ -666,6 +699,7 @@ Bharathanattyam (main)
   │   └── Blue Variant (variant)
   └── Accessories (sub)
 ```
+
 ---
 
 ## Orders API
@@ -678,21 +712,22 @@ Bharathanattyam (main)
 
 **Query Parameters**:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `query` | string | Search by customer name, phone, email, or order ID |
-| `status` | string | Filter by order status: `pending`, `confirmed`, `scheduled`, `ongoing`, `completed`, `cancelled`, `flagged`, `returned`, or virtual status: `action_needed`, `priority_cleaning`, `revenue_due`, `partial`, `damaged` |
-| `payment_status` | string | Filter by payment status: `pending`, `partial`, `paid`, `refunded` |
-| `branch_id` | string | Filter by branch UUID |
-| `customer_id` | string | Filter by customer UUID |
-| `date_filter` | string | `today`, `yesterday`, `this_week`, `this_month`, `custom` |
-| `date_field` | string | Field to filter by: `created_at`, `start_date`, `end_date` |
-| `date_from` | string | ISO Date start filter boundary (YYYY-MM-DD) |
-| `date_to` | string | ISO Date end filter boundary (YYYY-MM-DD) |
-| `limit` | number | Items per page |
-| `offset` | number | Offset starting index |
+| Parameter        | Type   | Description                                                                                                                                                                                                           |
+| ---------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query`          | string | Search by customer name, phone, email, or order ID                                                                                                                                                                    |
+| `status`         | string | Filter by order status: `pending`, `confirmed`, `scheduled`, `ongoing`, `completed`, `cancelled`, `flagged`, `returned`, or virtual status: `action_needed`, `priority_cleaning`, `revenue_due`, `partial`, `damaged` |
+| `payment_status` | string | Filter by payment status: `pending`, `partial`, `paid`, `refunded`                                                                                                                                                    |
+| `branch_id`      | string | Filter by branch UUID                                                                                                                                                                                                 |
+| `customer_id`    | string | Filter by customer UUID                                                                                                                                                                                               |
+| `date_filter`    | string | `today`, `yesterday`, `this_week`, `this_month`, `custom`                                                                                                                                                             |
+| `date_field`     | string | Field to filter by: `created_at`, `start_date`, `end_date`                                                                                                                                                            |
+| `date_from`      | string | ISO Date start filter boundary (YYYY-MM-DD)                                                                                                                                                                           |
+| `date_to`        | string | ISO Date end filter boundary (YYYY-MM-DD)                                                                                                                                                                             |
+| `limit`          | number | Items per page                                                                                                                                                                                                        |
+| `offset`         | number | Offset starting index                                                                                                                                                                                                 |
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -740,6 +775,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "customer_id": "customer-uuid",
@@ -760,6 +796,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "success": true,
@@ -778,6 +815,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -797,6 +835,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "status": "ongoing",
@@ -806,6 +845,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -824,6 +864,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -838,6 +879,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "productId": "product-uuid",
@@ -848,6 +890,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -868,6 +911,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "items": [
@@ -882,6 +926,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -900,13 +945,14 @@ Bharathanattyam (main)
 
 **Query Parameters**:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `branch_id` | string | Branch UUID |
+| Parameter    | Type   | Description                       |
+| ------------ | ------ | --------------------------------- |
+| `branch_id`  | string | Branch UUID                       |
 | `start_date` | string | ISO start date range (YYYY-MM-DD) |
-| `end_date` | string | ISO end date range (YYYY-MM-DD) |
+| `end_date`   | string | ISO end date range (YYYY-MM-DD)   |
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -929,6 +975,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "assessments": [
@@ -944,6 +991,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -961,6 +1009,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "action": "refund",
@@ -970,6 +1019,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -987,6 +1037,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -1008,12 +1059,13 @@ Bharathanattyam (main)
 
 **Query Parameters**:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `branch_id` | string | Branch UUID |
-| `status` | string | `pending`, `completed` |
+| Parameter   | Type   | Description            |
+| ----------- | ------ | ---------------------- |
+| `branch_id` | string | Branch UUID            |
+| `status`    | string | `pending`, `completed` |
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -1038,6 +1090,7 @@ Bharathanattyam (main)
 **Authentication**: Required
 
 **Request Body**:
+
 ```json
 {
   "status": "completed"
@@ -1045,6 +1098,7 @@ Bharathanattyam (main)
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "success": true,
@@ -1059,23 +1113,22 @@ Bharathanattyam (main)
 
 ## Error Codes
 
-
-| HTTP Status | Error Code | Description |
-|-------------|------------|-------------|
-| 200 | - | Success |
-| 201 | - | Resource created |
-| 400 | VALIDATION_ERROR | Invalid input data |
-| 400 | INVALID_SLUG_FORMAT | Slug contains invalid characters |
-| 400 | NAME_REQUIRED | Name field is required |
-| 401 | - | Authentication required |
-| 403 | - | Access denied (insufficient permissions) |
-| 404 | CATEGORY_NOT_FOUND | Category does not exist |
-| 404 | PRODUCT_NOT_FOUND | Product does not exist |
-| 409 | SLUG_EXISTS | Slug already exists |
-| 409 | BARCODE_EXISTS | Barcode already assigned to another product |
-| 409 | CIRCULAR_REFERENCE | Would create circular reference in hierarchy |
-| 409 | CANNOT_DELETE | Resource cannot be deleted (has dependencies) |
-| 500 | - | Internal server error |
+| HTTP Status | Error Code          | Description                                   |
+| ----------- | ------------------- | --------------------------------------------- |
+| 200         | -                   | Success                                       |
+| 201         | -                   | Resource created                              |
+| 400         | VALIDATION_ERROR    | Invalid input data                            |
+| 400         | INVALID_SLUG_FORMAT | Slug contains invalid characters              |
+| 400         | NAME_REQUIRED       | Name field is required                        |
+| 401         | -                   | Authentication required                       |
+| 403         | -                   | Access denied (insufficient permissions)      |
+| 404         | CATEGORY_NOT_FOUND  | Category does not exist                       |
+| 404         | PRODUCT_NOT_FOUND   | Product does not exist                        |
+| 409         | SLUG_EXISTS         | Slug already exists                           |
+| 409         | BARCODE_EXISTS      | Barcode already assigned to another product   |
+| 409         | CIRCULAR_REFERENCE  | Would create circular reference in hierarchy  |
+| 409         | CANNOT_DELETE       | Resource cannot be deleted (has dependencies) |
+| 500         | -                   | Internal server error                         |
 
 ### Error Response Format
 
@@ -1189,5 +1242,6 @@ curl -X POST https://mazhavilcostumes-admin.vercel.app/api/categories \
 ## Support
 
 For API support or questions, contact:
+
 - Email: mazhavildancecostumes01@gmail.com
 - Documentation: See `/docs` directory in repository

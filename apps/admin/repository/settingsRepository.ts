@@ -7,12 +7,7 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { 
-  Setting, 
-  CreateSettingDTO, 
-  UpdateSettingDTO,
-  SettingKey
-} from '@/domain/types/settings';
+import { Setting, CreateSettingDTO, UpdateSettingDTO, SettingKey } from '@/domain/types/settings';
 
 export class SettingsRepository extends BaseRepository {
   private readonly tableName = 'settings';
@@ -20,7 +15,10 @@ export class SettingsRepository extends BaseRepository {
   /**
    * Find a setting by store and key
    */
-  async findByStoreAndKey(storeId: string, key: SettingKey): Promise<RepositoryResult<Setting | null>> {
+  async findByStoreAndKey(
+    storeId: string,
+    key: SettingKey
+  ): Promise<RepositoryResult<Setting | null>> {
     const response = await this.client
       .from(this.tableName)
       .select('*')
@@ -35,10 +33,7 @@ export class SettingsRepository extends BaseRepository {
    * Find all settings for a store
    */
   async findAllByStore(storeId: string): Promise<RepositoryResult<Setting[]>> {
-    const response = await this.client
-      .from(this.tableName)
-      .select('*')
-      .eq('store_id', storeId);
+    const response = await this.client.from(this.tableName).select('*').eq('store_id', storeId);
 
     return this.handleResponse<Setting[]>(response);
   }
@@ -46,10 +41,15 @@ export class SettingsRepository extends BaseRepository {
   /**
    * Create or update a setting
    */
-  async upsert(storeId: string, key: SettingKey, value: string, userId: string | null): Promise<RepositoryResult<Setting>> {
+  async upsert(
+    storeId: string,
+    key: SettingKey,
+    value: string,
+    userId: string | null
+  ): Promise<RepositoryResult<Setting>> {
     // First try to find existing
     const existing = await this.findByStoreAndKey(storeId, key);
-    
+
     if (existing.success && existing.data) {
       // Update existing
       const response = await this.client
@@ -85,10 +85,7 @@ export class SettingsRepository extends BaseRepository {
    * Delete a setting
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const response = await this.client.from(this.tableName).delete().eq('id', id);
 
     return this.handleResponse<void>(response);
   }

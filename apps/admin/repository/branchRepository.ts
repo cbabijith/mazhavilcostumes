@@ -7,12 +7,22 @@
  */
 
 import { BaseRepository, RepositoryResult } from './supabaseClient';
-import { Branch, BranchWithStaffCount, CreateBranchDTO, UpdateBranchDTO } from '@/domain/types/branch';
+import {
+  Branch,
+  BranchWithStaffCount,
+  CreateBranchDTO,
+  UpdateBranchDTO,
+} from '@/domain/types/branch';
 
 export class BranchRepository extends BaseRepository {
   private readonly tableName = 'branches';
 
   async findAll(storeId: string): Promise<RepositoryResult<Branch[]>> {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!storeId || !uuidPattern.test(storeId)) {
+      return { data: [], error: null, success: true };
+    }
+
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
@@ -24,6 +34,11 @@ export class BranchRepository extends BaseRepository {
   }
 
   async findAllWithStaffCount(storeId: string): Promise<RepositoryResult<BranchWithStaffCount[]>> {
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!storeId || !uuidPattern.test(storeId)) {
+      return { data: [], error: null, success: true };
+    }
+
     // Use count query instead of embed to avoid ambiguous relationship error
     const { data: branches, error } = await this.client
       .from(this.tableName)
@@ -96,10 +111,7 @@ export class BranchRepository extends BaseRepository {
   }
 
   async delete(id: string): Promise<RepositoryResult<boolean>> {
-    const { error } = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
+    const { error } = await this.client.from(this.tableName).delete().eq('id', id);
 
     if (error) return { data: null, error, success: false };
     return { data: true, error: null, success: true };
@@ -114,7 +126,14 @@ export class BranchRepository extends BaseRepository {
     if (error) return { data: null, error, success: false };
 
     if ((count ?? 0) > 0) {
-      return { data: { canDelete: false, reason: `Branch has ${count} staff member(s). Remove or reassign them first.` }, error: null, success: true };
+      return {
+        data: {
+          canDelete: false,
+          reason: `Branch has ${count} staff member(s). Remove or reassign them first.`,
+        },
+        error: null,
+        success: true,
+      };
     }
 
     return { data: { canDelete: true }, error: null, success: true };
