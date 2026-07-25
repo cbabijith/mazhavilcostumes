@@ -13,7 +13,7 @@ class ApiClient {
   
   // Track if a token refresh is in progress to avoid multiple concurrent refreshes
   bool _isRefreshing = false;
-  final List<void Function()> _refreshQueue = [];
+  final List<void Function(bool success)> _refreshQueue = [];
 
   /// Singleton instance (lazy-loaded)
   static ApiClient get instance {
@@ -68,9 +68,12 @@ class ApiClient {
           // If refresh is already in progress, queue this request
           if (_isRefreshing) {
             print('[ApiClient] Refresh already in progress, queuing request');
-            _refreshQueue.add(() {
-              // Retry the original request with new token
-              _retryRequest(error.requestOptions, handler);
+            _refreshQueue.add((bool success) {
+              if (success) {
+                _retryRequest(error.requestOptions, handler);
+              } else {
+                handler.next(error);
+              }
             });
             return;
           }
@@ -83,21 +86,20 @@ class ApiClient {
           
           _isRefreshing = false;
           
+          final callbacks = List<void Function(bool)>.from(_refreshQueue);
+          _refreshQueue.clear();
+
+          for (final callback in callbacks) {
+            callback(success);
+          }
+
           if (success) {
-            print('[ApiClient] Token refresh successful, retrying queued requests');
-            // Retry all queued requests
-            for (final callback in _refreshQueue) {
-              callback();
-            }
-            _refreshQueue.clear();
-            
-            // Retry the original request
+            print('[ApiClient] Token refresh successful, retrying original request');
             _retryRequest(error.requestOptions, handler);
             return;
           } else {
-            print('[ApiClient] Token refresh failed, clearing queue');
-            _refreshQueue.clear();
-            // Refresh failed, let the error propagate
+            print('[ApiClient] Token refresh failed, logging out user');
+            await _auth.logout();
             return handler.next(error);
           }
         }

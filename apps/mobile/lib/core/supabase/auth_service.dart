@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
@@ -125,17 +126,53 @@ class AuthService {
   }
 
   /// Load the cached token from storage on app start.
-  /// Returns true if an access token exists.
+  /// Returns true if an access token exists and is valid (or successfully refreshed).
   Future<bool> loadSession() async {
     try {
       _cachedToken = await _storage
           .read(key: _accessTokenKey)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
+
+      if (_cachedToken == null) {
+        return false;
+      }
+
+      // If stored access token is expired or near expiry, refresh session immediately on startup
+      if (_isTokenExpired(_cachedToken)) {
+        debugPrint('[AuthService] Stale/expired access token detected on launch. Attempting refresh...');
+        final refreshed = await refreshAccessToken();
+        if (!refreshed) {
+          debugPrint('[AuthService] Startup session refresh failed. Clearing stale session.');
+          await logout();
+          return false;
+        }
+      }
+
+      return true;
     } catch (e) {
       debugPrint('[AuthService] loadSession error: $e');
-      _cachedToken = null;
+      await logout();
+      return false;
     }
-    return _cachedToken != null;
+  }
+
+  /// Check if a JWT access token is expired (or expires within 60 seconds)
+  bool _isTokenExpired(String? token) {
+    if (token == null || token.isEmpty) return true;
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return true;
+      final normalized = base64Url.normalize(parts[1]);
+      final payloadString = utf8.decode(base64Url.decode(normalized));
+      final Map<String, dynamic> payload = jsonDecode(payloadString);
+      if (!payload.containsKey('exp')) return false;
+      final exp = payload['exp'] as int;
+      final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      return nowSeconds >= (exp - 60);
+    } catch (e) {
+      debugPrint('[AuthService] Error parsing JWT exp: $e');
+      return true;
+    }
   }
 
   /// Logout - clear all stored tokens
@@ -248,10 +285,12 @@ class AuthService {
         return true;
       } else {
         debugPrint('[AuthService] Token refresh failed: ${response.data['error']}');
+        _cachedToken = null;
         return false;
       }
     } catch (e) {
       debugPrint('[AuthService] Token refresh error: $e');
+      _cachedToken = null;
       return false;
     }
   }
