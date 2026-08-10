@@ -7,6 +7,8 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GSTFilingReport as GSTReportType, GSTFilingRow } from "@/domain";
+import { DEFAULT_GST_SLABS } from "@/domain/types/category";
+import { useGstSlabs } from "@/hooks";
 import { formatCurrency } from "@/lib/shared-utils";
 import { ReportTable } from "../ReportTable";
 import { cn } from "@/lib/utils";
@@ -50,6 +52,29 @@ export function GSTFilingView({
   const stableChartData = useMemo(() => {
     return [...data].sort((a, b) => a.slab - b.slab);
   }, [data]);
+
+  // Slab filter dropdown options — sourced dynamically from the admin-configured
+  // gst_slabs setting (Settings → GST Configuration), unioned with any slab
+  // values that actually appear in the current report data (orphan safety, so
+  // an order with a slab that was later removed from settings is still filterable).
+  // Falls back to DEFAULT_GST_SLABS while loading.
+  const { data: configuredSlabs } = useGstSlabs();
+  const slabFilterOptions = useMemo(() => {
+    const base = Array.isArray(configuredSlabs) && configuredSlabs.length > 0
+      ? configuredSlabs
+      : [...DEFAULT_GST_SLABS];
+    const merged = new Set<number>(base);
+    // Include any slabs that appear in the summary table or the detail rows
+    data.forEach((row: any) => { if (typeof row.slab === 'number') merged.add(row.slab); });
+    gstDetails.forEach((inv: any) => {
+      if (!inv.slabs || inv.slabs === '-') return;
+      String(inv.slabs).split(',').forEach((s: string) => {
+        const n = Number(s.replace('%', '').trim());
+        if (Number.isFinite(n)) merged.add(n);
+      });
+    });
+    return Array.from(merged).sort((a, b) => a - b);
+  }, [configuredSlabs, data, gstDetails]);
 
   const [gstSortConfig, setGstSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
@@ -345,9 +370,11 @@ export function GSTFilingView({
                 className="h-8 border border-slate-200 rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
               >
                 <option value="all">All Slabs</option>
-                <option value="5">5% Slab Only</option>
-                <option value="12">12% Slab Only</option>
-                <option value="18">18% Slab Only</option>
+                {slabFilterOptions.map((slab) => (
+                  <option key={slab} value={String(slab)}>
+                    {slab}% Slab Only
+                  </option>
+                ))}
               </select>
             </div>
             <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-semibold text-xs">
