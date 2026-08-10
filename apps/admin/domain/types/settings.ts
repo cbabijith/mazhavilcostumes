@@ -12,6 +12,8 @@ export enum SettingKey {
   INVOICE_PREFIX = 'invoice_prefix',
   PAYMENT_TERMS = 'payment_terms',
   AUTHORIZED_SIGNATURE = 'authorized_signature',
+  /** JSON-stringified array of available GST percentage slabs, e.g. "[0,5,12,18,28]". */
+  GST_SLABS = 'gst_slabs',
 }
 
 // Setting Entity

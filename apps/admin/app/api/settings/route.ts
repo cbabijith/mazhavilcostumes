@@ -32,6 +32,13 @@ export async function GET(request: NextRequest) {
       return apiSuccess({ value: result.data });
     }
 
+    // Special case: gst_slabs returns the parsed number[] (with default fallback)
+    if (key === 'gst_slabs') {
+      const result = await settingsService.getGstSlabs();
+      if (!result.success) return apiRepositoryError(result.error, 'Failed to fetch GST slabs');
+      return apiSuccess({ value: result.data });
+    }
+
     const result = await settingsService.findByKey(key);
     if (!result.success) {
       return apiRepositoryError(result.error, `Failed to fetch setting ${key}`);

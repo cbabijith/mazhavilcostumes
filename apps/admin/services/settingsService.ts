@@ -7,11 +7,12 @@
  */
 
 import { RepositoryResult } from '@/repository';
-import { 
-  Setting, 
+import {
+  Setting,
   SettingKey,
   UpdateSettingDTO
 } from '@/domain/types/settings';
+import { DEFAULT_GST_SLABS } from '@/domain/types/category';
 import { settingsRepository } from '@/repository';
 
 export class SettingsService {
@@ -93,6 +94,66 @@ export class SettingsService {
   async findByKey(key: string): Promise<RepositoryResult<Setting | null>> {
     const result = await settingsRepository.findByStoreAndKey(this.storeId, key as SettingKey);
     return result;
+  }
+
+  /**
+   * Get the list of configured GST percentage slabs.
+   *
+   * Stored as a JSON-stringified array under the `gst_slabs` setting key.
+   * Returns the DEFAULT_GST_SLABS fallback when the setting is missing,
+   * empty, or fails to parse — the app must never break because of a bad
+   * config value.
+   */
+  async getGstSlabs(): Promise<RepositoryResult<number[]>> {
+    const result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_SLABS);
+    if (!result.success || !result.data) {
+      return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+    }
+    try {
+      const parsed = JSON.parse(result.data.value);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+      }
+      // Coerce to numbers, filter invalid, dedupe, sort ascending
+      const slabs = Array.from(new Set(parsed.map(Number)))
+        .filter((n) => Number.isFinite(n) && n >= 0 && n <= 100)
+        .sort((a, b) => a - b);
+      return { data: slabs.length > 0 ? slabs : [...DEFAULT_GST_SLABS], error: null, success: true };
+    } catch {
+      return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+    }
+  }
+
+  /**
+   * Set the list of configured GST percentage slabs.
+   *
+   * Validates: non-empty, every value is a finite number in [0, 100],
+   * no duplicates. Serializes as JSON and stores via the standard setting key.
+   */
+  async setGstSlabs(slabs: number[]): Promise<RepositoryResult<Setting>> {
+    if (!Array.isArray(slabs) || slabs.length === 0) {
+      return {
+        data: null,
+        error: { message: 'At least one GST slab is required', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    const cleaned = Array.from(new Set(slabs.map(Number)))
+      .filter((n) => Number.isFinite(n) && n >= 0 && n <= 100)
+      .sort((a, b) => a - b);
+    if (cleaned.length === 0) {
+      return {
+        data: null,
+        error: { message: 'All GST slabs must be numbers between 0 and 100', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    return await settingsRepository.upsert(
+      this.storeId,
+      SettingKey.GST_SLABS,
+      JSON.stringify(cleaned),
+      this.currentUserId
+    );
   }
 }
 

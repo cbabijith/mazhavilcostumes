@@ -126,6 +126,8 @@ export {
   usePaymentTerms,
   useAuthorizedSignature,
   useUpdateSetting,
+  useGstSlabs,
+  useUpdateGstSlabs,
 } from './useSettings';
 
 // Payment hooks

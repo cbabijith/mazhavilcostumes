@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-client";
@@ -25,8 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Switch } from "@/components/ui/switch";
-import { type Category, GST_OPTIONS } from "@/domain/types/category";
+import { type Category, DEFAULT_GST_SLABS } from "@/domain/types/category";
 import { useAppStore } from "@/stores";
+import { useGstSlabs } from "@/hooks";
 import {
   CategoryFieldLabel,
   CategoryFormPanel,
@@ -70,6 +71,22 @@ export default function CategoryForm({
     gst_percentage: category?.gst_percentage ?? 5,
     has_buffer: category?.has_buffer ?? true,
   });
+
+  // GST slabs — sourced from Settings. Falls back to DEFAULT_GST_SLABS while
+  // loading or if the fetch fails, so the dropdown always has options.
+  const { data: fetchedSlabs } = useGstSlabs();
+  const gstSlabs = Array.isArray(fetchedSlabs) && fetchedSlabs.length > 0
+    ? fetchedSlabs
+    : [...DEFAULT_GST_SLABS];
+  // Orphan handling: if this category's existing rate isn't in the configured
+  // list, prepend it so the value is never silently lost. Marked "(current)".
+  const currentRate = category?.gst_percentage;
+  const slabOptions = useMemo(() => {
+    if (currentRate !== undefined && !gstSlabs.includes(currentRate)) {
+      return [currentRate, ...gstSlabs];
+    }
+    return gstSlabs;
+  }, [gstSlabs, currentRate]);
 
   const generateSlug = (name: string): string =>
     name
@@ -330,11 +347,14 @@ export default function CategoryForm({
                 }
                 className="w-full h-10 px-3 rounded-lg border border-slate-200 bg-white text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 outline-none"
               >
-                {GST_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
+                {slabOptions.map((value) => {
+                  const isOrphan = currentRate !== undefined && value === currentRate && !gstSlabs.includes(value);
+                  return (
+                    <option key={value} value={value}>
+                      {value}%{isOrphan ? '  (current — not in configured list)' : ''}
+                    </option>
+                  );
+                })}
               </select>
               <p className="text-xs text-slate-500">
                 This GST rate will apply to all products under this category when GST is enabled in Settings.
