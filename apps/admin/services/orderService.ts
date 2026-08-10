@@ -681,6 +681,16 @@ export class OrderService {
       }
     }
 
+    // Defensive: never forward an empty items array to the repository.
+    // An empty array MUST mean "don't touch items", not "delete all items".
+    // The schema (UpdateOrderSchema) and repository both guard this too, but
+    // internal callers (auto-complete, status transitions) can reach this path
+    // without schema validation — strip empty items here as the final safety net.
+    if (Array.isArray((data as any).items) && (data as any).items.length === 0) {
+      const { items: _omit, ...dataWithoutItems } = data as any;
+      data = dataWithoutItems;
+    }
+
     const dbStart = performance.now();
     const result = await orderRepository.update(id, data);
     const dbDuration = performance.now() - dbStart;

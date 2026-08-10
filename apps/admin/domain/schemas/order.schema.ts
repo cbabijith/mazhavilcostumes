@@ -66,7 +66,10 @@ export const UpdateOrderSchema = z.object({
   cancelled_at: z.string().datetime().optional(),
   backfill_note: z.string().max(2000).optional(),
 
-  items: z.array(orderItemSchema).optional(),
+  // `items` may be omitted entirely ( = don't touch items) but if present it
+  // MUST be non-empty. An empty array would otherwise reach orderRepository.update
+  // and, combined with the differential item-sync, wipe every existing item.
+  items: z.array(orderItemSchema).min(1, "Items array cannot be empty").optional(),
 }).refine((data) => {
   if (data.start_date && data.end_date) {
     const start = new Date(data.start_date);

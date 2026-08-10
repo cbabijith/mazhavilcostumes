@@ -1123,7 +1123,22 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<OrderWithRelations>(itemsResponse);
     }
 
+    // Defensive: Supabase's `.insert([])` returns { data: null, error: null }
+    // (silent success on an empty array). If the items insert produced no rows,
+    // the order must NOT survive — otherwise it becomes a ghost order with a
+    // total_amount but no line items. Roll back and return an error.
     const items = itemsResponse.data;
+    if (!items || items.length === 0) {
+      await this.client.from(this.tableName).delete().eq('id', order.id);
+      return {
+        data: null,
+        error: {
+          message: 'Order creation failed: no order items were inserted',
+          code: 'ITEMS_INSERT_EMPTY',
+        } as any,
+        success: false,
+      };
+    }
 
     // NOTE: Inventory is NOT deducted at creation time.
     // Stock deduction happens only when the user manually starts the rental
@@ -1205,8 +1220,13 @@ export class OrderRepository extends BaseRepository {
       .select()
       .single();
 
-    // If items are provided, sync them
-    if (items && Array.isArray(items)) {
+    // If items are provided, sync them.
+    // IMPORTANT: an empty items array (`[]`) is treated as "no item change",
+    // NOT as "delete every item". A caller that wants to wipe items must do so
+    // explicitly via a dedicated method. This guard prevents ghost orders
+    // (orders left with zero items) when a PATCH arrives with items: [].
+    // Only a non-empty items array triggers the differential sync.
+    if (items && Array.isArray(items) && items.length > 0) {
       // 1. Fetch existing items first to perform differential update
       const { data: existingItems } = await this.client
         .from(this.orderItemsTable)
