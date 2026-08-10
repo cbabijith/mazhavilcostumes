@@ -334,7 +334,10 @@ function ReportsPageContent() {
           { header: "Category", key: "category_name" },
           { header: "Price/Day", key: "price_per_day", format: "currency" as const },
           { header: "Quantity", key: "quantity", format: "number" as const },
+          { header: "Stock Value", key: "stock_value", format: "currency" as const },
           { header: "Days Idle", key: "days_since_last_rental", format: "number" as const },
+          { header: "Never Rented", key: "never_rented" },
+          { header: "Added On", key: "created_at", format: "date" as const },
         ];
       case 'sales-by-staff':
         return [

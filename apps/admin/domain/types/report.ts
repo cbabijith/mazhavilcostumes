@@ -182,6 +182,10 @@ export interface DeadStockRow {
   price_per_day: number;
   quantity: number;
   days_since_last_rental: number | null;
+  /** True if the product has never been rented (days_since_last_rental is measured from created_at). */
+  never_rented?: boolean;
+  /** price_per_day × quantity — capital tied up in this dead stock line. */
+  stock_value?: number;
   created_at: string;
 }
 

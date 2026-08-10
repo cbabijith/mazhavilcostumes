@@ -668,50 +668,88 @@ export class ReportService {
     }).sort((a: ROIRow, b: ROIRow) => b.roi_percentage - a.roi_percentage);
   }
 
-  /** R8: Dead stock / No-sale */
+  /** R8: Dead stock / No-sale
+   *
+   * "Dead stock" = a product that had zero non-cancelled rentals within the
+   * selected date window. Soft-deleted and inactive products are excluded so
+   * the report reflects sellable inventory only.
+   *
+   * NOTE: The schema has a `products.last_rented_at` column intended as an
+   * O(1) source for this report, but it is unpopulated in production
+   * (0% fill rate as of 2026-08), so we continue to derive last-rented from
+   * `order_items`. If/when that column is backfilled and maintained, the
+   * full-table scan below can be replaced.
+   */
   async getDeadStock(filters: ReportFilters): Promise<DeadStockRow[]> {
     const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    // Get all products
+    // Get all SELLABLE products — exclude soft-deleted (deleted_at) and
+    // archived (is_active = false) so the report only reflects real inventory.
     const { data: products } = await supabase()
       .from('products')
-      .select('id, name, price_per_day, quantity, created_at, category:category_id(name)');
+      .select('id, name, price_per_day, quantity, created_at, category:category_id(name)')
+      .eq('is_active', true)
+      .is('deleted_at', null);
 
-    // Get products that have been rented in the period
+    // Get products that have been rented in the period (non-cancelled only)
     const { data: rentedItems } = await supabase()
       .from('order_items')
       .select('product_id, created_at, order:order_id(status)')
       .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .not('order.status', 'eq', 'cancelled');
+      .lte('created_at', range.end);
 
-    const rentedIds = new Set((rentedItems || []).filter((i: any) => i.order?.status !== 'cancelled').map((i: any) => i.product_id));
+    const rentedIds = new Set(
+      (rentedItems || [])
+        .filter((i: any) => i.order?.status !== 'cancelled')
+        .map((i: any) => i.product_id)
+    );
 
-    // Get last rental date for all products
-    const { data: lastRentals } = await supabase()
-      .from('order_items')
-      .select('product_id, created_at')
-      .order('created_at', { ascending: false });
-
-    const lastRentalMap: Record<string, string> = {};
-    for (const item of (lastRentals || []) as any[]) {
-      if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
+    // Get last rental date for all products. Limited to the products we care
+    // about (sellable ones) to keep the scan bounded.
+    const productIds = (products || []).map((p: any) => p.id);
+    let lastRentalMap: Record<string, string> = {};
+    if (productIds.length > 0) {
+      const { data: lastRentals } = await supabase()
+        .from('order_items')
+        .select('product_id, created_at, order:order_id(status)')
+        .in('product_id', productIds)
+        .order('created_at', { ascending: false });
+      for (const item of (lastRentals || []) as any[]) {
+        // Skip cancelled-order items when determining the true last rental
+        if (item.order?.status === 'cancelled') continue;
+        if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
+      }
     }
+
+    // Use the IST date context (not raw Date.now()) for day-spread math,
+    // consistent with the rest of the report service.
+    const nowMs = new Date(today).getTime();
+    const DAY_MS = 86400000;
 
     return (products || [])
       .filter((p: any) => !rentedIds.has(p.id))
       .map((p: any) => {
         const lastRental = lastRentalMap[p.id];
+        const price = Number(p.price_per_day) || 0;
+        const qty = Number(p.quantity) || 0;
         return {
           product_id: p.id,
           product_name: p.name,
           category_name: p.category?.name || '',
-          price_per_day: Number(p.price_per_day),
-          quantity: p.quantity,
-          days_since_last_rental: lastRental ? Math.floor((Date.now() - new Date(lastRental).getTime()) / 86400000) : null,
+          price_per_day: price,
+          quantity: qty,
+          // Days idle = days since last rental. For never-rented products,
+          // fall back to days since the product was added to inventory —
+          // this distinguishes "newly added stock" (low number) from
+          // "genuinely stale" (high number) and is always a usable number.
+          days_since_last_rental: lastRental
+            ? Math.floor((nowMs - new Date(lastRental).getTime()) / DAY_MS)
+            : Math.floor((nowMs - new Date(p.created_at).getTime()) / DAY_MS),
+          never_rented: !lastRental,
+          stock_value: Math.round(price * qty * 100) / 100,
           created_at: p.created_at,
         };
       });
