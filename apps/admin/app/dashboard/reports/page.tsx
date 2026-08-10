@@ -55,15 +55,28 @@ function ReportsPageContent() {
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [gstSlabFilter, setGstSlabFilter] = useState<string>('all');
+  const [gstTypeFilter, setGstTypeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const filteredGstDetails = useMemo(() => {
-    if (gstSlabFilter === 'all') return gstDetails;
     return gstDetails.filter((inv: any) => {
-      return inv.slabs && inv.slabs.includes(gstSlabFilter + '%');
+      // Slab filter — match against the slabs string (e.g. "5%, 18%")
+      if (gstSlabFilter !== 'all') {
+        if (!inv.slabs || !inv.slabs.includes(gstSlabFilter + '%')) return false;
+      }
+      // Type filter — GST only / Exempt only / Mixed / All
+      if (gstTypeFilter !== 'all') {
+        const hasGst = !!inv.has_gst;
+        const hasExempt = !!inv.has_exempt;
+        const isMixed = hasGst && hasExempt;
+        if (gstTypeFilter === 'gst' && !hasGst) return false;
+        if (gstTypeFilter === 'exempt' && hasGst) return false;       // fully exempt = no GST
+        if (gstTypeFilter === 'mixed' && !isMixed) return false;
+      }
+      return true;
     });
-  }, [gstDetails, gstSlabFilter]);
+  }, [gstDetails, gstSlabFilter, gstTypeFilter]);
   
   const [filters, setFilters] = useState<FilterType>(() => {
     // Determine context (Server vs Client)
@@ -122,16 +135,18 @@ function ReportsPageContent() {
       rank_by: 'count',
       limit: 50,
       page: 1,
-      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue' || reportFromUrl === 'gst-filing') ? [] : ['completed', 'returned'],
+      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue') ? [] : ['completed', 'returned'],
     };
   });
 
   const selectedReport = reportFromUrl;
 
-  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters
+  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters.
+  // GST filing is statutorily limited to finalized orders (completed + returned) — no override.
+  // Revenue / today's revenue intentionally default to "All Statuses" and allow the dropdown.
   useEffect(() => {
     if (!selectedReport) return;
-    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'gst-filing') ? [] : ['completed', 'returned'];
+    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue') ? [] : ['completed', 'returned'];
     
     setFilters(prev => {
       const currentJoined = prev.status?.join(',') || '';
@@ -512,7 +527,7 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
+        needsStatusFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
         needsPaymentModeFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
       />
 
@@ -545,9 +560,11 @@ function ReportsPageContent() {
             sortConfig={sortConfig} 
             onSort={handleSort} 
             formatCell={formatCell} 
-            gstDetails={gstDetails} 
+            gstDetails={gstDetails}
             gstSlabFilter={gstSlabFilter}
             setGstSlabFilter={setGstSlabFilter}
+            gstTypeFilter={gstTypeFilter}
+            setGstTypeFilter={setGstTypeFilter}
             filteredGstDetails={filteredGstDetails}
           />
         )}
