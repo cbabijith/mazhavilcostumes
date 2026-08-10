@@ -44,8 +44,10 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
       setIsLoading(true);
       try {
         // Multi-field search: match name, description, sku, or barcode.
-        // Term is encoded so commas/parens in the query don't break the .or() filter.
-        const pattern = `%${encodeURIComponent(query.trim())}%`;
+        // Only escape PostgREST .or() delimiters (comma/parens) — keep spaces
+        // literal so multi-word phrases like "Maveli set without shoe" match.
+        const escaped = query.trim().replace(/,/g, '%2C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+        const pattern = `%${escaped}%`;
         const orFilter = `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
 
         let queryBuilder = supabase
@@ -150,28 +152,12 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <Search size={14} className="text-muted-foreground group-hover:text-rosegold transition-colors shrink-0" />
                       <div className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-body group-hover:text-rosegold transition-colors truncate">
-                          {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="font-semibold text-rosegold">{product.sku}</span>
-                              <span className="text-muted-foreground font-normal">-</span>
-                              <span className="text-muted-foreground font-normal">{product.name}</span>
-                            </span>
-                          ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="font-semibold text-rosegold">{product.barcode}</span>
-                              <span className="text-muted-foreground font-normal">-</span>
-                              <span className="text-muted-foreground font-normal">{product.name}</span>
-                            </span>
-                          ) : (
-                            product.name
-                          )}
+                        <span className="block text-sm font-medium text-heading group-hover:text-rosegold transition-colors truncate">
+                          {product.description || product.name}
                         </span>
-                        {product.description && (
-                          <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5">
-                            {product.description}
-                          </span>
-                        )}
+                        <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5 uppercase tracking-wide font-mono">
+                          {product.name}{product.sku && product.sku !== product.description ? ` · ${product.sku}` : ''}
+                        </span>
                       </div>
                     </div>
                   </button>

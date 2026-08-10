@@ -85,12 +85,16 @@ export interface Product {
  * getProducts() query and the client-side dropdown searches so they all match
  * the same set of fields.
  *
- * The term is escaped for PostgREST's `.or()` syntax (commas/parens are
- * percent-encoded so they aren't parsed as filter separators) before being
- * wrapped in `%...%` for a substring ILIKE match.
+ * IMPORTANT: PostgREST's `.or()` syntax uses commas to separate filters and
+ * parentheses for grouping, so any comma or parenthesis inside the search term
+ * must be percent-encoded or it would be misparsed. BUT spaces must be left as
+ * literal spaces — encoding them to %20 breaks ILIKE matching against text
+ * that contains real spaces (e.g. "Maveli set without shoe"). Only the two
+ * delimiter characters are escaped.
  */
 export function buildProductSearchFilter(term: string): string {
-  const escaped = encodeURIComponent(term.trim());
+  // Escape only PostgREST .or() delimiters — keep spaces intact.
+  const escaped = term.trim().replace(/,/g, '%2C').replace(/\(/g, '%28').replace(/\)/g, '%29');
   const pattern = `%${escaped}%`;
   return `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
 }

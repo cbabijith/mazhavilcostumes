@@ -93,15 +93,21 @@ export default function ProductCard({ product, badge }: ProductCardProps) {
         )}
       </div>
 
-      {/* Product Info — name, description, and add-to-cart */}
+      {/* Product Info — description as the primary name, code as secondary identifier */}
       <div className="mt-2 sm:mt-2.5 px-0.5">
-        <h3 className="text-[13px] sm:text-sm md:text-base font-sans text-heading mb-0.5 sm:mb-1 line-clamp-1 group-hover:text-rosegold transition-colors leading-snug">
-          {product.name}
-        </h3>
-        {product.description && (
-          <p className="text-[10px] sm:text-xs text-body/70 mb-1 sm:mb-1.5 line-clamp-2 leading-relaxed min-h-[1.4em] sm:min-h-[2.4em]">
-            {product.description}
-          </p>
+        {product.description ? (
+          <>
+            <h3 className="text-[13px] sm:text-sm md:text-base font-sans text-heading mb-0.5 sm:mb-1 line-clamp-2 group-hover:text-rosegold transition-colors leading-snug">
+              {product.description}
+            </h3>
+            <p className="text-[10px] sm:text-xs text-body/50 mb-1 sm:mb-1.5 line-clamp-1 uppercase tracking-wide font-mono">
+              {product.name}
+            </p>
+          </>
+        ) : (
+          <h3 className="text-[13px] sm:text-sm md:text-base font-sans text-heading mb-1 sm:mb-1.5 line-clamp-2 group-hover:text-rosegold transition-colors leading-snug">
+            {product.name}
+          </h3>
         )}
         <div className="flex items-center justify-end">
           <button

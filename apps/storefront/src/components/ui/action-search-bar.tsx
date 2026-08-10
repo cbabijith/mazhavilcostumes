@@ -90,7 +90,10 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
       setIsLoading(true);
       try {
         // Multi-field search: name, description, sku, barcode
-        const pattern = `%${encodeURIComponent(query.trim())}%`;
+        // Only escape PostgREST .or() delimiters (comma/parens) — keep spaces
+        // literal so multi-word phrases match correctly.
+        const escaped = query.trim().replace(/,/g, '%2C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+        const pattern = `%${escaped}%`;
         const orFilter = `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
 
         let queryBuilder = supabase
@@ -278,27 +281,11 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
                           <Package size={14} className="text-muted-foreground group-hover:text-rosegold shrink-0" />
                           <div className="min-w-0 flex-1">
                             <span className="block text-sm text-heading group-hover:text-rosegold transition-colors truncate">
-                              {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
-                                <span className="inline-flex items-center gap-1.5">
-                                  <span className="font-semibold text-rosegold">{product.sku}</span>
-                                  <span className="text-muted-foreground font-normal">-</span>
-                                  <span className="text-muted-foreground font-normal">{product.name}</span>
-                                </span>
-                              ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
-                                <span className="inline-flex items-center gap-1.5">
-                                  <span className="font-semibold text-rosegold">{product.barcode}</span>
-                                  <span className="text-muted-foreground font-normal">-</span>
-                                  <span className="text-muted-foreground font-normal">{product.name}</span>
-                                </span>
-                              ) : (
-                                product.name
-                              )}
+                              {product.description || product.name}
                             </span>
-                            {product.description && (
-                              <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5">
-                                {product.description}
-                              </span>
-                            )}
+                            <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5 uppercase tracking-wide font-mono">
+                              {product.name}{product.sku && product.sku !== product.description ? ` · ${product.sku}` : ''}
+                            </span>
                           </div>
                         </div>
                         {product.category_name && (
