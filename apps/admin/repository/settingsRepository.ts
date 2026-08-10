@@ -32,6 +32,25 @@ export class SettingsRepository extends BaseRepository {
   }
 
   /**
+   * Find a setting by key across ANY store (returns the first match).
+   *
+   * Used as a defensive fallback in single-store deployments when the caller's
+   * configured store_id doesn't match the row's store_id — for example, if an
+   * API route forgets to call `settingsService.setStoreId(authUser.store_id)`
+   * before a lookup. Returns null if no row exists for this key anywhere.
+   */
+  async findByKeyAnyStore(key: SettingKey): Promise<RepositoryResult<Setting | null>> {
+    const response = await this.client
+      .from(this.tableName)
+      .select('*')
+      .eq('key', key)
+      .limit(1)
+      .maybeSingle();
+
+    return this.handleResponse<Setting | null>(response);
+  }
+
+  /**
    * Find all settings for a store
    */
   async findAllByStore(storeId: string): Promise<RepositoryResult<Setting[]>> {

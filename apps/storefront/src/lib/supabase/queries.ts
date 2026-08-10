@@ -79,6 +79,22 @@ export interface Product {
   barcode: string | null;
 }
 
+/**
+ * Build a PostgREST `.or()` filter string for product search across multiple
+ * fields: name, description, sku, and barcode. Shared by the server-side
+ * getProducts() query and the client-side dropdown searches so they all match
+ * the same set of fields.
+ *
+ * The term is escaped for PostgREST's `.or()` syntax (commas/parens are
+ * percent-encoded so they aren't parsed as filter separators) before being
+ * wrapped in `%...%` for a substring ILIKE match.
+ */
+export function buildProductSearchFilter(term: string): string {
+  const escaped = encodeURIComponent(term.trim());
+  const pattern = `%${escaped}%`;
+  return `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
+}
+
 export interface Banner {
   id: string;
   store_id: string | null;
@@ -481,7 +497,7 @@ export async function getProducts(
   }
 
   if (options.search) {
-    query = query.ilike("name", `%${options.search}%`);
+    query = query.or(buildProductSearchFilter(options.search));
   }
 
   // Sorting

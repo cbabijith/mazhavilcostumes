@@ -11,6 +11,7 @@
 
 import { NextRequest } from "next/server";
 import { orderService } from "@/services/orderService";
+import { settingsService } from "@/services/settingsService";
 import { apiGuard } from "@/lib/apiGuard";
 import { UpdateOrderSchema } from "@/domain";
 import { apiSuccess, apiRepositoryError, apiNotFound, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
@@ -45,6 +46,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const authUser = guard.user;
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
+    // Propagate store_id so GST/setting lookups read the correct store.
+    // See POST /api/orders for the full explanation — same bug class.
+    if (authUser?.store_id) {
+      settingsService.setStoreId(authUser.store_id);
+    }
 
     const { id } = await params;
     const body = await request.json();

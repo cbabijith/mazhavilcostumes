@@ -40,14 +40,19 @@ export class SettingsService {
    */
   async getIsGSTEnabled(): Promise<RepositoryResult<boolean>> {
     const result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.IS_GST_ENABLED);
-    
+
+    // Defensive fallback: if no row exists for the configured store_id (e.g.
+    // an API route didn't call setStoreId, or the store_id changed), look up
+    // the key across ANY store. Single-store deployments should never fail to
+    // find the toggle just because of a store_id mismatch. Multi-store
+    // deployments still get correct behavior because the store-scoped lookup
+    // above succeeds first when store_id is wired right.
     if (!result.success || !result.data) {
-      // Default to false (disabled) if not set
-      return {
-        data: false,
-        error: null,
-        success: true,
-      };
+      const fallback = await settingsRepository.findByKeyAnyStore(SettingKey.IS_GST_ENABLED);
+      if (fallback.success && fallback.data) {
+        return { data: fallback.data.value === 'true', error: null, success: true };
+      }
+      return { data: false, error: null, success: true };
     }
 
     return {
@@ -105,7 +110,13 @@ export class SettingsService {
    * config value.
    */
   async getGstSlabs(): Promise<RepositoryResult<number[]>> {
-    const result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_SLABS);
+    let result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_SLABS);
+    // Defensive fallback: try any store if the configured store_id has no row.
+    // Same reasoning as getIsGSTEnabled — protects against store_id wiring bugs.
+    if (!result.success || !result.data) {
+      const fallback = await settingsRepository.findByKeyAnyStore(SettingKey.GST_SLABS);
+      if (fallback.success && fallback.data) result = fallback;
+    }
     if (!result.success || !result.data) {
       return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
     }

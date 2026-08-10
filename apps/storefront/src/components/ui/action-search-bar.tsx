@@ -12,6 +12,7 @@ interface ProductSuggestion {
   sku?: string | null;
   barcode?: string | null;
   category_name?: string;
+  description?: string | null;
 }
 
 interface SearchAction {
@@ -88,14 +89,18 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
       // Fetch product suggestions
       setIsLoading(true);
       try {
+        // Multi-field search: name, description, sku, barcode
+        const pattern = `%${encodeURIComponent(query.trim())}%`;
+        const orFilter = `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
+
         let queryBuilder = supabase
           .from("products")
-          .select("id, name, sku, barcode, category:category_id(name)")
+          .select("id, name, sku, barcode, description, category:category_id(name)")
           .eq("is_active", true)
-          .ilike("name", `%${query}%`)
+          .or(orFilter)
           .order("name", { ascending: true })
           .range(0, 14); // Fetch first 15 suggestions
-        
+
         if (storeId) {
           queryBuilder = queryBuilder.eq("store_id", storeId);
         }
@@ -108,6 +113,7 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
             name: p.name,
             sku: p.sku,
             barcode: p.barcode,
+            description: p.description,
             category_name: p.category?.name
           })));
           setPage(0);
@@ -132,11 +138,14 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
     const to = from + pageSize - 1;
 
     try {
+      const pattern = `%${encodeURIComponent(query.trim())}%`;
+      const orFilter = `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
+
       let queryBuilder = supabase
         .from("products")
-        .select("id, name, sku, barcode, category:category_id(name)")
+        .select("id, name, sku, barcode, description, category:category_id(name)")
         .eq("is_active", true)
-        .ilike("name", `%${query}%`)
+        .or(orFilter)
         .order("name", { ascending: true })
         .range(from, to);
 
@@ -154,6 +163,7 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
             name: p.name,
             sku: p.sku,
             barcode: p.barcode,
+            description: p.description,
             category_name: p.category?.name
           }))
         ]);
@@ -264,25 +274,32 @@ export default function ActionSearchBar({ storeId }: ActionSearchBarProps) {
                         }}
                         className="w-full flex items-center justify-between px-3 md:px-4 py-2 rounded-xl hover:bg-silk transition-all duration-200 text-left group"
                       >
-                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                           <Package size={14} className="text-muted-foreground group-hover:text-rosegold shrink-0" />
-                          <span className="text-sm text-heading group-hover:text-rosegold transition-colors truncate">
-                            {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <span className="font-semibold text-rosegold">{product.sku}</span>
-                                <span className="text-muted-foreground font-normal">-</span>
-                                <span className="text-muted-foreground font-normal">{product.name}</span>
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-sm text-heading group-hover:text-rosegold transition-colors truncate">
+                              {product.sku && !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="font-semibold text-rosegold">{product.sku}</span>
+                                  <span className="text-muted-foreground font-normal">-</span>
+                                  <span className="text-muted-foreground font-normal">{product.name}</span>
+                                </span>
+                              ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <span className="font-semibold text-rosegold">{product.barcode}</span>
+                                  <span className="text-muted-foreground font-normal">-</span>
+                                  <span className="text-muted-foreground font-normal">{product.name}</span>
+                                </span>
+                              ) : (
+                                product.name
+                              )}
+                            </span>
+                            {product.description && (
+                              <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5">
+                                {product.description}
                               </span>
-                            ) : product.barcode && !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
-                              <span className="inline-flex items-center gap-1.5">
-                                <span className="font-semibold text-rosegold">{product.barcode}</span>
-                                <span className="text-muted-foreground font-normal">-</span>
-                                <span className="text-muted-foreground font-normal">{product.name}</span>
-                              </span>
-                            ) : (
-                              product.name
                             )}
-                          </span>
+                          </div>
                         </div>
                         {product.category_name && (
                           <span className="text-[10px] text-caption uppercase tracking-wider shrink-0 ml-2 hidden sm:inline">{product.category_name}</span>
