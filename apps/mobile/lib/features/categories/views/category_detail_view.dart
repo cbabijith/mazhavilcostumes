@@ -945,21 +945,63 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+
+              // Show loading progress overlay dialog
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadingCtx) => Dialog(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(Responsive.r(16)),
+                  ),
+                  child: Padding(
+                    padding: Responsive.symmetric(horizontal: 24, vertical: 20),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: Responsive.w(24),
+                          height: Responsive.h(24),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: AppColors.error,
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(16)),
+                        Text(
+                          'Deleting category...',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontMedium),
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+
               try {
-                final repo = ref.read(categoryRepositoryProvider);
-                await repo.deleteCategory(_category.id);
-                ref.invalidate(categoriesProvider);
+                // Optimistically remove locally & delete on server
+                await ref.read(categoriesProvider.notifier).deleteCategory(_category.id);
+
                 if (context.mounted) {
+                  Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading dialog
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Category deleted successfully'),
                       backgroundColor: AppColors.success,
                     ),
                   );
-                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(); // Go back to category list page
                 }
               } catch (e) {
                 if (context.mounted) {
+                  Navigator.of(context, rootNavigator: true).pop(); // Dismiss loading dialog
+
                   final errorMsg = e.toString().replaceAll('Exception: ', '').trim();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

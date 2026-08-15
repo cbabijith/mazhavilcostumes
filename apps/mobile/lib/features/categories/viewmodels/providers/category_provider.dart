@@ -41,6 +41,24 @@ class CategoriesNotifier extends AsyncNotifier<List<Category>> {
       rethrow;
     }
   }
+
+  /// Optimistically deletes a category from local state and deletes on backend server.
+  Future<void> deleteCategory(String id) async {
+    final currentList = state.value ?? [];
+    final previousState = state;
+
+    // Optimistically update Riverpod state immediately (0ms UI response)
+    state = AsyncValue.data(currentList.where((c) => c.id != id).toList());
+
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      await repo.deleteCategory(id);
+    } catch (e) {
+      // Revert local state if server deletion fails or is blocked
+      state = previousState;
+      rethrow;
+    }
+  }
 }
 
 /// Fetches a single category by ID.

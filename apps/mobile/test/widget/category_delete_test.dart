@@ -70,6 +70,18 @@ class MockDeleteCategoryRepository extends CategoryRepository {
   }
 }
 
+class DelayingMockDeleteCategoryRepository extends MockDeleteCategoryRepository {
+  final Completer<void> completer = Completer<void>();
+
+  DelayingMockDeleteCategoryRepository({super.categoriesList});
+
+  @override
+  Future<void> deleteCategory(String id, {CancelToken? cancelToken}) async {
+    deleteCalled = true;
+    return completer.future;
+  }
+}
+
 void setTestWindowSize(WidgetTester tester, {Size size = const Size(800, 2400)}) {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
@@ -134,6 +146,36 @@ void main() {
 
       // Repository delete should NOT have been called
       expect(mockRepo.deleteCalled, isFalse);
+    });
+
+    testWidgets('shows loading dialog with "Deleting category..." while deletion request is in flight', (tester) async {
+      setTestWindowSize(tester);
+      final mockRepo = DelayingMockDeleteCategoryRepository(categoriesList: [subCategory]);
+
+      await tester.pumpWidget(buildTestApp(
+        CategoryDetailView(initialCategory: subCategory),
+        mockRepo: mockRepo,
+      ));
+      await tester.pumpAndSettle();
+
+      // Tap delete icon in AppBar
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pumpAndSettle();
+
+      // Tap 'Delete' button in confirmation dialog
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await tester.pump(); // frame while delete is pending
+
+      // Should render progress loading dialog
+      expect(find.text('Deleting category...'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      // Complete future
+      mockRepo.completer.complete();
+      await tester.pumpAndSettle();
+
+      // Loading dialog should close
+      expect(find.text('Deleting category...'), findsNothing);
     });
 
     testWidgets('shows specific error reason in SnackBar when server blocks deletion', (tester) async {

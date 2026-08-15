@@ -182,16 +182,22 @@ export class CategoryRepository extends BaseRepository {
     }>
   > {
     try {
-      // Check for child categories
-      const childrenResult = await this.findChildren(id);
-      const childCount = childrenResult.success ? childrenResult.data?.length || 0 : 0;
+      // Check for child categories and products concurrently for speed
+      const [childResult, productResult] = await Promise.all([
+        this.client
+          .from(this.tableName)
+          .select('*', { count: 'exact', head: true })
+          .eq('parent_id', id)
+          .is('deleted_at', null),
+        this.client
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', id)
+          .is('deleted_at', null),
+      ]);
 
-      // Check for products (exclude soft-deleted)
-      const { count: productCount } = await this.client
-        .from('products')
-        .select('*', { count: 'exact', head: true })
-        .eq('category_id', id)
-        .is('deleted_at', null);
+      const childCount = childResult.count || 0;
+      const productCount = productResult.count || 0;
 
       const canDelete = childCount === 0 && (productCount || 0) === 0;
       let reason: string | undefined;
