@@ -325,7 +325,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
           ElevatedButton(
             onPressed: () async {
               final Uri url = Uri.parse(
-                'https://play.google.com/store/apps/details?id=com.parisbridals.app',
+                'https://play.google.com/store/apps/details?id=com.parisbridals.shop',
               );
               if (await canLaunchUrl(url)) {
                 await launchUrl(url, mode: LaunchMode.externalApplication);
