@@ -11,6 +11,19 @@ String generateSlug(String name) {
       .replaceAll(RegExp(r'^-|-$'), '');
 }
 
+String generateCategorySlug(String name, {String? parentSlug}) {
+  final rawSlug = generateSlug(name);
+  if (rawSlug.isEmpty) return '';
+
+  if (parentSlug != null && parentSlug.isNotEmpty) {
+    if (rawSlug == parentSlug || rawSlug.startsWith('$parentSlug-')) {
+      return rawSlug;
+    }
+    return '$parentSlug-$rawSlug';
+  }
+  return rawSlug;
+}
+
 void main() {
   group('Slug Generation Logic', () {
     test('converts basic name to lowercase hyphenated slug', () {
@@ -60,6 +73,43 @@ void main() {
       expect(generateSlug('Main Category'), 'main-category');
       expect(generateSlug('Sub Category'), 'sub-category');
       expect(generateSlug('Variant Type A'), 'variant-type-a');
+    });
+  });
+
+  group('Parent-Aware Subcategory Slug Generation', () {
+    test('includes parent category slug when adding a subcategory', () {
+      expect(
+        generateCategorySlug('Costumes', parentSlug: 'bharatanatyam'),
+        'bharatanatyam-costumes',
+      );
+    });
+
+    test('includes parent category slug when adding subcategory under different parent', () {
+      expect(
+        generateCategorySlug('Costumes', parentSlug: 'mohiniyattam'),
+        'mohiniyattam-costumes',
+      );
+    });
+
+    test('includes subcategory slug when adding a variant', () {
+      expect(
+        generateCategorySlug('Adult', parentSlug: 'bharatanatyam-costumes'),
+        'bharatanatyam-costumes-adult',
+      );
+    });
+
+    test('does not duplicate parent prefix if typed in name', () {
+      expect(
+        generateCategorySlug('Bharatanatyam Costumes', parentSlug: 'bharatanatyam'),
+        'bharatanatyam-costumes',
+      );
+    });
+
+    test('returns raw slug when no parent is selected', () {
+      expect(
+        generateCategorySlug('Bharatanatyam'),
+        'bharatanatyam',
+      );
     });
   });
 }
