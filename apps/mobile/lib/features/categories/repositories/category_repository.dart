@@ -74,7 +74,8 @@ class CategoryRepository {
         cancelToken: cancelToken,
       );
     } catch (e) {
-      throw Exception('Failed to delete category: $e');
+      final msg = e.toString().replaceAll('Exception: ', '').trim();
+      throw Exception(msg);
     }
   }
 

@@ -232,9 +232,15 @@ class ApiClient {
         final responseData = error.response?.data;
         
         if (responseData != null && responseData is Map) {
-          message = responseData['error'] ?? 
-                    responseData['message'] ?? 
-                    'Server error occurred';
+          if (responseData['error'] is Map && responseData['error']['message'] != null) {
+            message = responseData['error']['message'].toString();
+          } else if (responseData['error'] is String) {
+            message = responseData['error'] as String;
+          } else if (responseData['message'] is String) {
+            message = responseData['message'] as String;
+          } else {
+            message = _getStatusMessage(statusCode);
+          }
         } else {
           message = _getStatusMessage(statusCode);
         }

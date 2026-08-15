@@ -883,6 +883,43 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
   }
 
   void _confirmDelete(BuildContext context) {
+    // Pre-check if this category has subcategories
+    final allCategories = ref.read(categoriesProvider).value ?? [];
+    final childCategories = allCategories.where((c) => c.parentId == _category.id).toList();
+
+    if (childCategories.isNotEmpty) {
+      final childNames = childCategories.map((c) => '"${c.name}"').join(', ');
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(
+            'Cannot Delete Category',
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontLarge),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: Text(
+            'Cannot delete category because it has ${childCategories.length} subcategory(ies): $childNames.\n\nPlease delete or reassign all subcategories first.',
+            style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -894,7 +931,7 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
           ),
         ),
         content: Text(
-          'Are you sure you want to delete this category? This cannot be undone.',
+          'Are you sure you want to delete "${_category.name}"? This cannot be undone.',
           style: TextStyle(fontSize: Responsive.sp(AppSizes.fontMedium)),
         ),
         actions: [
@@ -923,10 +960,14 @@ class _CategoryDetailViewState extends ConsumerState<CategoryDetailView> {
                 }
               } catch (e) {
                 if (context.mounted) {
+                  final errorMsg = e.toString().replaceAll('Exception: ', '').trim();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to delete.'),
+                    SnackBar(
+                      content: Text(
+                        errorMsg.isNotEmpty ? errorMsg : 'Failed to delete category.',
+                      ),
                       backgroundColor: AppColors.error,
+                      duration: const Duration(seconds: 4),
                     ),
                   );
                 }

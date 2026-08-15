@@ -198,11 +198,11 @@ export class CategoryRepository extends BaseRepository {
 
       if (!canDelete) {
         if (childCount > 0 && productCount! > 0) {
-          reason = 'Category has child categories and products';
+          reason = 'Cannot delete category because it has subcategories and linked products. Please delete or reassign them first.';
         } else if (childCount > 0) {
-          reason = 'Category has child categories';
+          reason = 'Cannot delete category because it has subcategories. Please delete or reassign subcategories first.';
         } else if (productCount! > 0) {
-          reason = 'Category has products';
+          reason = 'Cannot delete category because it has linked products. Please reassign or delete products first.';
         }
       }
 
