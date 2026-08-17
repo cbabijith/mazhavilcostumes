@@ -47,6 +47,24 @@ class CategoryRepository {
 
       return Category.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('categories_slug_key') || errorStr.contains('SLUG_EXISTS') || errorStr.contains('already exists')) {
+        final originalSlug = body['slug'] as String? ?? 'category';
+        final timestampSuffix = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
+        final retryBody = Map<String, dynamic>.from(body);
+        retryBody['slug'] = '$originalSlug-$timestampSuffix';
+        
+        try {
+          final retryResponse = await _api.post(
+            '/categories',
+            data: retryBody,
+            cancelToken: cancelToken,
+          );
+          return Category.fromJson(retryResponse.data['data'] as Map<String, dynamic>);
+        } catch (_) {
+          // If retry fails as well, fall through
+        }
+      }
       throw Exception('Failed to create category: $e');
     }
   }
@@ -62,6 +80,26 @@ class CategoryRepository {
 
       return Category.fromJson(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
+      final errorStr = e.toString();
+      if (errorStr.contains('categories_slug_key') || errorStr.contains('SLUG_EXISTS') || errorStr.contains('already exists')) {
+        if (body.containsKey('slug')) {
+          final originalSlug = body['slug'] as String? ?? 'category';
+          final timestampSuffix = DateTime.now().millisecondsSinceEpoch.toString().substring(8);
+          final retryBody = Map<String, dynamic>.from(body);
+          retryBody['slug'] = '$originalSlug-$timestampSuffix';
+          
+          try {
+            final retryResponse = await _api.patch(
+              '/categories/$id',
+              data: retryBody,
+              cancelToken: cancelToken,
+            );
+            return Category.fromJson(retryResponse.data['data'] as Map<String, dynamic>);
+          } catch (_) {
+            // If retry fails, fall through
+          }
+        }
+      }
       throw Exception('Failed to update category: $e');
     }
   }

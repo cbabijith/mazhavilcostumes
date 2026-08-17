@@ -290,9 +290,19 @@ class _CategoryFormViewState extends ConsumerState<CategoryFormView> {
       debugPrint('[CategoryForm] ERROR: $e');
       debugPrint('[CategoryForm] Stack: $stackTrace');
       if (mounted) {
-        final errorMsg = e.toString().replaceAll('Exception: ', '');
+        final rawMsg = e.toString().replaceAll('Exception: ', '').replaceAll('Failed to create category: ', '').replaceAll('Failed to update category: ', '').trim();
+        
+        String userFriendlyMsg = rawMsg;
+        if (rawMsg.contains('categories_slug_key') || rawMsg.contains('SLUG_EXISTS') || rawMsg.contains('already exists')) {
+          userFriendlyMsg = 'A category or subcategory with this name/slug already exists. Please enter a unique name or slug.';
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $errorMsg'), backgroundColor: Colors.red, duration: const Duration(seconds: 5)),
+          SnackBar(
+            content: Text(userFriendlyMsg),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {

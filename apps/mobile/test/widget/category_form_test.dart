@@ -322,7 +322,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Error snackbar should show
-      expect(find.textContaining('Slug already exists'), findsOneWidget);
+      expect(find.textContaining('already exists'), findsOneWidget);
     });
 
     testWidgets('image section shows Add Image button when no image', (tester) async {
