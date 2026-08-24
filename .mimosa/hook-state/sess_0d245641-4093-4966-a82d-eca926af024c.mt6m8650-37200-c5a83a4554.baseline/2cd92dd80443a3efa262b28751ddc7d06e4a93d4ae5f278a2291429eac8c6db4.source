@@ -1,0 +1,691 @@
+/**
+ * Tally-style Invoice PDF Component
+ *
+ * Renders a traditional Indian Tally ERP / Tally Prime Invoice
+ * using @react-pdf/renderer with declarative React components and Flexbox.
+ *
+ * @module components/admin/orders/TallyInvoicePDF
+ */
+
+import React from 'react';
+import {
+  Document,
+  Page,
+  View,
+  Text,
+  StyleSheet,
+} from '@react-pdf/renderer';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+export interface InvoiceItem {
+  sno: number;
+  name: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+  gstRate?: number;
+  gstAmount?: number;
+  discount?: number;
+  discountType?: string;
+  discountTotal?: number;
+}
+
+export interface InvoicePayment {
+  id: string;
+  payment_type: string;
+  payment_mode: string;
+  amount: number;
+  created_at: string;
+  notes?: string | null;
+}
+
+export interface InvoiceDamageChargesBreakdown {
+  productName: string;
+  charges: number;
+}
+
+export interface TallyInvoiceProps {
+  companyName: string;
+  companyAddress?: string | null;
+  companyPhone?: string | null;
+  companyEmail?: string | null;
+  companyGstin?: string | null;
+
+  invoiceNumber: string;
+  invoiceDate: string;
+  invoiceType: 'deposit' | 'final';
+  orderId: string;
+  paymentMode?: string;
+
+  buyerName: string;
+  buyerPhone: string;
+  buyerAltPhone?: string | null;
+  buyerEmail?: string | null;
+
+  rentalStart: string;
+  rentalEnd: string;
+  eventDate?: string | null;
+
+  items: InvoiceItem[];
+
+  subtotal: number;
+  gstAmount: number;
+  discount: number;
+  lateFee: number;
+  damageCharges: number;
+  securityDeposit: number;
+  totalAmount: number;
+  totalPaid: number;
+  advancePaid?: number;
+  balanceDue: number;
+
+  // New detailed breakdowns
+  itemDiscountsTotal?: number;
+  orderDiscount?: number;
+  returnDiscount?: number;
+  initialLateFee?: number;
+  additionalLateFee?: number;
+  damageChargesBreakdown?: InvoiceDamageChargesBreakdown[];
+  paymentsList?: InvoicePayment[];
+
+  termsAndConditions?: string;
+  authorizedSignature?: string;
+}
+
+// ─── Number to Words (Indian system) ────────────────────────────────────────
+
+const ones = [
+  '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+  'Seventeen', 'Eighteen', 'Nineteen',
+];
+const tens = [
+  '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety',
+];
+
+function toWords(n: number): string {
+  if (n === 0) return '';
+  if (n < 20) return ones[n];
+  if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+  if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + toWords(n % 100) : '');
+  if (n < 100000) return toWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + toWords(n % 1000) : '');
+  if (n < 10000000) return toWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + toWords(n % 100000) : '');
+  return toWords(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + toWords(n % 10000000) : '');
+}
+
+function numberToWords(num: number): string {
+  if (num === 0) return 'Indian Rupees Zero Only';
+  const whole = Math.floor(Math.abs(num));
+  const paise = Math.round((Math.abs(num) - whole) * 100);
+  let result = 'Indian Rupees ' + toWords(whole);
+  if (paise > 0) result += ' and ' + toWords(paise) + ' Paise';
+  return result + ' Only';
+}
+
+/** Format number with Rs. prefix and Indian locale */
+function rs(val: number): string {
+  return 'Rs. ' + val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ─── Styles ─────────────────────────────────────────────────────────────────
+
+const BORDER = '1pt solid #000';
+const THIN = '0.5pt solid #000';
+
+const s = StyleSheet.create({
+  page: {
+    fontFamily: 'Helvetica',
+    fontSize: 9,
+    padding: 24,
+    color: '#000',
+  },
+
+  // Outer border
+  outerBox: {
+    border: BORDER,
+    flexGrow: 1,
+  },
+
+  // ── Title ──
+  titleRow: {
+    borderBottom: BORDER,
+    paddingVertical: 5,
+    alignItems: 'center',
+  },
+  titleText: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 14,
+    textAlign: 'center',
+    letterSpacing: 1,
+  },
+
+  // ── Two-column row ──
+  splitRow: {
+    flexDirection: 'row' as const,
+    borderBottom: BORDER,
+  },
+  halfLeft: {
+    width: '50%',
+    borderRight: BORDER,
+    padding: 8,
+  },
+  halfRight: {
+    width: '50%',
+    padding: 0,
+  },
+  halfRightPadded: {
+    width: '50%',
+    padding: 8,
+  },
+
+  // ── Meta rows (right side of seller section) ──
+  metaRow: {
+    flexDirection: 'row' as const,
+    borderBottom: THIN,
+    minHeight: 17,
+    alignItems: 'center',
+  },
+  metaRowLast: {
+    flexDirection: 'row' as const,
+    minHeight: 17,
+    alignItems: 'center',
+  },
+  metaLabel: {
+    width: 82,
+    paddingLeft: 8,
+    fontSize: 8,
+    color: '#444',
+  },
+  metaValue: {
+    flex: 1,
+    paddingLeft: 4,
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 9,
+  },
+
+  // ── Company / Buyer text ──
+  companyName: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 8,
+    lineHeight: 1.6,
+    color: '#222',
+  },
+  infoTextBold: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    lineHeight: 1.6,
+  },
+  sectionLabel: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 8,
+    marginBottom: 4,
+    color: '#555',
+    textTransform: 'uppercase' as const,
+  },
+  buyerName: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 10,
+    marginBottom: 3,
+  },
+
+  // ── Items Table ──
+  tableHeader: {
+    flexDirection: 'row' as const,
+    borderBottom: BORDER,
+    backgroundColor: '#fff',
+  },
+  tableRow: {
+    flexDirection: 'row' as const,
+    borderBottom: THIN,
+    minHeight: 20,
+    alignItems: 'center',
+  },
+
+  // Column widths — Description gets the lion's share
+  colSno:  { width: '6%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
+  colDesc: { width: '44%', textAlign: 'left' as const,   borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colQty:  { width: '8%',  textAlign: 'center' as const, borderRight: THIN, paddingVertical: 4, paddingHorizontal: 3, fontSize: 8 },
+  colRate: { width: '13%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+  colGst:  { width: '10%', textAlign: 'right' as const,  borderRight: THIN, paddingVertical: 4, paddingHorizontal: 4, fontSize: 8 },
+  colAmt:  { width: '19%', textAlign: 'right' as const,  paddingVertical: 4, paddingHorizontal: 6, fontSize: 8 },
+
+  thText: { fontFamily: 'Helvetica-Bold', fontSize: 9 },
+
+  // ── Totals ──
+  totalsBlock: {
+    borderBottom: BORDER,
+  },
+  totalRow: {
+    flexDirection: 'row' as const,
+    minHeight: 17,
+    alignItems: 'center',
+    borderBottom: THIN,
+  },
+  totalRowGrand: {
+    flexDirection: 'row' as const,
+    minHeight: 22,
+    alignItems: 'center',
+    borderBottom: BORDER,
+    backgroundColor: '#f5f5f5',
+  },
+  // Label takes 81% (= 6+52+8+15 = colSno+colDesc+colQty+colRate)
+  // Value takes 19% (= colAmt) — perfect right-alignment with Amount column
+  totalLabel: {
+    width: '81%',
+    textAlign: 'right' as const,
+    paddingRight: 8,
+    fontSize: 9,
+  },
+  totalLabelBold: {
+    width: '81%',
+    textAlign: 'right' as const,
+    paddingRight: 8,
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+  },
+  totalValue: {
+    width: '19%',
+    textAlign: 'right' as const,
+    paddingRight: 6,
+    fontSize: 9,
+  },
+  totalValueBold: {
+    width: '19%',
+    textAlign: 'right' as const,
+    paddingRight: 6,
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+  },
+  totalValueRed: {
+    width: '19%',
+    textAlign: 'right' as const,
+    paddingRight: 6,
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#CC0000',
+  },
+
+  // ── Amount in words ──
+  wordsRow: {
+    borderTop: BORDER,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  wordsLabel: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Oblique',
+    color: '#555',
+  },
+  wordsText: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 8,
+    marginTop: 2,
+  },
+
+  // ── Footer ──
+  footerRow: {
+    flexGrow: 0,
+    flexDirection: 'row' as const,
+    minHeight: 80,
+    borderTop: BORDER,
+  },
+  spacer: {
+    flex: 1,
+  },
+  termsCol: {
+    width: '60%',
+    padding: 6,
+    borderRight: BORDER,
+  },
+  signatureCol: {
+    width: '40%',
+    padding: 6,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    minHeight: 80,
+  },
+  footerLabel: {
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 7,
+    marginBottom: 2,
+    color: '#555',
+    textTransform: 'uppercase' as const,
+  },
+  footerTerms: {
+    fontSize: 6.5,
+    lineHeight: 1.3,
+    color: '#333',
+  },
+  forCompany: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center' as const,
+  },
+  authSignatory: {
+    fontSize: 7,
+    fontFamily: 'Helvetica',
+    textAlign: 'center' as const,
+  },
+  itemSubText: {
+    fontSize: 7,
+    fontFamily: 'Helvetica-Oblique',
+    color: '#444',
+    marginTop: 1,
+  },
+  eoe: {
+    fontSize: 7,
+    textAlign: 'right' as const,
+    color: '#888',
+  },
+});
+
+// ─── Component ──────────────────────────────────────────────────────────────
+
+export function TallyInvoicePDF(props: TallyInvoiceProps) {
+  const {
+    companyName, companyAddress, companyPhone, companyEmail, companyGstin,
+    invoiceNumber, invoiceDate, invoiceType, orderId, paymentMode,
+    buyerName, buyerPhone, buyerAltPhone, buyerEmail,
+    rentalStart, rentalEnd, eventDate,
+    items,
+    subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
+    totalAmount, totalPaid, advancePaid, balanceDue,
+    itemDiscountsTotal, orderDiscount, returnDiscount,
+    initialLateFee, additionalLateFee, damageChargesBreakdown, paymentsList,
+    termsAndConditions, authorizedSignature,
+  } = props;
+
+  const hasGst = items.some((item) => (item.gstRate || 0) > 0) || (gstAmount || 0) > 0;
+
+  const colSnoStyle = s.colSno;
+  const colDescStyle = hasGst ? s.colDesc : { ...s.colDesc, width: '52%' };
+  const colQtyStyle = s.colQty;
+  const colRateStyle = hasGst ? s.colRate : { ...s.colRate, width: '15%' };
+  const colGstStyle = s.colGst;
+  const colAmtStyle = s.colAmt;
+
+  return (
+    <Document>
+      <Page size="A4" style={s.page}>
+        <View style={s.outerBox}>
+          {/* ── Title ── */}
+          <View style={s.titleRow}>
+            <Text style={s.titleText}>INVOICE</Text>
+          </View>
+
+          {/* ── Seller + Invoice Meta ── */}
+          <View style={s.splitRow}>
+            <View style={s.halfLeft}>
+              <Text style={s.companyName}>{companyName}</Text>
+              {companyAddress ? <Text style={s.infoText}>{companyAddress}</Text> : null}
+              {companyPhone ? <Text style={s.infoText}>Mobile: {companyPhone}</Text> : null}
+              {companyEmail ? <Text style={s.infoText}>Email: {companyEmail}</Text> : null}
+              {companyGstin ? <Text style={s.infoTextBold}>GSTIN: {companyGstin}</Text> : null}
+            </View>
+
+            <View style={s.halfRight}>
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>Invoice No.</Text>
+                <Text style={s.metaValue}>{invoiceNumber}</Text>
+              </View>
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>Dated</Text>
+                <Text style={s.metaValue}>{invoiceDate}</Text>
+              </View>
+              <View style={s.metaRow}>
+                <Text style={s.metaLabel}>Mode/Terms</Text>
+                <Text style={s.metaValue}>{paymentMode || 'N/A'}</Text>
+              </View>
+              <View style={s.metaRowLast}>
+                <Text style={s.metaLabel}>Reference No.</Text>
+                <Text style={s.metaValue}>#{orderId}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* ── Buyer + Rental Info ── */}
+          <View style={s.splitRow}>
+            <View style={s.halfLeft}>
+              <Text style={s.sectionLabel}>Buyer (Bill To)</Text>
+              <Text style={s.buyerName}>{buyerName}</Text>
+              <Text style={s.infoText}>Phone: {buyerPhone}</Text>
+              {buyerAltPhone ? <Text style={s.infoText}>Alt Phone: {buyerAltPhone}</Text> : null}
+              {buyerEmail ? <Text style={s.infoText}>{buyerEmail}</Text> : null}
+            </View>
+
+            <View style={s.halfRightPadded}>
+              <Text style={s.sectionLabel}>Rental Details</Text>
+              <Text style={s.infoText}>Period: {rentalStart} to {rentalEnd}</Text>
+              {eventDate ? <Text style={s.infoText}>Event Date: {eventDate}</Text> : null}
+            </View>
+          </View>
+
+          {/* ── Items Table Header ── */}
+          <View style={s.tableHeader}>
+            <Text style={{ ...colSnoStyle, ...s.thText }}>S.No</Text>
+            <Text style={{ ...colDescStyle, ...s.thText }}>Description of Goods</Text>
+            <Text style={{ ...colQtyStyle, ...s.thText }}>Qty</Text>
+            <Text style={{ ...colRateStyle, ...s.thText }}>Rate</Text>
+            {hasGst ? <Text style={{ ...colGstStyle, ...s.thText }}>GST</Text> : null}
+            <Text style={{ ...colAmtStyle, ...s.thText }}>Amount</Text>
+          </View>
+
+          {/* ── Items Table Body ── */}
+          {items.map((item) => (
+            <View key={item.sno} style={s.tableRow}>
+              <Text style={colSnoStyle}>{item.sno}</Text>
+              <View style={colDescStyle}>
+                <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold' }}>{item.name}</Text>
+                <View style={{ flexDirection: 'row' as const, gap: 4 }}>
+                  {item.discount && item.discount > 0 ? (
+                    <Text style={s.itemSubText}>
+                      {item.discountType === 'percent' ? (
+                        `[Disc: ${item.discount}% (-${rs(item.discountTotal || 0)})]`
+                      ) : (
+                        `[Disc: ${rs(item.discount)} x ${item.quantity} = -${rs(item.discountTotal || (item.discount * item.quantity))}]`
+                      )}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+              <Text style={colQtyStyle}>{item.quantity}</Text>
+              <Text style={colRateStyle}>{rs(item.rate)}</Text>
+              {hasGst ? (
+                <View style={colGstStyle}>
+                  {item.gstRate && item.gstRate > 0 ? (
+                    <>
+                      <Text style={{ fontSize: 7, textAlign: 'right' as const, fontFamily: 'Helvetica-Bold' }}>{item.gstRate}%</Text>
+                      <Text style={{ fontSize: 6.5, color: '#444', textAlign: 'right' as const, marginTop: 1 }}>{rs(item.gstAmount || 0)}</Text>
+                    </>
+                  ) : (
+                    <Text style={{ fontSize: 7, color: '#888', textAlign: 'right' as const }}>0%</Text>
+                  )}
+                </View>
+              ) : null}
+              <Text style={colAmtStyle}>{rs(item.amount)}</Text>
+            </View>
+          ))}
+
+          {/* ── Totals ── */}
+          <View style={s.totalsBlock}>
+            {items.map((item) => (
+              item.discountTotal && item.discountTotal > 0 ? (
+                <View key={`disc-${item.sno}`} style={s.totalRow}>
+                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>
+                    {item.name} Discount
+                  </Text>
+                  <Text style={s.totalValue}>(-) {rs(item.discountTotal)}</Text>
+                </View>
+              ) : null
+            ))}
+
+            {orderDiscount && orderDiscount > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Order Discount</Text>
+                <Text style={s.totalValue}>(-) {rs(orderDiscount)}</Text>
+              </View>
+            ) : null}
+
+            {returnDiscount && returnDiscount > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Return Settlement Discount</Text>
+                <Text style={s.totalValue}>(-) {rs(returnDiscount)}</Text>
+              </View>
+            ) : null}
+
+            {(!orderDiscount && !returnDiscount && discount > 0) ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Discount</Text>
+                <Text style={s.totalValue}>(-) {rs(discount)}</Text>
+              </View>
+            ) : null}
+
+            {initialLateFee && initialLateFee > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Initial Late Fee</Text>
+                <Text style={s.totalValue}>{rs(initialLateFee)}</Text>
+              </View>
+            ) : null}
+
+            {additionalLateFee && additionalLateFee > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Return Late Fee</Text>
+                <Text style={s.totalValue}>{rs(additionalLateFee)}</Text>
+              </View>
+            ) : null}
+
+            {(!initialLateFee && !additionalLateFee && lateFee > 0) ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Late Fee</Text>
+                <Text style={s.totalValue}>{rs(lateFee)}</Text>
+              </View>
+            ) : null}
+
+            {damageChargesBreakdown && damageChargesBreakdown.length > 0 ? (
+              damageChargesBreakdown.map((dmg, idx) => (
+                <View key={`dmg-${idx}`} style={s.totalRow}>
+                  <Text style={{ ...s.totalLabel, fontFamily: 'Helvetica-Oblique', fontSize: 8 }}>Damage Fee: {dmg.productName}</Text>
+                  <Text style={s.totalValue}>{rs(dmg.charges)}</Text>
+                </View>
+              ))
+            ) : (damageCharges > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Damage Charges</Text>
+                <Text style={s.totalValue}>{rs(damageCharges)}</Text>
+              </View>
+            ) : null)}
+
+            {securityDeposit > 0 ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Security Deposit</Text>
+                <Text style={s.totalValue}>{rs(securityDeposit)}</Text>
+              </View>
+            ) : null}
+
+            {/* Grand Total */}
+            <View style={s.totalRowGrand}>
+              <Text style={s.totalLabelBold}>Total</Text>
+              <Text style={s.totalValueBold}>{rs(totalAmount)}</Text>
+            </View>
+
+            {paymentsList && paymentsList.length > 0 ? (
+              paymentsList.map((payment, idx) => {
+                let dateStr = '';
+                try {
+                  dateStr = new Date(payment.created_at).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  }).replace(/ /g, '-');
+                } catch {
+                  dateStr = String(payment.created_at || '').slice(0, 10);
+                }
+                
+                const label = `${dateStr} | ${payment.payment_type?.toUpperCase() === 'DEPOSIT' || payment.payment_type?.toUpperCase() === 'ADVANCE' ? 'Advance Paid' : 'Payment Collected'} (${payment.payment_mode})`;
+                return (
+                  <View key={payment.id || idx} style={s.totalRow}>
+                    <Text style={{ ...s.totalLabel, fontSize: 8, color: '#444' }}>{label}</Text>
+                    <Text style={{ ...s.totalValue, fontSize: 8, color: '#444' }}>(-) {rs(payment.amount)}</Text>
+                  </View>
+                );
+              })
+            ) : (
+              <>
+                {advancePaid && advancePaid > 0 ? (
+                  <View style={s.totalRow}>
+                    <Text style={s.totalLabel}>Advance Paid</Text>
+                    <Text style={s.totalValue}>(-) {rs(advancePaid)}</Text>
+                  </View>
+                ) : null}
+                {(() => {
+                  const otherPaid = totalPaid - (advancePaid || 0);
+                  if (otherPaid > 0) {
+                    return (
+                      <View style={s.totalRow}>
+                        <Text style={s.totalLabel}>Additional Paid</Text>
+                        <Text style={s.totalValue}>(-) {rs(otherPaid)}</Text>
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
+            )}
+
+            {invoiceType === 'final' && balanceDue > 0 ? (
+              <View style={s.totalRowGrand}>
+                <Text style={s.totalLabelBold}>Balance Due</Text>
+                <Text style={s.totalValueRed}>{rs(balanceDue)}</Text>
+              </View>
+            ) : null}
+          </View>
+
+
+          {/* Push everything below to the bottom */}
+          <View style={s.spacer} />
+
+          {/* ── Amount in Words ── */}
+          <View style={s.wordsRow}>
+            <View style={{ flexDirection: 'row' as const, justifyContent: 'space-between' as const }}>
+              <Text style={s.wordsLabel}>Amount Chargeable (in words)</Text>
+              <Text style={s.eoe}>E. & O.E</Text>
+            </View>
+            <Text style={s.wordsText}>{numberToWords(totalAmount)}</Text>
+          </View>
+
+          {/* ── Footer ── */}
+          <View style={s.footerRow}>
+            <View style={s.termsCol}>
+              <Text style={s.footerLabel}>Terms & Conditions</Text>
+              <Text style={s.footerTerms}>1) Rent will be charged on daily basis.</Text>
+              <Text style={s.footerTerms}>2) Damages / shortages will be charged extra.</Text>
+              <Text style={s.footerTerms}>3) Advance paid will not be refunded on cancellation of order.</Text>
+              <Text style={s.footerTerms}>4) While taking delivery of goods security deposits and copy of ID card is mandatory.</Text>
+              
+              {termsAndConditions ? (
+                <View style={{ marginTop: 4 }}>
+                  <Text style={s.footerTerms}>{termsAndConditions}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={s.signatureCol}>
+              <Text style={s.forCompany}>for {companyName}</Text>
+              <View style={{ height: 25 }} />
+              <View>
+                <Text style={s.authSignatory}>{authorizedSignature || ''}</Text>
+                <Text style={s.authSignatory}>Authorized Signatory</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+export default TallyInvoicePDF;
