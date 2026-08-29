@@ -15,15 +15,10 @@
  * @module scripts/test-api-performance
  */
 
-const BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001';
+// This script sends the dev-only auth-bypass header, so it is hardcoded to
+// the local dev server and must never be pointed at a deployed environment.
+const BASE_URL = 'http://localhost:3001';
 const AUTH_HEADER = { 'x-bypass-auth': 'true' };
-
-// Safety guard: this script sends the dev-only auth-bypass header, so it must
-// never be pointed at anything other than a local dev server.
-const targetHost = new URL(BASE_URL).hostname;
-if (!['localhost', '127.0.0.1', '::1'].includes(targetHost)) {
-  throw new Error(`Refusing to run against non-local target: ${targetHost}. Point API_BASE_URL at a local dev server.`);
-}
 
 // Latency budgets (ms) — adjust based on your requirements
 const BUDGETS = {
