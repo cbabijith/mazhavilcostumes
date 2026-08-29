@@ -84,10 +84,14 @@ export const UpdateOrderSchema = z.object({
 
 const returnItemSchema = z.object({
   item_id: z.string().uuid("Invalid item ID"),
-  returned_quantity: z.number().int().positive("Must return at least 1"),
+  // NEW TOTAL returned for this item (not a delta). 0 = item not returned yet.
+  // The return route validates against the stored order item (see orderService),
+  // not this schema — mobile clients omit some wrapper fields.
+  returned_quantity: z.number().int().min(0, "Cannot be negative"),
   condition_rating: z.nativeEnum(ConditionRating),
   damage_description: z.string().max(1000).optional(),
   damage_charges: z.number().nonnegative().optional(),
+  damaged_quantity: z.number().int().nonnegative().optional(),
 });
 
 export const ReturnOrderSchema = z.object({

@@ -26,20 +26,22 @@ interface OrderItemsPanelProps {
 }
 
 function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
-  if (!order) return null;
-
-  // Fetch items on-demand only when panel is open
+  // Fetch items on-demand only when panel is open. The query runs before the
+  // `!order` early return so the hook order stays stable across renders.
   const { data: items, isLoading } = useQuery({
-    queryKey: ['orders', order.id, 'items'],
+    queryKey: ['orders', order?.id ?? 'none', 'items'],
     queryFn: async () => {
-      const res = await fetch(`/api/orders/${order.id}/items`);
+      const res = await fetch(`/api/orders/${order!.id}/items`);
       if (!res.ok) throw new Error('Failed to fetch items');
       const json = await res.json() as ApiSuccessResponse<OrderItem[]>;
       return json.data;
     },
+    enabled: !!order,
     staleTime: 5 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
+
+  if (!order) return null;
 
   const itemCount = order.item_count ?? items?.length ?? order.items?.length ?? 0;
 
@@ -149,12 +151,34 @@ function OrderItemsPanelInner({ order, onClose }: OrderItemsPanelProps) {
                     )}
                   </div>
 
-                  {/* Return status badge */}
-                  {item.is_returned && (
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 flex-shrink-0">
-                      Returned
-                    </span>
-                  )}
+                  {/* Return status badge — quantity-aware so partially returned
+                      items are distinguishable from fully returned / pending ones */}
+                  {(() => {
+                    const returned = item.returned_quantity || 0;
+                    const postRental = ['partial', 'flagged', 'returned', 'completed'].includes(order.status);
+                    if (returned >= item.quantity) {
+                      return (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 flex-shrink-0">
+                          Returned
+                        </span>
+                      );
+                    }
+                    if (returned > 0) {
+                      return (
+                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200 flex-shrink-0">
+                          {returned}/{item.quantity} Returned
+                        </span>
+                      );
+                    }
+                    if (postRental) {
+                      return (
+                        <span className="text-[10px] font-bold text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-200 flex-shrink-0">
+                          Not Returned
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               );
             })}

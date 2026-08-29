@@ -418,7 +418,7 @@ export class OrderService {
     }
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
-    let perItemGstRates: Map<string, number> = new Map();
+    const perItemGstRates: Map<string, number> = new Map();
     if (isGstEnabled && products) {
       for (const p of products) {
         const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
@@ -1023,12 +1023,14 @@ export class OrderService {
     }
 
     // Validate order is in correct status for return
+    // FLAGGED is allowed: orders flagged for damage may still have unreturned
+    // items out with the customer that come back days later.
     const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL) {
+    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL && currentStatus !== OrderStatus.FLAGGED) {
       return {
         data: null,
         error: {
-          message: 'Order must be in use, ongoing, or partial to process return',
+          message: 'Order must be in use, ongoing, partial, or flagged to process return',
           code: 'INVALID_STATUS'
         } as any,
         success: false,
@@ -1074,6 +1076,41 @@ export class OrderService {
           data: null,
           error: {
             message: 'Damage charges cannot be negative',
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      // returned_quantity is the NEW TOTAL for the item (not a delta) — it can
+      // never exceed the ordered quantity, otherwise inventory would be
+      // incremented above what was ever rented out.
+      if (item.returned_quantity === undefined || item.returned_quantity === null
+        || !Number.isInteger(item.returned_quantity) || item.returned_quantity < 0) {
+        return {
+          data: null,
+          error: {
+            message: 'Returned quantity must be a non-negative integer for all items',
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      const orderItem = existingOrder.data.items?.find(i => i.id === item.item_id);
+      if (!orderItem) {
+        return {
+          data: null,
+          error: {
+            message: `Item ${item.item_id} does not belong to this order`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      if (item.returned_quantity > orderItem.quantity) {
+        return {
+          data: null,
+          error: {
+            message: `Returned quantity (${item.returned_quantity}) cannot exceed ordered quantity (${orderItem.quantity})`,
             code: 'VALIDATION_ERROR'
           } as any,
           success: false,

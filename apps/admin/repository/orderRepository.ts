@@ -1719,16 +1719,17 @@ export class OrderRepository extends BaseRepository {
     const itemIds = returnData.items.map(i => i.item_id);
     const { data: orderItems } = await this.client
       .from(this.orderItemsTable)
-      .select('id, returned_quantity, product_id, orders(branch_id)')
+      .select('id, quantity, returned_quantity, product_id, orders(branch_id)')
       .in('id', itemIds);
 
     // Create a map for quick O(1) lookup
-    const orderItemsMap = new Map<string, { id: string; returned_quantity: number; product_id: string; branch_id: string }>();
+    const orderItemsMap = new Map<string, { id: string; quantity: number; returned_quantity: number; product_id: string; branch_id: string }>();
     if (orderItems) {
       for (const item of orderItems) {
         const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
         orderItemsMap.set(item.id, {
           id: item.id,
+          quantity: item.quantity || 0,
           returned_quantity: item.returned_quantity || 0,
           product_id: item.product_id,
           branch_id: branchId
@@ -1748,7 +1749,10 @@ export class OrderRepository extends BaseRepository {
           this.client
             .from(this.orderItemsTable)
             .update({
-              is_returned: true,
+              // Only flag as fully returned when every unit of the item is back;
+              // partially returned items keep is_returned=false so the UI can
+              // surface them as "pending return" until the remainder arrives.
+              is_returned: (item.returned_quantity || 0) >= (orderItem?.quantity ?? item.returned_quantity ?? 0),
               returned_at: new Date().toISOString(),
               returned_quantity: item.returned_quantity,
               condition_rating: item.condition_rating,
