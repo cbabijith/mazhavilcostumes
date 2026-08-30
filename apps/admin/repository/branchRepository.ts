@@ -17,6 +17,12 @@ import {
 export class BranchRepository extends BaseRepository {
   private readonly tableName = 'branches';
 
+  // Branch rows are tiny and rarely change, but they're read on nearly every
+  // product/order request for the branch-permission check. A short in-memory
+  // cache removes that round trip from hot paths (invalidated on update/delete).
+  private static branchCache = new Map<string, { value: Branch | null; expiresAt: number }>();
+  private static readonly BRANCH_TTL_MS = 5 * 60_000;
+
   async findAll(storeId: string): Promise<RepositoryResult<Branch[]>> {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!storeId || !uuidPattern.test(storeId)) {
@@ -80,13 +86,28 @@ export class BranchRepository extends BaseRepository {
   }
 
   async findById(id: string): Promise<RepositoryResult<Branch>> {
+    const cached = BranchRepository.branchCache.get(id);
+    if (cached) {
+      if (Date.now() <= cached.expiresAt && cached.value) {
+        return { data: cached.value, error: null, success: true };
+      }
+      BranchRepository.branchCache.delete(id);
+    }
+
     const { data, error } = await this.client
       .from(this.tableName)
       .select('*')
       .eq('id', id)
       .single();
 
-    return this.handleResponse<Branch>({ data, error });
+    const result = this.handleResponse<Branch>({ data, error });
+    if (result.success && result.data) {
+      BranchRepository.branchCache.set(id, {
+        value: result.data,
+        expiresAt: Date.now() + BranchRepository.BRANCH_TTL_MS,
+      });
+    }
+    return result;
   }
 
   async create(data: CreateBranchDTO): Promise<RepositoryResult<Branch>> {
@@ -107,13 +128,16 @@ export class BranchRepository extends BaseRepository {
       .select()
       .single();
 
-    return this.handleResponse<Branch>({ data: branch, error });
+    const result = this.handleResponse<Branch>({ data: branch, error });
+    if (result.success) BranchRepository.branchCache.delete(id);
+    return result;
   }
 
   async delete(id: string): Promise<RepositoryResult<boolean>> {
     const { error } = await this.client.from(this.tableName).delete().eq('id', id);
 
     if (error) return { data: null, error, success: false };
+    BranchRepository.branchCache.delete(id);
     return { data: true, error: null, success: true };
   }
 

@@ -71,7 +71,8 @@ export class OrderRepository extends BaseRepository {
         has_priority_cleaning, has_stock_conflict,
         is_late, invoice_number, created_at,
         customer:customer_id(name, phone),
-        branch:branch_id(name)
+        branch:branch_id(name),
+        items:order_items(count)
       `,
       { count: 'exact' }
     );
@@ -274,28 +275,17 @@ export class OrderRepository extends BaseRepository {
       };
     }
 
-    // Batch-fetch item counts for all returned orders (single query, no joins)
+    // Item counts come from the aggregate embed (`items:order_items(count)`)
+    // in the main select — no separate round trip.
     if (result.data.length > 0) {
-      const orderIds = result.data.map((o) => o.id);
-      const { data: itemCounts, error: countError } = await this.client
-        .from('order_items')
-        .select('order_id')
-        .in('order_id', orderIds);
-
-      if (countError) {
-        console.error('[OrderRepository.findAll] Batch item count query failed:', countError);
-      }
-
-      const countMap = new Map<string, number>();
-      if (itemCounts) {
-        for (const row of itemCounts) {
-          countMap.set(row.order_id, (countMap.get(row.order_id) || 0) + 1);
-        }
-      }
-      result.data = result.data.map((o) => ({
-        ...o,
-        item_count: countMap.get(o.id) || 0,
-      }));
+      result.data = result.data.map((o: any) => {
+        const embedded = o.items as Array<{ count: number }> | undefined;
+        const { items: _items, ...rest } = o;
+        return {
+          ...rest,
+          item_count: Number(embedded?.[0]?.count ?? 0),
+        };
+      });
     }
 
     const limit = params?.limit || 20;
@@ -1149,13 +1139,35 @@ export class OrderRepository extends BaseRepository {
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // Fetch default rental duration from settings (default to 3)
-    const { data: durationSetting } = await this.client
-      .from('settings')
-      .select('value')
-      .eq('store_id', storeId)
-      .eq('key', 'default_rental_duration')
-      .maybeSingle();
+    // Invoice fiscal suffix (pure date math — needed for the invoice lookup below)
+    const now = new Date();
+    const orderYear = now.getFullYear();
+    const orderMonth = now.getMonth(); // 0-indexed
+    const fiscalStartYear = orderMonth < 3 ? orderYear - 1 : orderYear;
+    const startYY = String(fiscalStartYear).slice(-2);
+    const endYY = String(fiscalStartYear + 1).slice(-2);
+    const fiscalSuffix = `${startYY}${endYY}`;
+
+    // Fetch the default rental duration and the current max invoice number in
+    // parallel — they are independent of each other, so this costs one round
+    // trip instead of two.
+    const [durationResult, maxInvoiceResult] = await Promise.all([
+      this.client
+        .from('settings')
+        .select('value')
+        .eq('store_id', storeId)
+        .eq('key', 'default_rental_duration')
+        .maybeSingle(),
+      this.client
+        .from(this.tableName)
+        .select('invoice_number')
+        .like('invoice_number', `PB-${fiscalSuffix}-%`)
+        .order('invoice_number', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const durationSetting = durationResult.data as { value?: string } | null;
+    const maxInvoiceData = maxInvoiceResult.data as { invoice_number?: string } | null;
 
     const defaultDuration = durationSetting?.value ? parseInt(durationSetting.value, 10) : 3;
     const effectiveDefaultDuration =
@@ -1251,23 +1263,6 @@ export class OrderRepository extends BaseRepository {
     const initialStatus = 'scheduled';
 
     // Generate sequential invoice number: PB-{fiscalYear}-{sequentialNum}
-    const now = new Date();
-    const orderYear = now.getFullYear();
-    const orderMonth = now.getMonth(); // 0-indexed
-    const fiscalStartYear = orderMonth < 3 ? orderYear - 1 : orderYear;
-    const startYY = String(fiscalStartYear).slice(-2);
-    const endYY = String(fiscalStartYear + 1).slice(-2);
-    const fiscalSuffix = `${startYY}${endYY}`;
-
-    // Get the maximum invoice number for the current fiscal year to avoid duplicates
-    const { data: maxInvoiceData } = await this.client
-      .from(this.tableName)
-      .select('invoice_number')
-      .like('invoice_number', `PB-${fiscalSuffix}-%`)
-      .order('invoice_number', { ascending: false })
-      .limit(1)
-      .single();
-
     let seqNum = 1;
     if (maxInvoiceData?.invoice_number) {
       // Extract the sequence number from the invoice number (e.g., PB-2627-0042 -> 42)
