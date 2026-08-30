@@ -376,22 +376,50 @@ export class ProductRepository extends BaseRepository {
   }
 
   /**
-   * Soft-delete a product (sets deleted_at timestamp).
-   * Also mangles slug and barcode to free up unique constraints for reuse.
+   * Soft-delete a product (sets deleted_at timestamp and mangles slug/barcode to prevent collisions)
    */
   async delete(id: string): Promise<RepositoryResult<void>> {
-    const deletedSuffix = `-deleted-${Date.now()}`;
-    const response = await this.client
-      .from(this.tableName)
-      .update({
+    try {
+      const { data: product, error: fetchError } = await this.client
+        .from(this.tableName)
+        .select('slug, barcode')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchError || !product) {
+        return {
+          data: null,
+          error: (fetchError || { message: 'Product not found', code: 'NOT_FOUND' }) as any,
+          success: false,
+        };
+      }
+
+      const suffix = `-deleted-${Date.now()}`;
+      const updateData: Record<string, any> = {
         deleted_at: new Date().toISOString(),
         is_active: false,
-        slug: `${id}${deletedSuffix}`,
-        barcode: `DEL-${id.slice(0, 8)}-${Date.now()}`,
-      })
-      .eq('id', id);
+      };
 
-    return this.handleResponse<void>(response);
+      if (product.slug) {
+        updateData.slug = `${product.slug}${suffix}`;
+      }
+      if (product.barcode) {
+        updateData.barcode = `${product.barcode}${suffix}`;
+      }
+
+      const response = await this.client
+        .from(this.tableName)
+        .update(updateData)
+        .eq('id', id);
+
+      return this.handleResponse<void>(response);
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error),
+        success: false,
+      };
+    }
   }
 
   /**

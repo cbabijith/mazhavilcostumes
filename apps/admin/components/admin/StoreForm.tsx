@@ -46,7 +46,7 @@ export default function StoreForm() {
       <CardHeader className="rounded-t-xl bg-gradient-to-r from-purple-600 to-primary text-white">
         <CardTitle className="text-2xl text-white">Create New Store</CardTitle>
         <p className="text-slate-100 text-sm mt-1">
-          Add a new store to your Mazhavil Dance Costumes network
+          Add a new store to your Paris Bridals network
         </p>
       </CardHeader>
       <CardContent className="p-8">
@@ -57,7 +57,7 @@ export default function StoreForm() {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
-              placeholder="e.g., Mazhavil Dance Costumes Chennai"
+              placeholder="e.g., Paris Bridals Chennai"
               className="h-12 border-slate-300 focus:border-primary"
             />
           </div>

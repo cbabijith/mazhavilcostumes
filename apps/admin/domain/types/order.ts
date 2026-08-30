@@ -132,7 +132,6 @@ export interface Order {
   invoice_number?: string;
   created_by?: string | null;
   updated_by?: string | null;
-
   readonly created_at: string;
   readonly updated_at?: string;
 }

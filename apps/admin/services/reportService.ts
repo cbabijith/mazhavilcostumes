@@ -782,25 +782,38 @@ export class ReportService {
       .sort((a: ROIRow, b: ROIRow) => b.roi_percentage - a.roi_percentage);
   }
 
-  /** R8: Dead stock / No-sale */
+  /** R8: Dead stock / No-sale
+   *
+   * "Dead stock" = a product that had zero non-cancelled rentals within the
+   * selected date window. Soft-deleted and inactive products are excluded so
+   * the report reflects sellable inventory only.
+   *
+   * NOTE: The schema has a `products.last_rented_at` column intended as an
+   * O(1) source for this report, but it is unpopulated in production
+   * (0% fill rate as of 2026-08), so we continue to derive last-rented from
+   * `order_items`. If/when that column is backfilled and maintained, the
+   * full-table scan below can be replaced.
+   */
   async getDeadStock(filters: ReportFilters): Promise<DeadStockRow[]> {
     const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    // Get all products
+    // Get all SELLABLE products — exclude soft-deleted (deleted_at) and
+    // archived (is_active = false) so the report only reflects real inventory.
     const { data: products } = await supabase()
       .from('products')
-      .select('id, name, price_per_day, quantity, created_at, category:category_id(name)');
+      .select('id, name, price_per_day, quantity, created_at, category:category_id(name)')
+      .eq('is_active', true)
+      .is('deleted_at', null);
 
-    // Get products that have been rented in the period
+    // Get products that have been rented in the period (non-cancelled only)
     const { data: rentedItems } = await supabase()
       .from('order_items')
       .select('product_id, created_at, order:order_id(status)')
       .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .not('order.status', 'eq', 'cancelled');
+      .lte('created_at', range.end);
 
     const rentedIds = new Set(
       (rentedItems || [])
@@ -808,30 +821,49 @@ export class ReportService {
         .map((i: any) => i.product_id)
     );
 
-    // Get last rental date for all products
-    const { data: lastRentals } = await supabase()
-      .from('order_items')
-      .select('product_id, created_at')
-      .order('created_at', { ascending: false });
-
-    const lastRentalMap: Record<string, string> = {};
-    for (const item of (lastRentals || []) as any[]) {
-      if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
+    // Get last rental date for all products. Limited to the products we care
+    // about (sellable ones) to keep the scan bounded.
+    const productIds = (products || []).map((p: any) => p.id);
+    let lastRentalMap: Record<string, string> = {};
+    if (productIds.length > 0) {
+      const { data: lastRentals } = await supabase()
+        .from('order_items')
+        .select('product_id, created_at, order:order_id(status)')
+        .in('product_id', productIds)
+        .order('created_at', { ascending: false });
+      for (const item of (lastRentals || []) as any[]) {
+        // Skip cancelled-order items when determining the true last rental
+        if (item.order?.status === 'cancelled') continue;
+        if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
+      }
     }
+
+    // Use the IST date context (not raw Date.now()) for day-spread math,
+    // consistent with the rest of the report service.
+    const nowMs = new Date(today).getTime();
+    const DAY_MS = 86400000;
 
     return (products || [])
       .filter((p: any) => !rentedIds.has(p.id))
       .map((p: any) => {
         const lastRental = lastRentalMap[p.id];
+        const price = Number(p.price_per_day) || 0;
+        const qty = Number(p.quantity) || 0;
         return {
           product_id: p.id,
           product_name: p.name,
           category_name: p.category?.name || '',
-          price_per_day: Number(p.price_per_day),
-          quantity: p.quantity,
+          price_per_day: price,
+          quantity: qty,
+          // Days idle = days since last rental. For never-rented products,
+          // fall back to days since the product was added to inventory —
+          // this distinguishes "newly added stock" (low number) from
+          // "genuinely stale" (high number) and is always a usable number.
           days_since_last_rental: lastRental
-            ? Math.floor((Date.now() - new Date(lastRental).getTime()) / 86400000)
-            : null,
+            ? Math.floor((nowMs - new Date(lastRental).getTime()) / DAY_MS)
+            : Math.floor((nowMs - new Date(p.created_at).getTime()) / DAY_MS),
+          never_rented: !lastRental,
+          stock_value: Math.round(price * qty * 100) / 100,
           created_at: p.created_at,
         };
       });
@@ -1095,27 +1127,7 @@ export class ReportService {
       });
     }
 
-    // 1. Fetch total counts for GST vs Non-GST transparency
-    let orderQuery = supabase()
-      .from('orders')
-      .select('id, gst_amount, status')
-      .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .not('status', 'eq', 'cancelled');
-
-    if (filters.status?.length) {
-      orderQuery = orderQuery.in('status', filters.status);
-    }
-
-    if (filters.branch_id) {
-      orderQuery = orderQuery.eq('branch_id', filters.branch_id);
-    }
-
-    const { data: allOrders } = await orderQuery;
-
-    const totalOrderCount = allOrders?.length || 0;
-
-    // 2. Fetch all order items with their order data
+    // 1. Fetch all order items with their order data
     //    We fetch without date filter and filter client-side by order.created_at
     //    because the !inner join syntax with aliases is unreliable
     const itemQuery = supabase().from('order_items').select(`
@@ -1145,16 +1157,29 @@ export class ReportService {
 
     if (error) throw new Error(error.message);
 
-    // Client-side filter: only items whose ORDER was created in the date range
+    // Client-side filter: only items whose ORDER was created in the date range.
+    // For GST filing, ONLY finalized rentals are counted: 'completed' (returned
+    // + paid) and 'returned' (fully returned). Scheduled/ongoing/partial/flagged
+    // orders represent rentals that have not concluded — their tax cannot be
+    // reported on a GSTR-1 yet. The status filter is intentionally NOT taken
+    // from the request: this is a statutory scope, not a user preference.
+    const GST_ELIGIBLE_STATUSES = new Set(['completed', 'returned']);
     const fromTs = new Date(range.start).getTime();
     const toTs = new Date(range.end).getTime();
     const items = (data || []).filter((item: any) => {
       const order = item.order;
-      if (!order || order.status === 'cancelled') return false;
+      if (!order || !GST_ELIGIBLE_STATUSES.has(order.status)) return false;
       if (filters.branch_id && order.branch_id !== filters.branch_id) return false;
       const orderTs = new Date(order.created_at).getTime();
       return orderTs >= fromTs && orderTs <= toTs;
     });
+
+    // Denominator for composition = distinct orders that actually have line items.
+    // Empty/ghost orders (created but no items) are excluded so the GST adoption
+    // percentage is not diluted by orders that have no taxable activity.
+    const ordersWithItems = new Set<string>();
+    items.forEach((item: any) => ordersWithItems.add(item.order.id));
+    const totalOrderCount = ordersWithItems.size;
 
     // Group by GST slab
     const slabs: Record<number, { taxable: number; gst: number }> = {
@@ -1171,18 +1196,14 @@ export class ReportService {
 
     items.forEach((item: any) => {
       const order = item.order;
-      // Skip items from cancelled orders or if status filter is applied and doesn't match
-      if (!order || order.status === 'cancelled') return;
-
-      if (filters.status?.length && !filters.status.includes(order.status)) {
-        return;
-      }
+      // Status/date/cancelled filters already applied when `items` was built.
 
       const slab = Number(item.gst_percentage || 0);
       const taxable = Number(item.base_amount || 0);
       const gst = Number(item.gst_amount || 0);
+      const isGstItem = gst > 0;
 
-      if (gst > 0) {
+      if (isGstItem) {
         if (!slabs[slab]) slabs[slab] = { taxable: 0, gst: 0 };
         slabs[slab].taxable += taxable;
         slabs[slab].gst += gst;
@@ -1191,51 +1212,56 @@ export class ReportService {
         totalGst += gst;
       }
 
-      // Track details for the invoice list (Include if order has GST OR item has GST)
-      const hasGst = Number(order.gst_amount) > 0 || gst > 0;
-      if (hasGst) {
-        if (!invoiceMap[order.id]) {
-          const orderDate = new Date(order.created_at);
-          const year = orderDate.getFullYear();
-          const month = orderDate.getMonth();
-          let fiscalStartYear = year;
-          if (month < 3) {
-            fiscalStartYear = year - 1;
-          }
-          const startYY = String(fiscalStartYear).slice(-2);
-          const endYY = String(fiscalStartYear + 1).slice(-2);
-          const fiscalSuffix = `${startYY}${endYY}`;
-
-          const seqNum = orderSequenceMap[order.id] || 1;
-          const formattedInvoiceNo = `MAZ-${fiscalSuffix}-${seqNum}`;
-
-          invoiceMap[order.id] = {
-            order_id: order.id,
-            invoice_no: formattedInvoiceNo,
-            date: order.created_at,
-            customer_name: order.customer?.name || 'Unknown',
-            status: order.status,
-            total_value: Number(order.total_amount || 0),
-            taxable_value: 0,
-            gst_amount: 0,
-            cgst: 0,
-            sgst: 0,
-            slabs: new Set(),
-            items: [] as string[],
-          };
+      // Track details for the invoice list. Every order that has at least one
+      // line item gets a row — both GST and exempt orders — so the client can
+      // see exactly which orders/items carry GST and which are exempt.
+      if (!invoiceMap[order.id]) {
+        const orderDate = new Date(order.created_at);
+        const year = orderDate.getFullYear();
+        const month = orderDate.getMonth();
+        let fiscalStartYear = year;
+        if (month < 3) {
+          fiscalStartYear = year - 1;
         }
+        const startYY = String(fiscalStartYear).slice(-2);
+        const endYY = String(fiscalStartYear + 1).slice(-2);
+        const fiscalSuffix = `${startYY}${endYY}`;
 
-        const pName = item.product?.name || 'Unknown';
-        const qty = Number(item.quantity || 1);
-        invoiceMap[order.id].items.push(`${pName} x${qty}`);
+        const seqNum = orderSequenceMap[order.id] || 1;
+        const formattedInvoiceNo = `${prefix.replace(/-$/, "")}-${fiscalSuffix}-${seqNum}`;
 
-        if (gst > 0) {
-          invoiceMap[order.id].taxable_value += taxable;
-          invoiceMap[order.id].gst_amount += gst;
-          invoiceMap[order.id].cgst += gst / 2;
-          invoiceMap[order.id].sgst += gst / 2;
-          invoiceMap[order.id].slabs.add(slab);
-        }
+        invoiceMap[order.id] = {
+          order_id: order.id,
+          invoice_no: formattedInvoiceNo,
+          date: order.created_at,
+          customer_name: order.customer?.name || 'Unknown',
+          status: order.status,
+          total_value: Number(order.total_amount || 0),
+          taxable_value: 0,        // GST items' base_amount (for filing)
+          gst_amount: 0,
+          cgst: 0,
+          sgst: 0,
+          slabs: new Set(),
+          gst_items: [] as string[],
+          exempt_items: [] as string[],
+          exempt_value: 0,         // exempt items' base — visible separately
+        };
+      }
+
+      const pName = item.product?.name || 'Unknown';
+      const qty = Number(item.quantity || 1);
+      const lineSubtotal = Number(item.subtotal || 0);
+
+      if (isGstItem) {
+        invoiceMap[order.id].gst_items.push(`${pName} x${qty}`);
+        invoiceMap[order.id].taxable_value += taxable;
+        invoiceMap[order.id].gst_amount += gst;
+        invoiceMap[order.id].cgst += (gst / 2);
+        invoiceMap[order.id].sgst += (gst / 2);
+        invoiceMap[order.id].slabs.add(slab);
+      } else {
+        invoiceMap[order.id].exempt_items.push(`${pName} x${qty}`);
+        invoiceMap[order.id].exempt_value += lineSubtotal;
       }
     });
 
@@ -1250,27 +1276,44 @@ export class ReportService {
       .filter((s) => s.taxable_value > 0)
       .sort((a, b) => a.slab - b.slab);
 
+    // GST orders = orders that have at least one GST-bearing line item.
+    // This is the single source of truth for the composition count — it must
+    // match the per-item definition used by the slab totals, NOT the stale
+    // order-level gst_amount snapshot column.
     const details = Object.values(invoiceMap)
-      .filter((inv: any) => inv.gst_amount > 0) // Only include orders that actually have GST items
-      .map((inv: any) => ({
-        ...inv,
-        taxable_value: Math.round(inv.taxable_value * 100) / 100,
-        gst_amount: Math.round(inv.gst_amount * 100) / 100,
-        cgst: Math.round(inv.cgst * 100) / 100,
-        sgst: Math.round(inv.sgst * 100) / 100,
-        slabs:
-          inv.slabs.size > 0
-            ? Array.from(inv.slabs)
-                .sort()
-                .map((s) => `${s}%`)
-                .join(', ')
-            : '-',
-        items_summary: inv.items.join(', ') || '-',
-      }))
+      .map((inv: any) => {
+        const gstItemList = inv.gst_items.join(', ') || '-';
+        const exemptItemList = inv.exempt_items.join(', ') || '-';
+        // Compose an items summary that makes the GST vs exempt split visible
+        // in a single column, e.g. "SKIRT-24 x2 (GST), WIG-1 x1 (Exempt)".
+        const parts: string[] = [];
+        if (inv.gst_items.length) parts.push(`${inv.gst_items.join(', ')} (GST)`);
+        if (inv.exempt_items.length) parts.push(`${inv.exempt_items.join(', ')} (Exempt)`);
+        const itemsSummary = parts.length ? parts.join(' · ') : '-';
+
+        return {
+          ...inv,
+          taxable_value: Math.round(inv.taxable_value * 100) / 100,
+          gst_amount: Math.round(inv.gst_amount * 100) / 100,
+          cgst: Math.round(inv.cgst * 100) / 100,
+          sgst: Math.round(inv.sgst * 100) / 100,
+          exempt_value: Math.round(inv.exempt_value * 100) / 100,
+          slabs: inv.slabs.size > 0 ? Array.from(inv.slabs as Set<number>).sort().map((s) => `${s}%`).join(', ') : '-',
+          gst_items_summary: gstItemList,
+          exempt_items_summary: exemptItemList,
+          items_summary: itemsSummary,
+          has_gst: inv.gst_amount > 0,
+          has_exempt: inv.exempt_items.length > 0,
+        };
+      })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Correct the GST order count based on actual items processed
-    const finalGstOrderCount = Object.keys(invoiceMap).length;
+    // Composition derived from the SAME per-item definition used for totals.
+    const gstOrderIds = new Set<string>();
+    items.forEach((item: any) => {
+      if (Number(item.gst_amount || 0) > 0) gstOrderIds.add(item.order.id);
+    });
+    const finalGstOrderCount = gstOrderIds.size;
 
     return {
       summary,
@@ -1278,9 +1321,8 @@ export class ReportService {
       composition: {
         total_orders: totalOrderCount,
         gst_orders: finalGstOrderCount,
-        non_gst_orders: totalOrderCount - finalGstOrderCount,
-        gst_percentage:
-          totalOrderCount > 0 ? Math.round((finalGstOrderCount / totalOrderCount) * 100) : 0,
+        non_gst_orders: Math.max(0, totalOrderCount - finalGstOrderCount),
+        gst_percentage: totalOrderCount > 0 ? Math.round((finalGstOrderCount / totalOrderCount) * 100) : 0
       },
       total_taxable: Math.round(totalTaxable * 100) / 100,
       total_cgst: Math.round((totalGst / 2) * 100) / 100,

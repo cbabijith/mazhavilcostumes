@@ -121,6 +121,7 @@ export const queryKeys = {
 
   // Settings queries
   settings: ['settings'] as const,
+  gstSlabs: ['settings', 'gstSlabs'] as const,
 } as const;
 
 /**

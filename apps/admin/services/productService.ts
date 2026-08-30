@@ -789,7 +789,6 @@ export class ProductService {
       const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
 
       let query = adminClient.from('products').select('id').eq('slug', slug).is('deleted_at', null);
-
       // Exclude current product when editing
       if (excludeId) {
         query = query.neq('id', excludeId);

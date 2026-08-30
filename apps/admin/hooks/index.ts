@@ -67,6 +67,7 @@ export {
   useUpdateStaff,
   useDeleteStaff,
   useToggleStaffStatus,
+  useResetStaffPassword,
 } from './useStaff';
 
 // Permission hooks
@@ -125,6 +126,8 @@ export {
   useAuthorizedSignature,
   useDefaultRentalDuration,
   useUpdateSetting,
+  useGstSlabs,
+  useUpdateGstSlabs,
 } from './useSettings';
 
 // Payment hooks

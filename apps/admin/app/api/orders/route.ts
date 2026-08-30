@@ -20,6 +20,7 @@
 
 import { NextRequest } from 'next/server';
 import { orderService } from '@/services/orderService';
+import { settingsService } from '@/services/settingsService';
 import { apiGuard } from '@/lib/apiGuard';
 import { CreateOrderSchema } from '@/domain';
 import { apiSuccess, apiRepositoryError, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
@@ -116,6 +117,14 @@ export async function POST(request: NextRequest) {
 
     const authUser = guard.user;
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
+    // CRITICAL: propagate the authenticated user's store_id to settingsService
+    // BEFORE createOrder runs. Without this, settingsService.getIsGSTEnabled()
+    // reads against its hardcoded default store_id ('00000000-...000001'),
+    // finds no setting row, and returns false — causing every order to be
+    // created with gst_amount=0 even when GST is enabled for the real store.
+    if (authUser?.store_id) {
+      settingsService.setStoreId(authUser.store_id);
+    }
 
     const body = await request.json();
 

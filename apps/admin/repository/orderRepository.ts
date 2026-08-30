@@ -1086,8 +1086,7 @@ export class OrderRepository extends BaseRepository {
         branch:branch_id(id, name),
         creator:created_by(id, name, email),
         updater:updated_by(id, name, email)
-      `
-      )
+      `)
       .eq('id', id)
       .single();
 
@@ -1251,7 +1250,7 @@ export class OrderRepository extends BaseRepository {
     const startDateStr = startDate.toISOString().split('T')[0];
     const initialStatus = 'scheduled';
 
-    // Generate sequential invoice number: MAZ-{fiscalYear}-{sequentialNum}
+    // Generate sequential invoice number: PB-{fiscalYear}-{sequentialNum}
     const now = new Date();
     const orderYear = now.getFullYear();
     const orderMonth = now.getMonth(); // 0-indexed
@@ -1264,21 +1263,21 @@ export class OrderRepository extends BaseRepository {
     const { data: maxInvoiceData } = await this.client
       .from(this.tableName)
       .select('invoice_number')
-      .like('invoice_number', `MAZ-${fiscalSuffix}-%`)
+      .like('invoice_number', `PB-${fiscalSuffix}-%`)
       .order('invoice_number', { ascending: false })
       .limit(1)
       .single();
 
     let seqNum = 1;
     if (maxInvoiceData?.invoice_number) {
-      // Extract the sequence number from the invoice number (e.g., MAZ-2627-0042 -> 42)
+      // Extract the sequence number from the invoice number (e.g., PB-2627-0042 -> 42)
       const parts = maxInvoiceData.invoice_number.split('-');
       const lastSeq = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(lastSeq)) {
         seqNum = lastSeq + 1;
       }
     }
-    const invoiceNumber = `MAZ-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
+    const invoiceNumber = `PB-${fiscalSuffix}-${String(seqNum).padStart(4, '0')}`;
 
     // Create order first
     const orderResponse = await this.client
@@ -1360,7 +1359,22 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<OrderWithRelations>(itemsResponse);
     }
 
+    // Defensive: Supabase's `.insert([])` returns { data: null, error: null }
+    // (silent success on an empty array). If the items insert produced no rows,
+    // the order must NOT survive — otherwise it becomes a ghost order with a
+    // total_amount but no line items. Roll back and return an error.
     const items = itemsResponse.data;
+    if (!items || items.length === 0) {
+      await this.client.from(this.tableName).delete().eq('id', order.id);
+      return {
+        data: null,
+        error: {
+          message: 'Order creation failed: no order items were inserted',
+          code: 'ITEMS_INSERT_EMPTY',
+        } as any,
+        success: false,
+      };
+    }
 
     // NOTE: Inventory is NOT deducted at creation time.
     // Stock deduction happens only when the user manually starts the rental
@@ -1443,15 +1457,22 @@ export class OrderRepository extends BaseRepository {
       .select()
       .single();
 
-    // If items are provided, sync them
-    if (items && Array.isArray(items)) {
-      // 1. Delete existing items
-      // NOTE: In a production app with complex stock tracking, we might want to do a differential update
-      // But for this rental system, replacing them is simpler as long as we're not in an active rental state.
-      await this.client.from(this.orderItemsTable).delete().eq('order_id', id);
+    // If items are provided, sync them.
+    // IMPORTANT: an empty items array (`[]`) is treated as "no item change",
+    // NOT as "delete every item". A caller that wants to wipe items must do so
+    // explicitly via a dedicated method. This guard prevents ghost orders
+    // (orders left with zero items) when a PATCH arrives with items: [].
+    // Only a non-empty items array triggers the differential sync.
+    if (items && Array.isArray(items) && items.length > 0) {
+      // 1. Fetch existing items first to perform differential update
+      const { data: existingItems } = await this.client
+        .from(this.orderItemsTable)
+        .select('*')
+        .eq('order_id', id);
 
-      // 2. Insert new items with GST calculation
-      // Fetch current GST rates for updated items
+      const existingItemsList = existingItems || [];
+
+      // 2. Fetch current GST rates for updated items
       const productIds = items.map((item: any) => item.product_id);
       const { data: products } = await this.client
         .from('products')
@@ -1499,44 +1520,64 @@ export class OrderRepository extends BaseRepository {
 
       const pricingMultiplier = Math.max(1, rentalDays - (effectiveDefaultDuration - 1));
 
-      // We don't adjust per-item GST for order-level discount during update yet
-      // because the update data might not include all order financial fields.
-      // Ideally we should recalculate the whole order totals here.
-      // For now, save the raw per-item GST breakdown.
+      const incomingProductIds = new Set(productIds);
+      const itemsToInsert: any[] = [];
 
-      await this.client.from(this.orderItemsTable).insert(
-        items.map((item: any) => {
-          const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
-          const itemDisc =
-            item.discount_type === 'percent'
-              ? lineTotal * ((item.discount || 0) / 100)
-              : (item.discount || 0) * item.quantity;
-          const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
-          const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+      for (const item of items) {
+        const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+        const itemDisc = item.discount_type === 'percent'
+          ? lineTotal * ((item.discount || 0) / 100)
+          : (item.discount || 0) * item.quantity;
+        const lineAfterDiscount = lineTotal - Math.min(itemDisc, lineTotal);
+        const gstRate = perItemGstRates.get(item.product_id) ?? 0;
+        
+        let itemGst = 0;
+        let itemBase = lineAfterDiscount;
+        
+        if (isGstEnabled && gstRate > 0) {
+          itemGst = lineAfterDiscount - (lineAfterDiscount / (1 + gstRate / 100));
+          itemBase = lineAfterDiscount - itemGst;
+        }
 
-          let itemGst = 0;
-          let itemBase = lineAfterDiscount;
+        const existingMatch = existingItemsList.find(ei => ei.product_id === item.product_id);
 
-          if (isGstEnabled && gstRate > 0) {
-            itemGst = lineAfterDiscount - lineAfterDiscount / (1 + gstRate / 100);
-            itemBase = lineAfterDiscount - itemGst;
-          }
+        const itemPayload = {
+          order_id: id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          price_per_day: item.price_per_day,
+          original_price_per_day: item.original_price_per_day || item.price_per_day,
+          discount: item.discount || 0,
+          discount_type: item.discount_type || 'flat',
+          subtotal: lineTotal,
+          gst_percentage: gstRate,
+          base_amount: Math.round(itemBase * 100) / 100,
+          gst_amount: Math.round(itemGst * 100) / 100,
+        };
 
-          return {
-            order_id: id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            price_per_day: item.price_per_day,
-            original_price_per_day: item.original_price_per_day || item.price_per_day,
-            discount: item.discount || 0,
-            discount_type: item.discount_type || 'flat',
-            subtotal: lineTotal,
-            gst_percentage: gstRate,
-            base_amount: Math.round(itemBase * 100) / 100,
-            gst_amount: Math.round(itemGst * 100) / 100,
-          };
-        })
-      );
+        if (existingMatch) {
+          // Update in-place to preserve returned_quantity and other return-specific metadata
+          await this.client
+            .from(this.orderItemsTable)
+            .update(itemPayload)
+            .eq('id', existingMatch.id);
+        } else {
+          // Add to insert queue
+          itemsToInsert.push(itemPayload);
+        }
+      }
+
+      // 3. Insert new items (if any)
+      if (itemsToInsert.length > 0) {
+        await this.client.from(this.orderItemsTable).insert(itemsToInsert);
+      }
+
+      // 4. Delete removed items (if any)
+      const itemsToDelete = existingItemsList.filter(ei => !incomingProductIds.has(ei.product_id));
+      if (itemsToDelete.length > 0) {
+        const deleteIds = itemsToDelete.map(ei => ei.id);
+        await this.client.from(this.orderItemsTable).delete().in('id', deleteIds);
+      }
     }
 
     // If status changed to ongoing/in_use, decrement stock
@@ -1986,13 +2027,13 @@ export class OrderRepository extends BaseRepository {
     const itemIds = returnData.items.map((i) => i.item_id);
     const { data: orderItems } = await this.client
       .from(this.orderItemsTable)
-      .select('id, returned_quantity, product_id, orders(branch_id)')
+      .select('id, quantity, returned_quantity, product_id, orders(branch_id)')
       .in('id', itemIds);
 
     // Create a map for quick O(1) lookup
     const orderItemsMap = new Map<
       string,
-      { id: string; returned_quantity: number; product_id: string; branch_id: string }
+      { id: string; quantity: number; returned_quantity: number; product_id: string; branch_id: string }
     >();
     if (orderItems) {
       for (const item of orderItems) {
@@ -2000,6 +2041,7 @@ export class OrderRepository extends BaseRepository {
           (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
         orderItemsMap.set(item.id, {
           id: item.id,
+          quantity: item.quantity || 0,
           returned_quantity: item.returned_quantity || 0,
           product_id: item.product_id,
           branch_id: branchId,
@@ -2022,7 +2064,10 @@ export class OrderRepository extends BaseRepository {
           this.client
             .from(this.orderItemsTable)
             .update({
-              is_returned: true,
+              // Only flag as fully returned when every unit of the item is back;
+              // partially returned items keep is_returned=false so the UI can
+              // surface them as "pending return" until the remainder arrives.
+              is_returned: (item.returned_quantity || 0) >= (orderItem?.quantity ?? item.returned_quantity ?? 0),
               returned_at: new Date().toISOString(),
               returned_quantity: item.returned_quantity,
               condition_rating: item.condition_rating,

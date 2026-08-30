@@ -11,6 +11,7 @@
 
 import { NextRequest } from 'next/server';
 import { orderService } from '@/services/orderService';
+import { settingsService } from '@/services/settingsService';
 import { apiGuard } from '@/lib/apiGuard';
 import { UpdateOrderSchema } from '@/domain';
 import {
@@ -51,6 +52,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const authUser = guard.user;
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
+    // Propagate store_id so GST/setting lookups read the correct store.
+    // See POST /api/orders for the full explanation — same bug class.
+    if (authUser?.store_id) {
+      settingsService.setStoreId(authUser.store_id);
+    }
 
     const { id } = await params;
     const body = await request.json();
@@ -61,7 +67,16 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return apiBadRequest('Validation failed', validatedData.error.format());
     }
 
-    const result = await orderService.updateOrder(id, validatedData.data);
+    // Server-side audit: when an order is being cancelled, stamp `cancelled_by`
+    // with the authenticated staff member. We deliberately do NOT trust the
+    // request body for this — the value must come from the session so a client
+    // can't spoof who performed the cancellation.
+    const payload = validatedData.data as any;
+    if (payload.status === 'cancelled') {
+      payload.cancelled_by = authUser?.staff_id || null;
+    }
+
+    const result = await orderService.updateOrder(id, payload);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to update order');
     }

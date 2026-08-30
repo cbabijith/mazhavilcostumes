@@ -343,7 +343,7 @@ export abstract class BaseRepository {
    * ```ts
    * const result = await this.rpc<Staff>('create_staff_member', {
    *   p_email: 'user@example.com',
-   *   p_password: 'securePass123',
+   *   p_password: '<initial-password-set-at-runtime>',
    *   p_name: 'John Doe',
    *   p_role: 'staff',
    *   p_branch_id: branchId,

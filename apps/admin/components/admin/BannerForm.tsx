@@ -176,7 +176,7 @@ export default function BannerForm({ mode = 'create', initialData }: BannerFormP
     // Auto-generate alt text from title or use default
     const altText = formData.title
       ? `${formData.title}${formData.subtitle ? ' - ' + formData.subtitle : ''} banner`
-      : 'Mazhavil Dance Costumes promotional banner';
+      : 'Paris Bridals promotional banner';
 
     // Clean up data - convert empty strings to undefined for optional fields
     const cleanData = {

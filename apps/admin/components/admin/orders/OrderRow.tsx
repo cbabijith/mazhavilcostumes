@@ -240,14 +240,16 @@ function OrderRowInner({ order, selected, onToggleSelect, onCancel, onViewItems 
               );
             })()}
 
-          {/* Show refund-due indicator for cancelled orders with payments */}
+          {/* Refund indicators for cancelled orders that still hold money.
+              Two states, mutually exclusive:
+              - "Refund Due"  → money is held and still needs action
+              - "Money Kept"  → staff explicitly waived the refund (payment_status = 'refund_waived') */}
           {order.status === OrderStatus.CANCELLED && order.amount_paid > 0 && (
-            <Badge
-              variant="outline"
-              className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5"
-            >
-              Refund Due
-            </Badge>
+            order.payment_status === 'refund_waived' ? (
+              <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 text-[10px] py-0 px-1.5">Money Kept</Badge>
+            ) : (
+              <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[10px] py-0 px-1.5">Refund Due</Badge>
+            )
           )}
 
           {/* Action Needed Indicator for today's scheduled orders */}
@@ -447,6 +449,7 @@ const OrderRow = React.memo(OrderRowInner, (prev, next) => {
     prev.order.status === next.order.status &&
     prev.order.total_amount === next.order.total_amount &&
     prev.order.amount_paid === next.order.amount_paid &&
+    prev.order.payment_status === next.order.payment_status &&
     prev.order.has_priority_cleaning === next.order.has_priority_cleaning &&
     prev.order.has_stock_conflict === next.order.has_stock_conflict &&
     prev.selected === next.selected &&

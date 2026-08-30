@@ -14,6 +14,7 @@ const SettingKeyEnum = z.enum([
   'payment_terms',
   'authorized_signature',
   'default_rental_duration',
+  'gst_slabs',
 ]);
 
 /**

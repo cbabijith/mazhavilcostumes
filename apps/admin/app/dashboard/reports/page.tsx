@@ -85,16 +85,29 @@ function ReportsPageContent() {
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [gstSlabFilter, setGstSlabFilter] = useState<string>('all');
+  const [gstTypeFilter, setGstTypeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const filteredGstDetails = useMemo(() => {
-    if (gstSlabFilter === 'all') return gstDetails;
     return gstDetails.filter((inv: any) => {
-      return inv.slabs && inv.slabs.includes(gstSlabFilter + '%');
+      // Slab filter — match against the slabs string (e.g. "5%, 18%")
+      if (gstSlabFilter !== 'all') {
+        if (!inv.slabs || !inv.slabs.includes(gstSlabFilter + '%')) return false;
+      }
+      // Type filter — GST only / Exempt only / Mixed / All
+      if (gstTypeFilter !== 'all') {
+        const hasGst = !!inv.has_gst;
+        const hasExempt = !!inv.has_exempt;
+        const isMixed = hasGst && hasExempt;
+        if (gstTypeFilter === 'gst' && !hasGst) return false;
+        if (gstTypeFilter === 'exempt' && hasGst) return false;       // fully exempt = no GST
+        if (gstTypeFilter === 'mixed' && !isMixed) return false;
+      }
+      return true;
     });
-  }, [gstDetails, gstSlabFilter]);
-
+  }, [gstDetails, gstSlabFilter, gstTypeFilter]);
+  
   const [filters, setFilters] = useState<FilterType>(() => {
     // Determine context (Server vs Client)
     const isClient = typeof window !== 'undefined';
@@ -152,28 +165,20 @@ function ReportsPageContent() {
       rank_by: 'count',
       limit: 50,
       page: 1,
-      status:
-        reportFromUrl === 'revenue' ||
-        reportFromUrl === 'todays-revenue' ||
-        reportFromUrl === 'gst-filing'
-          ? []
-          : ['completed', 'returned'],
+      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue') ? [] : ['completed', 'returned'],
     };
   });
 
   const selectedReport = reportFromUrl;
 
-  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters
+  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters.
+  // GST filing is statutorily limited to finalized orders (completed + returned) — no override.
+  // Revenue / today's revenue intentionally default to "All Statuses" and allow the dropdown.
   useEffect(() => {
     if (!selectedReport) return;
-    const targetStatus =
-      selectedReport === 'revenue' ||
-      selectedReport === 'todays-revenue' ||
-      selectedReport === 'gst-filing'
-        ? []
-        : ['completed', 'returned'];
-
-    setFilters((prev) => {
+    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue') ? [] : ['completed', 'returned'];
+    
+    setFilters(prev => {
       const currentJoined = prev.status?.join(',') || '';
       const targetJoined = targetStatus.join(',');
       if (currentJoined === targetJoined) {
@@ -210,7 +215,7 @@ function ReportsPageContent() {
 
         console.log('[ReportPage] Fetching revenue with:', params.toString());
 
-        const res = await fetch(`/api/reports/revenue?${params.toString()}`);
+        const res = await fetch('/api/reports/revenue?' + params.toString());
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.error || 'Failed to fetch revenue data');
@@ -230,7 +235,7 @@ function ReportsPageContent() {
         if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
         if (selectedBranchId) queryParams.append('branch_id', selectedBranchId);
 
-        const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
+        const response = await fetch('/api/reports/' + selectedReport + '?' + queryParams.toString());
         const json = await response.json();
 
         if (!json.success) {
@@ -360,11 +365,14 @@ function ReportsPageContent() {
         ];
       case 'dead-stock':
         return [
-          { header: 'Product', key: 'product_name' },
-          { header: 'Category', key: 'category_name' },
-          { header: 'Price/Day', key: 'price_per_day', format: 'currency' as const },
-          { header: 'Quantity', key: 'quantity', format: 'number' as const },
-          { header: 'Days Idle', key: 'days_since_last_rental', format: 'number' as const },
+          { header: "Product", key: "product_name" },
+          { header: "Category", key: "category_name" },
+          { header: "Price/Day", key: "price_per_day", format: "currency" as const },
+          { header: "Quantity", key: "quantity", format: "number" as const },
+          { header: "Stock Value", key: "stock_value", format: "currency" as const },
+          { header: "Days Idle", key: "days_since_last_rental", format: "number" as const },
+          { header: "Never Rented", key: "never_rented" },
+          { header: "Added On", key: "created_at", format: "date" as const },
         ];
       case 'sales-by-staff':
         return [
@@ -602,11 +610,7 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={
-          selectedReport === 'gst-filing' ||
-          selectedReport === 'revenue' ||
-          selectedReport === 'todays-revenue'
-        }
+        needsStatusFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
         needsPaymentModeFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
       />
 
@@ -747,17 +751,19 @@ function ReportsPageContent() {
           />
         )}
         {selectedReport === 'gst-filing' && (
-          <GSTFilingView
-            data={sortedData}
-            reportSummary={reportSummary}
-            loading={loading}
-            error={error}
-            sortConfig={sortConfig}
-            onSort={handleSort}
-            formatCell={formatCell}
+          <GSTFilingView 
+            data={sortedData} 
+            reportSummary={reportSummary} 
+            loading={loading} 
+            error={error} 
+            sortConfig={sortConfig} 
+            onSort={handleSort} 
+            formatCell={formatCell} 
             gstDetails={gstDetails}
             gstSlabFilter={gstSlabFilter}
             setGstSlabFilter={setGstSlabFilter}
+            gstTypeFilter={gstTypeFilter}
+            setGstTypeFilter={setGstTypeFilter}
             filteredGstDetails={filteredGstDetails}
           />
         )}

@@ -164,6 +164,67 @@ export class StaffService {
   }
 
   /**
+   * Soft delete a staff member
+   * Bans the auth user and soft deletes the staff record.
+   */
+  async deleteStaff(id: string): Promise<RepositoryResult<boolean>> {
+    // 1. Get staff to find user_id for auth cleanup
+    const staff = await staffRepository.findById(id);
+    if (!staff.success || !staff.data) {
+      return validationError('Staff member not found', 'NOT_FOUND');
+    }
+
+    // 2. Ban Supabase Auth user to prevent login
+    if (staff.data.user_id) {
+      try {
+        const supabase = createAdminClient();
+        // Update user to ban them (effectively revoking session/login)
+        const { error } = await supabase.auth.admin.updateUserById(
+          staff.data.user_id,
+          { ban_duration: '876000h' } // 100 years
+        );
+        if (error) {
+          console.warn(`[StaffService] Failed to ban auth user on delete: ${error.message}`);
+        }
+      } catch (err: any) {
+        console.warn(`[StaffService] Error banning auth user on delete: ${err.message}`);
+      }
+    }
+
+    // 3. Soft-delete staff record
+    return staffRepository.delete(id);
+  }
+
+  /**
+   * Reset a staff member's password
+   */
+  async resetStaffPassword(id: string, newPassword: string): Promise<RepositoryResult<boolean>> {
+    // 1. Get staff to find user_id
+    const staff = await staffRepository.findById(id);
+    if (!staff.success || !staff.data) {
+      return validationError('Staff member not found', 'NOT_FOUND');
+    }
+
+    if (!staff.data.user_id) {
+      return validationError('Staff member does not have a linked authentication account', 'NO_AUTH_ACCOUNT');
+    }
+
+    try {
+      const supabase = createAdminClient();
+      const { error } = await supabase.auth.admin.updateUserById(
+        staff.data.user_id,
+        { password: newPassword }
+      );
+      if (error) {
+        return validationError(`Failed to reset password: ${error.message}`, 'AUTH_ERROR');
+      }
+      return { data: true, error: null, success: true };
+    } catch (err: any) {
+      return validationError(`Failed to reset password: ${err.message}`, 'UNKNOWN_ERROR');
+    }
+  }
+
+  /**
    * Get staff performance statistics
    */
   async getStaffOrderStats(id: string): Promise<RepositoryResult<any>> {

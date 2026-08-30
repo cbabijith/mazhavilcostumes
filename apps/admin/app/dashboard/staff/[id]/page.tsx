@@ -25,12 +25,14 @@ import {
   UserX,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Modal from '@/components/admin/Modal';
-import { useStaffMember, useToggleStaffStatus } from '@/hooks';
+import { useStaffMember, useToggleStaffStatus, useDeleteStaff, useResetStaffPassword, usePermissions } from '@/hooks';
 import { useState } from 'react';
 import type { StaffRole } from '@/domain/types/branch';
+import { KeyRound, Trash2 } from 'lucide-react';
 
 const roleColors: Record<StaffRole, string> = {
   super_admin: 'bg-purple-100 text-purple-700 border-purple-200',
@@ -52,7 +54,39 @@ export default function StaffDetailPage() {
   const staffId = params.id as string;
   const { staff, isLoading } = useStaffMember(staffId);
   const toggleStatus = useToggleStaffStatus();
+  const deleteStaff = useDeleteStaff();
+  const resetPassword = useResetStaffPassword();
+  const { role: currentUserRole } = usePermissions();
+  const isSuperAdmin = currentUserRole === 'super_admin';
+
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) return;
+    try {
+      await resetPassword.mutateAsync({ id: staffId, password: newPassword });
+      setNewPassword("");
+      setIsResetModalOpen(false);
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!staff) return;
+    try {
+      await deleteStaff.mutateAsync(staffId);
+      router.push("/dashboard/staff");
+    } catch {
+      // Error handled by hook
+    } finally {
+      setIsConfirmDeleteModalOpen(false);
+    }
+  };
 
   const handleToggle = async () => {
     if (!staff) return;
@@ -158,7 +192,7 @@ export default function StaffDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {staff.role !== 'super_admin' && (
             <Button
               size="sm"
@@ -190,6 +224,28 @@ export default function StaffDetailPage() {
                 </>
               )}
             </Button>
+          )}
+          {staff.role !== 'super_admin' && isSuperAdmin && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsResetModalOpen(true)}
+                className="gap-2 border-slate-200 text-slate-700 hover:bg-slate-50 bg-white"
+              >
+                <KeyRound className="h-4 w-4" />
+                Reset Password
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsConfirmDeleteModalOpen(true)}
+                className="gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 bg-white"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Account
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -356,6 +412,91 @@ export default function StaffDetailPage() {
                 : staff.is_active
                   ? 'Deactivate Staff'
                   : 'Activate Staff'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Reset Password Modal ──────────────────────── */}
+      <Modal
+        open={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        title="Reset Staff Password"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleResetPassword} className="p-6 space-y-4">
+          <p className="text-sm text-slate-600">
+            Enter a new password for <span className="font-semibold text-slate-900">{staff.name}</span>. This will immediately update their credentials.
+          </p>
+          <div>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">New Password</label>
+            <Input
+              type="password"
+              placeholder="Min 6 characters"
+              required
+              minLength={6}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="mt-1 h-10 border-slate-200"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsResetModalOpen(false)}
+              className="border-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={resetPassword.isPending}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6"
+            >
+              {resetPassword.isPending ? "Resetting..." : "Reset Password"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Soft Delete Confirmation Modal ──────────────────────── */}
+      <Modal
+        open={isConfirmDeleteModalOpen}
+        onClose={() => setIsConfirmDeleteModalOpen(false)}
+        title="Delete Staff Member"
+        maxWidth="max-w-md"
+      >
+        <div className="p-6">
+          <div className="flex items-start gap-4 mb-6">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-50">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-slate-900 mb-1">
+                Confirm Soft Deletion
+              </h4>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Are you sure you want to delete <span className="font-semibold text-slate-900">{staff.name}</span>?
+                This will revoke their login access and hide their account from all active lists.
+                Their record and past transaction history will be preserved for accountability.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <Button
+              variant="outline"
+              onClick={() => setIsConfirmDeleteModalOpen(false)}
+              className="border-slate-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteStaff}
+              disabled={deleteStaff.isPending}
+              className="bg-red-600 text-white hover:bg-red-700 border-transparent"
+            >
+              {deleteStaff.isPending ? "Deleting..." : "Delete Account"}
             </Button>
           </div>
         </div>

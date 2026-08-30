@@ -26,6 +26,11 @@ import { dashboardService } from './dashboardService';
 import { CleaningPriority, CleaningStatus, DamageDecision } from '@/domain';
 import { PaymentType, PaymentMode } from '@/domain/types/payment';
 
+/** True if `v` is a valid PaymentMode string value. */
+function isValidPaymentMode(v: unknown): v is PaymentMode {
+  return typeof v === 'string' && Object.values(PaymentMode).includes(v as PaymentMode);
+}
+
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
 const BUFFER_DAYS = 1;
 
@@ -810,6 +815,16 @@ export class OrderService {
       }
     }
 
+    // Defensive: never forward an empty items array to the repository.
+    // An empty array MUST mean "don't touch items", not "delete all items".
+    // The schema (UpdateOrderSchema) and repository both guard this too, but
+    // internal callers (auto-complete, status transitions) can reach this path
+    // without schema validation — strip empty items here as the final safety net.
+    if (Array.isArray((data as any).items) && (data as any).items.length === 0) {
+      const { items: _omit, ...dataWithoutItems } = data as any;
+      data = dataWithoutItems;
+    }
+
     const dbStart = performance.now();
     const result = await orderRepository.update(id, data);
     const dbDuration = performance.now() - dbStart;
@@ -1046,6 +1061,31 @@ export class OrderService {
     }
 
     if (result.success) {
+      // ─── ADVANCE PAYMENT RECONCILIATION ──────────────────────────────────
+      // The OrderForm only sends amount_paid/payment_status on CREATE, not on
+      // update. So if an advance is added/changed/removed during an edit, the
+      // `payments` table (the source of truth for amount_paid) is never touched,
+      // and the order detail/list pages show a wrong "Due" amount with no entry
+      // in Payment History. Reconcile the ADVANCE payment row here, BEFORE
+      // syncOrderPaymentStatus recomputes amount_paid from the payment rows.
+      if (
+        (data as any).advance_amount !== undefined ||
+        (data as any).advance_collected !== undefined
+      ) {
+        try {
+          await this.reconcileAdvancePayment(id, existingOrder.data, data);
+        } catch (err) {
+          console.error('[OrderService.updateOrder] Failed to reconcile advance payment:', err);
+        }
+      }
+
+      try {
+        const { paymentService } = await import('./paymentService');
+        await paymentService.syncOrderPaymentStatus(id);
+      } catch (err) {
+        console.error('[OrderService.updateOrder] Failed to sync order payment status:', err);
+      }
+
       try {
         dashboardService.clearCache();
       } catch (err) {
@@ -1058,6 +1098,79 @@ export class OrderService {
       `[OrderService.updateOrder] Total updateOrder flow duration: ${totalDuration.toFixed(2)}ms`
     );
     return result;
+  }
+
+  /**
+   * Synchronize the ADVANCE-type payment row for an order with the order's
+   * current `advance_amount` / `advance_collected` state.
+   *
+   * Called from updateOrder() whenever the edit form sends advance fields.
+   * `payments` is the source of truth for `amount_paid`: syncOrderPaymentStatus
+   * sums payment rows to recompute it, so the ADVANCE row must match.
+   *
+   * Logic:
+   *  - newAdvance <= 0 (or not collected): delete any existing ADVANCE row.
+   *  - newAdvance > 0 and no ADVANCE row exists: create one.
+   *  - newAdvance > 0 and ADVANCE row exists with a different amount: update it.
+   *  - Otherwise (same amount): no-op.
+   *
+   * We compare against the PRE-edit advance to detect a real change, and only
+   * touch the payments table when something actually moved — this keeps
+   * status-only or items-only edits from churning payment history.
+   */
+  private async reconcileAdvancePayment(
+    orderId: string,
+    existingOrder: OrderWithRelations,
+    data: UpdateOrderDTO,
+  ): Promise<void> {
+    const newAdvance = Number((data as any).advance_amount ?? 0) || 0;
+    const newCollected = (data as any).advance_collected ?? (newAdvance > 0);
+    const effectiveAdvance = newCollected ? newAdvance : 0;
+    const oldAdvance = Number(existingOrder.advance_amount ?? 0) || 0;
+
+    // No change in advance amount → nothing to reconcile.
+    if (effectiveAdvance === oldAdvance) return;
+
+    paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
+
+    // Find the existing ADVANCE payment row for this order, if any.
+    const existingPaymentsRes = await paymentRepository.findByOrderId(orderId);
+    const existingPayments = existingPaymentsRes.success && existingPaymentsRes.data ? existingPaymentsRes.data : [];
+    const advanceRow = existingPayments.find(p => p.payment_type === PaymentType.ADVANCE);
+
+    if (effectiveAdvance <= 0) {
+      // Advance was removed/cleared → delete the ADVANCE payment row.
+      if (advanceRow) {
+        await paymentRepository.delete(advanceRow.id);
+      }
+      return;
+    }
+
+    // advance_payment_method is typed as PaymentMethod on the order but
+    // PaymentMode on payments. The two enums share string values (cash, upi,
+    // gpay, bank_transfer) except for the outlier (OTHER vs CHEQUE), so coerce
+    // through the string and validate, falling back to CASH.
+    const methodStr = (data as any).advance_payment_method ||
+      existingOrder.advance_payment_method ||
+      PaymentMode.CASH;
+    const method = isValidPaymentMode(methodStr) ? methodStr : PaymentMode.CASH;
+
+    if (!advanceRow) {
+      // Advance added where none existed → create.
+      await paymentRepository.create({
+        order_id: orderId,
+        payment_type: PaymentType.ADVANCE,
+        amount: effectiveAdvance,
+        payment_mode: method,
+        notes: 'Advance payment updated during order edit',
+      });
+    } else if (Number(advanceRow.amount) !== effectiveAdvance) {
+      // Advance amount changed → update existing row.
+      await paymentRepository.update(advanceRow.id, {
+        amount: effectiveAdvance,
+        payment_mode: method,
+      });
+    }
   }
 
   /**
@@ -1180,16 +1293,19 @@ export class OrderService {
     }
 
     // Validate order is in correct status for return
+    // FLAGGED is allowed: orders flagged for damage may still have unreturned
+    // items out with the customer that come back days later.
     const currentStatus = existingOrder.data.status;
     if (
       currentStatus !== OrderStatus.IN_USE &&
       currentStatus !== OrderStatus.ONGOING &&
-      currentStatus !== OrderStatus.PARTIAL
+      currentStatus !== OrderStatus.PARTIAL &&
+      currentStatus !== OrderStatus.FLAGGED
     ) {
       return {
         data: null,
         error: {
-          message: 'Order must be in use, ongoing, or partial to process return',
+          message: 'Order must be in use, ongoing, partial, or flagged to process return',
           code: 'INVALID_STATUS',
         } as any,
         success: false,
@@ -1236,6 +1352,41 @@ export class OrderService {
           error: {
             message: 'Damage charges cannot be negative',
             code: 'VALIDATION_ERROR',
+          } as any,
+          success: false,
+        };
+      }
+      // returned_quantity is the NEW TOTAL for the item (not a delta) — it can
+      // never exceed the ordered quantity, otherwise inventory would be
+      // incremented above what was ever rented out.
+      if (item.returned_quantity === undefined || item.returned_quantity === null
+        || !Number.isInteger(item.returned_quantity) || item.returned_quantity < 0) {
+        return {
+          data: null,
+          error: {
+            message: 'Returned quantity must be a non-negative integer for all items',
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      const orderItem = existingOrder.data.items?.find(i => i.id === item.item_id);
+      if (!orderItem) {
+        return {
+          data: null,
+          error: {
+            message: `Item ${item.item_id} does not belong to this order`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      if (item.returned_quantity > orderItem.quantity) {
+        return {
+          data: null,
+          error: {
+            message: `Returned quantity (${item.returned_quantity}) cannot exceed ordered quantity (${orderItem.quantity})`,
+            code: 'VALIDATION_ERROR'
           } as any,
           success: false,
         };

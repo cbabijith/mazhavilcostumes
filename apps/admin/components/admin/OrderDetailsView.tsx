@@ -147,20 +147,24 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const { data: paymentsResponse, isLoading: isLoadingPayments } = useOrderPayments(orderId);
   const payments = paymentsResponse || [];
 
-  const isReturnable =
-    order?.status === OrderStatus.IN_USE ||
-    order?.status === OrderStatus.ONGOING ||
-    order?.status === OrderStatus.PARTIAL;
-  const isFinalized =
-    order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
+  // FLAGGED orders (damage pending assessment) may still have items out with
+  // the customer — the remaining items must be returnable too.
+  const isReturnable = order?.status === OrderStatus.IN_USE || order?.status === OrderStatus.ONGOING || order?.status === OrderStatus.PARTIAL || order?.status === OrderStatus.FLAGGED;
+  const isFinalized = order?.status === OrderStatus.COMPLETED || order?.status === OrderStatus.CANCELLED;
+  // Security-deposit refunds unlock only once the rental has fully concluded.
+  // PARTIAL status still has items out with the customer, so it stays locked.
   const isProductReturned =
     order?.status === OrderStatus.RETURNED ||
     order?.status === OrderStatus.COMPLETED ||
     order?.status === OrderStatus.CANCELLED;
 
+  // An item counts as fully returned only when every unit is back — is_returned
+  // alone is unreliable for rows written before the partial-return fix.
+  const isItemFullyReturned = (item: { quantity: number; returned_quantity?: number | null }) =>
+    (item.returned_quantity || 0) >= item.quantity;
+
   // Signature to detect when order items actually change (not just order refetch)
-  const itemsSignature =
-    order?.items?.map((i) => `${i.id}:${i.condition_rating}:${i.is_returned}`).join('|') || '';
+  const itemsSignature = order?.items?.map(i => `${i.id}:${i.condition_rating}:${i.is_returned}:${i.returned_quantity || 0}`).join('|') || '';
 
   useEffect(() => {
     if (order && isReturnable) {
@@ -381,6 +385,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         updated[itemId].damage_fee = 0;
         updated[itemId].notes = '';
       }
+      // "Not Returned" items stay out with the customer — no damage assessment yet
+      if (field === 'status' && value === 'missing') {
+        updated[itemId].damaged_quantity = 0;
+        updated[itemId].damage_fee = 0;
+      }
       return updated;
     });
   };
@@ -581,31 +590,38 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (!order) return;
     setIsReturnConfirmOpen(false);
 
+    // Items marked "Not Returned" (and items already fully returned in an
+    // earlier partial return) are EXCLUDED from the payload — they stay out
+    // with the customer and the order settles as a partial return.
+    const returnedNow = (order.items || []).filter(item => {
+      const rItem = returnItems[item.id];
+      return !isItemFullyReturned(item) && (rItem?.status === 'excellent' || rItem?.status === 'damaged');
+    });
+    const pendingCount = (order.items || []).filter(item => {
+      const rItem = returnItems[item.id];
+      return !isItemFullyReturned(item) && rItem?.status === 'missing';
+    }).length;
+
     const returnPayload = {
       order_id: order.id,
-      notes: `Late Fee: ${lateFee}, Discount: ${discount}`,
-      items:
-        order.items?.map((item) => {
-          const rItem = returnItems[item.id] || {
-            status: null,
-            damage_fee: 0,
-            damaged_quantity: 0,
-            notes: '',
-          };
-          const isDamaged = rItem.status === 'damaged';
-          const damagedQty = isDamaged ? rItem.damaged_quantity || item.quantity : 0;
-          // Auto-mark remaining quantity as Good
-          const returnedQty = rItem.status === 'missing' ? 0 : item.quantity;
-          return {
-            item_id: item.id,
-            returned_quantity: returnedQty,
-            condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
-            damage_description: rItem.notes || '',
-            damage_charges: rItem.damage_fee || 0,
-            damaged_quantity: damagedQty,
-            // The good quantity is implicitly: item.quantity - damagedQty
-          };
-        }) || [],
+      notes: pendingCount > 0
+        ? `Partial return — ${pendingCount} item(s) still with customer. Late Fee: ${lateFee}, Discount: ${discount}`
+        : `Late Fee: ${lateFee}, Discount: ${discount}`,
+      items: returnedNow.map(item => {
+        const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "" };
+        const isDamaged = rItem.status === 'damaged';
+        const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
+        // Payload carries the NEW TOTAL returned quantity (not a delta)
+        return {
+          item_id: item.id,
+          returned_quantity: item.quantity,
+          condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
+          damage_description: rItem.notes || "",
+          damage_charges: rItem.damage_fee || 0,
+          damaged_quantity: damagedQty,
+          // The good quantity is implicitly: item.quantity - damagedQty
+        };
+      }),
       late_fee: lateFee,
       discount: discount,
     };
@@ -616,15 +632,29 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleReturnClick = () => {
     if (!order) return;
 
-    // Bulletproof validation check across all order items
-    const unmarked =
-      order.items?.filter((item) => {
-        const rItem = returnItems[item.id];
-        return !rItem || rItem.status === null;
-      }) || [];
+    // Only items still out with the customer need a decision — items already
+    // fully returned in an earlier partial return keep their saved assessment.
+    const outstanding = (order.items || []).filter(item => !isItemFullyReturned(item));
+
+    // Bulletproof validation check across all outstanding items
+    const unmarked = outstanding.filter(item => {
+      const rItem = returnItems[item.id];
+      return !rItem || rItem.status === null;
+    });
 
     if (unmarked.length > 0) {
-      showError('Incomplete Checkup', 'Please mark the condition of all items before settling.');
+      showError("Incomplete Checkup", "Please mark every pending item as Good, Damaged, or Not Returned before settling.");
+      return;
+    }
+
+    // A submission must actually return something — an all-"Not Returned"
+    // payload would be a no-op.
+    const returningSomething = outstanding.some(item => {
+      const rItem = returnItems[item.id];
+      return rItem?.status === 'excellent' || rItem?.status === 'damaged';
+    });
+    if (!returningSomething) {
+      showError("No Items Returned", "Mark at least one item as Good or Damaged. Items kept by the customer should be saved using 'Not Returned' alongside a returned item.");
       return;
     }
 
@@ -707,6 +737,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         ? 'Partial Payment'
         : order.payment_status;
 
+  // Items still out with the customer (partially returned order)
+  const pendingReturnItems = order.items?.filter(i => !isItemFullyReturned(i)) || [];
+  // Items the staff has marked "Not Returned" in the current checklist session
+  const pendingMarkedCount = pendingReturnItems.filter(i => returnItems[i.id]?.status === 'missing').length;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
       {/* STOCK CONFLICT ALERT */}
@@ -766,6 +801,39 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
         )}
 
+      {/* PARTIAL RETURN ALERT — items still out with the customer */}
+      {(order.status === OrderStatus.PARTIAL || order.status === OrderStatus.FLAGGED) && pendingReturnItems.length > 0 && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-5 animate-in slide-in-from-top duration-300">
+          <div className="flex items-start gap-4">
+            <div className="bg-amber-100 p-2.5 rounded-xl shrink-0">
+              <Clock className="w-6 h-6 text-amber-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-black text-amber-900 uppercase tracking-tight">
+                Partially Returned — {pendingReturnItems.length} item{pendingReturnItems.length > 1 ? 's' : ''} pending
+              </h3>
+              <p className="text-sm text-amber-700 mt-1 font-medium leading-relaxed">
+                The customer still has the item{pendingReturnItems.length > 1 ? 's' : ''} below. When they bring them back, mark them on this page to complete the order.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {pendingReturnItems.map(item => {
+                  const product = (item as any).product;
+                  const returned = item.returned_quantity || 0;
+                  return (
+                    <div key={item.id} className="bg-white/80 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm">
+                      <span className="text-xs font-bold text-amber-900">{product?.name || `Product #${item.product_id?.slice(0, 6).toUpperCase()}`}</span>
+                      <span className="text-[10px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        {returned > 0 ? `${returned}/${item.quantity} returned` : 'not returned'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 space-y-3">
@@ -786,21 +854,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 {statusDisplay.label}
               </div>
             </div>
-            <p className="text-sm text-slate-500">
-              Created on {format(new Date(order.created_at), 'dd MMM, yyyy • h:mm a')} by{' '}
-              <span className="font-semibold">{order.creator?.name || 'Admin'}</span>
-            </p>
-            {order.updated_at && order.updater && (
-              <p className="text-xs text-slate-400 mt-1">
-                Last updated on {format(new Date(order.updated_at), 'dd MMM, yyyy • h:mm a')} by{' '}
-                <span className="font-semibold">{order.updater.name}</span>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm text-slate-500">
+                Created on {format(new Date(order.created_at), "dd MMM, yyyy • h:mm a")} by{" "}
+                <span className="font-semibold text-slate-700">{order.creator?.name || "Admin"}</span>
               </p>
-            )}
+              {order.updated_at && order.updater && (
+                <p className="text-xs text-slate-400">
+                  Last updated on {format(new Date(order.updated_at), "dd MMM, yyyy • h:mm a")} by{" "}
+                  <span className="font-semibold text-slate-600">{order.updater.name}</span>
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 lg:justify-end">
-            {!isFinalized &&
-              (amount_due > 0 ? (
+            {!isFinalized && order.status !== OrderStatus.RETURNED && (
+              <Button
+                variant="outline"
+                className="h-12 border-slate-200 px-5 font-semibold text-slate-700 hover:bg-slate-50"
+                onClick={() => router.push(`/dashboard/orders/${order.id}/edit`)}
+              >
+                <Edit3 className="w-4 h-4 mr-2" />
+                {order.status === OrderStatus.ONGOING || order.status === OrderStatus.IN_USE ? "Edit Amount" : "Edit Order"}
+              </Button>
+            )}
+            {!isFinalized && (
+              amount_due > 0 ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700">
                   Due {formatCurrency(amount_due)}
                 </div>
@@ -1168,6 +1248,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 const isExcellent = rItem.status === 'excellent';
                 const isDamaged = rItem.status === 'damaged';
                 const isMissing = rItem.status === 'missing';
+                const fullyReturned = isItemFullyReturned(item);
                 const product = (item as any).product;
                 const imgUrl = getImageUrl(product);
 
@@ -1226,6 +1307,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       </div>
 
                       {isReturnable ? (
+                        fullyReturned ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-sm font-bold px-3 py-1.5 rounded-lg border-2 bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-4 h-4" /> Returned
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-400">Saved in an earlier return</span>
+                          </div>
+                        ) : (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             type="button"
@@ -1249,13 +1338,40 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             />{' '}
                             Damaged
                           </Button>
+                          <Button
+                            type="button"
+                            onClick={() => handleItemUpdate(item.id, 'status', 'missing')}
+                            variant="outline"
+                            title="Customer will return this item later — order stays partially returned"
+                            className={`h-12 px-4 font-bold rounded-xl transition-all ${isMissing ? 'bg-red-500 text-white border-red-500 hover:bg-red-600 hover:text-white' : 'border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200'}`}
+                          >
+                            <Clock className={`w-5 h-5 mr-2 ${isMissing ? 'text-white' : 'text-red-400'}`} /> Not Returned
+                          </Button>
                         </div>
+                        )
                       ) : (
-                        <span
-                          className={`text-sm font-bold px-3 py-1.5 rounded-lg border-2 ${item.is_returned ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}
-                        >
-                          {item.is_returned ? 'Returned' : 'Pending'}
-                        </span>
+                        (() => {
+                          const returned = item.returned_quantity || 0;
+                          if (returned >= item.quantity) {
+                            return (
+                              <span className="text-sm font-bold px-3 py-1.5 rounded-lg border-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                                Returned
+                              </span>
+                            );
+                          }
+                          if (returned > 0) {
+                            return (
+                              <span className="text-sm font-bold px-3 py-1.5 rounded-lg border-2 bg-amber-50 text-amber-700 border-amber-200">
+                                {returned}/{item.quantity} Returned
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className={`text-sm font-bold px-3 py-1.5 rounded-lg border-2 ${order.status === OrderStatus.PARTIAL || order.status === OrderStatus.FLAGGED ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                              {order.status === OrderStatus.PARTIAL || order.status === OrderStatus.FLAGGED ? 'Not Returned' : 'Pending'}
+                            </span>
+                          );
+                        })()
                       )}
                     </div>
 
@@ -1404,7 +1520,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     )}
 
                     {/* Show damage/return info for already-returned items */}
-                    {!isReturnable && item.is_returned && (
+                    {(!isReturnable || fullyReturned) && (item.returned_quantity || 0) > 0 && (
                       <div className="mt-3 space-y-2">
                         {item.condition_rating && (
                           <span
@@ -1551,6 +1667,19 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   </div>
                 )}
 
+                {/* Partial return hint */}
+                {pendingMarkedCount > 0 && (
+                  <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold shadow-sm">
+                    <Clock className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-extrabold text-red-900 uppercase tracking-wider text-[10px]">Partial Return</p>
+                      <p className="mt-0.5 leading-relaxed text-red-700">
+                        {pendingMarkedCount} item{pendingMarkedCount > 1 ? 's are' : ' is'} marked <strong>Not Returned</strong>. Saving will keep this order as <strong>partially returned</strong> — rent for pending items is still charged, and you can complete the return when the customer brings them back.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
                   <div className="flex gap-4 w-full sm:w-auto">
                     <div className="space-y-1">
@@ -1581,9 +1710,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <Button
                     onClick={handleReturnClick}
                     disabled={isReturning}
-                    className="w-full sm:w-auto h-14 px-8 bg-slate-900 hover:bg-slate-800 text-white font-bold text-lg rounded-xl shadow-md"
+                    className={`w-full sm:w-auto h-14 px-8 text-white font-bold text-lg rounded-xl shadow-md ${pendingMarkedCount > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
                   >
-                    {isReturning ? 'Processing...' : 'Complete Return Process'}
+                    {isReturning ? "Processing..." : pendingMarkedCount > 0 ? `Save Partial Return (${pendingMarkedCount} Pending)` : "Complete Return Process"}
                   </Button>
                 </div>
               </div>
@@ -2868,6 +2997,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   notes: '',
                 };
                 const product = (item as any).product;
+                const earlierReturned = isItemFullyReturned(item);
                 return (
                   <div
                     key={item.id}
@@ -2885,30 +3015,37 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         </span>
                       )}
                     </div>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-1 rounded-md border ${
-                        rItem.status === 'excellent'
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : rItem.status === 'damaged'
-                            ? 'bg-orange-50 text-orange-700 border-orange-200'
-                            : rItem.status === 'missing'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : 'bg-slate-50 text-slate-500 border-slate-200'
-                      }`}
-                    >
-                      {rItem.status === 'excellent'
-                        ? 'Good'
-                        : rItem.status === 'damaged'
-                          ? 'Damaged'
-                          : rItem.status === 'missing'
-                            ? 'Missing'
-                            : 'Unmarked'}
+                    {earlierReturned ? (
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-md border bg-slate-50 text-slate-500 border-slate-200">
+                        Returned (earlier)
+                      </span>
+                    ) : (
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md border ${rItem.status === 'excellent' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        rItem.status === 'damaged' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
+                            'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                      {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Not Returned' : 'Unmarked'}
                     </span>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
+
+          {/* Partial Return Warning */}
+          {pendingMarkedCount > 0 && (
+            <div className="flex items-start gap-3 p-3.5 bg-amber-50 border-2 border-amber-200 rounded-xl">
+              <Clock className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800">Partial return will be saved</p>
+                <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                  {pendingMarkedCount} item{pendingMarkedCount > 1 ? 's are' : ' is'} marked <strong>Not Returned</strong>. This order will be saved as <strong>partially returned</strong> and can be completed later when the customer returns the remaining item{pendingMarkedCount > 1 ? 's' : ''}. Their rent is still included in the total.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Zero Damage Fee Warning */}
           {Object.values(returnItems).some(
@@ -2992,9 +3129,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <Button
               onClick={submitReturn}
               disabled={isReturning}
-              className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800 shadow-md"
+              className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${pendingMarkedCount > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
             >
-              {isReturning ? 'Processing...' : 'Confirm & Complete Return'}
+              {isReturning ? 'Processing...' : pendingMarkedCount > 0 ? 'Confirm & Save Partial Return' : 'Confirm & Complete Return'}
             </Button>
           </div>
         </div>

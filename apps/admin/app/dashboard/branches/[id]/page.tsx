@@ -35,6 +35,7 @@ import {
   useUpdateStaff,
   useDeleteStaff,
   useBranches,
+  usePermissions,
 } from '@/hooks';
 import type { Staff, StaffRole } from '@/domain/types/branch';
 
@@ -48,6 +49,8 @@ export default function BranchDetailPage() {
   const createStaff = useCreateStaff();
   const updateStaff = useUpdateStaff();
   const deleteStaff = useDeleteStaff();
+  const { role: currentUserRole } = usePermissions();
+  const isSuperAdmin = currentUserRole === 'super_admin';
 
   const [showModal, setShowModal] = useState(false);
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
@@ -244,13 +247,15 @@ export default function BranchDetailPage() {
                         >
                           <Edit className="w-4 h-4 text-slate-400" />
                         </button>
-                        <button
-                          className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                          onClick={() => handleDelete(s)}
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-400" />
-                        </button>
+                        {isSuperAdmin && s.role !== 'super_admin' && (
+                          <button
+                            className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                            onClick={() => handleDelete(s)}
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

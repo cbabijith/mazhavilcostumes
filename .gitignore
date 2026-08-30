@@ -54,3 +54,12 @@ next-env.d.ts
 
 # OS
 Thumbs.db
+
+# Mimosa security-scan plugin cache (session state, ledgers, baselines)
+.mimosa/
+
+# Local env backups (contain production secrets)
+*.mazhavil.bak
+
+# ZCode session artifacts
+.zcode/

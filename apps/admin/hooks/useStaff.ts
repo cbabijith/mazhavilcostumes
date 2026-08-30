@@ -148,12 +148,28 @@ export function useDeleteStaff() {
   return useMutation({
     mutationFn: (id: string) => apiFetch(`/api/staff/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
-      showSuccess('Staff member deactivated successfully');
+      showSuccess('Staff member deleted successfully');
     },
-    onError: (error) => showError('Failed to deactivate staff', error.message),
+    onError: (error) => showError('Failed to delete staff', error.message),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: staffKeys.all });
     },
+  });
+}
+
+export function useResetStaffPassword() {
+  const { showSuccess, showError } = useAppStore();
+
+  return useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      apiFetch(`/api/staff/${id}/reset-password`, {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+      }),
+    onSuccess: () => {
+      showSuccess('Password reset successfully');
+    },
+    onError: (error) => showError('Failed to reset password', error.message),
   });
 }
 

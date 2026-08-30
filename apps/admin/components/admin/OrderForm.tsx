@@ -51,7 +51,7 @@ import {
 } from '@/hooks';
 import { useAppStore, useAppSelectors } from '@/stores';
 import { formatCurrency } from '@/lib/shared-utils';
-import { PaymentMethod } from '@/domain/types/order';
+import { PaymentMethod, OrderStatus } from '@/domain/types/order';
 import dynamic from 'next/dynamic';
 
 const BarcodeScanner = dynamic(() => import('./BarcodeScanner'), { ssr: false });
@@ -67,6 +67,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
   const showError = useAppSelectors.showError();
   const selectedBranchId = useAppSelectors.selectedBranchId();
   const isEditing = !!initialData;
+  const isOngoingOrInUse = initialData?.status === OrderStatus.ONGOING || initialData?.status === OrderStatus.IN_USE;
 
   const { createOrder, isPending: isCreating } = useCreateOrder();
   const { updateOrder, isPending: isUpdating } = useUpdateOrder();
@@ -265,7 +266,9 @@ export default function OrderForm({ initialData }: OrderFormProps) {
     }[] = [];
 
     cartItems.forEach((item) => {
-      const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
+      const price = parseFloat(item.price_per_day as any);
+      const priceVal = isNaN(price) ? 0 : price;
+      const lineTotal = priceVal * item.quantity * pricingMultiplier;
       const itemDisc =
         item.discount_type === 'percent'
           ? lineTotal * (item.discount / 100)
@@ -692,19 +695,23 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       return;
     }
 
-    // Validate price overrides (prices cannot be lower than original)
-    for (const item of cartItems) {
-      const minPrice = item.original_price_per_day ?? 0;
-      if (item.price_per_day < minPrice) {
-        showError(
-          'Price Override',
-          `Price for "${item.product.name}" cannot be lower than the original price of ${formatCurrency(minPrice)}.`
-        );
-        return;
-      }
+    // Validate that price per day is a valid number and not less than original price per day
+    const invalidItems = cartItems.filter(item => {
+      const price = parseFloat(item.price_per_day);
+      const originalPrice = item.original_price_per_day ?? 0;
+      return isNaN(price) || price < originalPrice;
+    });
+
+    if (invalidItems.length > 0) {
+      const firstInvalid = invalidItems[0];
+      showError(
+        'Invalid Price Override',
+        `Price for ${firstInvalid.product.name} must be a valid number and cannot be lower than original price ${formatCurrency(firstInvalid.original_price_per_day ?? 0)}.`
+      );
+      return;
     }
 
-    const basePayload = {
+    const basePayload: any = {
       notes: notes || undefined,
       delivery_address: deliveryAddress || undefined,
       discount: orderDiscount || 0,
@@ -719,22 +726,22 @@ export default function OrderForm({ initialData }: OrderFormProps) {
       subtotal: cartTotals.subtotal,
       gst_amount: cartTotals.gstAmount,
       total_amount: cartTotals.grandTotal,
-      amount_paid: advanceAmount > 0 ? advanceAmount : 0,
-      payment_status:
-        advanceAmount > 0
-          ? advanceAmount >= cartTotals.grandTotal
-            ? 'paid'
-            : 'partial'
-          : 'pending',
       items: cartItems.map((item) => ({
         product_id: item.product.id,
         quantity: item.quantity,
-        price_per_day: item.price_per_day,
+        price_per_day: parseFloat(item.price_per_day as any),
         original_price_per_day: item.original_price_per_day,
         discount: item.discount || 0,
         discount_type: item.discount_type || 'flat',
       })),
     };
+
+    if (!isEditing) {
+      basePayload.amount_paid = advanceAmount > 0 ? advanceAmount : 0;
+      basePayload.payment_status = advanceAmount > 0 
+        ? (advanceAmount >= cartTotals.grandTotal ? 'paid' : 'partial')
+        : 'pending';
+    }
 
     // Check if any items ACTUALLY need priority cleaning based on requested quantity
     const priorityItems = cartItems.filter((item) => {
@@ -801,7 +808,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
           items: cartItems.map((item) => ({
             product_id: item.product.id,
             quantity: item.quantity,
-            price_per_day: item.price_per_day,
+            price_per_day: parseFloat(item.price_per_day as any),
             original_price_per_day: item.original_price_per_day,
             discount: item.discount || 0,
             discount_type: item.discount_type || 'flat',
@@ -858,7 +865,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             </Button>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                {isEditing ? 'Edit Order' : 'New Order'}
+                {isOngoingOrInUse ? 'Edit Amount' : isEditing ? 'Edit Order' : 'New Order'}
               </h1>
               {isEditing ? (
                 <div className="space-y-0.5 mt-1 text-xs text-slate-500">
@@ -883,6 +890,23 @@ export default function OrderForm({ initialData }: OrderFormProps) {
             </div>
           </div>
         </div>
+
+
+        {isOngoingOrInUse && (
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl">
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-amber-950 text-sm uppercase tracking-wider">
+                Ongoing Rental Active
+              </h4>
+              <p className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+                This rental is currently active. You are only allowed to modify financial values
+                (item rates and order discounts). The rental period, customer, and items/quantities
+                cannot be modified.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Two-column layout — 50/50 split */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -969,6 +993,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => setSelectedCustomer(null)}
+                    disabled={isOngoingOrInUse}
                     className="h-8 border-slate-200 text-slate-500 hover:text-slate-900 text-xs"
                   >
                     Change
@@ -1005,6 +1030,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                     type="date"
                     className="h-12 border-slate-200 focus:border-slate-900 text-base"
                     value={format(startDate, 'yyyy-MM-dd')}
+                    disabled={isOngoingOrInUse}
                     onChange={(e) => {
                       const newDate = new Date(e.target.value);
                       if (!isNaN(newDate.getTime())) {
@@ -1020,6 +1046,7 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                     type="date"
                     className="h-12 border-slate-200 focus:border-slate-900 text-base"
                     value={format(endDate, 'yyyy-MM-dd')}
+                    disabled={isOngoingOrInUse}
                     min={format(startDate, 'yyyy-MM-dd')}
                     onChange={(e) => {
                       const newDate = new Date(e.target.value);
@@ -1343,13 +1370,15 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                 )}
                               </div>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => removeCartItem(item.product.id)}
-                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {!isOngoingOrInUse && (
+                              <button
+                                type="button"
+                                onClick={() => removeCartItem(item.product.id)}
+                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
 
                           {/* Live Availability Badge */}
@@ -1552,6 +1581,21 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                               );
                             })()}
 
+                        {/* Price calculation breakdown */}
+                        <div className="mt-1.5 px-2 py-1.5 bg-slate-50/80 rounded border border-slate-100">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="font-medium">
+                              {formatCurrency(parseFloat(item.price_per_day as any) || 0)} × {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} × {pricingMultiplier === 1 ? `base (${rentalDays} days)` : `${pricingMultiplier} (${rentalDays} days − ${defaultRentalDuration - 1} free)`}
+                            </span>
+                            <span className="font-semibold text-slate-600">
+                              = {formatCurrency((parseFloat(item.price_per_day as any) || 0) * item.quantity * pricingMultiplier)}
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <CalendarDays className="w-2.5 h-2.5" />
+                            {format(startDate, 'MMM d')} – {format(endDate, 'MMM d, yyyy')}
+                          </div>
+                        </div>
                           {/* Auto Priority Cleaning Warning Banner — only when qty exceeds free stock and product has buffer */}
                           {avail &&
                             (avail as any).priorityCleaningNeeded &&

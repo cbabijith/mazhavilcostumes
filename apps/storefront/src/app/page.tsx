@@ -61,7 +61,7 @@ export default async function Home() {
       {/* 7. The Experience (How It Works) */}
       <HowItWorks />
 
-      {/* 9. Bridal Stories (Reviews) */}
+      {/* 9. Performance Stories (Reviews) */}
       <CustomerReviews />
 
       {/* 10. Final Invitation (CTA) */}

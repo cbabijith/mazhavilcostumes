@@ -17,6 +17,7 @@ export class StaffRepository extends BaseRepository {
       .from(this.tableName)
       .select('*, branch:branches!staff_branch_id_fkey(id, name)')
       .eq('store_id', storeId)
+      .is('deleted_at', null)
       .order('name');
 
     return this.handleResponse<StaffWithBranch[]>({ data, error });
@@ -27,6 +28,7 @@ export class StaffRepository extends BaseRepository {
       .from(this.tableName)
       .select('*')
       .eq('branch_id', branchId)
+      .is('deleted_at', null)
       .order('name');
 
     return this.handleResponse<Staff[]>({ data, error });
@@ -74,7 +76,16 @@ export class StaffRepository extends BaseRepository {
   }
 
   async delete(id: string): Promise<RepositoryResult<boolean>> {
-    const { error } = await this.client.from(this.tableName).delete().eq('id', id);
+    // Soft-delete: keep the row for audit/history but deactivate it.
+    const { error } = await this.client
+      .from(this.tableName)
+      .update({
+        deleted_at: new Date().toISOString(),
+        is_active: false,
+        updated_at: new Date().toISOString(),
+        ...this.getUpdateAuditFields()
+      })
+      .eq('id', id);
 
     if (error) return { data: null, error, success: false };
     return { data: true, error: null, success: true };

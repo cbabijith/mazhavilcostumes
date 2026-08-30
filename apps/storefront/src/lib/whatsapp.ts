@@ -1,4 +1,4 @@
-// Shared WhatsApp ordering config for Mazhavil Dance Costumes
+// Shared WhatsApp ordering config for Paris Bridals
 import { BRAND_CONFIG } from 'shared-utils';
 
 export const WHATSAPP_NUMBER = '918129668157';

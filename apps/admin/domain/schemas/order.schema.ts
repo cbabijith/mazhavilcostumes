@@ -125,29 +125,32 @@ export const UpdateOrderSchema = z
       .optional()
       .nullable(),
 
-    items: z.array(orderItemSchema).optional(),
-  })
-  .refine(
-    (data) => {
-      if (data.start_date && data.end_date) {
-        const start = new Date(data.start_date);
-        const end = new Date(data.end_date);
-        return end >= start;
-      }
-      return true;
-    },
-    {
-      message: 'Rental end date cannot be before start date',
-      path: ['end_date'],
-    }
-  );
+  // `items` may be omitted entirely ( = don't touch items) but if present it
+  // MUST be non-empty. An empty array would otherwise reach orderRepository.update
+  // and, combined with the differential item-sync, wipe every existing item.
+  items: z.array(orderItemSchema).min(1, 'Items array cannot be empty').optional(),
+}).refine((data) => {
+  if (data.start_date && data.end_date) {
+    const start = new Date(data.start_date);
+    const end = new Date(data.end_date);
+    return end >= start;
+  }
+  return true;
+}, {
+  message: 'Rental end date cannot be before start date',
+  path: ['end_date'],
+});
 
 const returnItemSchema = z.object({
   item_id: z.string().uuid('Invalid item ID'),
-  returned_quantity: z.number().int().positive('Must return at least 1'),
+  // NEW TOTAL returned for this item (not a delta). 0 = item not returned yet.
+  // The return route validates against the stored order item (see orderService),
+  // not this schema — mobile clients omit some wrapper fields.
+  returned_quantity: z.number().int().min(0, 'Cannot be negative'),
   condition_rating: z.nativeEnum(ConditionRating),
   damage_description: z.string().max(1000).optional(),
   damage_charges: z.number().nonnegative().optional(),
+  damaged_quantity: z.number().int().nonnegative().optional(),
 });
 
 export const ReturnOrderSchema = z.object({

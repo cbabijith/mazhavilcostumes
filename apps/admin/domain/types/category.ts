@@ -65,12 +65,18 @@ export interface UpdateCategoryDTO {
   gst_percentage?: number;
 }
 
-// GST Options for category dropdown
-export const GST_OPTIONS = [
-  { value: 5, label: '5%' },
-  { value: 12, label: '12%' },
-  { value: 18, label: '18%' },
-] as const;
+// Default GST slabs (Indian standard). Used the first time the Settings manager
+// is opened, and as a fallback whenever the configured `gst_slabs` setting is
+// missing or corrupt. Sources: governed by the admin via Settings → GST Configuration.
+export const DEFAULT_GST_SLABS = [0, 5, 12, 18, 28] as const;
+
+// GST Options for category dropdown — derived from DEFAULT_GST_SLABS.
+// NOTE: CategoryForm now sources the live list from useGstSlabs() at runtime;
+// this constant is only a fallback used while that query is loading.
+export const GST_OPTIONS = DEFAULT_GST_SLABS.map((value) => ({
+  value,
+  label: `${value}%`,
+}));
 
 // Category with Relations
 export interface CategoryWithRelations extends Category {

@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import Image from 'next/image';
-import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck } from 'lucide-react';
-import WhatsAppOrderModal from './WhatsAppOrderModal';
-import { getProductImageUrls } from '@/lib/supabase/queries';
-import { cn } from '@/lib/utils';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { ChevronRight, ShoppingBag, ShieldCheck, Sparkles, Truck, Star } from "lucide-react";
+import WhatsAppOrderModal from "./WhatsAppOrderModal";
+import { getProductImageUrls } from "@/lib/supabase/queries";
+import { cn } from "@/lib/utils";
 
 interface ProductDetailsProps {
   product: {
@@ -194,6 +194,18 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
                   <ShoppingBag size={16} strokeWidth={1.8} />
                   {isInCart ? 'Go to Cart' : 'Add to Cart'}
                 </button>
+
+                <a
+                  href="https://www.google.com/maps/search/?api=1&query=9.18014716987313,76.5576453469383"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="relative w-full py-3.5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 overflow-hidden shadow-md shadow-amber-500/10 cursor-pointer bg-amber-500 hover:bg-amber-600 text-white hover:shadow-lg hover:shadow-amber-500/20 active:scale-[0.98] transition-all mt-2 group"
+                >
+                  {/* Subtle pulsing ring */}
+                  <span className="absolute inset-0 rounded-full border border-amber-500 animate-ping opacity-60 pointer-events-none scale-105" />
+                  <Star size={16} className="fill-white text-white group-hover:rotate-12 transition-transform" />
+                  <span>Loved this piece? Write a Google Review!</span>
+                </a>
               </div>
 
               {/* Trust notes */}

@@ -383,7 +383,26 @@ export class PaymentService {
         updateData.deposit_returned_at = null;
       }
 
-      await orderRepository.update(orderId, updateData as any);
+      // Only perform the update if values changed to prevent infinite update loops
+      const valuesChanged =
+        order.amount_paid !== clampedAmountPaid ||
+        order.payment_status !== newPaymentStatus ||
+        order.security_deposit !== updateData.security_deposit ||
+        order.deposit_collected !== updateData.deposit_collected ||
+        order.deposit_returned !== updateData.deposit_returned ||
+        Boolean(updateData.deposit_collected_at) !== Boolean(order.deposit_collected_at) ||
+        Boolean(updateData.deposit_returned_at) !== Boolean(order.deposit_returned_at);
+      if (valuesChanged) {
+        await orderRepository.update(orderId, updateData as any);
+
+        // Payment status may have crossed a threshold — check auto-completion
+        try {
+          const { orderService } = await import('./orderService');
+          await orderService.checkAndAutoComplete(orderId);
+        } catch (err) {
+          console.error('[paymentService.syncOrderPaymentStatus] Failed to check and auto-complete order:', err);
+        }
+      }
     }
   }
 }

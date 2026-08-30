@@ -8,13 +8,7 @@ import { ShoppingCart, ShieldAlert } from 'lucide-react';
 import { OrderStatus } from '@/domain/types/order';
 import { Button } from '@/components/ui/button';
 
-const NON_EDITABLE_STATUSES = [
-  OrderStatus.CANCELLED,
-  OrderStatus.COMPLETED,
-  OrderStatus.RETURNED,
-  OrderStatus.ONGOING,
-  OrderStatus.IN_USE,
-];
+const NON_EDITABLE_STATUSES = [OrderStatus.CANCELLED, OrderStatus.COMPLETED, OrderStatus.RETURNED];
 
 export default function EditOrderPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);

@@ -79,6 +79,26 @@ export interface Product {
   barcode: string | null;
 }
 
+/**
+ * Build a PostgREST `.or()` filter string for product search across multiple
+ * fields: name, description, sku, and barcode. Shared by the server-side
+ * getProducts() query and the client-side dropdown searches so they all match
+ * the same set of fields.
+ *
+ * IMPORTANT: PostgREST's `.or()` syntax uses commas to separate filters and
+ * parentheses for grouping, so any comma or parenthesis inside the search term
+ * must be percent-encoded or it would be misparsed. BUT spaces must be left as
+ * literal spaces — encoding them to %20 breaks ILIKE matching against text
+ * that contains real spaces (e.g. "Maveli set without shoe"). Only the two
+ * delimiter characters are escaped.
+ */
+export function buildProductSearchFilter(term: string): string {
+  // Escape only PostgREST .or() delimiters — keep spaces intact.
+  const escaped = term.trim().replace(/,/g, '%2C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+  const pattern = `%${escaped}%`;
+  return `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
+}
+
 export interface Banner {
   id: string;
   store_id: string | null;
@@ -479,7 +499,7 @@ export async function getProducts(
   }
 
   if (options.search) {
-    query = query.ilike('name', `%${options.search}%`);
+    query = query.or(buildProductSearchFilter(options.search));
   }
 
   // Sorting

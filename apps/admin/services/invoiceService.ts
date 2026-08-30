@@ -88,10 +88,12 @@ export class InvoiceService {
       if (!countErr && count !== null) {
         sequentialNum = count;
       }
+      // Paris Bridals invoice prefix. Keep in sync with orderRepository's
+      // generator so sequences stay aligned across both code paths.
       invoiceNumber =
         invoiceType === 'final'
-          ? `MAZ-${fiscalSuffix}-${sequentialNum}`
-          : `MAZ-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
+          ? `PB-${fiscalSuffix}-${sequentialNum}`
+          : `PB-${fiscalSuffix}-${sequentialNum}-DEPOSIT`;
     }
     const invoiceDate = new Date().toLocaleDateString('en-IN');
 

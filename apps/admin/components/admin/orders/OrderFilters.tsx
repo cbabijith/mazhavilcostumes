@@ -76,6 +76,11 @@ function OrderFiltersInner({
   const [searchInput, setSearchInput] = useState(initialQuery);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const isFirstRender = useRef(true);
+  // Last value emitted to the parent. Without this guard the debounce effect
+  // below also fires when `onSearchChange` changes identity (it is re-created
+  // on every URL navigation because it depends on `searchParams`), which
+  // re-emitted the search and reset `page` to 1 on every pagination click.
+  const lastEmittedRef = useRef(initialQuery);
 
   // Sync external query changes (e.g. URL navigation)
   useEffect(() => {
@@ -84,12 +89,16 @@ function OrderFiltersInner({
       return;
     }
     setSearchInput(initialQuery);
+    // External changes must not be re-emitted as user input
+    lastEmittedRef.current = initialQuery;
   }, [initialQuery]);
 
-  // Debounce search input by 300ms
+  // Debounce search input by 300ms — only for user-typed changes
   useEffect(() => {
+    if (searchInput === lastEmittedRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      lastEmittedRef.current = searchInput;
       onSearchChange(searchInput);
     }, 300);
     return () => {

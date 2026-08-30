@@ -8,6 +8,7 @@
 
 import { RepositoryResult } from '@/repository';
 import { Setting, SettingKey, UpdateSettingDTO } from '@/domain/types/settings';
+import { DEFAULT_GST_SLABS } from '@/domain/types/category';
 import { settingsRepository } from '@/repository';
 
 export class SettingsService {
@@ -39,13 +40,18 @@ export class SettingsService {
       SettingKey.IS_GST_ENABLED
     );
 
+    // Defensive fallback: if no row exists for the configured store_id (e.g.
+    // an API route didn't call setStoreId, or the store_id changed), look up
+    // the key across ANY store. Single-store deployments should never fail to
+    // find the toggle just because of a store_id mismatch. Multi-store
+    // deployments still get correct behavior because the store-scoped lookup
+    // above succeeds first when store_id is wired right.
     if (!result.success || !result.data) {
-      // Default to false (disabled) if not set
-      return {
-        data: false,
-        error: null,
-        success: true,
-      };
+      const fallback = await settingsRepository.findByKeyAnyStore(SettingKey.IS_GST_ENABLED);
+      if (fallback.success && fallback.data) {
+        return { data: fallback.data.value === 'true', error: null, success: true };
+      }
+      return { data: false, error: null, success: true };
     }
 
     return {
@@ -87,6 +93,72 @@ export class SettingsService {
   async findByKey(key: string): Promise<RepositoryResult<Setting | null>> {
     const result = await settingsRepository.findByStoreAndKey(this.storeId, key as SettingKey);
     return result;
+  }
+
+  /**
+   * Get the list of configured GST percentage slabs.
+   *
+   * Stored as a JSON-stringified array under the `gst_slabs` setting key.
+   * Returns the DEFAULT_GST_SLABS fallback when the setting is missing,
+   * empty, or fails to parse — the app must never break because of a bad
+   * config value.
+   */
+  async getGstSlabs(): Promise<RepositoryResult<number[]>> {
+    let result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_SLABS);
+    // Defensive fallback: try any store if the configured store_id has no row.
+    // Same reasoning as getIsGSTEnabled — protects against store_id wiring bugs.
+    if (!result.success || !result.data) {
+      const fallback = await settingsRepository.findByKeyAnyStore(SettingKey.GST_SLABS);
+      if (fallback.success && fallback.data) result = fallback;
+    }
+    if (!result.success || !result.data) {
+      return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+    }
+    try {
+      const parsed = JSON.parse(result.data.value);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+      }
+      // Coerce to numbers, filter invalid, dedupe, sort ascending
+      const slabs = Array.from(new Set(parsed.map(Number)))
+        .filter((n) => Number.isFinite(n) && n >= 0 && n <= 100)
+        .sort((a, b) => a - b);
+      return { data: slabs.length > 0 ? slabs : [...DEFAULT_GST_SLABS], error: null, success: true };
+    } catch {
+      return { data: [...DEFAULT_GST_SLABS], error: null, success: true };
+    }
+  }
+
+  /**
+   * Set the list of configured GST percentage slabs.
+   *
+   * Validates: non-empty, every value is a finite number in [0, 100],
+   * no duplicates. Serializes as JSON and stores via the standard setting key.
+   */
+  async setGstSlabs(slabs: number[]): Promise<RepositoryResult<Setting>> {
+    if (!Array.isArray(slabs) || slabs.length === 0) {
+      return {
+        data: null,
+        error: { message: 'At least one GST slab is required', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    const cleaned = Array.from(new Set(slabs.map(Number)))
+      .filter((n) => Number.isFinite(n) && n >= 0 && n <= 100)
+      .sort((a, b) => a - b);
+    if (cleaned.length === 0) {
+      return {
+        data: null,
+        error: { message: 'All GST slabs must be numbers between 0 and 100', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    return await settingsRepository.upsert(
+      this.storeId,
+      SettingKey.GST_SLABS,
+      JSON.stringify(cleaned),
+      this.currentUserId
+    );
   }
 }
 

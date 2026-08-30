@@ -11,6 +11,7 @@ interface ProductSuggestion {
   sku?: string | null;
   barcode?: string | null;
   category_name?: string;
+  description?: string | null;
 }
 
 interface SearchClientProps {
@@ -42,12 +43,19 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
     const timer = setTimeout(async () => {
       setIsLoading(true);
       try {
+        // Multi-field search: match name, description, sku, or barcode.
+        // Only escape PostgREST .or() delimiters (comma/parens) — keep spaces
+        // literal so multi-word phrases like "Maveli set without shoe" match.
+        const escaped = query.trim().replace(/,/g, '%2C').replace(/\(/g, '%28').replace(/\)/g, '%29');
+        const pattern = `%${escaped}%`;
+        const orFilter = `name.ilike.${pattern},description.ilike.${pattern},sku.ilike.${pattern},barcode.ilike.${pattern}`;
+
         let queryBuilder = supabase
-          .from('products')
-          .select('id, name, sku, barcode, category:category_id(name)')
-          .eq('is_active', true)
-          .ilike('name', `%${query}%`)
-          .order('name', { ascending: true })
+          .from("products")
+          .select("id, name, sku, barcode, description, category:category_id(name)")
+          .eq("is_active", true)
+          .or(orFilter)
+          .order("name", { ascending: true })
           .range(0, 14); // Fetch first 15 suggestions
 
         if (storeId) {
@@ -57,15 +65,14 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
         const { data, error } = await queryBuilder;
 
         if (!error && data) {
-          setSuggestions(
-            data.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              sku: p.sku,
-              barcode: p.barcode,
-              category_name: p.category?.name,
-            }))
-          );
+          setSuggestions(data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            barcode: p.barcode,
+            description: p.description,
+            category_name: p.category?.name
+          })));
         }
       } catch (err) {
         console.error('Search suggestion error:', err);
@@ -144,34 +151,16 @@ export default function SearchClient({ storeId, categories, featured }: SearchCl
                     }}
                     className="w-full flex items-center justify-between py-3 hover:text-rosegold transition-colors text-left group cursor-pointer"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Search
-                        size={14}
-                        className="text-muted-foreground group-hover:text-rosegold transition-colors shrink-0"
-                      />
-                      <span className="text-sm font-medium text-body group-hover:text-rosegold transition-colors truncate">
-                        {product.sku &&
-                        !product.name.toLowerCase().includes(product.sku.toLowerCase()) ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="font-semibold text-rosegold">{product.sku}</span>
-                            <span className="text-muted-foreground font-normal">-</span>
-                            <span className="text-muted-foreground font-normal">
-                              {product.name}
-                            </span>
-                          </span>
-                        ) : product.barcode &&
-                          !product.name.toLowerCase().includes(product.barcode.toLowerCase()) ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="font-semibold text-rosegold">{product.barcode}</span>
-                            <span className="text-muted-foreground font-normal">-</span>
-                            <span className="text-muted-foreground font-normal">
-                              {product.name}
-                            </span>
-                          </span>
-                        ) : (
-                          product.name
-                        )}
-                      </span>
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <Search size={14} className="text-muted-foreground group-hover:text-rosegold transition-colors shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-sm font-medium text-heading group-hover:text-rosegold transition-colors truncate">
+                          {product.description || product.name}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground/80 truncate mt-0.5 uppercase tracking-wide font-mono">
+                          {product.name}{product.sku && product.sku !== product.description ? ` · ${product.sku}` : ''}
+                        </span>
+                      </div>
                     </div>
                   </button>
                 ))}

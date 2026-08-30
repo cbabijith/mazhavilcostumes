@@ -104,25 +104,30 @@ export async function DELETE(
 
     staffService.setUserContext(guard.user.staff_id, guard.user.branch_id, guard.user.store_id);
 
-    const { id } = await params;
-
-    // Prevent deactivating a super_admin
-    const target = await staffService.getStaffById(id);
-    if (target.success && target.data && target.data.role === 'super_admin') {
+    // Only super_admin can delete staff members
+    if (guard.user.role !== 'super_admin') {
       return NextResponse.json(
-        {
-          success: false,
-          error: { message: 'The Super Admin account cannot be deactivated.', code: 'FORBIDDEN' },
-        },
+        { success: false, error: { message: 'Only Super Admins can delete staff accounts.', code: 'FORBIDDEN' } },
         { status: 403 }
       );
     }
 
-    const result = await staffService.deactivateStaff(id);
-    if (!result.success) {
-      return apiRepositoryError(result.error, 'Failed to deactivate staff');
+    const { id } = await params;
+
+    // Prevent deleting a super_admin
+    const target = await staffService.getStaffById(id);
+    if (target.success && target.data && target.data.role === 'super_admin') {
+      return NextResponse.json(
+        { success: false, error: { message: 'The Super Admin account cannot be deleted.', code: 'FORBIDDEN' } },
+        { status: 403 }
+      );
     }
-    return apiSuccess(null, { message: 'Staff member deactivated successfully' });
+
+    const result = await staffService.deleteStaff(id);
+    if (!result.success) {
+      return apiRepositoryError(result.error, 'Failed to delete staff');
+    }
+    return apiSuccess(null, { message: 'Staff member deleted successfully' });
   } catch (error: any) {
     console.error('[API] DELETE /api/staff/[id] error:', error);
     return apiInternalError(error.message);
