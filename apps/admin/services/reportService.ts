@@ -864,6 +864,156 @@ export class ReportService {
       });
   }
 
+  /** R13: Damage / Flagged report — what got damaged, why, and the money side */
+  async getDamageReport(filters: ReportFilters): Promise<any> {
+    const { today } = this.getISTDateContext();
+    const fromDate = filters.from_date || this.getPeriodStart(filters.period || 'month');
+    const toDate = filters.to_date || today;
+    const range = this.formatISTQueryRange(fromDate, toDate);
+
+    // 1. Damaged items in the period (any damage marker). Paged.
+    const damagedItems = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select(`
+          id, order_id, product_id, quantity, returned_quantity,
+          damaged_quantity, damage_charges, damage_description, condition_rating, created_at,
+          product:product_id(id, name),
+          order:order_id(id, invoice_number, status, payment_status, total_amount, amount_paid, created_at,
+            customer:customer_id(name, phone))
+        `, { count: 'exact' })
+        .or('damaged_quantity.gt.0,damage_charges.gt.0,condition_rating.eq.damaged')
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    ) as any[];
+
+    // 2. Live snapshot: orders currently FLAGGED (damage pending assessment)
+    const flaggedOrders = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('orders')
+        .select(`
+          id, invoice_number, status, payment_status, total_amount, amount_paid,
+          late_fee, discount, damage_charges_total, created_at,
+          customer:customer_id(name, phone),
+          items:order_items(id, product_id, quantity, returned_quantity, damaged_quantity,
+            damage_charges, damage_description, condition_rating,
+            product:product_id(name))
+        `, { count: 'exact' })
+        .eq('status', 'flagged')
+        .order('created_at', { ascending: false })
+        .range(from, to)
+    ) as any[];
+
+    // 3. Pending damage assessments (bounded: only unresolved units exist)
+    const pendingAssessments = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('damage_assessments')
+        .select('id, order_id, product_id, unit_index, decision', { count: 'exact' })
+        .eq('decision', 'pending')
+        .order('id', { ascending: true })
+        .range(from, to)
+    ) as any[];
+    const pendingByOrder: Record<string, number> = {};
+    for (const a of pendingAssessments) {
+      pendingByOrder[a.order_id] = (pendingByOrder[a.order_id] || 0) + 1;
+    }
+
+    // ── Aggregates ──
+    let feesCharged = 0, feesCollected = 0, feesPending = 0, unitsDamaged = 0;
+    const orderIdsWithDamage = new Set<string>();
+    for (const it of damagedItems) {
+      const fee = Number(it.damage_charges || 0);
+      const units = Number(it.damaged_quantity || 0);
+      feesCharged += fee;
+      unitsDamaged += units;
+      orderIdsWithDamage.add(it.order_id);
+      const payStatus = it.order?.payment_status;
+      if (payStatus === 'paid') feesCollected += fee;
+      else feesPending += fee;
+    }
+
+    // ── Group by product: which products keep getting damaged and why ──
+    const byProduct: Record<string, {
+      product_id: string; product_name: string; orders_count: number; units_damaged: number;
+      damage_fees: number; reasons: string[]; last_damaged_at: string;
+    }> = {};
+    for (const it of damagedItems) {
+      const pid = it.product_id;
+      const p = byProduct[pid] || {
+        product_id: pid,
+        product_name: it.product?.name || 'Unknown',
+        orders_count: 0, units_damaged: 0, damage_fees: 0, reasons: [], last_damaged_at: '',
+      };
+      p.orders_count += 1;
+      p.units_damaged += Number(it.damaged_quantity || 0);
+      p.damage_fees += Number(it.damage_charges || 0);
+      const reason = (it.damage_description || '').trim();
+      if (reason && !p.reasons.includes(reason)) p.reasons.push(reason);
+      if (!p.last_damaged_at || it.created_at > p.last_damaged_at) p.last_damaged_at = it.created_at;
+      byProduct[pid] = p;
+    }
+    const damagedProducts = Object.values(byProduct)
+      .map(p => ({ ...p, damage_fees: Math.round(p.damage_fees * 100) / 100, reasons: p.reasons.slice(0, 5) }))
+      .sort((a, b) => b.units_damaged - a.units_damaged || b.damage_fees - a.damage_fees);
+
+    // ── Flagged order rows (action needed) ──
+    const flaggedRows = flaggedOrders.map(o => {
+      const damaged = (o.items || []).filter((i: any) =>
+        (i.damaged_quantity || 0) > 0 || (i.damage_charges || 0) > 0 || i.condition_rating === 'damaged');
+      return {
+        order_id: o.id,
+        invoice_number: o.invoice_number,
+        customer_name: o.customer?.name || 'Unknown',
+        customer_phone: o.customer?.phone || '',
+        created_at: o.created_at,
+        payment_status: o.payment_status,
+        total_amount: Number(o.total_amount || 0),
+        amount_paid: Number(o.amount_paid || 0),
+        balance_due: Math.max(0, Number(o.total_amount || 0) - Number(o.amount_paid || 0)),
+        damage_fees: damaged.reduce((s: number, i: any) => s + Number(i.damage_charges || 0), 0),
+        damaged_units: damaged.reduce((s: number, i: any) => s + Number(i.damaged_quantity || 0), 0),
+        products_summary: damaged
+          .map((i: any) => `${i.product?.name || 'Product'} ×${i.damaged_quantity || 0}${i.damage_description ? ` (${i.damage_description})` : ''}`)
+          .join('; '),
+        pending_assessments: pendingByOrder[o.id] || 0,
+      };
+    });
+
+    // ── Item detail rows (this is the `summary` array the reports page
+    //    feeds to the sortable table + Excel/PDF export) ──
+    const itemRows = damagedItems.map(it => ({
+      invoice_number: it.order?.invoice_number || '',
+      order_status: it.order?.status || '',
+      customer_name: it.order?.customer?.name || 'Unknown',
+      product_name: it.product?.name || 'Product',
+      damaged_units: Number(it.damaged_quantity || 0),
+      returned_units: Number(it.returned_quantity || 0),
+      ordered_units: Number(it.quantity || 0),
+      damage_fee: Number(it.damage_charges || 0),
+      reason: it.damage_description || '',
+      payment_status: it.order?.payment_status || '',
+      created_at: it.created_at,
+    }));
+
+    return {
+      period: { from: fromDate, to: toDate },
+      totals: {
+        damaged_orders: orderIdsWithDamage.size,
+        damaged_units: unitsDamaged,
+        damage_fees_charged: Math.round(feesCharged * 100) / 100,
+        damage_fees_collected: Math.round(feesCollected * 100) / 100,
+        damage_fees_pending: Math.round(feesPending * 100) / 100,
+        flagged_orders_now: flaggedRows.length,
+        pending_assessments_now: pendingAssessments.length,
+      },
+      flagged_orders: flaggedRows,
+      damaged_products: damagedProducts,
+      summary: itemRows,
+    };
+  }
+
   /** R9: Sales by staff */
   async getSalesByStaff(filters: ReportFilters): Promise<SalesByStaffRow[]> {
     const { today } = this.getISTDateContext();

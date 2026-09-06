@@ -19,7 +19,8 @@ export type ReportType =
   | 'inventory-revenue'   // R10
   | 'enquiry-log'         // R11
   | 'gst-filing'          // R12
-  | 'todays-revenue';     // R13 — staff/manager only
+  | 'todays-revenue'      // R13 — staff/manager only
+  | 'damage-report';      // R14 — flagged orders, damaged products + fee collection
 
 export type StaffRole = 'super_admin' | 'admin' | 'manager' | 'staff';
 
@@ -39,6 +40,7 @@ export const REPORT_LIST: ReportMeta[] = [
   { id: 'todays-revenue', name: "Today's Revenue", description: "Today's revenue snapshot", category: 'sale', icon: 'TrendingUp', roles: ['manager', 'staff'] },
   { id: 'top-costumes', name: 'Top Costumes', description: 'Most rented or highest earning', category: 'sale', icon: 'Trophy' },
   { id: 'dead-stock', name: 'Dead Stock / No-Sale', description: 'Products with zero rentals', category: 'sale', icon: 'PackageX' },
+  { id: 'damage-report', name: 'Damage / Flagged Report', description: 'Damaged products, reasons and damage fee collection', category: 'due', icon: 'ShieldAlert' },
   { id: 'enquiry-log', name: 'Customer Enquiry Log', description: 'Manual enquiry entries', category: 'reminder', icon: 'MessageSquare' },
   { id: 'revenue', name: 'Revenue Report', description: 'Revenue by status and period', category: 'sale', icon: 'TrendingUp', roles: ['super_admin', 'admin'] },
   { id: 'top-customers', name: 'Top Customers', description: 'Customers ranked by spend', category: 'sale', icon: 'Users', roles: ['super_admin', 'admin'] },
