@@ -1116,6 +1116,48 @@ export class OrderService {
           success: false,
         };
       }
+      // returned_quantity is a NEW TOTAL, so it can never go DOWN — a lower
+      // value would silently un-return units, flip is_returned back to false
+      // and corrupt the outstanding-units math on every client.
+      const alreadyReturned = orderItem.returned_quantity || 0;
+      if (item.returned_quantity < alreadyReturned) {
+        return {
+          data: null,
+          error: {
+            message: `Returned quantity (${item.returned_quantity}) cannot be less than the ${alreadyReturned} unit(s) already returned. Send the NEW TOTAL (already returned + returning now), not just the units being returned now.`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      // Damaged units are a subset of the units coming back
+      if ((item.damaged_quantity || 0) > item.returned_quantity) {
+        return {
+          data: null,
+          error: {
+            message: `Damaged quantity (${item.damaged_quantity}) cannot exceed returned quantity (${item.returned_quantity})`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+    }
+
+    // Return-time adjustments can never be negative — a negative late fee or
+    // discount would silently reduce the order total (an un-authorized refund).
+    if ((returnData.late_fee ?? 0) < 0) {
+      return {
+        data: null,
+        error: { message: 'Late fee cannot be negative', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    if ((returnData.discount ?? 0) < 0) {
+      return {
+        data: null,
+        error: { message: 'Discount cannot be negative', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
     }
 
     const result = await orderRepository.processReturn(orderId, returnData);
@@ -1296,21 +1338,45 @@ export class OrderService {
     // If flagged, check if all damage assessments are resolved
     if (order.status === OrderStatus.FLAGGED) {
       const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
-      if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
-        const assessments = assessmentResult.data;
-        const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
-        
-        // If all are assessed, transition order from FLAGGED to RETURNED status
+      const assessments = assessmentResult.success && assessmentResult.data ? assessmentResult.data : [];
+
+      // Zero assessment rows can mean two things:
+      //  a) nothing is assessable (damage recorded with 0 damaged units, or a
+      //     legacy flagged order without damaged quantities) — the order would
+      //     otherwise sit in FLAGGED forever, so it must transition here;
+      //  b) assessable damage exists but the rows were never created (legacy
+      //     order or failed auto-creation) — keep it flagged; the Damage
+      //     Assessment Panel offers a backfill button for exactly this case.
+      const hasAssessableDamage = (order.items || []).some(
+        i => i.condition_rating === 'damaged' && (i.damaged_quantity || 0) > 0
+      );
+      const allDone = assessments.length > 0
+        ? assessments.every(a => a.decision !== DamageDecision.PENDING)
+        : !hasAssessableDamage;
+
+        // If all are assessed, transition order out of FLAGGED — but only to
+        // RETURNED when every unit is physically back. Orders that still have
+        // units out with the customer must land in PARTIAL so staff can
+        // process the remaining returns later (completed/returned are not
+        // returnable statuses).
         if (allDone) {
-          await orderRepository.update(orderId, { status: OrderStatus.RETURNED } as any);
+          const itemsResult = await orderRepository.getOrderItems(orderId);
+          const items = itemsResult.data || [];
+          const allUnitsBack = items.length > 0 && items.every(i => (i.returned_quantity || 0) >= i.quantity);
+          const nextStatus = allUnitsBack ? OrderStatus.RETURNED : OrderStatus.PARTIAL;
+
+          await orderRepository.update(orderId, { status: nextStatus } as any);
           // Sync priority flag (clears it for returned/completed orders)
           await orderRepository.syncOrderPriorityFlag(orderId);
           // Add status history entry
-          await orderRepository.addStatusHistory(orderId, OrderStatus.RETURNED, 'Damage assessment complete: all units resolved');
-          order.status = OrderStatus.RETURNED;
-          itemsDone = true;
+          await orderRepository.addStatusHistory(orderId, nextStatus, assessments.length > 0
+            ? (allUnitsBack
+                ? 'Damage assessment complete: all units resolved'
+                : 'Damage assessment complete: units still out with customer')
+            : 'Unflagged: no assessable damage units on this order');
+          order.status = nextStatus;
+          itemsDone = allUnitsBack;
         }
-      }
     }
 
     if (itemsDone && paymentDone) {
