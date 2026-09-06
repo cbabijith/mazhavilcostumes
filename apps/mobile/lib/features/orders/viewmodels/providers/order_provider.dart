@@ -420,6 +420,20 @@ class OrderOperations {
       cancelToken: cancelToken,
     );
   }
+
+  Future<Map<String, dynamic>> assessDamageUnit({
+    required String orderId,
+    required String assessmentId,
+    required String decision,
+    String? notes,
+  }) async {
+    return await _repository.assessDamageUnit(
+      orderId: orderId,
+      assessmentId: assessmentId,
+      decision: decision,
+      notes: notes,
+    );
+  }
 }
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {
@@ -440,4 +454,10 @@ final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, St
     rethrow;
   }
 });
+
+final orderDamageAssessmentsProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, orderId) async {
+  final repository = ref.watch(orderRepositoryProvider);
+  return await repository.getDamageAssessments(orderId);
+});
+
 

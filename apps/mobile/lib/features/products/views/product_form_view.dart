@@ -961,9 +961,8 @@ class _ProductFormViewState extends ConsumerState<ProductFormView> {
         'barcode': _barcode,
       };
 
-      // Add branch_inventory for per-branch stock
+      // Add branch_inventory for per-branch stock (include all configured branches so 0 quantities persist)
       final branchInventory = _branchStocks.entries
-          .where((e) => e.value > 0)
           .map((e) => {'branch_id': e.key, 'quantity': e.value})
           .toList();
       if (branchInventory.isNotEmpty) {

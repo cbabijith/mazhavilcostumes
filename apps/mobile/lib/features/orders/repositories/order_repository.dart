@@ -356,4 +356,36 @@ class OrderRepository {
       throw Exception('Failed to update order item damage: $e');
     }
   }
+
+  /// Fetch all damage assessments for an order.
+  Future<Map<String, dynamic>> getDamageAssessments(String orderId) async {
+    try {
+      final response = await _api.get('/orders/$orderId/damage-assessments');
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Failed to fetch damage assessments: $e');
+    }
+  }
+
+  /// Submit decision for a damage assessment unit (reuse or not_reuse/write-off).
+  Future<Map<String, dynamic>> assessDamageUnit({
+    required String orderId,
+    required String assessmentId,
+    required String decision,
+    String? notes,
+  }) async {
+    try {
+      final response = await _api.patch(
+        '/orders/$orderId/damage-assessments/$assessmentId',
+        data: {
+          'decision': decision,
+          'notes': notes,
+        },
+      );
+      return response.data as Map<String, dynamic>;
+    } catch (e) {
+      throw Exception('Failed to assess damage unit: $e');
+    }
+  }
 }
+

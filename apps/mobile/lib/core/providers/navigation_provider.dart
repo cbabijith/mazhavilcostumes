@@ -63,7 +63,7 @@ Future<void> navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) async {
 
   // Apply filters to orders notifier
   ordersNotifier.setFilters(
-    status: statusList != null && statusList.isNotEmpty ? statusList.first : null,
+    status: statusList != null && statusList.length == 1 ? statusList.first : statusList,
     excludeStatus: excludeStatusList != null && excludeStatusList.length == 1 ? excludeStatusList.first : excludeStatusList,
     paymentStatus: paymentStatusList != null && paymentStatusList.length == 1 ? paymentStatusList.first : paymentStatusList,
     dateFilter: dateFilter,

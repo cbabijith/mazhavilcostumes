@@ -906,6 +906,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
 
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildItemsCard(),
+                  if (_currentOrder.status == OrderStatus.flagged ||
+                      _currentOrder.damageChargesTotal > 0 ||
+                      _currentOrder.lateFee > 0) ...[
+                    SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                    _buildProjectedSettlementCard(
+                      onCollectPayment: _openPaymentDialog,
+                    ),
+                  ],
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildFinancialReceiptCard(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -1209,7 +1217,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         status == OrderStatus.ongoing ||
         status == OrderStatus.delivered ||
         status == OrderStatus.inUse ||
-        status == OrderStatus.partial;
+        status == OrderStatus.partial ||
+        status == OrderStatus.flagged;
     final bool showCollectPayment =
         _currentOrder.paymentStatus != PaymentStatus.paid;
     final bool showCancel =
@@ -1340,75 +1349,132 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     if (showCollectPayment) activeActions.add('payment');
     if (showCancel) activeActions.add('cancel');
 
-    if (activeActions.isEmpty) return const SizedBox.shrink();
+    final hasPendingReturns = _currentOrder.items?.any((i) => (i.returnedQuantity ?? 0) < i.quantity) ?? false;
+    final showPartialReturnBanner = (_currentOrder.status == OrderStatus.partial || (_currentOrder.status == OrderStatus.flagged && hasPendingReturns));
+
+    if (activeActions.isEmpty && !showPartialReturnBanner) return const SizedBox.shrink();
 
     return Padding(
       padding: Responsive.only(top: AppSizes.spacingMedium),
-      child: Builder(
-        builder: (context) {
-          if (activeActions.length == 3) {
-            // Stack primary action on top, secondary actions side by side below
-            final primaryType = showStartRental ? 'start' : 'return';
-            return Column(
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: primaryType == 'start'
-                      ? buildStartRentalButton(isExpanded: false)
-                      : buildProcessReturnButton(isExpanded: false),
-                ),
-                SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                Row(
-                  children: [
-                    buildCancelButton(isExpanded: true),
-                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                    buildCollectPaymentButton(isExpanded: true),
-                  ],
-                ),
-              ],
-            );
-          } else if (activeActions.length == 2) {
-            // Show side by side
-            final List<Widget> rowChildren = [];
-            if (showCancel) {
-              rowChildren.add(buildCancelButton(isExpanded: true));
-            }
-            if (showCollectPayment) {
-              if (rowChildren.isNotEmpty)
-                rowChildren.add(
-                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                );
-              rowChildren.add(buildCollectPaymentButton(isExpanded: true));
-            }
-            if (showStartRental) {
-              if (rowChildren.isNotEmpty)
-                rowChildren.add(
-                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                );
-              rowChildren.add(buildStartRentalButton(isExpanded: true));
-            }
-            if (showProcessReturn) {
-              if (rowChildren.isNotEmpty)
-                rowChildren.add(
-                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                );
-              rowChildren.add(buildProcessReturnButton(isExpanded: true));
-            }
-            return Row(children: rowChildren);
-          } else {
-            // Single action - full width
-            return SizedBox(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (showPartialReturnBanner) ...[
+            Container(
               width: double.infinity,
-              child: showStartRental
-                  ? buildStartRentalButton(isExpanded: false)
-                  : showProcessReturn
-                  ? buildProcessReturnButton(isExpanded: false)
-                  : showCollectPayment
-                  ? buildCollectPaymentButton(isExpanded: false)
-                  : buildCancelButton(isExpanded: false),
-            );
-          }
-        },
+              margin: Responsive.only(bottom: AppSizes.spacingSmall),
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50.withValues(alpha: 0.9),
+                border: Border.all(color: Colors.amber.shade300),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.amber.shade900,
+                    size: Responsive.icon(AppSizes.iconMedium),
+                  ),
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Partial Return Pending',
+                          style: TextStyle(
+                            color: Colors.amber.shade900,
+                            fontWeight: FontWeight.bold,
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                        Text(
+                          'Some items are still with the customer. Tap "Process Return" when remaining items arrive.',
+                          style: TextStyle(
+                            color: Colors.amber.shade800,
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (activeActions.isNotEmpty)
+            Builder(
+              builder: (context) {
+                if (activeActions.length == 3) {
+                  // Stack primary action on top, secondary actions side by side below
+                  final primaryType = showStartRental ? 'start' : 'return';
+                  return Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: primaryType == 'start'
+                            ? buildStartRentalButton(isExpanded: false)
+                            : buildProcessReturnButton(isExpanded: false),
+                      ),
+                      SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                      Row(
+                        children: [
+                          buildCancelButton(isExpanded: true),
+                          SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                          buildCollectPaymentButton(isExpanded: true),
+                        ],
+                      ),
+                    ],
+                  );
+                } else if (activeActions.length == 2) {
+                  // Show side by side
+                  final List<Widget> rowChildren = [];
+                  if (showCancel) {
+                    rowChildren.add(buildCancelButton(isExpanded: true));
+                  }
+                  if (showCollectPayment) {
+                    if (rowChildren.isNotEmpty) {
+                      rowChildren.add(
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                      );
+                    }
+                    rowChildren.add(buildCollectPaymentButton(isExpanded: true));
+                  }
+                  if (showStartRental) {
+                    if (rowChildren.isNotEmpty) {
+                      rowChildren.add(
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                      );
+                    }
+                    rowChildren.add(buildStartRentalButton(isExpanded: true));
+                  }
+                  if (showProcessReturn) {
+                    if (rowChildren.isNotEmpty) {
+                      rowChildren.add(
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                      );
+                    }
+                    rowChildren.add(buildProcessReturnButton(isExpanded: true));
+                  }
+                  return Row(children: rowChildren);
+                } else {
+                  // Single action - full width
+                  return SizedBox(
+                    width: double.infinity,
+                    child: showStartRental
+                        ? buildStartRentalButton(isExpanded: false)
+                        : showProcessReturn
+                        ? buildProcessReturnButton(isExpanded: false)
+                        : showCollectPayment
+                        ? buildCollectPaymentButton(isExpanded: false)
+                        : buildCancelButton(isExpanded: false),
+                  );
+                }
+              },
+            ),
+        ],
       ),
     );
   }
@@ -2346,9 +2412,22 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     _currentOrder.status == OrderStatus.ongoing ||
                     _currentOrder.status == OrderStatus.inUse ||
                     _currentOrder.status == OrderStatus.delivered ||
-                    _currentOrder.status == OrderStatus.partial;
+                    _currentOrder.status == OrderStatus.partial ||
+                    _currentOrder.status == OrderStatus.flagged;
+                final isDamagedItem = item.isReturned == true && item.conditionRating == ConditionRating.damaged;
 
-                return Padding(
+                return Container(
+                  margin: Responsive.symmetric(
+                    horizontal: AppSizes.spacingSmall,
+                    vertical: AppSizes.spacingTiny / 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isDamagedItem ? AppColors.warning.withValues(alpha: 0.06) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                    border: isDamagedItem
+                        ? Border.all(color: AppColors.warning.withValues(alpha: 0.45), width: AppSizes.spacingTiny / 4)
+                        : null,
+                  ),
                   padding: Responsive.all(AppSizes.spacingMedium),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2515,57 +2594,149 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     padding: Responsive.only(
                                       top: AppSizes.spacingTiny,
                                     ),
-                                    child: Container(
-                                      padding: Responsive.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.success.withValues(
-                                          alpha: 0.1,
+                                    child: Wrap(
+                                      spacing: Responsive.w(AppSizes.spacingSmall),
+                                      runSpacing: Responsive.h(AppSizes.spacingTiny),
+                                      children: [
+                                        Container(
+                                          padding: Responsive.symmetric(
+                                            horizontal: AppSizes.spacingSmall - 2,
+                                            vertical: AppSizes.spacingTiny / 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isDamagedItem
+                                                ? AppColors.warning.withValues(alpha: 0.15)
+                                                : AppColors.success.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              Responsive.r(AppSizes.radiusSmall / 2),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                isDamagedItem
+                                                    ? Icons.warning_amber_rounded
+                                                    : Icons.check_circle_outline_rounded,
+                                                size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                color: isDamagedItem ? AppColors.warning : AppColors.success,
+                                              ),
+                                              SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                              Text(
+                                                'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
+                                                style: TextStyle(
+                                                  fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                  color: isDamagedItem ? AppColors.warning : AppColors.success,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
-                                        style: TextStyle(
-                                          fontSize: Responsive.sp(9),
-                                          color: AppColors.success,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
+                                        if (isDamagedItem &&
+                                            (item.quantity - (item.damagedQuantity ?? item.quantity)) > 0)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.success.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              '✓ ${(item.quantity - (item.damagedQuantity ?? item.quantity))} of ${item.quantity} auto-marked Good',
+                                              style: TextStyle(
+                                                fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                color: AppColors.success,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                   ),
-                                if (item.isReturned == true &&
-                                    item.conditionRating ==
-                                        ConditionRating.damaged) ...[
+                                if (isDamagedItem) ...[
                                   if (item.damageDescription != null &&
                                       item.damageDescription!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4.0),
-                                      child: Text(
-                                        'Damage Notes: ${item.damageDescription}',
-                                        style: TextStyle(
-                                          fontSize: Responsive.sp(
-                                            AppSizes.fontTiny + 1,
-                                          ),
-                                          color: AppColors.warning,
-                                          fontStyle: FontStyle.italic,
+                                    Container(
+                                      width: double.infinity,
+                                      margin: Responsive.only(top: AppSizes.spacingSmall),
+                                      padding: Responsive.all(AppSizes.spacingSmall),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.warning.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(
+                                          Responsive.r(AppSizes.radiusSmall),
                                         ),
+                                        border: Border.all(
+                                          color: AppColors.warning.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.report_problem_outlined,
+                                                size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                color: AppColors.warning,
+                                              ),
+                                              SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                              Text(
+                                                'DAMAGE NOTES',
+                                                style: TextStyle(
+                                                  fontSize: Responsive.sp(AppSizes.fontTiny - 2),
+                                                  fontWeight: FontWeight.w900,
+                                                  color: AppColors.warning,
+                                                  letterSpacing: 0.8,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                                          Text(
+                                            item.damageDescription!,
+                                            style: TextStyle(
+                                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                                              color: AppColors.text,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   if ((item.damageCharges ?? 0.0) > 0)
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 2.0),
-                                      child: Text(
-                                        'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
-                                        style: TextStyle(
-                                          fontSize: Responsive.sp(
-                                            AppSizes.fontTiny + 1,
-                                          ),
-                                          color: AppColors.warning,
-                                          fontWeight: FontWeight.bold,
+                                    Container(
+                                      margin: Responsive.only(top: AppSizes.spacingTiny),
+                                      padding: Responsive.symmetric(
+                                        horizontal: AppSizes.spacingSmall,
+                                        vertical: AppSizes.spacingTiny / 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.warning.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(
+                                          Responsive.r(AppSizes.radiusSmall / 2),
                                         ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.currency_rupee_rounded,
+                                            size: Responsive.icon(AppSizes.iconTiny - 2),
+                                            color: AppColors.warning,
+                                          ),
+                                          Text(
+                                            'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
+                                            style: TextStyle(
+                                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                                              color: AppColors.warning,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                 ],
@@ -2591,6 +2762,295 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildProjectedSettlementCard({
+    double? liveDamage,
+    double? liveLate,
+    double? liveDiscount,
+    VoidCallback? onCollectPayment,
+  }) {
+    final double damageFees = liveDamage ?? _currentOrder.damageChargesTotal;
+    final double lateFees = liveLate ?? _currentOrder.lateFee;
+    final double discount = liveDiscount ?? _currentOrder.discount;
+
+    // Base order total before any return-time adjustments (damage, late fee)
+    final double originalBaseTotal =
+        _currentOrder.totalAmount -
+        _currentOrder.damageChargesTotal -
+        _currentOrder.lateFee;
+
+    final double newTotal = originalBaseTotal + damageFees + lateFees - discount;
+    final double amountPaid = _currentOrder.amountPaid;
+    final double balanceDue = newTotal - amountPaid;
+
+    final bool showLateWarning = lateFees > 0 && !_currentOrder.isLate;
+
+    return Container(
+      width: double.infinity,
+      padding: Responsive.all(AppSizes.spacingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusMedium)),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.4),
+          width: AppSizes.spacingTiny / 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.receipt_long_rounded,
+                color: AppColors.warning,
+                size: Responsive.icon(AppSizes.iconSmall),
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingTiny + 2)),
+              Text(
+                'PROJECTED SETTLEMENT',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.warning,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+          _buildSettlementRow(
+            'Base Order Total',
+            '₹${originalBaseTotal.toStringAsFixed(2)}',
+            isBoldValue: true,
+          ),
+          if (damageFees > 0) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+            _buildSettlementRow(
+              '+ Damage Fees',
+              '+₹${damageFees.toStringAsFixed(2)}',
+              valueColor: AppColors.warning,
+              isBoldValue: true,
+            ),
+          ],
+          if (lateFees > 0) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+            _buildSettlementRow(
+              '+ Late Fee',
+              '+₹${lateFees.toStringAsFixed(2)}',
+              valueColor: AppColors.error,
+              isBoldValue: true,
+            ),
+          ],
+          if (discount > 0) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+            _buildSettlementRow(
+              '− Discount',
+              '−₹${discount.toStringAsFixed(2)}',
+              valueColor: AppColors.success,
+              isBoldValue: true,
+            ),
+          ],
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+          Divider(
+            color: AppColors.warning.withValues(alpha: 0.3),
+            height: 1,
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+          _buildSettlementRow(
+            'New Total',
+            '₹${newTotal.toStringAsFixed(2)}',
+            isBoldLabel: true,
+            isBoldValue: true,
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+          _buildSettlementRow(
+            'Less: Paid',
+            '−₹${amountPaid.toStringAsFixed(2)}',
+            valueColor: AppColors.success,
+            isBoldValue: true,
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny + 2)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Balance Due',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.text,
+                ),
+              ),
+              Text(
+                '₹${balanceDue.toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontLarge),
+                  fontWeight: FontWeight.w900,
+                  color: balanceDue > 0 ? AppColors.error : AppColors.success,
+                ),
+              ),
+            ],
+          ),
+          if (showLateWarning) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+            Container(
+              padding: Responsive.all(AppSizes.spacingSmall),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    color: AppColors.warning,
+                    size: Responsive.icon(AppSizes.iconSmall),
+                  ),
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ON-TIME RETURN WARNING',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.warning,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                        Text(
+                          'This order is returned on-time. Extra late fee of ₹${lateFees.toStringAsFixed(2)} is being applied.',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (balanceDue > 0) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Container(
+              padding: Responsive.all(AppSizes.spacingSmall + 2),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.3),
+                  width: AppSizes.spacingTiny / 4,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: Responsive.all(AppSizes.spacingTiny),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.warning_amber_rounded,
+                      color: AppColors.error,
+                      size: Responsive.icon(AppSizes.iconSmall),
+                    ),
+                  ),
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Payment Due — ₹${balanceDue.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.error,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                        Text(
+                          'Collect the remaining balance before or after completing the return.',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            color: AppColors.error.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (onCollectPayment != null) ...[
+                    SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                    ElevatedButton(
+                      onPressed: onCollectPayment,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingMedium,
+                          vertical: AppSizes.spacingSmall,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                        ),
+                      ),
+                      child: Text(
+                        'Collect Payment',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettlementRow(
+    String label,
+    String value, {
+    bool isBoldLabel = false,
+    bool isBoldValue = false,
+    Color? valueColor,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: isBoldLabel ? FontWeight.w900 : FontWeight.normal,
+            color: AppColors.secondaryText,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: Responsive.sp(AppSizes.fontSmall),
+            fontWeight: isBoldValue ? FontWeight.bold : FontWeight.normal,
+            color: valueColor ?? AppColors.text,
+          ),
+        ),
+      ],
     );
   }
 
@@ -3521,87 +3981,132 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancel Order'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Are you sure you want to cancel this order?'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: reasonController,
-                decoration: const InputDecoration(
-                  labelText: 'Cancellation Reason',
-                  border: OutlineInputBorder(),
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Cancel Order'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Are you sure you want to cancel this order?'),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: reasonController,
+                      decoration: const InputDecoration(
+                        labelText: 'Cancellation Reason',
+                        hintText: 'e.g. Customer cancelled / Event postponed',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    if (paidAmount > 0) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        'Total Paid so far: ₹${paidAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          ChoiceChip(
+                            label: Text('Full Refund (₹${paidAmount.toStringAsFixed(0)})'),
+                            selected: refundController.text == paidAmount.toStringAsFixed(0) ||
+                                refundController.text == paidAmount.toString(),
+                            onSelected: (selected) {
+                              if (selected) {
+                                setDialogState(() {
+                                  refundController.text = paidAmount.toStringAsFixed(0);
+                                });
+                              }
+                            },
+                          ),
+                          ChoiceChip(
+                            label: const Text('Waive / Keep Advance (₹0)'),
+                            selected: refundController.text == '0' || refundController.text == '0.0',
+                            onSelected: (selected) {
+                              if (selected) {
+                                setDialogState(() {
+                                  refundController.text = '0';
+                                  if (reasonController.text.trim().isEmpty) {
+                                    reasonController.text = 'Advance retained as cancellation fee';
+                                  }
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: refundController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Refund Amount (₹)',
+                          helperText: 'Enter 0 to retain the advance with shop',
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (paidAmount > 0) ...[
-                const SizedBox(height: 12),
-                Text('Total Paid so far: ₹$paidAmount'),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: refundController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Refund Amount (₹)',
-                    border: OutlineInputBorder(),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
                   ),
+                  onPressed: () async {
+                    final reason = reasonController.text.trim();
+                    if (reason.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a cancellation reason'),
+                        ),
+                      );
+                      return;
+                    }
+                    final refund = double.tryParse(refundController.text) ?? 0.0;
+                    Navigator.pop(dialogContext);
+                    setState(() => _isLoading = true);
+                    try {
+                      await ref
+                          .read(orderOperationsProvider)
+                          .updateOrder(_currentOrder.id, {
+                            'status': 'cancelled',
+                            'cancellation_reason': reason,
+                            if (paidAmount > 0) 'refund_amount': refund,
+                          });
+                      await _refreshOrder();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Order cancelled successfully'),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      setState(() => _isLoading = false);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Cancellation failed: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text('Confirm Cancel'),
                 ),
               ],
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                final reason = reasonController.text.trim();
-                if (reason.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter a cancellation reason'),
-                    ),
-                  );
-                  return;
-                }
-                final refund = double.tryParse(refundController.text) ?? 0.0;
-                Navigator.pop(dialogContext);
-                setState(() => _isLoading = true);
-                try {
-                  await ref
-                      .read(orderOperationsProvider)
-                      .updateOrder(_currentOrder.id, {
-                        'status': 'cancelled',
-                        'cancellation_reason': reason,
-                        if (paidAmount > 0) 'refund_amount': refund,
-                      });
-                  await _refreshOrder();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Order cancelled successfully'),
-                      ),
-                    );
-                  }
-                } catch (e) {
-                  setState(() => _isLoading = false);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Cancellation failed: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Confirm Cancel'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -4198,12 +4703,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                 double.tryParse(lateFeeController.text) ?? 0.0;
             final double parsedDiscount =
                 double.tryParse(discountController.text) ?? 0.0;
-            final balanceDue =
-                _currentOrder.totalAmount -
-                _currentOrder.amountPaid +
-                liveDamageTotal +
-                parsedLate -
-                parsedDiscount;
 
             // Barcode scan function
             void handleBarcodeScan() {
@@ -4307,7 +4806,58 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     ...items.map((item) {
                       final maxReturn =
                           item.quantity - (item.returnedQuantity ?? 0);
-                      if (maxReturn <= 0) return const SizedBox.shrink();
+                      if (maxReturn <= 0) {
+                        return Container(
+                          margin: Responsive.symmetric(vertical: AppSizes.spacingTiny),
+                          padding: Responsive.all(AppSizes.spacingMedium),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.success,
+                                size: Responsive.icon(AppSizes.iconSmall + 2),
+                              ),
+                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                              Expanded(
+                                child: Text(
+                                  item.product?.name ??
+                                      'Product #${item.productId.substring(0, 8)}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: Responsive.symmetric(
+                                  horizontal: AppSizes.spacingSmall,
+                                  vertical: AppSizes.spacingTiny / 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(
+                                    Responsive.r(AppSizes.radiusSmall),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Returned (${item.quantity}/${item.quantity})',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(AppSizes.fontTiny),
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.success,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
 
                       final currentCondition = returnConditions[item.id];
 
@@ -4481,74 +5031,29 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         labelText: 'Return Notes',
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(10),
+                    if (liveDamageTotal > 0 || parsedLate > 0 || parsedDiscount > 0) ...[
+                      SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                      _buildProjectedSettlementCard(
+                        liveDamage: liveDamageTotal,
+                        liveLate: parsedLate,
+                        liveDiscount: parsedDiscount,
+                        onCollectPayment: null,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Live Return Financials Preview',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Damage Fees Total:'),
-                              Text('₹${liveDamageTotal.toStringAsFixed(2)}'),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Additional Late Fee:'),
-                              Text('₹${parsedLate.toStringAsFixed(2)}'),
-                            ],
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Additional Discount:'),
-                              Text('₹${parsedDiscount.toStringAsFixed(2)}'),
-                            ],
-                          ),
-                          const Divider(),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Projected Balance Due:',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                '₹${balanceDue.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: balanceDue > 0
-                                      ? const Color(0xFFFF6B8A)
-                                      : Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(24)),
+                    ],
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          padding: Responsive.symmetric(
+                            vertical: AppSizes.spacingMedium - 2,
+                          ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
                           ),
                         ),
                         onPressed: () async {
