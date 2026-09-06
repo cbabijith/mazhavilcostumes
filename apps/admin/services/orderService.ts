@@ -1238,120 +1238,131 @@ export class OrderService {
     }
 
     const result = await orderRepository.processReturn(orderId, returnData);
-    
+
     if (result.success && result.data) {
       // Clear dashboard cache immediately (in-memory, non-blocking)
       try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
 
-      // ─── POST-RETURN HOUSEKEEPING (BACKGROUND, NON-BLOCKING) ─────────────
-      // Auto-complete check, cleaning record transitions, and damage assessments
-      // don't affect the return response. Run them in the background so the user
-      // sees "returned" status immediately. "completed" status and cleaning
-      // records appear within ~2s via background processing.
+      // ─── POST-RETURN HOUSEKEEPING ─────────────────────────────────────────
+      // CRITICAL parts are AWAITED before the response: on Vercel serverless,
+      // fire-and-forget work after res.end() can be frozen before it runs —
+      // which silently dropped damage-assessment creation (the root cause of
+      // 'flagged with zero assessments' orders like MAZ-2627-0316) and
+      // auto-completion (returned+paid orders stuck at 'returned').
+      // Only the slow, non-critical parts (cleaning transitions) stay in the
+      // background.
       const returnedOrderData = result.data;
-      (async () => {
-        // Fetch order items for background processing (returnedOrderData is a bare Order without joins)
+
+      // 1. Auto-complete check (returned + paid → completed) — awaited
+      await this.checkAndAutoComplete(orderId).catch(err =>
+        console.error('[OrderService.processOrderReturn] Auto-complete failed:', err)
+      );
+
+      // 2. Damage assessments for damaged items — awaited (rows must exist)
+      try {
         const itemsResult = await orderRepository.getOrderItems(orderId);
         const orderItems = itemsResult.data || [];
+        const damagedItems = returnData.items
+          .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
+          .map(item => {
+            const orderItem = orderItems.find((i: any) => i.id === item.item_id);
+            return {
+              order_item_id: item.item_id,
+              product_id: orderItem?.product_id || '',
+              branch_id: returnedOrderData.branch_id,
+              damaged_quantity: item.damaged_quantity || 0,
+            };
+          })
+          .filter(item => item.product_id);
 
-        // 1. Auto-complete check (returned + paid → completed)
-        await this.checkAndAutoComplete(orderId).catch(err =>
-          console.error('[OrderService.processOrderReturn] Background auto-complete failed:', err)
-        );
-
-        // 2. Transition cleaning records: scheduled → in_progress
-        try {
-          const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
-          for (const item of orderItems) {
-            if (!item.product_id) continue;
-            productReturnMap.set(item.product_id, {
-              quantity: item.quantity,
-              returnedQuantity: item.returned_quantity || 0,
-            });
-          }
-
-          await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
-            const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
-            if (!scheduledRecord.success || !scheduledRecord.data) return;
-
-            const record = scheduledRecord.data;
-            const totalQty = info.quantity;
-            const returnedQty = info.returnedQuantity;
-
-            if (returnedQty >= totalQty) {
-              await cleaningRepository.update(record.id, {
-                status: CleaningStatus.IN_PROGRESS,
-                started_at: new Date().toISOString(),
-                quantity: record.quantity,
-                notes: record.notes
-                  ? `${record.notes} — all items returned, cleaning started`
-                  : 'All items returned, cleaning started',
-              });
-            } else {
-              const justReturnedQty = Math.min(returnedQty, record.quantity);
-              const remainingQty = record.quantity - justReturnedQty;
-
-              if (justReturnedQty > 0) {
-                await cleaningRepository.update(record.id, {
-                  status: CleaningStatus.IN_PROGRESS,
-                  started_at: new Date().toISOString(),
-                  quantity: justReturnedQty,
-                  notes: record.notes
-                    ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
-                    : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
-                });
-
-                if (remainingQty > 0) {
-                  await cleaningRepository.create({
-                    product_id: productId,
-                    order_id: orderId,
-                    branch_id: returnedOrderData.branch_id,
-                    store_id: record.store_id,
-                    quantity: remainingQty,
-                    status: CleaningStatus.SCHEDULED,
-                    priority: record.priority,
-                    priority_order_id: record.priority_order_id || undefined,
-                    expected_return_date: record.expected_return_date || undefined,
-                    notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
-                  });
-                }
-              }
-            }
-          }));
-        } catch (err) {
-          console.error('Failed to transition cleaning records:', err);
+        if (damagedItems.length > 0) {
+          await damageAssessmentService.createAssessments({
+            order_id: orderId,
+            items: damagedItems,
+          });
         }
-
-        // 3. Auto-create damage assessments for damaged items
+        // cleaning transitions: awaited too — dropped work on serverless
+        // freeze would leave stale cleaning records
         try {
-          const damagedItems = returnData.items
-            .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
-            .map(item => {
-              const orderItem = orderItems.find((i: any) => i.id === item.item_id);
-              return {
-                order_item_id: item.item_id,
-                product_id: orderItem?.product_id || '',
-                branch_id: returnedOrderData.branch_id,
-                damaged_quantity: item.damaged_quantity || 0,
-              };
-            })
-            .filter(item => item.product_id);
-
-          if (damagedItems.length > 0) {
-            await damageAssessmentService.createAssessments({
-              order_id: orderId,
-              items: damagedItems,
-            });
-          }
+          await this.transitionCleaningAfterReturn(orderId, returnedOrderData, orderItems);
         } catch (err) {
-          console.error('Failed to auto-create damage assessments:', err);
+          console.error('[OrderService.processOrderReturn] Cleaning transition failed:', err);
         }
-      })().catch(err => {
-        console.error('[OrderService.processOrderReturn] Background post-return housekeeping failed:', err);
-      });
+      } catch (err) {
+        console.error('Failed to create damage assessments:', err);
+      }
     }
 
     return result;
+  }
+
+  /**
+   * Transition cleaning records after a return: scheduled → in_progress for
+   * returned units, splitting records when only part of the units came back.
+   * Slow and non-critical — always called in the background.
+   */
+  private async transitionCleaningAfterReturn(
+    orderId: string,
+    returnedOrderData: any,
+    orderItems: any[],
+  ): Promise<void> {
+    const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
+    for (const item of orderItems) {
+      if (!item.product_id) continue;
+      productReturnMap.set(item.product_id, {
+        quantity: item.quantity,
+        returnedQuantity: item.returned_quantity || 0,
+      });
+    }
+
+    await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
+      const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
+      if (!scheduledRecord.success || !scheduledRecord.data) return;
+
+      const record = scheduledRecord.data;
+      const totalQty = info.quantity;
+      const returnedQty = info.returnedQuantity;
+
+      if (returnedQty >= totalQty) {
+        await cleaningRepository.update(record.id, {
+          status: CleaningStatus.IN_PROGRESS,
+          started_at: new Date().toISOString(),
+          quantity: record.quantity,
+          notes: record.notes
+            ? `${record.notes} — all items returned, cleaning started`
+            : 'All items returned, cleaning started',
+        });
+      } else {
+        const justReturnedQty = Math.min(returnedQty, record.quantity);
+        const remainingQty = record.quantity - justReturnedQty;
+
+        if (justReturnedQty > 0) {
+          await cleaningRepository.update(record.id, {
+            status: CleaningStatus.IN_PROGRESS,
+            started_at: new Date().toISOString(),
+            quantity: justReturnedQty,
+            notes: record.notes
+              ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
+              : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
+          });
+
+          if (remainingQty > 0) {
+            await cleaningRepository.create({
+              product_id: productId,
+              order_id: orderId,
+              branch_id: returnedOrderData.branch_id,
+              store_id: record.store_id,
+              quantity: remainingQty,
+              status: CleaningStatus.SCHEDULED,
+              priority: record.priority,
+              priority_order_id: record.priority_order_id || undefined,
+              expected_return_date: record.expected_return_date || undefined,
+              notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+            });
+          }
+        }
+      }
+    }));
   }
 
   /**
