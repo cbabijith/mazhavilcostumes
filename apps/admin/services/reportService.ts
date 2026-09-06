@@ -702,7 +702,9 @@ export class ReportService {
       supabase()
         .from('order_items')
         .select('product_id, quantity, subtotal, order:order_id(status, created_at)', { count: 'exact' })
-        .in('product_id', products.map((p: any) => p.id))
+        // No .in('product_id', ...) — the full SKU list exceeds the PostgREST
+        // URL limit; the date range bounds the scan and the product filter is
+        // applied implicitly by mapping only over `products` below.
         .gte('created_at', range.start)
         .lte('created_at', range.end)
         .order('id', { ascending: true })
@@ -754,11 +756,15 @@ export class ReportService {
 
     // Get all SELLABLE products — exclude soft-deleted (deleted_at) and
     // archived (is_active = false) so the report only reflects real inventory.
-    const { data: products } = await supabase()
-      .from('products')
-      .select('id, name, price_per_day, quantity, created_at, category:category_id(name)')
-      .eq('is_active', true)
-      .is('deleted_at', null);
+    const products = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('products')
+        .select('id, name, price_per_day, quantity, created_at, category:category_id(name)', { count: 'exact' })
+        .eq('is_active', true)
+        .is('deleted_at', null)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     // Get products that have been rented in the period (non-cancelled only)
     const rentedItems = await this.fetchAllPages((from, to) =>
@@ -779,21 +785,28 @@ export class ReportService {
 
     // Get last rental date for all products. Limited to the products we care
     // about (sellable ones) to keep the scan bounded.
-    const productIds = (products || []).map((p: any) => p.id);
+    const productIds = new Set((products as any[]).map((p: any) => p.id));
     const lastRentalMap: Record<string, string> = {};
-    if (productIds.length > 0) {
+    if (productIds.size > 0) {
+      // No .in('product_id', ids) filter: with hundreds of sellable SKUs the
+      // UUID list blows past the PostgREST URL limit (the pre-refactor code
+      // failed silently on exactly that). A full id-ordered scan paginated
+      // with fetchAllPages is bounded by total order_items (~thousands).
       const lastRentals = await this.fetchAllPages((from, to) =>
         supabase()
           .from('order_items')
           .select('product_id, created_at, order:order_id(status)', { count: 'exact' })
-          .in('product_id', productIds)
           .order('id', { ascending: true })
           .range(from, to)
       );
       for (const item of lastRentals as any[]) {
         // Skip cancelled-order items when determining the true last rental
         if (item.order?.status === 'cancelled') continue;
-        if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
+        if (!productIds.has(item.product_id)) continue;
+        // Ascending scan: keep overwriting so each product ends up with its
+        // LATEST non-cancelled rental (keeping only the first would report
+        // the earliest rental instead).
+        lastRentalMap[item.product_id] = item.created_at;
       }
     }
 
