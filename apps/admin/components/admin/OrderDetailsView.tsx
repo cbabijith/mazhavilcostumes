@@ -104,6 +104,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     damage_fee: number,
     damaged_quantity: number,
     notes: string,
+    // How many of the still-outstanding units are being returned RIGHT NOW
+    // (0..outstanding). The payload converts this to the NEW TOTAL semantics
+    // the API expects: stored returned_quantity + return_count.
+    return_count: number,
   }>>({});
 
   const [lateFee, setLateFee] = useState<number>(0);
@@ -135,11 +139,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         if (item.condition_rating === 'damaged') status = 'damaged';
         else if (item.condition_rating === 'excellent') status = 'excellent';
 
+        const outstanding = item.quantity - (item.returned_quantity || 0);
         initial[item.id] = {
           status: status,
           damage_fee: item.damage_charges || 0,
-          damaged_quantity: item.damaged_quantity || item.quantity,
-          notes: item.damage_description || ""
+          damaged_quantity: item.damaged_quantity || outstanding,
+          notes: item.damage_description || "",
+          // Default: everything still out comes back in this return (the
+          // previous all-or-nothing behaviour). Staff can lower the count
+          // when the customer only brings some units back.
+          return_count: outstanding,
         };
       });
       setReturnItems(initial);
@@ -210,7 +219,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleMarkAllExcellent = () => {
     const updated: any = {};
     Object.keys(returnItems).forEach(key => {
-      updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, damaged_quantity: 0, notes: "" };
+      const item = order?.items?.find(i => i.id === key);
+      const outstanding = item ? item.quantity - (item.returned_quantity || 0) : 0;
+      updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, damaged_quantity: 0, notes: "", return_count: outstanding };
     });
     setReturnItems(updated);
   };
@@ -237,10 +248,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       setHighlightedItemId(matchingItem.id);
       setTimeout(() => setHighlightedItemId(null), 2000);
 
-      // Auto-mark as excellent
+      // Auto-mark as excellent, returning every still-outstanding unit
       setReturnItems(prev => ({
         ...prev,
-        [matchingItem.id]: { ...prev[matchingItem.id], status: 'excellent', damage_fee: 0, notes: '' }
+        [matchingItem.id]: {
+          ...prev[matchingItem.id],
+          status: 'excellent',
+          damage_fee: 0,
+          notes: '',
+          return_count: matchingItem.quantity - (matchingItem.returned_quantity || 0),
+        }
       }));
       showSuccess('Item Scanned', `${product.name} marked as Good condition`);
       setBarcodeInput('');
@@ -289,11 +306,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const handleItemUpdate = (itemId: string, field: string, value: any) => {
     setReturnItems(prev => {
       const updated = { ...prev, [itemId]: { ...prev[itemId], [field]: value } };
-      // Auto-set damaged_quantity to full quantity when status changes to damaged
+      const item = order?.items?.find(i => i.id === itemId);
+      const outstanding = item ? item.quantity - (item.returned_quantity || 0) : 0;
+      // Auto-set damaged_quantity to the returning count when status changes to damaged
       if (field === 'status' && value === 'damaged') {
-        const item = order?.items?.find(i => i.id === itemId);
-        if (item && !updated[itemId].damaged_quantity) {
-          updated[itemId].damaged_quantity = item.quantity;
+        if (!updated[itemId].damaged_quantity) {
+          updated[itemId].damaged_quantity = updated[itemId].return_count || outstanding;
         }
       }
       // Auto-set damaged_quantity to 0 when status changes to excellent
@@ -301,11 +319,22 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         updated[itemId].damaged_quantity = 0;
         updated[itemId].damage_fee = 0;
         updated[itemId].notes = '';
+        // Switching back from "Not Returned" (count 0) restores the full count
+        if (!updated[itemId].return_count) updated[itemId].return_count = outstanding;
       }
       // "Not Returned" items stay out with the customer — no damage assessment yet
       if (field === 'status' && value === 'missing') {
         updated[itemId].damaged_quantity = 0;
         updated[itemId].damage_fee = 0;
+        updated[itemId].return_count = 0;
+      }
+      if (field === 'return_count') {
+        const clamped = Math.max(0, Math.min(outstanding, Number(value) || 0));
+        updated[itemId].return_count = clamped;
+        // Damaged units can never exceed the units actually coming back
+        if (updated[itemId].damaged_quantity > clamped) {
+          updated[itemId].damaged_quantity = clamped;
+        }
       }
       return updated;
     });
@@ -445,31 +474,39 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     // with the customer and the order settles as a partial return.
     const returnedNow = (order.items || []).filter(item => {
       const rItem = returnItems[item.id];
-      return !isItemFullyReturned(item) && (rItem?.status === 'excellent' || rItem?.status === 'damaged');
+      const outstanding = item.quantity - (item.returned_quantity || 0);
+      const count = rItem?.return_count ?? outstanding;
+      return !isItemFullyReturned(item) && (rItem?.status === 'excellent' || rItem?.status === 'damaged') && count > 0;
     });
-    const pendingCount = (order.items || []).filter(item => {
+    const stillOutUnits = (order.items || []).reduce((sum, item) => {
+      if (isItemFullyReturned(item)) return sum;
       const rItem = returnItems[item.id];
-      return !isItemFullyReturned(item) && rItem?.status === 'missing';
-    }).length;
+      const outstanding = item.quantity - (item.returned_quantity || 0);
+      const count = (rItem?.status === 'excellent' || rItem?.status === 'damaged') ? (rItem?.return_count ?? outstanding) : 0;
+      return sum + (outstanding - count);
+    }, 0);
 
     const returnPayload = {
       order_id: order.id,
-      notes: pendingCount > 0
-        ? `Partial return — ${pendingCount} item(s) still with customer. Late Fee: ${lateFee}, Discount: ${discount}`
+      notes: stillOutUnits > 0
+        ? `Partial return — ${stillOutUnits} unit(s) still with customer. Late Fee: ${lateFee}, Discount: ${discount}`
         : `Late Fee: ${lateFee}, Discount: ${discount}`,
       items: returnedNow.map(item => {
-        const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "" };
+        const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "", return_count: 0 };
+        const outstanding = item.quantity - (item.returned_quantity || 0);
+        const count = Math.max(1, Math.min(outstanding, rItem.return_count || outstanding));
         const isDamaged = rItem.status === 'damaged';
-        const damagedQty = isDamaged ? (rItem.damaged_quantity || item.quantity) : 0;
-        // Payload carries the NEW TOTAL returned quantity (not a delta)
+        const damagedQty = isDamaged ? Math.min(count, rItem.damaged_quantity || count) : 0;
+        // The API expects the NEW TOTAL returned quantity (not a delta):
+        // already-returned units + the units coming back right now.
         return {
           item_id: item.id,
-          returned_quantity: item.quantity,
+          returned_quantity: (item.returned_quantity || 0) + count,
           condition_rating: isDamaged ? ConditionRating.DAMAGED : ConditionRating.EXCELLENT,
           damage_description: rItem.notes || "",
           damage_charges: rItem.damage_fee || 0,
           damaged_quantity: damagedQty,
-          // The good quantity is implicitly: item.quantity - damagedQty
+          // The good quantity is implicitly: count - damagedQty
         };
       }),
       late_fee: lateFee,
@@ -497,11 +534,24 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       return;
     }
 
+    // Returning counts must be valid for every item being returned
+    const badCount = outstanding.filter(item => {
+      const rItem = returnItems[item.id];
+      if (rItem?.status !== 'excellent' && rItem?.status !== 'damaged') return false;
+      const out = item.quantity - (item.returned_quantity || 0);
+      const count = rItem?.return_count ?? out;
+      return count < 1 || count > out;
+    });
+    if (badCount.length > 0) {
+      showError("Invalid Return Count", "The returning count for each item must be between 1 and the units still out.");
+      return;
+    }
+
     // A submission must actually return something — an all-"Not Returned"
     // payload would be a no-op.
     const returningSomething = outstanding.some(item => {
       const rItem = returnItems[item.id];
-      return rItem?.status === 'excellent' || rItem?.status === 'damaged';
+      return (rItem?.status === 'excellent' || rItem?.status === 'damaged') && (rItem?.return_count ?? 0) > 0;
     });
     if (!returningSomething) {
       showError("No Items Returned", "Mark at least one item as Good or Damaged. Items kept by the customer should be saved using 'Not Returned' alongside a returned item.");
@@ -567,6 +617,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const pendingReturnItems = order.items?.filter(i => !isItemFullyReturned(i)) || [];
   // Items the staff has marked "Not Returned" in the current checklist session
   const pendingMarkedCount = pendingReturnItems.filter(i => returnItems[i.id]?.status === 'missing').length;
+  // Units that will STILL be out after this return is saved — counts both
+  // "Not Returned" items and partially-counted items (e.g. 1 of 3 coming back).
+  const unitsStillOut = pendingReturnItems.reduce((sum, item) => {
+    const rItem = returnItems[item.id];
+    const outstanding = item.quantity - (item.returned_quantity || 0);
+    const count = (rItem?.status === 'excellent' || rItem?.status === 'damaged')
+      ? (rItem?.return_count ?? outstanding)
+      : 0;
+    return sum + (outstanding - count);
+  }, 0);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-20">
@@ -917,11 +977,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
             <div className="divide-y divide-slate-100">
               {order.items?.map((item) => {
-                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: "" };
+                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, notes: "", damaged_quantity: 0, return_count: 0 };
                 const isExcellent = rItem.status === 'excellent';
                 const isDamaged = rItem.status === 'damaged';
                 const isMissing = rItem.status === 'missing';
                 const fullyReturned = isItemFullyReturned(item);
+                const outstandingUnits = item.quantity - (item.returned_quantity || 0);
                 const product = (item as any).product;
                 const imgUrl = getImageUrl(product);
 
@@ -943,6 +1004,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           <p className="text-sm font-bold text-slate-700">
                             Qty: {item.quantity} × {formatCurrency(item.price_per_day)}
                           </p>
+
+                          {(item.returned_quantity || 0) > 0 && !fullyReturned && (
+                            <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              {item.returned_quantity}/{item.quantity} back · {outstandingUnits} still out
+                            </span>
+                          )}
 
                           {item.discount > 0 && (
                             <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
@@ -973,6 +1040,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             <span className="text-[10px] font-semibold text-slate-400">Saved in an earlier return</span>
                           </div>
                         ) : (
+                        <>
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             type="button"
@@ -1000,6 +1068,46 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                             <Clock className={`w-5 h-5 mr-2 ${isMissing ? 'text-white' : 'text-red-400'}`} /> Not Returned
                           </Button>
                         </div>
+                        {/* Returning-count control: how many of the outstanding
+                            units are physically coming back right now. */}
+                        {!fullyReturned && outstandingUnits > 1 && (() => {
+                          const count = isMissing ? 0 : (rItem.return_count ?? outstandingUnits);
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Returning Now</span>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  type="button" variant="outline"
+                                  disabled={isMissing || count <= 0}
+                                  onClick={() => handleItemUpdate(item.id, 'return_count', count - 1)}
+                                  className="h-10 w-10 p-0 font-black text-lg border-slate-300"
+                                >−</Button>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  max={outstandingUnits}
+                                  value={count}
+                                  disabled={isMissing}
+                                  onChange={(e) => handleItemUpdate(item.id, 'return_count', parseInt(e.target.value, 10) || 0)}
+                                  className="w-16 h-10 text-center font-black text-base border-slate-300"
+                                />
+                                <Button
+                                  type="button" variant="outline"
+                                  disabled={isMissing || count >= outstandingUnits}
+                                  onClick={() => handleItemUpdate(item.id, 'return_count', count + 1)}
+                                  className="h-10 w-10 p-0 font-black text-lg border-slate-300"
+                                >+</Button>
+                              </div>
+                              <span className="text-xs font-bold text-slate-500">of {outstandingUnits} out</span>
+                              {isMissing ? (
+                                <span className="text-xs font-bold text-red-600">Staying with customer</span>
+                              ) : (isExcellent || isDamaged) && count < outstandingUnits ? (
+                                <span className="text-xs font-bold text-amber-600">{outstandingUnits - count} staying out</span>
+                              ) : null}
+                            </div>
+                          );
+                        })()}
+                        </>
                         )
                       ) : (
                         (() => {
@@ -1045,7 +1153,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                               type="number"
                               value={rItem.damaged_quantity || ""}
                               min={1}
-                              max={item.quantity}
+                              max={isMissing ? 0 : (rItem.return_count || outstandingUnits)}
                               onChange={(e) => {
                                 const raw = e.target.value;
                                 if (raw === '') {
@@ -1058,14 +1166,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                                 }
                               }}
                               onBlur={() => {
-                                // Clamp to valid range on blur
-                                const clamped = Math.max(1, Math.min(item.quantity, rItem.damaged_quantity || 1));
+                                // Clamp to valid range on blur — damaged units
+                                // can never exceed the units being returned now
+                                const maxDamaged = rItem.return_count || outstandingUnits;
+                                const clamped = Math.max(1, Math.min(maxDamaged, rItem.damaged_quantity || 1));
                                 handleItemUpdate(item.id, 'damaged_quantity', clamped);
                               }}
                               placeholder="0"
                               className="h-12 border-slate-300 focus:border-orange-400 font-bold text-lg rounded-lg"
                             />
-                            <p className="text-[10px] text-slate-400">of {item.quantity} total</p>
+                            <p className="text-[10px] text-slate-400">of {rItem.return_count || outstandingUnits} returning</p>
                           </div>
                           <div className="w-full sm:w-40 space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Fee (₹)</label>
@@ -1261,13 +1371,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                 )}
 
                 {/* Partial return hint */}
-                {pendingMarkedCount > 0 && (
+                {unitsStillOut > 0 && (
                   <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold shadow-sm">
                     <Clock className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                     <div>
                       <p className="font-extrabold text-red-900 uppercase tracking-wider text-[10px]">Partial Return</p>
                       <p className="mt-0.5 leading-relaxed text-red-700">
-                        {pendingMarkedCount} item{pendingMarkedCount > 1 ? 's are' : ' is'} marked <strong>Not Returned</strong>. Saving will keep this order as <strong>partially returned</strong> — rent for pending items is still charged, and you can complete the return when the customer brings them back.
+                        {unitsStillOut} unit{unitsStillOut > 1 ? 's are' : ' is'} still out with the customer (marked <strong>Not Returned</strong> or a reduced returning count). Saving will keep this order as <strong>partially returned</strong> — rent for pending units is still charged, and you can complete the return when the customer brings them back.
                       </p>
                     </div>
                   </div>
@@ -1287,9 +1397,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   <Button
                     onClick={handleReturnClick}
                     disabled={isReturning}
-                    className={`w-full sm:w-auto h-14 px-8 text-white font-bold text-lg rounded-xl shadow-md ${pendingMarkedCount > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
+                    className={`w-full sm:w-auto h-14 px-8 text-white font-bold text-lg rounded-xl shadow-md ${unitsStillOut > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
                   >
-                    {isReturning ? "Processing..." : pendingMarkedCount > 0 ? `Save Partial Return (${pendingMarkedCount} Pending)` : "Complete Return Process"}
+                    {isReturning ? "Processing..." : unitsStillOut > 0 ? `Save Partial Return (${unitsStillOut} Pending)` : "Complete Return Process"}
                   </Button>
                 </div>
               </div>
@@ -2210,17 +2320,24 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Items</h3>
             <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
               {order.items?.map((item) => {
-                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '' };
+                const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: '', return_count: 0 };
                 const product = (item as any).product;
                 const earlierReturned = isItemFullyReturned(item);
+                const outstanding = item.quantity - (item.returned_quantity || 0);
+                const count = (rItem.status === 'excellent' || rItem.status === 'damaged') ? (rItem.return_count || outstanding) : 0;
                 return (
                   <div key={item.id} className="flex items-center justify-between px-4 py-3 bg-white">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <span className="text-sm font-semibold text-slate-900 truncate">{product?.name || 'Product'}</span>
                       <span className="text-xs text-slate-400">×{item.quantity}</span>
-                      {rItem.status === 'damaged' && rItem.damaged_quantity < item.quantity && (
+                      {earlierReturned ? null : count > 0 && (
+                        <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          Returning {count} of {outstanding}
+                        </span>
+                      )}
+                      {rItem.status === 'damaged' && rItem.damaged_quantity < count && (
                         <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                          {rItem.damaged_quantity} damaged, {item.quantity - rItem.damaged_quantity} good
+                          {rItem.damaged_quantity} damaged, {count - rItem.damaged_quantity} good
                         </span>
                       )}
                     </div>
@@ -2234,7 +2351,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                           rItem.status === 'missing' ? 'bg-red-50 text-red-700 border-red-200' :
                             'bg-slate-50 text-slate-500 border-slate-200'
                       }`}>
-                      {rItem.status === 'excellent' ? 'Good' : rItem.status === 'damaged' ? 'Damaged' : rItem.status === 'missing' ? 'Not Returned' : 'Unmarked'}
+                      {rItem.status === 'excellent' ? `Good ×${count}` : rItem.status === 'damaged' ? `Damaged ×${count}` : rItem.status === 'missing' ? 'Not Returned' : 'Unmarked'}
                     </span>
                     )}
                   </div>
@@ -2244,13 +2361,13 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
 
           {/* Partial Return Warning */}
-          {pendingMarkedCount > 0 && (
+          {unitsStillOut > 0 && (
             <div className="flex items-start gap-3 p-3.5 bg-amber-50 border-2 border-amber-200 rounded-xl">
               <Clock className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-bold text-amber-800">Partial return will be saved</p>
                 <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                  {pendingMarkedCount} item{pendingMarkedCount > 1 ? 's are' : ' is'} marked <strong>Not Returned</strong>. This order will be saved as <strong>partially returned</strong> and can be completed later when the customer returns the remaining item{pendingMarkedCount > 1 ? 's' : ''}. Their rent is still included in the total.
+                  {unitsStillOut} unit{unitsStillOut > 1 ? 's are' : ' is'} still out with the customer. This order will be saved as <strong>partially returned</strong> and can be completed later when the customer brings the remaining unit{unitsStillOut > 1 ? 's' : ''} back. Their rent is still included in the total.
                 </p>
               </div>
             </div>
@@ -2321,9 +2438,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             <Button
               onClick={submitReturn}
               disabled={isReturning}
-              className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${pendingMarkedCount > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
+              className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${unitsStillOut > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
             >
-              {isReturning ? 'Processing...' : pendingMarkedCount > 0 ? 'Confirm & Save Partial Return' : 'Confirm & Complete Return'}
+              {isReturning ? 'Processing...' : unitsStillOut > 0 ? 'Confirm & Save Partial Return' : 'Confirm & Complete Return'}
             </Button>
           </div>
         </div>

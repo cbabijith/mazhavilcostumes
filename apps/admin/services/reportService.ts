@@ -53,26 +53,51 @@ export class ReportService {
     };
   }
 
+  /**
+   * Fetch ALL rows for a query by paging past Supabase/PostgREST's 1000-row
+   * response cap. Without this, any report query that can exceed 1000 rows
+   * (payments for a year, all order_items, etc.) silently drops the newest
+   * rows and the report looks "frozen" at an arbitrary date.
+   *
+   * The builder receives a zero-based range and must apply stable ordering
+   * (unique column, e.g. id) so pages don't overlap/skip.
+   */
+  private async fetchAllPages<T = any>(
+    buildPage: (from: number, to: number) => any,
+    pageSize = 1000
+  ): Promise<T[]> {
+    const first = await buildPage(0, pageSize - 1);
+    if (first.error) throw new Error(first.error.message);
+    const all: T[] = [...((first.data || []) as T[])];
+    const total = typeof first.count === 'number' ? first.count : all.length;
+
+    while (all.length < total) {
+      const page = await buildPage(all.length, all.length + pageSize - 1);
+      if (page.error) throw new Error(page.error.message);
+      if (!page.data || page.data.length === 0) break;
+      all.push(...(page.data as T[]));
+    }
+    return all;
+  }
+
   /** R1: Day-wise booking */
   async getDayWiseBooking(filters: ReportFilters): Promise<DayWiseBookingRow[]> {
     const { today } = this.getISTDateContext();
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data, error } = await supabase()
-      .from('orders')
-      .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))')
-      .gte('start_date', fromDate)
-      .lte('start_date', toDate)
-      .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
-      .order('created_at', { ascending: false });
+    const data = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('orders')
+        .select('id, status, start_date, end_date, total_amount, customer:customer_id(name, phone), order_items(product:product_id(name))', { count: 'exact' })
+        .gte('start_date', fromDate)
+        .lte('start_date', toDate)
+        .in('status', ['scheduled', 'pending', 'confirmed', 'ongoing', 'in_use', 'delivered'])
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
-    if (error) {
-      console.error('Error fetching day-wise bookings:', error);
-      throw new Error(error.message);
-    }
-
-    return (data || []).map((o: any) => ({
+    return (data as any[]).map((o: any) => ({
       order_id: o.id,
       customer_name: o.customer?.name || 'Unknown',
       customer_phone: o.customer?.phone || '',
@@ -90,15 +115,18 @@ export class ReportService {
     const fromDate = filters.from_date || today;
     const toDate = filters.to_date || today;
 
-    const { data } = await supabase()
-      .from('orders')
-      .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))')
-      .lte('end_date', toDate)
-      .gte('end_date', fromDate)
-      .in('status', ['ongoing', 'in_use', 'delivered'])
-      .order('end_date', { ascending: true });
+    const data = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('orders')
+        .select('id, status, end_date, total_amount, amount_paid, customer:customer_id(name, phone), order_items(product:product_id(name))', { count: 'exact' })
+        .lte('end_date', toDate)
+        .gte('end_date', fromDate)
+        .in('status', ['ongoing', 'in_use', 'delivered'])
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
-    return (data || []).map((o: any) => {
+    return (data as any[]).map((o: any) => {
       const returnDate = new Date(o.end_date);
       const todayDate = new Date(today);
       const diffTime = todayDate.getTime() - returnDate.getTime();
@@ -231,92 +259,115 @@ export class ReportService {
     const range = this.formatISTQueryRange(fromDate, toDate);
 
     // 1. Fetch Aggregation Data — includes refunds and order details for GST calc
-    let aggQuery = supabase()
-      .from('payments')
-      .select(`
-        amount,
-        payment_mode,
-        payment_type,
-        payment_date,
-        created_at,
-        order:order_id!inner (
-          id,
-          status,
-          payment_status,
-          total_amount,
-          gst_amount,
-          branch_id,
-          store_id,
-          customer:customer_id(name)
-        )
-      `)
-      .gte('payment_date', range.start)
-      .lte('payment_date', range.end);
+    //    (paged: a year/all-time window holds 1499+ payment rows today)
+    const buildAggPage = (from: number, to: number) => {
+      let q = supabase()
+        .from('payments')
+        .select(`
+          amount,
+          payment_mode,
+          payment_type,
+          payment_date,
+          created_at,
+          order:order_id!inner (
+            id,
+            status,
+            payment_status,
+            total_amount,
+            gst_amount,
+            branch_id,
+            store_id,
+            customer:customer_id(name)
+          )
+        `, { count: 'exact' })
+        .gte('payment_date', range.start)
+        .lte('payment_date', range.end)
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (branchId) aggQuery = aggQuery.eq('order.branch_id', branchId);
-    if (storeId) aggQuery = aggQuery.eq('order.store_id', storeId);
+      if (branchId) q = q.eq('order.branch_id', branchId);
+      if (storeId) q = q.eq('order.store_id', storeId);
+      return q;
+    };
 
     // 2. Fetch Orders created in this period (for "Booking Sales")
-    let bookingQuery = supabase()
-      .from('orders')
-      .select('id, total_amount, created_at, status')
-      .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .neq('status', 'cancelled'); // Don't count cancelled orders in "won business"
-    
-    if (branchId) bookingQuery = bookingQuery.eq('branch_id', branchId);
-    if (storeId) bookingQuery = bookingQuery.eq('store_id', storeId);
+    const buildBookingPage = (from: number, to: number) => {
+      let q = supabase()
+        .from('orders')
+        .select('id, total_amount, created_at, status', { count: 'exact' })
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .neq('status', 'cancelled') // Don't count cancelled orders in "won business"
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (branchId) q = q.eq('branch_id', branchId);
+      if (storeId) q = q.eq('store_id', storeId);
+      return q;
+    };
 
     // 4. Fetch cancelled orders with unrefunded money (for refund_due)
-    let cancelledDueQuery = supabase()
-      .from('orders')
-      .select('id, amount_paid, payment_status')
-      .eq('status', 'cancelled')
-      .gt('amount_paid', 0)
-      .neq('payment_status', 'refund_waived');
-    
-    if (branchId) cancelledDueQuery = cancelledDueQuery.eq('branch_id', branchId);
+    const buildCancelledPage = (from: number, to: number) => {
+      let q = supabase()
+        .from('orders')
+        .select('id, amount_paid, payment_status', { count: 'exact' })
+        .eq('status', 'cancelled')
+        .gt('amount_paid', 0)
+        .neq('payment_status', 'refund_waived')
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (branchId) q = q.eq('branch_id', branchId);
+      return q;
+    };
 
     // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance)
-    let revenueDueQuery = supabase()
-      .from('orders')
-      .select('id, total_amount, amount_paid, start_date, status, payment_status')
-      .gte('start_date', fromDate)
-      .lte('start_date', toDate)
-      .in('status', ['returned', 'partial', 'flagged'])
-      .neq('payment_status', 'paid');
+    const buildRevenueDuePage = (from: number, to: number) => {
+      let q = supabase()
+        .from('orders')
+        .select('id, total_amount, amount_paid, start_date, status, payment_status', { count: 'exact' })
+        .gte('start_date', fromDate)
+        .lte('start_date', toDate)
+        .in('status', ['returned', 'partial', 'flagged'])
+        .neq('payment_status', 'paid')
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (branchId) revenueDueQuery = revenueDueQuery.eq('branch_id', branchId);
-    if (storeId) revenueDueQuery = revenueDueQuery.eq('store_id', storeId);
+      if (branchId) q = q.eq('branch_id', branchId);
+      if (storeId) q = q.eq('store_id', storeId);
+      return q;
+    };
 
     // 6. Fetch damage charges and late fees (Accrual view)
-    const dueChargesQuery = supabase()
-      .from('orders')
-      .select('damage_charges_total, late_fee')
-      .gte('updated_at', range.start)
-      .lte('updated_at', range.end)
-      .or('damage_charges_total.gt.0,late_fee.gt.0');
+    const buildDueChargesPage = (from: number, to: number) => {
+      let q = supabase()
+        .from('orders')
+        .select('damage_charges_total, late_fee', { count: 'exact' })
+        .gte('updated_at', range.start)
+        .lte('updated_at', range.end)
+        .or('damage_charges_total.gt.0,late_fee.gt.0')
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (branchId) dueChargesQuery.eq('branch_id', branchId);
-    if (storeId) dueChargesQuery.eq('store_id', storeId);
+      if (branchId) q = q.eq('branch_id', branchId);
+      if (storeId) q = q.eq('store_id', storeId);
+      return q;
+    };
 
-    // Execute in parallel
-    const [aggResult, bookingResult, cancelledResult, revenueDueResult, dueChargesResult] = await Promise.all([
-      aggQuery, bookingQuery, cancelledDueQuery, revenueDueQuery, dueChargesQuery
+    // Execute in parallel (each internally paged past the 1000-row cap)
+    const [aggData, bookings, cancelledOrders, revenueDueData, dueChargesResult] = await Promise.all([
+      this.fetchAllPages(buildAggPage),
+      this.fetchAllPages(buildBookingPage),
+      this.fetchAllPages(buildCancelledPage),
+      this.fetchAllPages(buildRevenueDuePage),
+      this.fetchAllPages(buildDueChargesPage),
     ]);
 
-    if (aggResult.error) throw new Error(aggResult.error.message);
-    if (bookingResult.error) throw new Error(bookingResult.error.message);
-
     // Filter payments client-side if status filter is active
-    const rawPayments = (aggResult.data || []) as any[];
+    const rawPayments = aggData as any[];
     const allPayments = (statusFilter && statusFilter.length > 0)
       ? rawPayments.filter(p => p.order && statusFilter.includes((p.order as any).status))
       : rawPayments;
-    
-    const bookings = (bookingResult.data || []) as any[];
-    const cancelledOrders = (cancelledResult.data || []) as any[];
-    const revenueDueData = (revenueDueResult.data || []) as any[];
 
     // Process Summary Groups
     const summaryGroups: Record<string, RevenueRow> = {};
@@ -408,6 +459,7 @@ export class ReportService {
         g.gst_collected -= gstPortion;
         g.net_revenue -= netPortion;
         totalNetRevenue -= netPortion;
+        totalGstCollected -= gstPortion;
         dailyTrends[dateKey].cash -= amount;
         if (status === 'cancelled') cancelledNet -= amount;
       } else if (isCancelledKeep) {
@@ -424,6 +476,7 @@ export class ReportService {
         g.gst_collected += gstPortion;
         g.net_revenue += netPortion;
         totalNetRevenue += netPortion;
+        totalGstCollected += gstPortion;
 
         if (mode === 'cash') { g.cash_revenue += amount; totalCash += amount; }
         else if (mode === 'upi') { g.upi_revenue += amount; totalUpi += amount; }
@@ -474,7 +527,7 @@ export class ReportService {
     })).sort((a: any, b: any) => b.period.localeCompare(a.period));
 
     // Process accrual-based charges
-    const dueCharges = (dueChargesResult.data || []) as any[];
+    const dueCharges = dueChargesResult as any[];
     const totalDamageCharges = dueCharges.reduce((sum, o) => sum + Number(o.damage_charges_total || 0), 0);
     const totalLateFees = dueCharges.reduce((sum, o) => sum + Number(o.late_fee || 0), 0);
     const refundDueAmount = cancelledOrders.reduce((sum, o) => sum + Number(o.amount_paid || 0), 0);
@@ -529,13 +582,16 @@ export class ReportService {
 
   /** R4: Top costumes */
   async getTopCostumes(filters: ReportFilters): Promise<TopCostumeRow[]> {
-    const { data } = await supabase()
-      .from('order_items')
-      .select('product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date)')
-      .not('order.status', 'eq', 'cancelled');
+    const items = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select('product_id, quantity, subtotal, product:product_id(name, category:category_id(name)), order:order_id(status, start_date, end_date)', { count: 'exact' })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const map: Record<string, TopCostumeRow & { totalDays: number }> = {};
-    for (const item of (data || []) as any[]) {
+    for (const item of items as any[]) {
       if (!item.product) continue;
       const order = item.order;
       if (!order || order.status === 'cancelled') continue;
@@ -563,15 +619,19 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
-      .from('orders')
-      .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)')
-      .eq('status', 'completed')
-      .gte('created_at', range.start)
-      .lte('created_at', range.end);
+    const data = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('orders')
+        .select('id, customer_id, amount_paid, created_at, customer:customer_id(id, name, phone)', { count: 'exact' })
+        .eq('status', 'completed')
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const map: Record<string, TopCustomerRow> = {};
-    for (const o of (data || []) as any[]) {
+    for (const o of data as any[]) {
       if (!o.customer) continue;
       const cid = o.customer_id;
       if (!map[cid]) {
@@ -596,15 +656,18 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data } = await supabase()
-      .from('order_items')
-      .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)')
-      .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .not('order.status', 'eq', 'cancelled');
+    const data = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select('product_id, quantity, created_at, product:product_id(name, category:category_id(name)), order:order_id(status)', { count: 'exact' })
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const map: Record<string, RentalFrequencyRow> = {};
-    for (const item of (data || []) as any[]) {
+    for (const item of data as any[]) {
       if (!item.product || item.order?.status === 'cancelled') continue;
       const pid = item.product_id;
       if (!map[pid]) {
@@ -635,13 +698,16 @@ export class ReportService {
 
     if (!products || products.length === 0) return [];
 
-    const { data: items } = await supabase()
-      .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status, created_at)')
-      .in('product_id', products.map((p: any) => p.id))
-      .gte('created_at', range.start)
-      .lte('created_at', range.end)
-      .not('order.status', 'eq', 'cancelled');
+    const items = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select('product_id, quantity, subtotal, order:order_id(status, created_at)', { count: 'exact' })
+        .in('product_id', products.map((p: any) => p.id))
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
     for (const item of (items || []) as any[]) {
@@ -695,14 +761,18 @@ export class ReportService {
       .is('deleted_at', null);
 
     // Get products that have been rented in the period (non-cancelled only)
-    const { data: rentedItems } = await supabase()
-      .from('order_items')
-      .select('product_id, created_at, order:order_id(status)')
-      .gte('created_at', range.start)
-      .lte('created_at', range.end);
+    const rentedItems = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select('product_id, created_at, order:order_id(status)', { count: 'exact' })
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const rentedIds = new Set(
-      (rentedItems || [])
+      (rentedItems as any[])
         .filter((i: any) => i.order?.status !== 'cancelled')
         .map((i: any) => i.product_id)
     );
@@ -710,14 +780,17 @@ export class ReportService {
     // Get last rental date for all products. Limited to the products we care
     // about (sellable ones) to keep the scan bounded.
     const productIds = (products || []).map((p: any) => p.id);
-    let lastRentalMap: Record<string, string> = {};
+    const lastRentalMap: Record<string, string> = {};
     if (productIds.length > 0) {
-      const { data: lastRentals } = await supabase()
-        .from('order_items')
-        .select('product_id, created_at, order:order_id(status)')
-        .in('product_id', productIds)
-        .order('created_at', { ascending: false });
-      for (const item of (lastRentals || []) as any[]) {
+      const lastRentals = await this.fetchAllPages((from, to) =>
+        supabase()
+          .from('order_items')
+          .select('product_id, created_at, order:order_id(status)', { count: 'exact' })
+          .in('product_id', productIds)
+          .order('id', { ascending: true })
+          .range(from, to)
+      );
+      for (const item of lastRentals as any[]) {
         // Skip cancelled-order items when determining the true last rental
         if (item.order?.status === 'cancelled') continue;
         if (!lastRentalMap[item.product_id]) lastRentalMap[item.product_id] = item.created_at;
@@ -762,25 +835,27 @@ export class ReportService {
     const toDate = filters.to_date || today;
     const range = this.formatISTQueryRange(fromDate, toDate);
 
-    const { data, error } = await supabase()
-      .from('orders')
-      .select(`
-        id, 
-        status,
-        total_amount, 
-        amount_paid, 
-        discount, 
-        created_by, 
-        staff:created_by(id, name, email),
-        order_items(discount, subtotal)
-      `)
-      .gte('created_at', range.start)
-      .lte('created_at', range.end);
-
-    if (error) throw new Error(error.message);
+    const data = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('orders')
+        .select(`
+          id, 
+          status,
+          total_amount, 
+          amount_paid, 
+          discount, 
+          created_by, 
+          staff:created_by(id, name, email),
+          order_items(discount, subtotal)
+        `, { count: 'exact' })
+        .gte('created_at', range.start)
+        .lte('created_at', range.end)
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const map: Record<string, SalesByStaffRow> = {};
-    for (const o of (data || []) as any[]) {
+    for (const o of data as any[]) {
       if (!o.staff) continue;
       const sid = o.created_by;
       const isCancelled = o.status === 'cancelled';
@@ -876,13 +951,16 @@ export class ReportService {
       .from('products')
       .select('id, name, quantity, available_quantity, price_per_day, category:category_id(name)');
 
-    const { data: items } = await supabase()
-      .from('order_items')
-      .select('product_id, quantity, subtotal, order:order_id(status)')
-      .not('order.status', 'eq', 'cancelled');
+    const items = await this.fetchAllPages((from, to) =>
+      supabase()
+        .from('order_items')
+        .select('product_id, quantity, subtotal, order:order_id(status)', { count: 'exact' })
+        .order('id', { ascending: true })
+        .range(from, to)
+    );
 
     const revenueMap: Record<string, { revenue: number; count: number }> = {};
-    for (const item of (items || []) as any[]) {
+    for (const item of items as any[]) {
       if (item.order?.status === 'cancelled') continue;
       const pid = item.product_id;
       if (!revenueMap[pid]) revenueMap[pid] = { revenue: 0, count: 0 };
@@ -944,49 +1022,41 @@ export class ReportService {
       .single();
     const prefix = settingsData?.value || 'INV-';
 
-    // Fetch all orders sorted by created_at ascending to build an accurate sequential chronological invoice index map
-    const { data: orderSequenceData } = await supabase()
-      .from('orders')
-      .select('id, created_at')
-      .order('created_at', { ascending: true });
-
-    const orderSequenceMap: Record<string, number> = {};
-    if (orderSequenceData) {
-      orderSequenceData.forEach((ord, index) => {
-        orderSequenceMap[ord.id] = index + 1;
-      });
-    }
-
-    // 1. Fetch all order items with their order data
-    //    We fetch without date filter and filter client-side by order.created_at
-    //    because the !inner join syntax with aliases is unreliable
-    const itemQuery = supabase()
-      .from('order_items')
-      .select(`
-        id,
-        gst_percentage,
-        base_amount,
-        gst_amount,
-        subtotal,
-        quantity,
-        product:product_id (
-          name
-        ),
-        order:order_id (
+    // Fetch all order items with their order data.
+    // PAGED: Supabase/PostgREST caps a single response at 1000 rows and the
+    // table already holds 2000+ items — an unpaged fetch silently dropped the
+    // newest items, which made this report look "stuck" at a past date.
+    // We fetch without date filter and filter client-side by order.created_at
+    // because the !inner join syntax with aliases is unreliable.
+    const buildItemPage = (from: number, to: number) =>
+      supabase()
+        .from('order_items')
+        .select(`
           id,
-          status,
-          created_at,
-          total_amount,
+          gst_percentage,
+          base_amount,
           gst_amount,
-          customer:customer_id (
+          subtotal,
+          quantity,
+          product:product_id (
             name
+          ),
+          order:order_id (
+            id,
+            status,
+            created_at,
+            invoice_number,
+            total_amount,
+            gst_amount,
+            customer:customer_id (
+              name
+            )
           )
-        )
-      `);
+        `, { count: 'exact' })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    const { data, error } = await itemQuery;
-
-    if (error) throw new Error(error.message);
+    const data = await this.fetchAllPages(buildItemPage);
 
     // Client-side filter: only items whose ORDER was created in the date range.
     // For GST filing, ONLY finalized rentals are counted: 'completed' (returned
@@ -1047,19 +1117,23 @@ export class ReportService {
       // line item gets a row — both GST and exempt orders — so the client can
       // see exactly which orders/items carry GST and which are exempt.
       if (!invoiceMap[order.id]) {
-        const orderDate = new Date(order.created_at);
-        const year = orderDate.getFullYear();
-        const month = orderDate.getMonth();
-        let fiscalStartYear = year;
-        if (month < 3) {
-          fiscalStartYear = year - 1;
+        // Use the STORED invoice number (assigned at order creation) as the
+        // source of truth. Only fall back to a derived number for legacy
+        // orders that predate the invoice_number column.
+        const storedInvoiceNo = (order as any).invoice_number as string | null;
+        let formattedInvoiceNo = storedInvoiceNo;
+        if (!formattedInvoiceNo) {
+          const orderDate = new Date(order.created_at);
+          const year = orderDate.getFullYear();
+          const month = orderDate.getMonth();
+          let fiscalStartYear = year;
+          if (month < 3) {
+            fiscalStartYear = year - 1;
+          }
+          const startYY = String(fiscalStartYear).slice(-2);
+          const endYY = String(fiscalStartYear + 1).slice(-2);
+          formattedInvoiceNo = `MAZ-${startYY}${endYY}-${order.id.slice(0, 8).toUpperCase()}`;
         }
-        const startYY = String(fiscalStartYear).slice(-2);
-        const endYY = String(fiscalStartYear + 1).slice(-2);
-        const fiscalSuffix = `${startYY}${endYY}`;
-
-        const seqNum = orderSequenceMap[order.id] || 1;
-        const formattedInvoiceNo = `MAZ-${fiscalSuffix}-${seqNum}`;
 
         invoiceMap[order.id] = {
           order_id: order.id,

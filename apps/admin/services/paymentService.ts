@@ -142,19 +142,17 @@ export class PaymentService {
       }
     }
 
-    // After successfully creating a refund, atomically update the order's state
-    if (result.success && result.data && data.payment_type === PaymentType.REFUND) {
-      const { orderRepository } = await import('@/repository');
-      const orderResult = await orderRepository.findById(data.order_id);
-      if (orderResult.success && orderResult.data) {
-        const order = orderResult.data;
-        // Update amount_paid for refund
-        const newAmountPaid = Math.max(0, (order.amount_paid || 0) - data.amount);
-        const newPaymentStatus = newAmountPaid >= order.total_amount ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
-        await orderRepository.update(data.order_id, {
-          amount_paid: newAmountPaid,
-          payment_status: newPaymentStatus,
-        } as any);
+    // Reconcile the order's amount_paid / payment_status from the payments
+    // table (the source of truth) after ANY money-moving payment. Without
+    // this, payments recorded through the return modal or the mobile app
+    // leave `orders.amount_paid` stale — fully-paid orders then sit in
+    // payment_status='partial', never auto-complete, and show up as phantom
+    // "Revenue Due" on the revenue report.
+    if (result.success && result.data && data.payment_type !== PaymentType.ADJUSTMENT) {
+      try {
+        await this.syncOrderPaymentStatus(data.order_id);
+      } catch (err) {
+        console.error('Failed to sync order payment status:', err);
       }
     }
 

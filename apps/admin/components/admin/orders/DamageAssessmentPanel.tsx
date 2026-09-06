@@ -36,6 +36,7 @@ import Modal from "@/components/admin/Modal";
 import {
   useDamageAssessments,
   useAssessDamageUnit,
+  useCreateDamageAssessments,
 } from "@/hooks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { DamageDecision } from "@/domain";
@@ -49,6 +50,7 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
   const { isAdmin } = usePermissions();
   const { data, isLoading } = useDamageAssessments(order.id);
   const { assessUnit, isAssessing } = useAssessDamageUnit();
+  const { createAssessments, isCreating } = useCreateDamageAssessments();
 
   const [confirmWriteOff, setConfirmWriteOff] = useState<DamageAssessmentWithProduct | null>(null);
   const [writeOffNotes, setWriteOffNotes] = useState("");
@@ -66,8 +68,24 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
   );
   if (!hasDamagedItems && assessments.length === 0) return null;
 
-  // If assessments haven't been created yet (edge case: old orders before auto-creation),
-  // show a simple message instead of a create button
+  // Backfill path for orders flagged before auto-creation existed (or where
+  // auto-creation failed): generate one assessment row per damaged unit so
+  // staff can decide reuse vs write-off and the order can close.
+  const backfillItems = (order.items || [])
+    .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
+    .map(item => ({
+      order_item_id: item.id,
+      product_id: item.product_id,
+      branch_id: order.branch_id || '',
+      damaged_quantity: item.damaged_quantity || 0,
+    }));
+
+  const handleBackfill = () => {
+    if (backfillItems.length === 0) return;
+    createAssessments({ orderId: order.id, items: backfillItems });
+  };
+
+  // If assessments haven't been created yet, offer the backfill action
   if (!isLoading && assessments.length === 0 && hasDamagedItems) {
     return (
       <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-5">
@@ -75,13 +93,39 @@ export default function DamageAssessmentPanel({ order }: DamageAssessmentPanelPr
           <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
           </div>
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-bold text-amber-900">Damage Assessments Pending</p>
             <p className="text-xs text-amber-700 mt-0.5">
               Assessments were not created for this order. This may be an older order processed before auto-assessment was enabled.
             </p>
           </div>
         </div>
+        {backfillItems.length > 0 ? (
+          <div className="mt-4 flex items-center justify-end gap-3">
+            <span className="text-xs text-amber-700">
+              {backfillItems.reduce((sum, i) => sum + i.damaged_quantity, 0)} damaged unit(s) need a decision
+            </span>
+            <Button
+              onClick={handleBackfill}
+              disabled={isCreating}
+              className="h-9 px-4 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg"
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Creating...
+                </>
+              ) : (
+                <>
+                  <ClipboardCheck className="w-3.5 h-3.5 mr-1.5" /> Create Damage Assessments
+                </>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-amber-600 mt-3">
+            No damaged units recorded on this order — it will close automatically once payment is settled.
+          </p>
+        )}
       </div>
     );
   }

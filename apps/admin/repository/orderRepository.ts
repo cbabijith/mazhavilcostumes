@@ -319,7 +319,7 @@ export class OrderRepository extends BaseRepository {
         conflict_details, notes, delivery_method, delivery_address, pickup_address,
         late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
         cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
-        customer:customer_id(id, name, phone, alt_phone, email),
+        customer:customer_id(id, name, phone, alt_phone, email, address),
         items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
           condition_rating, damage_description, damage_charges, damaged_quantity,
           is_returned, returned_quantity, base_amount, gst_amount,
@@ -877,7 +877,7 @@ export class OrderRepository extends BaseRepository {
       .from(this.tableName)
       .select(`
         *,
-        customer:customer_id(id, name, phone, alt_phone, email),
+        customer:customer_id(id, name, phone, alt_phone, email, address),
         items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
           condition_rating, damage_description, damage_charges, damaged_quantity,
           is_returned, returned_quantity, base_amount, gst_amount,
@@ -1719,11 +1719,11 @@ export class OrderRepository extends BaseRepository {
     const itemIds = returnData.items.map(i => i.item_id);
     const { data: orderItems } = await this.client
       .from(this.orderItemsTable)
-      .select('id, quantity, returned_quantity, product_id, orders(branch_id)')
+      .select('id, quantity, returned_quantity, damage_charges, damaged_quantity, product_id, orders(branch_id)')
       .in('id', itemIds);
 
     // Create a map for quick O(1) lookup
-    const orderItemsMap = new Map<string, { id: string; quantity: number; returned_quantity: number; product_id: string; branch_id: string }>();
+    const orderItemsMap = new Map<string, { id: string; quantity: number; returned_quantity: number; damage_charges: number; damaged_quantity: number; product_id: string; branch_id: string }>();
     if (orderItems) {
       for (const item of orderItems) {
         const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
@@ -1731,6 +1731,8 @@ export class OrderRepository extends BaseRepository {
           id: item.id,
           quantity: item.quantity || 0,
           returned_quantity: item.returned_quantity || 0,
+          damage_charges: item.damage_charges || 0,
+          damaged_quantity: item.damaged_quantity || 0,
           product_id: item.product_id,
           branch_id: branchId
         });
@@ -1757,8 +1759,12 @@ export class OrderRepository extends BaseRepository {
               returned_quantity: item.returned_quantity,
               condition_rating: item.condition_rating,
               damage_description: item.damage_description || null,
-              damage_charges: item.damage_charges || 0,
-              damaged_quantity: item.damaged_quantity || 0,
+              // Damage already recorded in an earlier return must survive a
+              // later submission that doesn't restate it (e.g. the remaining
+              // units come back in Good condition) — otherwise the order total
+              // recomputation would silently drop the previously charged fee.
+              damage_charges: Math.max(item.damage_charges || 0, orderItem?.damage_charges || 0),
+              damaged_quantity: Math.max(item.damaged_quantity || 0, orderItem?.damaged_quantity || 0),
             })
             .eq('id', item.item_id) as any
         ];
@@ -1828,10 +1834,10 @@ export class OrderRepository extends BaseRepository {
 
     const itemTotalAfterDiscounts = allItems?.reduce((sum, i) => sum + (i.base_amount || 0) + (i.gst_amount || 0), 0) || 0;
 
-    // 3. Fetch current order to get the clean base (original discount, amount paid)
+    // 3. Fetch current order to get the clean base (original discount, late fee, amount paid)
     const { data: currentOrder } = await this.client
       .from(this.tableName)
-      .select('discount, amount_paid')
+      .select('discount, late_fee, amount_paid')
       .eq('id', orderId)
       .single();
 
@@ -1840,13 +1846,19 @@ export class OrderRepository extends BaseRepository {
     const originalOrderDiscount = Number(currentOrder?.discount || 0);
 
     const newDiscountTotal = originalOrderDiscount + additionalDiscount;
-    
-    // Total amount = Item Total After Item Discounts - Original Order Discount + Additional Late Fee + Total Item Damage - Additional Discount
-    const newTotalAmount = Math.max(0, 
-      itemTotalAfterDiscounts - 
-      originalOrderDiscount + 
-      additionalLateFee + 
-      totalDamageCharges - 
+
+    // Late fees are ADDITIVE across returns — a flagged/partial order that
+    // spans multiple returns accrues a fee each time. Overwriting (like damage
+    // charges used to do) would silently drop earlier fees from both the
+    // late_fee column and the recomputed total, undercharging the customer.
+    const newLateFeeTotal = Number(currentOrder?.late_fee || 0) + additionalLateFee;
+
+    // Total amount = Item Total After Item Discounts - Original Order Discount + Late Fee Total + Total Item Damage - Additional Discount
+    const newTotalAmount = Math.max(0,
+      itemTotalAfterDiscounts -
+      originalOrderDiscount +
+      newLateFeeTotal +
+      totalDamageCharges -
       additionalDiscount
     );
     
@@ -1865,7 +1877,7 @@ export class OrderRepository extends BaseRepository {
       .update({
         status: newStatus,
         total_amount: newTotalAmount,
-        late_fee: additionalLateFee,
+        late_fee: newLateFeeTotal,
         discount: newDiscountTotal,
         damage_charges_total: totalDamageCharges,
         payment_status: paymentStatus,

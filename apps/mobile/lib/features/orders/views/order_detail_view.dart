@@ -3140,9 +3140,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView> with Automati
                           final returnItemsPayload = <Map<String, dynamic>>[];
                           returnQuantities.forEach((itemId, qty) {
                             if (qty > 0) {
+                              // The API expects the NEW TOTAL returned quantity
+                              // (already returned + returning now), not just the
+                              // units being returned in this submission.
+                              final alreadyReturned = items
+                                      .where((i) => i.id == itemId)
+                                      .map((i) => i.returnedQuantity ?? 0)
+                                      .firstOrNull ??
+                                  0;
                               returnItemsPayload.add({
                                 'item_id': itemId,
-                                'returned_quantity': qty,
+                                'returned_quantity': alreadyReturned + qty,
                                 'condition_rating': returnConditions[itemId]!.name.toLowerCase(),
                                 if (returnConditions[itemId] == ConditionRating.damaged) ...{
                                   'damage_description': damageDescriptions[itemId],

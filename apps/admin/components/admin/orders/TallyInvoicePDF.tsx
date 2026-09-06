@@ -62,6 +62,7 @@ export interface TallyInvoiceProps {
   buyerPhone: string;
   buyerAltPhone?: string | null;
   buyerEmail?: string | null;
+  buyerAddress?: string | null;
 
   rentalStart: string;
   rentalEnd: string;
@@ -390,7 +391,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
   const {
     companyName, companyAddress, companyPhone, companyEmail, companyGstin,
     invoiceNumber, invoiceDate, invoiceType, orderId, paymentMode,
-    buyerName, buyerPhone, buyerAltPhone, buyerEmail,
+    buyerName, buyerPhone, buyerAltPhone, buyerEmail, buyerAddress,
     rentalStart, rentalEnd, eventDate,
     items,
     subtotal, gstAmount, discount, lateFee, damageCharges, securityDeposit,
@@ -453,6 +454,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
             <View style={s.halfLeft}>
               <Text style={s.sectionLabel}>Buyer (Bill To)</Text>
               <Text style={s.buyerName}>{buyerName}</Text>
+              {buyerAddress ? <Text style={s.infoText}>{buyerAddress}</Text> : null}
               <Text style={s.infoText}>Phone: {buyerPhone}</Text>
               {buyerAltPhone ? <Text style={s.infoText}>Alt Phone: {buyerAltPhone}</Text> : null}
               {buyerEmail ? <Text style={s.infoText}>{buyerEmail}</Text> : null}
