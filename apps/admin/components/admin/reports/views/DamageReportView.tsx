@@ -150,6 +150,10 @@ export function DamageReportView({
                     <Badge variant="secondary" className="text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
                       <ClipboardCheck className="w-3 h-3 mr-1" /> {f.pending_assessments} to assess
                     </Badge>
+                  ) : f.assessments_missing ? (
+                    <Badge variant="secondary" className="text-[10px] font-black uppercase bg-orange-100 text-orange-800 border border-orange-300">
+                      <AlertTriangle className="w-3 h-3 mr-1" /> assessments missing — open order → Create Damage Assessments
+                    </Badge>
                   ) : (
                     <Badge variant="secondary" className="text-[10px] font-black uppercase bg-sky-50 text-sky-700 border border-sky-200">
                       assessed — awaiting close
