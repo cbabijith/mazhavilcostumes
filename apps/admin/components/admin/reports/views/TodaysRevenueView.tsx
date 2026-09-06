@@ -193,9 +193,9 @@ export function TodaysRevenueView({
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST Collected</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST in Collections</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gst_collected)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion included in collections</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Cash basis — use GST Filing Report for GSTR-1</p>
               </CardContent>
             </Card>
           </div>

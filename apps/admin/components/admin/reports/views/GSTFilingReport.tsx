@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 import Link from "next/link";
-import { AlertTriangle, Settings } from "lucide-react";
+import { AlertTriangle, Info, Settings } from "lucide-react";
 
 interface GSTFilingViewProps {
   data: GSTFilingRow[];
@@ -197,6 +197,17 @@ export function GSTFilingView({
           </Link>
         </div>
       )}
+
+      {/* Filing Basis Note */}
+      <div className="flex items-start gap-3 p-4 bg-sky-50 border border-sky-200 rounded-xl">
+        <Info className="w-4 h-4 text-sky-600 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-sky-800 leading-relaxed">
+          <span className="font-bold">Filing basis:</span> invoices dated in the selected period, for rentals that have
+          concluded (completed or fully returned) with payment settled where applicable. Exempt items (ornaments) are
+          listed separately and excluded from the liability. This is the figure to report in GSTR-1 — the Revenue
+          report&apos;s &quot;GST in Collections&quot; card is cash-basis and must not be used for filing.
+        </p>
+      </div>
 
       {/* Summary Cards */}
       {reportSummary && (

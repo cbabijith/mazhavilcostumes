@@ -369,6 +369,24 @@ export class ReportService {
       ? rawPayments.filter(p => p.order && statusFilter.includes((p.order as any).status))
       : rawPayments;
 
+    // GST-per-order source of truth for the cash-basis card: item-level
+    // gst_amount sums. The orders.gst_amount column drifts on legacy/edited
+    // orders (verified: 19,988 vs the true item-level 30,956 on a year of
+    // data), which skewed the GST-in-collections figure.
+    const itemGstMap: Record<string, number> = {};
+    {
+      const itemRows = await this.fetchAllPages((from, to) =>
+        supabase()
+          .from('order_items')
+          .select('order_id, gst_amount', { count: 'exact' })
+          .order('id', { ascending: true })
+          .range(from, to)
+      );
+      for (const it of itemRows as any[]) {
+        itemGstMap[it.order_id] = (itemGstMap[it.order_id] || 0) + Number(it.gst_amount || 0);
+      }
+    }
+
     // Process Summary Groups
     const summaryGroups: Record<string, RevenueRow> = {};
     const orderCounts: Record<string, Set<string>> = {};
@@ -441,9 +459,14 @@ export class ReportService {
 
       orderCounts[key].add(order.id);
 
-      // GST Calculation Ratio
-      const totalOrder = Number(order.total_amount || 0) || 1;
-      const gstRatio = Number(order.gst_amount ?? 0) / totalOrder;
+      // GST Calculation Ratio — prefer the item-level sum (see itemGstMap note);
+      // fall back to the order column only for orders without item rows.
+      // Guard: a zero/garbage order total makes the ratio explode (one
+      // real-world zero-total order inflated this card by ~₹107k), so the
+      // ratio is clamped to [0, 1] and attributed nothing when total ≤ 0.
+      const totalOrder = Number(order.total_amount || 0);
+      const gstBase = itemGstMap[order.id] ?? Number(order.gst_amount ?? 0);
+      const gstRatio = totalOrder > 0 ? Math.min(gstBase / totalOrder, 1) : 0;
       const gstPortion = amount * gstRatio;
       const netPortion = amount - gstPortion;
 
