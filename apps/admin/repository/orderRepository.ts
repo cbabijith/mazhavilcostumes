@@ -64,6 +64,13 @@ export class OrderRepository extends BaseRepository {
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
+    // Product filter uses an inner join on order_items — the alternative
+    // (collect matching order ids then .in('id', ids)) breaks on popular
+    // products with 1000+ orders (PostgREST URL limit).
+    const productFilterSelect = params?.product_id
+      ? `, order_items!inner(product_id, quantity)`
+      : '';
+
     let query = this.client
       .from(this.tableName)
       .select(`
@@ -72,8 +79,12 @@ export class OrderRepository extends BaseRepository {
         has_priority_cleaning, has_stock_conflict,
         is_late, invoice_number, created_at,
         customer:customer_id(name, phone),
-        branch:branch_id(name)
+        branch:branch_id(name)${productFilterSelect}
       `, { count: 'exact' });
+
+    if (params?.product_id) {
+      query = query.eq('order_items.product_id', params.product_id);
+    }
 
     // Handle server-side sorting
     if (params?.sort_by && params?.sort_order) {

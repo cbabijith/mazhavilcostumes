@@ -116,6 +116,8 @@ export {
   useDeleteOrder,
   useProcessOrderReturn,
   useUpdateOrderItemDamage,
+  useSetOrderDiscount,
+  useProductOrdersInfinite,
 } from './useOrders';
 
 // Settings hooks
