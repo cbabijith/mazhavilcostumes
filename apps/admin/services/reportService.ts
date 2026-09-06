@@ -906,18 +906,26 @@ export class ReportService {
         .range(from, to)
     ) as any[];
 
-    // 3. Pending damage assessments (bounded: only unresolved units exist)
-    const pendingAssessments = await this.fetchAllPages((from, to) =>
+    // 3. Damage assessments state (bounded: table only holds real units).
+    //    Per flagged order we need BOTH pending counts AND whether any rows
+    //    exist at all — "damaged units but zero rows" means assessments were
+    //    never created and staff must use the panel's backfill button.
+    const allAssessments = await this.fetchAllPages((from, to) =>
       supabase()
         .from('damage_assessments')
         .select('id, order_id, product_id, unit_index, decision', { count: 'exact' })
-        .eq('decision', 'pending')
         .order('id', { ascending: true })
         .range(from, to)
     ) as any[];
     const pendingByOrder: Record<string, number> = {};
-    for (const a of pendingAssessments) {
-      pendingByOrder[a.order_id] = (pendingByOrder[a.order_id] || 0) + 1;
+    const anyByOrder: Record<string, number> = {};
+    let pendingTotal = 0;
+    for (const a of allAssessments) {
+      anyByOrder[a.order_id] = (anyByOrder[a.order_id] || 0) + 1;
+      if (a.decision === 'pending') {
+        pendingByOrder[a.order_id] = (pendingByOrder[a.order_id] || 0) + 1;
+        pendingTotal += 1;
+      }
     }
 
     // ── Aggregates ──
@@ -978,6 +986,10 @@ export class ReportService {
           .map((i: any) => `${i.product?.name || 'Product'} ×${i.damaged_quantity || 0}${i.damage_description ? ` (${i.damage_description})` : ''}`)
           .join('; '),
         pending_assessments: pendingByOrder[o.id] || 0,
+        // damaged units exist but no assessment rows were ever created —
+        // staff must open the order and press "Create Damage Assessments"
+        assessments_missing: (damaged.reduce((s: number, i: any) => s + Number(i.damaged_quantity || 0), 0)) > 0
+          && !(anyByOrder[o.id] > 0),
       };
     });
 
@@ -1006,7 +1018,8 @@ export class ReportService {
         damage_fees_collected: Math.round(feesCollected * 100) / 100,
         damage_fees_pending: Math.round(feesPending * 100) / 100,
         flagged_orders_now: flaggedRows.length,
-        pending_assessments_now: pendingAssessments.length,
+        pending_assessments_now: pendingTotal,
+        assessments_missing_now: flaggedRows.filter((f: any) => f.assessments_missing).length,
       },
       flagged_orders: flaggedRows,
       damaged_products: damagedProducts,
