@@ -254,14 +254,14 @@ export function RevenueView({
               <CardContent className="p-5">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Net (Excl GST)</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_net_revenue)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">After 18% GST removal</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Revenue excluding the GST portion</p>
               </CardContent>
             </Card>
             <Card className="shadow-sm border-slate-200 bg-white border-l-4 border-l-amber-500">
               <CardContent className="p-5">
-                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST Collected</p>
+                <p className="text-[10px] font-bold text-amber-600/70 uppercase tracking-widest mb-1">GST in Collections</p>
                 <p className="text-2xl font-black text-slate-900">{formatCurrency(reportSummary.total_gst_collected)}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Tax portion</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-medium">Cash basis — not for filing. Use the GST Filing Report for GSTR-1.</p>
               </CardContent>
             </Card>
           </div>
