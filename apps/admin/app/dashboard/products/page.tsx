@@ -31,6 +31,7 @@ import {
   Filter,
   X,
   Printer,
+  ClipboardList,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -39,6 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/admin/Modal";
+import ProductOrdersModal from "@/components/admin/products/ProductOrdersModal";
 import {
   useProducts,
   useDeleteProduct,
@@ -157,6 +159,7 @@ function ProductsContent() {
   const [selectedLabelSize, setSelectedLabelSize] = useState<LabelSizeKey>('costume-label');
   const [printingBarcodes, setPrintingBarcodes] = useState(false);
   const [showLabelSizeOptions, setShowLabelSizeOptions] = useState(false);
+  const [ordersProduct, setOrdersProduct] = useState<{ id: string; name: string } | null>(null);
   const [printMode, setPrintMode] = useState<'a4' | 'single'>('a4');
 
   const handleExportCatalog = async () => {
@@ -680,6 +683,15 @@ function ProductsContent() {
 
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="w-8 h-8 text-slate-400 hover:text-slate-900"
+                            onClick={() => setOrdersProduct({ id: product.id, name: product.name })}
+                            title="View all orders with this product"
+                          >
+                            <ClipboardList className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-400 hover:text-slate-900" asChild>
                             <Link href={`/dashboard/products/${product.id}`}>
                               <Eye className="w-4 h-4" />
@@ -822,6 +834,8 @@ function ProductsContent() {
           </div>
         </div>
       </Modal>
+
+      <ProductOrdersModal product={ordersProduct} onClose={() => setOrdersProduct(null)} />
 
       <Modal
         open={showPrintModal}

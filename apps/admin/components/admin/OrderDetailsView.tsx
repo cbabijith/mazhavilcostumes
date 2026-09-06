@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Modal from "@/components/admin/Modal";
 import {
   useOrder,
@@ -24,7 +23,8 @@ import {
   useLookupProductByBarcode,
   useUpdateOrderItemDamage,
   useUpdatePayment,
-  useDeletePayment
+  useDeletePayment,
+  useSetOrderDiscount
 } from "@/hooks";
 import { useAppStore, useAppSelectors } from "@/stores";
 import { formatCurrency } from "@/lib/shared-utils";
@@ -51,6 +51,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const showError = useAppSelectors.showError();
   const { lookupByBarcode } = useLookupProductByBarcode();
   const { updateOrderItemDamage, isUpdating: isSavingItem } = useUpdateOrderItemDamage();
+  const { setOrderDiscount, isPending: isSettingDiscount } = useSetOrderDiscount();
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isPaymentEditModalOpen, setIsPaymentEditModalOpen] = useState(false);
@@ -1462,8 +1463,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <ReceiptText className="w-4 h-4" /> Financial Receipt
               </h2>
-              {!isFinalized && <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => setIsAdjustmentModalOpen(true)}>
-                <Edit3 className="w-3 h-3 mr-1" /> Adjust
+              {!isFinalized && <Button variant="ghost" size="sm" className="text-xs text-primary" onClick={() => {
+                setAdjustmentForm({ type: 'discount', amount: String(order.discount || 0), notes: '' });
+                setIsAdjustmentModalOpen(true);
+              }}>
+                <Edit3 className="w-3 h-3 mr-1" /> {(order.discount || 0) > 0 ? `Discount ₹${(order.discount).toLocaleString('en-IN')}` : 'Add Discount'}
               </Button>}
             </div>
 
@@ -2074,30 +2078,33 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         </div>
       </Modal>
 
-      {/* Adjustment Modal — discounts only (client decision 2026-09-06):
-          damage fees belong to the per-item return inputs and late fees are
-          not collected here, so the standalone financial adjustments were
-          removed. A discount simply reduces the order total; no payment row
-          is created (the old flow recorded a phantom "adjustment" payment
-          that inflated collections and neutralized the balance change). */}
+      {/* Discount Modal — the ONLY financial adjustment (client decision
+          2026-09-06): one discount per order, editable any time. The value
+          REPLACES the previous discount (no stacking); the API recomputes the
+          total and logs the change to the status history. */}
       <Modal
         open={isAdjustmentModalOpen}
         onClose={() => setIsAdjustmentModalOpen(false)}
-        title="Apply Discount"
+        title={(order.discount || 0) > 0 ? 'Edit Discount' : 'Add Discount'}
       >
         <div className="p-6 space-y-6">
+          {(order.discount || 0) > 0 && (
+            <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800 font-semibold">
+              Current discount: ₹{(order.discount || 0).toLocaleString('en-IN')} — enter a new amount to replace it, or 0 to remove it.
+            </div>
+          )}
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Type</Label>
-            <Select value="discount" onValueChange={() => {}}>
-              <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="discount">Discount (reduces total)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Amount (₹)</Label>
-            <Input type="number" value={adjustmentForm.amount} onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })} className="h-14 text-2xl font-black" placeholder="0" />
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Discount Amount (₹)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={adjustmentForm.amount}
+              onChange={e => setAdjustmentForm({ ...adjustmentForm, amount: e.target.value })}
+              className="h-14 text-2xl font-black" placeholder="0"
+            />
+            <p className="text-[11px] text-slate-500">
+              The new total will be ₹{Math.max(0, Math.round(((order.total_amount || 0) + (order.discount || 0) - (parseFloat(adjustmentForm.amount) || 0)) * 100) / 100).toLocaleString('en-IN')}
+            </p>
           </div>
           <div className="space-y-3">
             <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Reason / Notes</Label>
@@ -2105,27 +2112,23 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
             <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold">Cancel</Button>
-            <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating} onClick={() => {
-              if (!order) return;
-              const val = parseFloat(adjustmentForm.amount) || 0;
-              if (val <= 0) { showError('Invalid', 'Amount must be greater than 0'); return; }
-
-              const newTotal = Math.max(0, order.total_amount - val);
-              const newAmountPaid = order.amount_paid || 0;
-              const newPaymentStatus = newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
-
-              updateOrder({
-                id: order.id, data: {
-                  total_amount: newTotal,
-                  discount: (order.discount || 0) + val,
-                  payment_status: newPaymentStatus,
-                }
-              });
-              setIsAdjustmentModalOpen(false);
-              setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
-              showSuccess('Discount Applied', `Discount of ${formatCurrency(val)} has been applied.`);
-            }}>
-              {isUpdating ? 'Processing...' : 'Apply Discount'}
+            <Button
+              className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800"
+              disabled={isSettingDiscount}
+              onClick={() => {
+                if (!order) return;
+                const val = parseFloat(adjustmentForm.amount);
+                if (Number.isNaN(val) || val < 0) { showError('Invalid', 'Discount must be zero or a positive amount'); return; }
+                setOrderDiscount(
+                  { orderId: order.id, amount: Math.round(val * 100) / 100, notes: adjustmentForm.notes || undefined },
+                  { onSuccess: () => {
+                    setIsAdjustmentModalOpen(false);
+                    setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
+                  } },
+                );
+              }}
+            >
+              {isSettingDiscount ? 'Saving...' : 'Save Discount'}
             </Button>
           </div>
         </div>

@@ -245,6 +245,79 @@ export class OrderService {
   }
 
   /**
+   * Set (or edit/remove) the order's SINGLE discount.
+   *
+   * Business rules (client decision 2026-09-06): one discount per order, no
+   * stacking — a new value replaces the previous one; the total is recomputed
+   * by swapping old discount for new. Setting 0 removes the discount.
+   */
+  async setOrderDiscount(
+    orderId: string,
+    amount: number,
+    notes?: string,
+    changedBy?: string | null
+  ): Promise<RepositoryResult<Order>> {
+    if (!Number.isFinite(amount) || amount < 0) {
+      return {
+        data: null,
+        error: { message: 'Discount amount must be zero or a positive number', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    const orderResult = await orderRepository.findById(orderId);
+    if (!orderResult.success || !orderResult.data) {
+      return { data: null, error: { message: 'Order not found', code: 'ORDER_NOT_FOUND' } as any, success: false };
+    }
+    const order = orderResult.data;
+    if (order.status === 'cancelled') {
+      return { data: null, error: { message: 'Cannot adjust a cancelled order', code: 'VALIDATION_ERROR' } as any, success: false };
+    }
+
+    const currentDiscount = Number(order.discount || 0);
+    const newTotal = Number(order.total_amount || 0) - (amount - currentDiscount);
+    if (newTotal < 0) {
+      return {
+        data: null,
+        error: { message: `Discount of ₹${amount} exceeds the order total (max ₹${(Number(order.total_amount) + currentDiscount).toFixed(2)})`, code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    const amountPaid = Number(order.amount_paid || 0);
+    const paymentStatus = amountPaid >= newTotal ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
+
+    const updateResult = await orderRepository.update(orderId, {
+      discount: amount,
+      total_amount: newTotal,
+      payment_status: paymentStatus,
+    } as any);
+    if (!updateResult.success || !updateResult.data) {
+      return updateResult;
+    }
+
+    await orderRepository.addStatusHistory(
+      orderId,
+      order.status,
+      amount > 0
+        ? `Discount set to ₹${amount}${notes ? ` — ${notes}` : ''} (was ₹${currentDiscount})`
+        : `Discount removed (was ₹${currentDiscount})`,
+    );
+
+    // A larger discount can settle the balance — auto-complete like the
+    // payment path does (best-effort).
+    this.checkAndAutoComplete(orderId).catch(err => {
+      console.error('[OrderService.setOrderDiscount] auto-complete failed:', err);
+    });
+
+    try {
+      dashboardService.clearCache();
+    } catch { /* best-effort */ }
+
+    return updateResult;
+  }
+
+  /**
    * Alias for getOrderById — explicit detail query
    */
   async getOrderDetail(id: string): Promise<RepositoryResult<OrderWithRelations>> {
