@@ -7,9 +7,9 @@
 
 import { NextRequest } from 'next/server';
 import { paymentService } from '@/services/paymentService';
-import { adminOnly } from '@/lib/apiGuard';
-import { getAuthUser } from '@/lib/auth';
-import { apiSuccess, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
+import { adminOnly, apiGuard } from '@/lib/apiGuard';
+import { apiSuccess, apiBadRequest, apiRepositoryError, apiNotFound, apiInternalError } from '@/lib/apiResponse';
+import { PaymentMode } from '@/domain';
 
 export async function GET(
   request: NextRequest,
@@ -36,14 +36,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await adminOnly(request);
+    // Orders-module permission (admin/manager/staff), NOT adminOnly: staff
+    // correcting a payment's mode (cash <-> UPI) on the shop floor was
+    // getting 403 — the "payment type change not working" complaint. Field
+    // whitelist below keeps this to mode/transaction/notes/amount.
+    const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
 
-    const authUser = await getAuthUser(request);
+    const authUser = guard.user;
     paymentService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
 
     const { id } = await params;
     const body = await request.json();
+
+    const allowed = ['payment_mode', 'transaction_id', 'notes', 'amount'] as const;
+    const unknown = Object.keys(body || {}).filter((k) => !(allowed as readonly string[]).includes(k));
+    if (unknown.length > 0) {
+      return apiBadRequest(`Fields not allowed: ${unknown.join(', ')}`);
+    }
+    if (body.payment_mode !== undefined && !Object.values(PaymentMode).includes(body.payment_mode)) {
+      return apiBadRequest(`Invalid payment mode. Allowed: ${Object.values(PaymentMode).join(', ')}.`);
+    }
+
     const result = await paymentService.updatePayment(id, body);
 
     if (!result.success) {

@@ -110,7 +110,9 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     return_count: number,
   }>>({});
 
-  const [lateFee, setLateFee] = useState<number>(0);
+  // Late fee is no longer collected on the return screen (client decision
+  // 2026-09-06) — the input was removed; any previously persisted late fees
+  // still display from order.late_fee.
   const [discount, setDiscount] = useState<number>(0);
 
   const order = orderResponse?.data;
@@ -130,28 +132,44 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   // Signature to detect when order items actually change (not just order refetch)
   const itemsSignature = order?.items?.map(i => `${i.id}:${i.condition_rating}:${i.is_returned}:${i.returned_quantity || 0}`).join('|') || '';
 
+  // Items the staff has manually edited in THIS return session. Saving one
+  // item's damage refetches the order and changes itemsSignature — without
+  // this guard the reset effect below wiped every in-progress entry (the
+  // "full page refresh" complaint): statuses, damage fees and counts the
+  // staff had already typed vanished.
+  const dirtyItemsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (order && isReturnable) {
-      const initial: any = {};
-      order.items?.forEach(item => {
-        // Pre-fill from existing data if it exists (for incremental save recovery)
-        let status: any = null;
-        if (item.condition_rating === 'damaged') status = 'damaged';
-        else if (item.condition_rating === 'excellent') status = 'excellent';
+      setReturnItems(prev => {
+        const initial: any = {};
+        order.items?.forEach(item => {
+          // Pre-fill from existing data if it exists (for incremental save recovery)
+          let status: any = null;
+          if (item.condition_rating === 'damaged') status = 'damaged';
+          else if (item.condition_rating === 'excellent') status = 'excellent';
 
-        const outstanding = item.quantity - (item.returned_quantity || 0);
-        initial[item.id] = {
-          status: status,
-          damage_fee: item.damage_charges || 0,
-          damaged_quantity: item.damaged_quantity || outstanding,
-          notes: item.damage_description || "",
-          // Default: everything still out comes back in this return (the
-          // previous all-or-nothing behaviour). Staff can lower the count
-          // when the customer only brings some units back.
-          return_count: outstanding,
-        };
+          const outstanding = item.quantity - (item.returned_quantity || 0);
+          initial[item.id] = {
+            status: status,
+            damage_fee: item.damage_charges || 0,
+            damaged_quantity: item.damaged_quantity || outstanding,
+            notes: item.damage_description || "",
+            // Default: everything still out comes back in this return (the
+            // previous all-or-nothing behaviour). Staff can lower the count
+            // when the customer only brings some units back.
+            return_count: outstanding,
+          };
+        });
+        // Preserve staff's in-progress edits across order refetches (e.g.
+        // the invalidation fired right after saving one item's damage).
+        for (const id of Object.keys(initial)) {
+          if (dirtyItemsRef.current.has(id) && prev[id]) {
+            initial[id] = prev[id];
+          }
+        }
+        return initial;
       });
-      setReturnItems(initial);
     }
   }, [itemsSignature, isReturnable]);
 
@@ -169,7 +187,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const projected_total = order
     ? (isReturnable
-      ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount
+      ? originalOrderTotalBeforeReturn + calculatedDamage - discount
       : order.total_amount)
     : 0;
 
@@ -180,10 +198,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     : 0;
 
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
-  const totalDeductions = calculatedDamage + lateFee - discount;
+  const totalDeductions = calculatedDamage - discount;
 
   // Reactive settlement variables for the receipt sidebar
-  const displayLateFee = isReturnable ? (order ? order.late_fee + lateFee : 0) : (order ? order.late_fee : 0);
+  const displayLateFee = order ? order.late_fee : 0;
   const displayOrderDiscount = isReturnable ? (order ? order.discount + discount : 0) : (order ? order.discount : 0);
   const displayDamageCharges = isReturnable ? calculatedDamage : (order ? order.damage_charges_total : 0);
   const displayGrandTotal = projected_total;
@@ -202,13 +220,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         persistedDamageCharges: order.damage_charges_total,
         isOverdue,
         localCalculatedDamage: calculatedDamage,
-        localAdditionalLateFee: lateFee,
         localAdditionalDiscount: discount,
         liveProjectedTotal: projected_total,
         liveAmountDue: amount_due
       });
     }
-  }, [isReturnable, order, calculatedDamage, lateFee, discount, projected_total, amount_due, isOverdue]);
+  }, [isReturnable, order, calculatedDamage, discount, projected_total, amount_due, isOverdue]);
 
   const getImageUrl = (product: any) => {
     if (!product?.images || !Array.isArray(product.images) || product.images.length === 0) return null;
@@ -222,6 +239,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       const item = order?.items?.find(i => i.id === key);
       const outstanding = item ? item.quantity - (item.returned_quantity || 0) : 0;
       updated[key] = { ...returnItems[key], status: 'excellent', damage_fee: 0, damaged_quantity: 0, notes: "", return_count: outstanding };
+      dirtyItemsRef.current.add(key);
     });
     setReturnItems(updated);
   };
@@ -249,6 +267,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       setTimeout(() => setHighlightedItemId(null), 2000);
 
       // Auto-mark as excellent, returning every still-outstanding unit
+      dirtyItemsRef.current.add(matchingItem.id);
       setReturnItems(prev => ({
         ...prev,
         [matchingItem.id]: {
@@ -304,6 +323,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleItemUpdate = (itemId: string, field: string, value: any) => {
+    dirtyItemsRef.current.add(itemId);
     setReturnItems(prev => {
       const updated = { ...prev, [itemId]: { ...prev[itemId], [field]: value } };
       const item = order?.items?.find(i => i.id === itemId);
@@ -489,8 +509,8 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     const returnPayload = {
       order_id: order.id,
       notes: stillOutUnits > 0
-        ? `Partial return — ${stillOutUnits} unit(s) still with customer. Late Fee: ${lateFee}, Discount: ${discount}`
-        : `Late Fee: ${lateFee}, Discount: ${discount}`,
+        ? `Partial return — ${stillOutUnits} unit(s) still with customer. Discount: ${discount}`
+        : `Discount: ${discount}`,
       items: returnedNow.map(item => {
         const rItem = returnItems[item.id] || { status: null, damage_fee: 0, damaged_quantity: 0, notes: "", return_count: 0 };
         const outstanding = item.quantity - (item.returned_quantity || 0);
@@ -509,7 +529,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           // The good quantity is implicitly: count - damagedQty
         };
       }),
-      late_fee: lateFee,
+      late_fee: 0,
       discount: discount,
     };
 
@@ -1293,7 +1313,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             {isReturnable && (
               <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
                 {/* Live projected total with damage fees */}
-                {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && (
+                {(calculatedDamage > 0 || discount > 0) && (
                   <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
                     <div className="flex justify-between text-sm text-slate-700">
@@ -1304,12 +1324,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <div className="flex justify-between text-sm text-orange-700">
                         <span>+ Damage Fees</span>
                         <span className="font-bold">{formatCurrency(calculatedDamage)}</span>
-                      </div>
-                    )}
-                    {lateFee > 0 && (
-                      <div className="flex justify-between text-sm text-red-700">
-                        <span>+ Late Fee</span>
-                        <span className="font-bold">{formatCurrency(lateFee)}</span>
                       </div>
                     )}
                     {discount > 0 && (
@@ -1329,20 +1343,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <div className="flex justify-between text-lg font-black text-slate-900 pt-1">
                       <span>Balance Due</span>
                       <span className={amount_due > 0 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(amount_due)}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Warning banner if late fee is added but the order is not late */}
-                {lateFee > 0 && !isOverdue && (
-                  <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold shadow-sm transition-all duration-300 ease-in-out animate-in fade-in slide-in-from-top-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-extrabold text-amber-900 uppercase tracking-wider text-[10px]">On-Time Return Warning</p>
-                      <p className="mt-0.5 leading-relaxed text-amber-850">
-                        This order is being returned on-time (due by {order ? format(new Date(order.end_date), "dd MMM yyyy") : ""}).
-                        Are you sure you want to charge a late fee of {formatCurrency(lateFee)}?
-                      </p>
                     </div>
                   </div>
                 )}
@@ -1385,10 +1385,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
                 <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
                   <div className="flex gap-4 w-full sm:w-auto">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extra Late Fee</label>
-                      <Input type="number" value={lateFee || ""} onChange={(e) => setLateFee(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
-                    </div>
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</label>
                       <Input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
@@ -1552,25 +1548,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </div>
                   )}
 
-                  {/* 5. Extra Fees (Late/Damage) */}
+                  {/* 5. Extra Fees (Late/Damage) — persisted late fees only;
+                      new late fees are no longer entered on the return screen */}
                   {displayLateFee > 0 && (
                     <div className="space-y-1 pt-2 border-t border-slate-50">
                       <div className="flex justify-between text-red-600 font-bold text-sm">
                         <span className="uppercase text-[10px] tracking-wider">Late Fee</span>
                         <span>+ {formatCurrency(displayLateFee)}</span>
                       </div>
-                      {isReturnable && order.late_fee > 0 && lateFee > 0 && (
-                        <div className="pl-4 space-y-0.5">
-                          <div className="flex justify-between text-[11px] text-red-500 font-medium italic">
-                            <span>Initial Late Fee</span>
-                            <span>+ {formatCurrency(order.late_fee)}</span>
-                          </div>
-                          <div className="flex justify-between text-[11px] text-red-500 font-medium italic">
-                            <span>Additional Late Fee</span>
-                            <span>+ {formatCurrency(lateFee)}</span>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
 
@@ -2089,22 +2074,24 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         </div>
       </Modal>
 
-      {/* Adjustment Modal */}
+      {/* Adjustment Modal — discounts only (client decision 2026-09-06):
+          damage fees belong to the per-item return inputs and late fees are
+          not collected here, so the standalone financial adjustments were
+          removed. A discount simply reduces the order total; no payment row
+          is created (the old flow recorded a phantom "adjustment" payment
+          that inflated collections and neutralized the balance change). */}
       <Modal
         open={isAdjustmentModalOpen}
         onClose={() => setIsAdjustmentModalOpen(false)}
-        title="Apply Financial Adjustment"
+        title="Apply Discount"
       >
         <div className="p-6 space-y-6">
           <div className="space-y-3">
-            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Adjustment Type</Label>
-            <Select value={adjustmentForm.type} onValueChange={(v: any) => setAdjustmentForm({ ...adjustmentForm, type: v })}>
+            <Label className="font-bold text-slate-700 uppercase tracking-wider text-xs">Type</Label>
+            <Select value="discount" onValueChange={() => {}}>
               <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="discount">Discount (reduces total)</SelectItem>
-                <SelectItem value="late_fee">Late Fee (increases total)</SelectItem>
-                <SelectItem value="damage_fee">Damage Fee (increases total)</SelectItem>
-                <SelectItem value="extra_charge">Extra Charge (increases total)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -2118,45 +2105,27 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           </div>
           <div className="pt-6 flex justify-end gap-3 border-t border-slate-100">
             <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)} className="h-12 px-6 rounded-xl font-bold">Cancel</Button>
-            <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating || isCreatingPayment} onClick={() => {
+            <Button className="h-12 px-8 rounded-xl font-bold text-white bg-slate-900 hover:bg-slate-800" disabled={isUpdating} onClick={() => {
               if (!order) return;
               const val = parseFloat(adjustmentForm.amount) || 0;
               if (val <= 0) { showError('Invalid', 'Amount must be greater than 0'); return; }
 
-              const isDeduction = adjustmentForm.type === 'discount';
-              const newTotal = isDeduction ? Math.max(0, order.total_amount - val) : order.total_amount + val;
-              const newLateFee = adjustmentForm.type === 'late_fee' ? (order.late_fee || 0) + val : (order.late_fee || 0);
-              const newDiscount = adjustmentForm.type === 'discount' ? (order.discount || 0) + val : (order.discount || 0);
-              const newDamage = adjustmentForm.type === 'damage_fee' ? (order.damage_charges_total || 0) + val : (order.damage_charges_total || 0);
+              const newTotal = Math.max(0, order.total_amount - val);
               const newAmountPaid = order.amount_paid || 0;
               const newPaymentStatus = newAmountPaid >= newTotal ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
 
-              // Record as adjustment payment
-              const label = adjustmentForm.type === 'discount' ? 'Discount' : adjustmentForm.type === 'late_fee' ? 'Late Fee' : adjustmentForm.type === 'damage_fee' ? 'Damage Fee' : 'Extra Charge';
-              createPayment({
-                order_id: order.id,
-                payment_type: PaymentType.ADJUSTMENT,
-                amount: val,
-                payment_mode: PaymentMode.CASH,
-                notes: `${label}: ${adjustmentForm.notes || 'N/A'}`,
-              }, {
-                onSuccess: () => {
-                  updateOrder({
-                    id: order.id, data: {
-                      total_amount: newTotal,
-                      late_fee: newLateFee,
-                      discount: newDiscount,
-                      damage_charges_total: newDamage,
-                      payment_status: newPaymentStatus,
-                    }
-                  });
-                  setIsAdjustmentModalOpen(false);
-                  setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
-                  showSuccess('Adjustment Applied', `${label} of ${formatCurrency(val)} has been applied.`);
+              updateOrder({
+                id: order.id, data: {
+                  total_amount: newTotal,
+                  discount: (order.discount || 0) + val,
+                  payment_status: newPaymentStatus,
                 }
               });
+              setIsAdjustmentModalOpen(false);
+              setAdjustmentForm({ type: 'discount', amount: '0', notes: '' });
+              showSuccess('Discount Applied', `Discount of ${formatCurrency(val)} has been applied.`);
             }}>
-              {isUpdating || isCreatingPayment ? 'Processing...' : 'Apply Adjustment'}
+              {isUpdating ? 'Processing...' : 'Apply Discount'}
             </Button>
           </div>
         </div>
@@ -2385,18 +2354,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           )}
 
           {/* Fees Summary — only show when there's still a balance due */}
-          {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && amount_due > 0 && (
+          {(calculatedDamage > 0 || discount > 0) && amount_due > 0 && (
             <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
               {calculatedDamage > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-orange-700 font-medium">Damage Charges</span>
                   <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
-                </div>
-              )}
-              {lateFee > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-red-700 font-medium">Late Fee</span>
-                  <span className="font-bold text-red-700">{formatCurrency(lateFee)}</span>
                 </div>
               )}
               {discount > 0 && (
