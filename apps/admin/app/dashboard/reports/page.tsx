@@ -20,11 +20,11 @@ import { ReportHeader } from "@/components/admin/reports/ReportHeader";
 import { ReportFilters } from "@/components/admin/reports/ReportFilters";
 
 // Modular Views
-import { 
+import {
   DayWiseBookingView, DueOverdueView, RevenueView, TopCostumesView,
   TopCustomersView, RentalFrequencyView, ROIView, DeadStockView,
   SalesByStaffView, InventoryRevenueView, EnquiryLogView, GSTFilingView,
-  TodaysRevenueView
+  TodaysRevenueView, DamageReportView
 } from "@/components/admin/reports/views";
 
 import { ICONS, CATEGORY_COLORS } from "@/lib/reports-shared";
@@ -213,7 +213,7 @@ function ReportsPageContent() {
         result = json.data.rows !== undefined ? json.data.rows : json.data;
       }
 
-      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'damage-report') {
         setData(result.summary || []);
         setReportSummary(result);
         setGstDetails(result.details || []);
@@ -338,6 +338,18 @@ function ReportsPageContent() {
           { header: "Days Idle", key: "days_since_last_rental", format: "number" as const },
           { header: "Never Rented", key: "never_rented" },
           { header: "Added On", key: "created_at", format: "date" as const },
+        ];
+      case 'damage-report':
+        return [
+          { header: "Invoice", key: "invoice_number" },
+          { header: "Customer", key: "customer_name" },
+          { header: "Product", key: "product_name" },
+          { header: "Damaged Units", key: "damaged_units", format: "number" as const },
+          { header: "Damage Fee", key: "damage_fee", format: "currency" as const },
+          { header: "Reason", key: "reason" },
+          { header: "Payment", key: "payment_status" },
+          { header: "Order Date", key: "created_at", format: "date" as const },
+          { header: "Status", key: "order_status" },
         ];
       case 'sales-by-staff':
         return [
@@ -551,6 +563,7 @@ function ReportsPageContent() {
         {selectedReport === 'rental-frequency' && <RentalFrequencyView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'roi' && <ROIView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'dead-stock' && <DeadStockView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
+        {selectedReport === 'damage-report' && <DamageReportView data={sortedData} reportSummary={reportSummary} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'sales-by-staff' && <SalesByStaffView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'inventory-revenue' && <InventoryRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'enquiry-log' && <EnquiryLogView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} onLogEnquiry={handleLogEnquiry} />}
