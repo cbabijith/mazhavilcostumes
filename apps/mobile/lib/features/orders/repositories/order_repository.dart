@@ -309,11 +309,12 @@ class OrderRepository {
     }
   }
 
-  /// Update an existing payment transaction's amount, mode, and notes.
+  /// Update an existing payment transaction's amount, mode, transactionId, and notes.
   Future<void> updatePayment({
     required String paymentId,
     required double amount,
     required String paymentMode,
+    String? transactionId,
     String? notes,
     CancelToken? cancelToken,
   }) async {
@@ -323,12 +324,22 @@ class OrderRepository {
         data: {
           'amount': amount,
           'payment_mode': paymentMode,
+          if (transactionId != null) 'transaction_id': transactionId,
           'notes': notes,
         },
         cancelToken: cancelToken,
       );
     } catch (e) {
       throw Exception('Failed to update payment: $e');
+    }
+  }
+
+  /// Delete an existing payment transaction.
+  Future<void> deletePayment(String paymentId, {CancelToken? cancelToken}) async {
+    try {
+      await _api.delete('/payments/$paymentId', cancelToken: cancelToken);
+    } catch (e) {
+      throw Exception('Failed to delete payment: $e');
     }
   }
 

@@ -13,8 +13,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/supabase/api_client.dart';
 import '../../../core/utils/responsive.dart';
-import '../../products/viewmodels/providers/product_provider.dart';
-import '../../products/views/qr_scanner_dialog.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
 import 'order_form_view.dart';
@@ -45,6 +43,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   final Map<String, TextEditingController> _notesControllers = {};
   final Map<String, TextEditingController> _feeControllers = {};
 
+  final GlobalKey _itemsCardKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _extraDiscountController = TextEditingController();
+  final TextEditingController _returnNotesController = TextEditingController();
+
   @override
   bool get wantKeepAlive => true;
 
@@ -58,7 +61,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshOrder(showLoading: false);
       if (widget.autoOpenReturn) {
-        _openReturnDialog();
+        _scrollToItemsCard();
       } else if (widget.autoOpenPayment) {
         _openPaymentDialog();
       }
@@ -67,6 +70,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _extraDiscountController.dispose();
+    _returnNotesController.dispose();
     for (final ctrl in _notesControllers.values) {
       ctrl.dispose();
     }
@@ -74,6 +80,44 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       ctrl.dispose();
     }
     super.dispose();
+  }
+
+  void _scrollToItemsCard() {
+    if (_itemsCardKey.currentContext != null) {
+      Scrollable.ensureVisible(
+        _itemsCardKey.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOutCubic,
+      );
+    }
+  }
+
+  void _markAllGood() {
+    setState(() {
+      for (final item in _currentOrder.items ?? []) {
+        _localReturnItems[item.id] = {
+          'status': 'good',
+          'damage_fee': 0.0,
+          'damaged_quantity': 0,
+          'notes': '',
+        };
+        if (_notesControllers.containsKey(item.id)) {
+          _notesControllers[item.id]!.text = '';
+        }
+        if (_feeControllers.containsKey(item.id)) {
+          _feeControllers[item.id]!.text = '0';
+        }
+      }
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All items marked Good'),
+          backgroundColor: AppColors.success,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _initializeReturnItems() {
@@ -115,7 +159,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   void _openAdjustmentDialog() {
-    String adjustmentType = 'discount';
     final amountController = TextEditingController();
     final notesController = TextEditingController();
 
@@ -123,203 +166,263 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusXLarge)),
+        ),
       ),
       builder: (modalContext) {
         return StatefulBuilder(
           builder: (modalContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
+                left: Responsive.w(AppSizes.screenPaddingSmall),
+                right: Responsive.w(AppSizes.screenPaddingSmall),
+                top: Responsive.h(AppSizes.screenPaddingSmall),
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom +
+                    MediaQuery.of(context).padding.bottom +
+                    Responsive.h(AppSizes.spacingLarge),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Apply Financial Adjustment',
-                    style: TextStyle(
-                      fontSize: Responsive.sp(16),
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Apply Discount',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontLarge),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close_rounded,
+                            size: Responsive.icon(AppSizes.iconMedium),
+                          ),
+                          onPressed: () => Navigator.pop(modalContext),
+                        ),
+                      ],
                     ),
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  DropdownButtonFormField<String>(
-                    initialValue: adjustmentType,
-                    decoration: InputDecoration(
-                      labelText: 'Adjustment Type',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'discount',
-                        child: Text('Discount (reduces total)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'late_fee',
-                        child: Text('Late Fee (increases total)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'damage_fee',
-                        child: Text('Damage Fee (increases total)'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'extra_charge',
-                        child: Text('Extra Charge (increases total)'),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      if (val != null)
-                        setModalState(() => adjustmentType = val);
-                    },
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  TextField(
-                    controller: amountController,
-                    keyboardType: TextInputType.number,
-                    style: TextStyle(fontSize: Responsive.sp(15)),
-                    decoration: InputDecoration(
-                      labelText: 'Amount (₹)',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                    SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                    Text(
+                      'Directly deduct an amount from the order total. This directly updates the order balance.',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.secondaryText,
                       ),
                     ),
-                  ),
-                  SizedBox(height: Responsive.h(16)),
-                  TextField(
-                    controller: notesController,
-                    style: TextStyle(fontSize: Responsive.sp(15)),
-                    decoration: InputDecoration(
-                      labelText: 'Reason / Notes',
-                      hintText: 'E.g. Loyal customer discount',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    Text(
+                      'DISCOUNT AMOUNT (₹)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
                       ),
                     ),
-                  ),
-                  SizedBox(height: Responsive.h(24)),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    TextField(
+                      controller: amountController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        fontSize: Responsive.sp(22),
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primary,
+                      ),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        prefixIcon: Icon(
+                          Icons.currency_rupee_rounded,
+                          color: AppColors.primary,
+                          size: Responsive.icon(AppSizes.iconMedium),
+                        ),
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusMedium),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusMedium),
+                          ),
                         ),
                       ),
-                      onPressed: () async {
-                        final val =
-                            double.tryParse(amountController.text) ?? 0.0;
-                        if (val <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Please enter an amount greater than 0',
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    Text(
+                      'REASON / NOTES (OPTIONAL)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    TextField(
+                      controller: notesController,
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontMedium),
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'E.g. Loyal customer discount',
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusSmall),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              padding: Responsive.symmetric(
+                                vertical: AppSizes.spacingMedium,
                               ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final isDeduction = adjustmentType == 'discount';
-                        final double updatedTotal = isDeduction
-                            ? (_currentOrder.totalAmount - val).clamp(
-                                0.0,
-                                double.infinity,
-                              )
-                            : _currentOrder.totalAmount + val;
-
-                        final double newLateFee = adjustmentType == 'late_fee'
-                            ? _currentOrder.lateFee + val
-                            : _currentOrder.lateFee;
-
-                        final double newDiscount = adjustmentType == 'discount'
-                            ? _currentOrder.discount + val
-                            : _currentOrder.discount;
-
-                        final double newDamage = adjustmentType == 'damage_fee'
-                            ? _currentOrder.damageChargesTotal + val
-                            : _currentOrder.damageChargesTotal;
-
-                        final double newAmountPaid = _currentOrder.amountPaid;
-                        final String newPaymentStatus =
-                            newAmountPaid >= updatedTotal
-                            ? 'paid'
-                            : newAmountPaid > 0
-                            ? 'partial'
-                            : 'pending';
-
-                        final String label = adjustmentType == 'discount'
-                            ? 'Discount'
-                            : adjustmentType == 'late_fee'
-                            ? 'Late Fee'
-                            : adjustmentType == 'damage_fee'
-                            ? 'Damage Fee'
-                            : 'Extra Charge';
-
-                        Navigator.pop(modalContext);
-                        setState(() => _isLoading = true);
-                        try {
-                          // 1. Record as adjustment payment
-                          await ref
-                              .read(orderOperationsProvider)
-                              .collectPayment(
-                                orderId: _currentOrder.id,
-                                amount: val,
-                                paymentMode: 'cash',
-                                paymentType: 'adjustment',
-                                notes:
-                                    '$label: ${notesController.text.trim().isNotEmpty ? notesController.text.trim() : 'N/A'}',
-                              );
-
-                          // 2. Update order totals
-                          await ref
-                              .read(orderOperationsProvider)
-                              .updateOrder(_currentOrder.id, {
-                                'total_amount': updatedTotal,
-                                'late_fee': newLateFee,
-                                'discount': newDiscount,
-                                'damage_charges_total': newDamage,
-                                'payment_status': newPaymentStatus,
-                              });
-
-                          await _refreshOrder();
-                          ref.invalidate(
-                            orderPaymentsProvider(_currentOrder.id),
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '$label of ₹${val.toStringAsFixed(2)} has been applied.',
+                              side: BorderSide(color: Colors.grey.shade300),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
                                 ),
                               ),
-                            );
-                          }
-                        } catch (e) {
-                          setState(() => _isLoading = false);
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Failed to apply adjustment: $e'),
+                            ),
+                            onPressed: () => Navigator.pop(modalContext),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
                               ),
-                            );
-                          }
-                        }
-                      },
-                      child: const Text('Apply Adjustment'),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: Responsive.symmetric(
+                                vertical: AppSizes.spacingMedium,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall),
+                                ),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () async {
+                              final val =
+                                  double.tryParse(amountController.text) ??
+                                  0.0;
+                              if (val <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Please enter a discount amount greater than 0',
+                                    ),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              final double updatedTotal =
+                                  (_currentOrder.totalAmount - val).clamp(
+                                    0.0,
+                                    double.infinity,
+                                  );
+                              final double newDiscount =
+                                  _currentOrder.discount + val;
+                              final double newAmountPaid =
+                                  _currentOrder.amountPaid;
+                              final String newPaymentStatus =
+                                  newAmountPaid >= updatedTotal
+                                      ? 'paid'
+                                      : newAmountPaid > 0
+                                          ? 'partial'
+                                          : 'pending';
+
+                              Navigator.pop(modalContext);
+                              setState(() => _isLoading = true);
+                              try {
+                                final noteReason =
+                                    notesController.text.trim();
+                                final noteUpdate = noteReason.isNotEmpty
+                                    ? (_currentOrder.notes != null &&
+                                            _currentOrder.notes!.isNotEmpty
+                                        ? '${_currentOrder.notes} | Discount: $noteReason'
+                                        : 'Discount: $noteReason')
+                                    : null;
+
+                                await ref
+                                    .read(orderOperationsProvider)
+                                    .updateOrder(_currentOrder.id, {
+                                      'total_amount': updatedTotal,
+                                      'discount': newDiscount,
+                                      'payment_status': newPaymentStatus,
+                                      'notes': ?noteUpdate,
+                                    });
+
+                                await _refreshOrder();
+                                ref.invalidate(
+                                  orderPaymentsProvider(_currentOrder.id),
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Discount of ₹${val.toStringAsFixed(2)} applied successfully.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setState(() => _isLoading = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to apply discount: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            child: Text(
+                              'Apply Discount',
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontMedium),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -343,7 +446,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     final isDamaged = currentStatus == 'damaged';
 
     final notesCtrl = _getNotesController(item.id, state['notes'] as String);
-    final feeCtrl = _getFeeController(item.id, state['damage_fee'] as double);
+    final feeCtrl = _getFeeController(
+      item.id,
+      (state['damage_fee'] as num).toDouble(),
+    );
 
     final dbStatus = item.isReturned == true
         ? (item.conditionRating == ConditionRating.damaged ? 'damaged' : 'good')
@@ -367,6 +473,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+        // Condition Segmented Buttons (Good / Damaged)
         Row(
           children: [
             Expanded(
@@ -385,7 +492,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   isGood
                       ? Icons.check_circle_rounded
                       : Icons.check_circle_outline_rounded,
-                  size: Responsive.icon(16),
+                  size: Responsive.icon(AppSizes.iconTiny),
                   color: isGood ? Colors.white : AppColors.success,
                 ),
                 label: Text(
@@ -401,7 +508,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   side: BorderSide(
                     color: isGood
                         ? AppColors.success
-                        : AppColors.success.withValues(alpha: 0.5),
+                        : AppColors.success.withValues(alpha: 0.4),
+                    width: AppSizes.spacingTiny / 4,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
@@ -432,7 +540,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   isDamaged
                       ? Icons.warning_rounded
                       : Icons.warning_amber_rounded,
-                  size: Responsive.icon(16),
+                  size: Responsive.icon(AppSizes.iconTiny),
                   color: isDamaged ? Colors.white : AppColors.warning,
                 ),
                 label: Text(
@@ -448,7 +556,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   side: BorderSide(
                     color: isDamaged
                         ? AppColors.warning
-                        : AppColors.warning.withValues(alpha: 0.5),
+                        : AppColors.warning.withValues(alpha: 0.4),
+                    width: AppSizes.spacingTiny / 4,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
@@ -464,14 +573,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
           ],
         ),
         if (isDamaged) ...[
-          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall + 2)),
           Container(
             padding: Responsive.all(AppSizes.spacingMedium),
             decoration: BoxDecoration(
               color: AppColors.warning.withValues(alpha: 0.05),
               border: Border.all(
-                color: AppColors.warning.withValues(alpha: 0.2),
-                width: 1,
+                color: AppColors.warning.withValues(alpha: 0.3),
+                width: AppSizes.spacingTiny / 4,
               ),
               borderRadius: BorderRadius.circular(
                 Responsive.r(AppSizes.radiusSmall),
@@ -488,21 +597,30 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     color: AppColors.secondaryText,
                   ),
                 ),
-                SizedBox(height: Responsive.h(4)),
+                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                 TextField(
                   controller: notesCtrl,
+                  style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall)),
                   decoration: InputDecoration(
-                    hintText: 'Describe damage (e.g. Broken clasp)',
+                    hintText: 'Describe damage (e.g. Broken clasp, stain)',
                     hintStyle: TextStyle(
                       fontSize: Responsive.sp(AppSizes.fontSmall),
-                      color: Colors.grey,
+                      color: AppColors.secondaryText,
                     ),
                     isDense: true,
                     contentPadding: Responsive.symmetric(
                       vertical: AppSizes.spacingSmall,
                       horizontal: AppSizes.spacingSmall,
                     ),
-                    border: const OutlineInputBorder(),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall / 2),
+                      ),
+                      borderSide: BorderSide(
+                        color: AppColors.border,
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                    ),
                   ),
                   onChanged: (val) {
                     _localReturnItems[item.id]!['notes'] = val;
@@ -518,21 +636,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Damaged Qty',
+                            'Damaged Qty (of ${item.quantity})',
                             style: TextStyle(
                               fontSize: Responsive.sp(AppSizes.fontTiny),
                               fontWeight: FontWeight.bold,
                               color: AppColors.secondaryText,
                             ),
                           ),
-                          SizedBox(height: Responsive.h(4)),
+                          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                           Container(
                             padding: Responsive.symmetric(
                               horizontal: AppSizes.spacingSmall,
                             ),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey),
-                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: AppSizes.spacingTiny / 4,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall / 2),
+                              ),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<int>(
@@ -543,7 +666,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                         .map(
                                           (i) => DropdownMenuItem(
                                             value: i,
-                                            child: Text('$i'),
+                                            child: Text(
+                                              '$i',
+                                              style: TextStyle(
+                                                fontSize: Responsive.sp(
+                                                  AppSizes.fontSmall,
+                                                ),
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
                                         )
                                         .toList(),
@@ -575,17 +706,38 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                               color: AppColors.secondaryText,
                             ),
                           ),
-                          SizedBox(height: Responsive.h(4)),
+                          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                           TextField(
                             controller: feeCtrl,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                  decimal: true,
+                                ),
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: InputDecoration(
                               isDense: true,
-                              contentPadding: EdgeInsets.symmetric(
-                                vertical: 12,
-                                horizontal: 10,
+                              contentPadding: Responsive.symmetric(
+                                vertical: AppSizes.spacingSmall,
+                                horizontal: AppSizes.spacingSmall,
                               ),
-                              border: OutlineInputBorder(),
+                              prefixText: '₹ ',
+                              prefixStyle: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondaryText,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  Responsive.r(AppSizes.radiusSmall / 2),
+                                ),
+                                borderSide: BorderSide(
+                                  color: AppColors.border,
+                                  width: AppSizes.spacingTiny / 4,
+                                ),
+                              ),
                             ),
                             onChanged: (val) {
                               _localReturnItems[item.id]!['damage_fee'] =
@@ -598,6 +750,46 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     ),
                   ],
                 ),
+                // Auto-marked Good banner
+                if (currentDamagedQty > 0 && currentDamagedQty < item.quantity) ...[
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  Container(
+                    padding: Responsive.symmetric(
+                      horizontal: AppSizes.spacingSmall,
+                      vertical: AppSizes.spacingTiny,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall / 2),
+                      ),
+                      border: Border.all(
+                        color: AppColors.success.withValues(alpha: 0.25),
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.check_circle_outline_rounded,
+                          size: Responsive.icon(AppSizes.iconTiny - 2),
+                          color: AppColors.success,
+                        ),
+                        SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                        Expanded(
+                          child: Text(
+                            '${item.quantity - currentDamagedQty} of ${item.quantity} units auto-marked Good',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                              color: AppColors.success,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                 SizedBox(
                   width: double.infinity,
@@ -613,7 +805,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     conditionRating: 'damaged',
                                     damageDescription: state['notes'] as String,
                                     damageCharges:
-                                        state['damage_fee'] as double,
+                                        (state['damage_fee'] as num).toDouble(),
                                     damagedQuantity:
                                         state['damaged_quantity'] as int,
                                   );
@@ -624,6 +816,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     content: Text(
                                       'Item damage details saved successfully.',
                                     ),
+                                    backgroundColor: AppColors.success,
                                   ),
                                 );
                               }
@@ -635,6 +828,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     content: Text(
                                       'Failed to save item damage: $e',
                                     ),
+                                    backgroundColor: AppColors.error,
                                   ),
                                 );
                               }
@@ -642,12 +836,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                           },
                           icon: Icon(
                             Icons.save_rounded,
-                            size: Responsive.icon(16),
+                            size: Responsive.icon(AppSizes.iconTiny),
                           ),
                           label: const Text('Save Details'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
+                            backgroundColor: AppColors.warning,
                             foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingSmall,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
                                 Responsive.r(AppSizes.radiusSmall),
@@ -660,9 +858,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                             vertical: AppSizes.spacingSmall,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.1),
+                            color: AppColors.warning.withValues(alpha: 0.1),
                             border: Border.all(
-                              color: AppColors.success.withValues(alpha: 0.3),
+                              color: AppColors.warning.withValues(alpha: 0.3),
+                              width: AppSizes.spacingTiny / 4,
                             ),
                             borderRadius: BorderRadius.circular(
                               Responsive.r(AppSizes.radiusSmall),
@@ -673,14 +872,16 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                             children: [
                               Icon(
                                 Icons.check_circle_rounded,
-                                color: AppColors.success,
-                                size: Responsive.icon(16),
+                                color: AppColors.warning,
+                                size: Responsive.icon(AppSizes.iconTiny),
                               ),
-                              SizedBox(width: Responsive.w(8)),
+                              SizedBox(
+                                width: Responsive.w(AppSizes.spacingSmall),
+                              ),
                               Text(
                                 'Saved',
                                 style: TextStyle(
-                                  color: AppColors.success,
+                                  color: AppColors.warning,
                                   fontWeight: FontWeight.bold,
                                   fontSize: Responsive.sp(AppSizes.fontSmall),
                                 ),
@@ -716,6 +917,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Item condition set to GOOD.'),
+                              backgroundColor: AppColors.success,
                             ),
                           );
                         }
@@ -725,16 +927,24 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Failed to update condition: $e'),
+                              backgroundColor: AppColors.error,
                             ),
                           );
                         }
                       }
                     },
-                    icon: Icon(Icons.save_rounded, size: Responsive.icon(16)),
+                    icon: Icon(
+                      Icons.save_rounded,
+                      size: Responsive.icon(AppSizes.iconTiny),
+                    ),
                     label: const Text('Save Condition'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: Responsive.symmetric(
+                        vertical: AppSizes.spacingSmall,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
                           Responsive.r(AppSizes.radiusSmall),
@@ -750,6 +960,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       color: AppColors.success.withValues(alpha: 0.1),
                       border: Border.all(
                         color: AppColors.success.withValues(alpha: 0.3),
+                        width: AppSizes.spacingTiny / 4,
                       ),
                       borderRadius: BorderRadius.circular(
                         Responsive.r(AppSizes.radiusSmall),
@@ -761,9 +972,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         Icon(
                           Icons.check_circle_rounded,
                           color: AppColors.success,
-                          size: Responsive.icon(16),
+                          size: Responsive.icon(AppSizes.iconTiny),
                         ),
-                        SizedBox(width: Responsive.w(8)),
+                        SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                         Text(
                           'Good Condition Saved',
                           style: TextStyle(
@@ -889,6 +1100,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
               child: CircularProgressIndicator(color: AppColors.primary),
             )
           : SingleChildScrollView(
+              controller: _scrollController,
               padding: Responsive.all(AppSizes.screenPaddingSmall),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -898,7 +1110,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   _buildStatusStepper(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildUrgentAlertBanner(),
-                  if (_currentOrder.hasStockConflict)
+                  if (_currentOrder.hasStockConflict &&
+                      _currentOrder.status != OrderStatus.completed &&
+                      _currentOrder.status != OrderStatus.cancelled)
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildLogisticsQuickStats(),
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
@@ -906,9 +1120,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
 
                   SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                   _buildItemsCard(),
-                  if (_currentOrder.status == OrderStatus.flagged ||
-                      _currentOrder.damageChargesTotal > 0 ||
-                      _currentOrder.lateFee > 0) ...[
+                  if (!(_currentOrder.status == OrderStatus.ongoing ||
+                          _currentOrder.status == OrderStatus.inUse ||
+                          _currentOrder.status == OrderStatus.delivered ||
+                          _currentOrder.status == OrderStatus.partial ||
+                          _currentOrder.status == OrderStatus.flagged) &&
+                      (_currentOrder.status == OrderStatus.flagged ||
+                          _currentOrder.damageChargesTotal > 0 ||
+                          _currentOrder.lateFee > 0)) ...[
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                     _buildProjectedSettlementCard(
                       onCollectPayment: _openPaymentDialog,
@@ -1110,9 +1329,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         !isBackdated &&
         rentalEndMidnight != null &&
         todayMidnight.isAfter(rentalEndMidnight);
+    final isEarlyStart =
+        rentalStartMidnight != null && todayMidnight.isBefore(rentalStartMidnight);
 
     if ((_currentOrder.status == OrderStatus.confirmed ||
-            _currentOrder.status == OrderStatus.scheduled) &&
+            _currentOrder.status == OrderStatus.scheduled ||
+            _currentOrder.status == OrderStatus.pending) &&
         isExpired) {
       return Padding(
         padding: Responsive.only(top: AppSizes.spacingMedium),
@@ -1155,7 +1377,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         ),
                         SizedBox(height: Responsive.h(4)),
                         Text(
-                          'The return date for this scheduled order has already passed. You cannot start this rental. Please cancel this order and create a fresh one.',
+                          'The scheduled return date for this order has already passed. You can record it as returned if the costume was given offline, or cancel it.',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.9),
                             fontSize: Responsive.sp(AppSizes.fontTiny + 1),
@@ -1169,35 +1391,69 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
               ),
             ),
             SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: _openCancelDialog,
-                icon: Icon(
-                  Icons.cancel_outlined,
-                  color: Colors.white,
-                  size: Responsive.icon(AppSizes.iconSmall),
-                ),
-                label: Text(
-                  'Cancel Order',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white, width: 1.5),
-                  padding: Responsive.symmetric(
-                    vertical: AppSizes.spacingSmall + 2,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      Responsive.r(AppSizes.radiusSmall),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber.shade700,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: Responsive.symmetric(
+                        vertical: AppSizes.spacingSmall + 2,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                    onPressed: _openBackfillReturnDialog,
+                    icon: Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: Responsive.icon(AppSizes.iconSmall),
+                    ),
+                    label: Text(
+                      'Record Returned',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
+                SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _openCancelDialog,
+                    icon: Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.white,
+                      size: Responsive.icon(AppSizes.iconSmall),
+                    ),
+                    label: Text(
+                      'Cancel Order',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Colors.white, width: 1.5),
+                      padding: Responsive.symmetric(
+                        vertical: AppSizes.spacingSmall + 2,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -1225,10 +1481,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         status != OrderStatus.cancelled && status != OrderStatus.completed;
 
     Widget buildStartRentalButton({required bool isExpanded}) {
+      final hasConflict = _currentOrder.hasStockConflict;
       final btn = ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: AppColors.primary,
+          backgroundColor: hasConflict ? Colors.red.shade100 : Colors.white,
+          foregroundColor: hasConflict ? AppColors.error : AppColors.primary,
           elevation: 0,
           padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
           shape: RoundedRectangleBorder(
@@ -1237,13 +1494,25 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
             ),
           ),
         ),
-        onPressed: _startRentalWithCheck,
+        onPressed: () {
+          if (hasConflict) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Inventory Fulfillment Conflict: Resolve stock issues before starting rental.',
+                ),
+              ),
+            );
+            return;
+          }
+          _startRentalWithCheck();
+        },
         icon: Icon(
-          Icons.play_arrow_rounded,
+          hasConflict ? Icons.warning_amber_rounded : Icons.play_arrow_rounded,
           size: Responsive.icon(AppSizes.iconSmall),
         ),
         label: Text(
-          AppStrings.startRental,
+          hasConflict ? 'Stock Conflict' : AppStrings.startRental,
           style: TextStyle(
             fontSize: Responsive.sp(AppSizes.fontSmall),
             fontWeight: FontWeight.bold,
@@ -1266,7 +1535,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
             ),
           ),
         ),
-        onPressed: _openReturnDialog,
+        onPressed: _scrollToItemsCard,
         icon: Icon(
           Icons.assignment_turned_in_rounded,
           size: Responsive.icon(AppSizes.iconSmall),
@@ -1474,6 +1743,44 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                 }
               },
             ),
+          if (showStartRental && isEarlyStart && rentalStart != null) ...[
+            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+            Container(
+              padding: Responsive.symmetric(
+                horizontal: AppSizes.spacingMedium,
+                vertical: AppSizes.spacingSmall,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: AppSizes.spacingTiny / 4,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.event_outlined,
+                    color: Colors.white,
+                    size: Responsive.icon(AppSizes.iconSmall - 2),
+                  ),
+                  SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                  Text(
+                    'Pickup: ${DateFormat('dd MMM, yyyy').format(rentalStart)}',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1650,7 +1957,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   Widget _buildUrgentAlertBanner() {
-    if (!_currentOrder.hasStockConflict) return const SizedBox.shrink();
+    if (!_currentOrder.hasStockConflict ||
+        _currentOrder.status == OrderStatus.completed ||
+        _currentOrder.status == OrderStatus.cancelled) {
+      return const SizedBox.shrink();
+    }
 
     final conflicts = _currentOrder.conflictDetails ?? [];
 
@@ -1658,10 +1969,10 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       width: double.infinity,
       padding: Responsive.all(AppSizes.spacingMedium),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
+        color: AppColors.error.withValues(alpha: 0.06),
         border: Border.all(
           color: AppColors.error.withValues(alpha: 0.3),
-          width: 1.5,
+          width: AppSizes.spacingTiny / 4,
         ),
         borderRadius: BorderRadius.circular(
           Responsive.r(AppSizes.radiusMedium),
@@ -1671,52 +1982,181 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.warning_amber_rounded,
-                color: AppColors.error,
-                size: Responsive.icon(AppSizes.iconSmall),
-              ),
-              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-              Expanded(
-                child: Text(
-                  'URGENT: Stock Conflict Detected',
-                  style: TextStyle(
-                    color: AppColors.error,
-                    fontWeight: FontWeight.bold,
-                    fontSize: Responsive.sp(AppSizes.fontSmall),
+              Container(
+                padding: Responsive.all(AppSizes.spacingSmall),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
                   ),
+                ),
+                child: Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.error,
+                  size: Responsive.icon(AppSizes.iconMedium),
+                ),
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INVENTORY FULFILLMENT CONFLICT DETECTED',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.error,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                    Text(
+                      'Total inventory for one or more items in this order has dropped below required levels due to damage or write-offs. This order is currently at risk of incomplete fulfillment.',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall - 1),
+                        color: AppColors.error.withValues(alpha: 0.85),
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
           if (conflicts.isNotEmpty) ...[
-            SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-            ...conflicts.map((c) {
-              final name = c['productName'] ?? 'Unknown Product';
-              final short = c['shortfall'] ?? 0;
-              return Padding(
-                padding: Responsive.symmetric(vertical: 2),
-                child: Text(
-                  '• $name: Shortfall of $short pc(s)',
-                  style: TextStyle(
-                    color: AppColors.error.withValues(alpha: 0.9),
-                    fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Wrap(
+              spacing: Responsive.w(AppSizes.spacingSmall),
+              runSpacing: Responsive.h(AppSizes.spacingSmall),
+              children: conflicts.map<Widget>((conflict) {
+                final String name = (conflict is Map)
+                    ? (conflict['productName'] ?? conflict['product_name'] ?? 'Item').toString()
+                    : 'Item';
+                final int shortfall = (conflict is Map)
+                    ? (int.tryParse(conflict['shortfall']?.toString() ?? '1') ?? 1)
+                    : 1;
+
+                return Container(
+                  padding: Responsive.symmetric(
+                    horizontal: AppSizes.spacingSmall + 2,
+                    vertical: AppSizes.spacingTiny + 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border.all(
+                      color: AppColors.error.withValues(alpha: 0.25),
+                      width: AppSizes.spacingTiny / 4,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: Responsive.symmetric(
+                          horizontal: AppSizes.spacingTiny + 2,
+                          vertical: AppSizes.spacingTiny / 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.spacingTiny),
+                          ),
+                        ),
+                        child: Text(
+                          'CONFLICT',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.error,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingTiny + 2)),
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.text,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        margin: Responsive.symmetric(
+                          horizontal: AppSizes.spacingTiny + 2,
+                        ),
+                        width: 1,
+                        height: Responsive.h(12),
+                        color: AppColors.error.withValues(alpha: 0.25),
+                      ),
+                      Text(
+                        'Shortfall: $shortfall unit${shortfall > 1 ? 's' : ''}',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontTiny),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                  color: AppColors.error.withValues(alpha: 0.4),
+                  width: AppSizes.spacingTiny / 4,
+                ),
+                foregroundColor: AppColors.error,
+                padding: Responsive.symmetric(
+                  horizontal: AppSizes.spacingMedium,
+                  vertical: AppSizes.spacingSmall,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
                   ),
                 ),
-              );
-            }),
-          ] else
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Shortfall of product units for this booking detected.',
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => OrderFormView(order: _currentOrder),
+                  ),
+                ).then((_) {
+                  ref.invalidate(ordersProvider);
+                  _refreshOrder();
+                });
+              },
+              icon: Icon(
+                Icons.edit_outlined,
+                size: Responsive.icon(AppSizes.iconSmall - 2),
+              ),
+              label: Text(
+                'MODIFY ORDER',
                 style: TextStyle(
-                  color: AppColors.error,
                   fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -2243,8 +2683,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
 
   Widget _buildItemsCard() {
     final items = _currentOrder.items ?? [];
+    final bool isReturnable =
+        _currentOrder.status == OrderStatus.ongoing ||
+        _currentOrder.status == OrderStatus.inUse ||
+        _currentOrder.status == OrderStatus.delivered ||
+        _currentOrder.status == OrderStatus.partial ||
+        _currentOrder.status == OrderStatus.flagged;
 
     return Container(
+      key: _itemsCardKey,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(
@@ -2290,6 +2737,43 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     color: AppColors.text,
                   ),
                 ),
+                if (isReturnable) ...[
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: _markAllGood,
+                    icon: Icon(
+                      Icons.check_circle_rounded,
+                      size: Responsive.icon(AppSizes.iconTiny),
+                      color: AppColors.success,
+                    ),
+                    label: Text(
+                      'Mark All Good',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.success,
+                      side: BorderSide(
+                        color: AppColors.success.withValues(alpha: 0.4),
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                      padding: Responsive.symmetric(
+                        horizontal: AppSizes.spacingSmall,
+                        vertical: AppSizes.spacingTiny,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -2408,13 +2892,52 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   const Divider(height: 1, color: AppColors.border),
               itemBuilder: (context, index) {
                 final item = items[index];
-                final isReturnable =
-                    _currentOrder.status == OrderStatus.ongoing ||
-                    _currentOrder.status == OrderStatus.inUse ||
-                    _currentOrder.status == OrderStatus.delivered ||
-                    _currentOrder.status == OrderStatus.partial ||
-                    _currentOrder.status == OrderStatus.flagged;
-                final isDamagedItem = item.isReturned == true && item.conditionRating == ConditionRating.damaged;
+                final rItem = _localReturnItems[item.id] ?? {};
+                final isLocalGood = rItem['status'] == 'good';
+                final isLocalDamaged = rItem['status'] == 'damaged';
+                final hasDbDamage = (item.damageCharges ?? 0.0) > 0 ||
+                    (item.damagedQuantity ?? 0) > 0 ||
+                    item.conditionRating == ConditionRating.damaged;
+                final isDamagedItem = hasDbDamage;
+
+                Color cardColor = Colors.transparent;
+                Border? cardBorder;
+
+                if (isReturnable) {
+                  if (isLocalDamaged) {
+                    cardColor = AppColors.warning.withValues(alpha: 0.06);
+                    cardBorder = Border.all(
+                      color: AppColors.warning.withValues(alpha: 0.4),
+                      width: AppSizes.spacingTiny / 4,
+                    );
+                  } else if (isLocalGood) {
+                    cardColor = AppColors.success.withValues(alpha: 0.04);
+                    cardBorder = Border.all(
+                      color: AppColors.success.withValues(alpha: 0.25),
+                      width: AppSizes.spacingTiny / 4,
+                    );
+                  }
+                } else if (isDamagedItem) {
+                  cardColor = AppColors.warning.withValues(alpha: 0.06);
+                  cardBorder = Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.45),
+                    width: AppSizes.spacingTiny / 4,
+                  );
+                }
+
+                final int returnedQty = item.returnedQuantity ??
+                    (item.isReturned == true ? item.quantity : 0);
+                final bool isFullyReturned = item.isReturned == true ||
+                    (returnedQty >= item.quantity && item.quantity > 0);
+                final bool isPartiallyReturned =
+                    !isFullyReturned && returnedQty > 0;
+                final bool hasRecordedReturn =
+                    isFullyReturned || isPartiallyReturned;
+                final int damagedQty = item.damagedQuantity ??
+                    (hasDbDamage
+                        ? (isFullyReturned ? item.quantity : 1)
+                        : 0);
+                final double damageCharges = item.damageCharges ?? 0.0;
 
                 return Container(
                   margin: Responsive.symmetric(
@@ -2422,11 +2945,11 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     vertical: AppSizes.spacingTiny / 2,
                   ),
                   decoration: BoxDecoration(
-                    color: isDamagedItem ? AppColors.warning.withValues(alpha: 0.06) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                    border: isDamagedItem
-                        ? Border.all(color: AppColors.warning.withValues(alpha: 0.45), width: AppSizes.spacingTiny / 4)
-                        : null,
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
+                    border: cardBorder,
                   ),
                   padding: Responsive.all(AppSizes.spacingMedium),
                   child: Column(
@@ -2445,7 +2968,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                               ),
                               border: Border.all(
                                 color: AppColors.border,
-                                width: 0.5,
+                                width: AppSizes.spacingTiny / 4,
                               ),
                             ),
                             child: item.product?.primaryImageUrl != null
@@ -2459,13 +2982,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                       errorBuilder:
                                           (context, error, stackTrace) => Icon(
                                             Icons.image_not_supported_outlined,
-                                            color: Colors.grey[400],
+                                            color: AppColors.secondaryText,
                                           ),
                                     ),
                                   )
                                 : Icon(
                                     Icons.image_not_supported_outlined,
-                                    color: Colors.grey[400],
+                                    color: AppColors.secondaryText,
                                   ),
                           ),
                           SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
@@ -2484,23 +3007,25 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                SizedBox(height: Responsive.h(4)),
+                                SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
                                 Wrap(
                                   spacing: Responsive.w(AppSizes.spacingSmall),
-                                  runSpacing: Responsive.h(4),
+                                  runSpacing: Responsive.h(AppSizes.spacingTiny),
                                   alignment: WrapAlignment.start,
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     Container(
                                       padding: Responsive.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
+                                        horizontal: AppSizes.spacingSmall - 2,
+                                        vertical: AppSizes.spacingTiny / 2,
                                       ),
                                       decoration: BoxDecoration(
                                         color: AppColors.primary.withValues(
                                           alpha: 0.1,
                                         ),
-                                        borderRadius: BorderRadius.circular(4),
+                                        borderRadius: BorderRadius.circular(
+                                          Responsive.r(AppSizes.radiusSmall / 2),
+                                        ),
                                       ),
                                       child: Text(
                                         'x${item.quantity}',
@@ -2525,15 +3050,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     if (item.discount > 0)
                                       Container(
                                         padding: Responsive.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
+                                          horizontal: AppSizes.spacingSmall - 2,
+                                          vertical: AppSizes.spacingTiny / 2,
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppColors.success.withValues(
                                             alpha: 0.1,
                                           ),
                                           borderRadius: BorderRadius.circular(
-                                            4,
+                                            Responsive.r(AppSizes.radiusSmall / 2),
                                           ),
                                         ),
                                         child: Text(
@@ -2552,15 +3077,15 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                     if (item.gstPercentage > 0)
                                       Container(
                                         padding: Responsive.symmetric(
-                                          horizontal: 6,
-                                          vertical: 2,
+                                          horizontal: AppSizes.spacingSmall - 2,
+                                          vertical: AppSizes.spacingTiny / 2,
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppColors.info.withValues(
                                             alpha: 0.1,
                                           ),
                                           borderRadius: BorderRadius.circular(
-                                            4,
+                                            Responsive.r(AppSizes.radiusSmall / 2),
                                           ),
                                         ),
                                         child: Text(
@@ -2578,7 +3103,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                 ),
                                 if (item.gstAmount > 0 || item.discount > 0)
                                   Padding(
-                                    padding: Responsive.only(top: 4),
+                                    padding: Responsive.only(
+                                      top: AppSizes.spacingTiny,
+                                    ),
                                     child: Text(
                                       'Base: ₹${item.baseAmount.toStringAsFixed(2)} + GST: ₹${item.gstAmount.toStringAsFixed(2)}',
                                       style: TextStyle(
@@ -2589,7 +3116,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                       ),
                                     ),
                                   ),
-                                if (item.isReturned == true)
+                                if (hasRecordedReturn || hasDbDamage || !isReturnable)
                                   Padding(
                                     padding: Responsive.only(
                                       top: AppSizes.spacingTiny,
@@ -2598,43 +3125,171 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                       spacing: Responsive.w(AppSizes.spacingSmall),
                                       runSpacing: Responsive.h(AppSizes.spacingTiny),
                                       children: [
-                                        Container(
-                                          padding: Responsive.symmetric(
-                                            horizontal: AppSizes.spacingSmall - 2,
-                                            vertical: AppSizes.spacingTiny / 2,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isDamagedItem
-                                                ? AppColors.warning.withValues(alpha: 0.15)
-                                                : AppColors.success.withValues(alpha: 0.1),
-                                            borderRadius: BorderRadius.circular(
-                                              Responsive.r(AppSizes.radiusSmall / 2),
+                                        if (isFullyReturned)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.success.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
+                                              ),
+                                              border: Border.all(
+                                                color: AppColors.success.withValues(alpha: 0.3),
+                                                width: AppSizes.spacingTiny / 4,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.check_circle_outline_rounded,
+                                                  size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                  color: AppColors.success,
+                                                ),
+                                                SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                                Text(
+                                                  'Returned: $returnedQty / ${item.quantity}',
+                                                  style: TextStyle(
+                                                    fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                    color: AppColors.success,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else if (isPartiallyReturned)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.info.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
+                                              ),
+                                              border: Border.all(
+                                                color: AppColors.info.withValues(alpha: 0.3),
+                                                width: AppSizes.spacingTiny / 4,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.timelapse_rounded,
+                                                  size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                  color: AppColors.info,
+                                                ),
+                                                SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                                Text(
+                                                  'Partial Return: $returnedQty / ${item.quantity}',
+                                                  style: TextStyle(
+                                                    fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                    color: AppColors.info,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          )
+                                        else if (!isReturnable)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
+                                              ),
+                                            ),
+                                            child: Text(
+                                              'Returned: 0 / ${item.quantity}',
+                                              style: TextStyle(
+                                                fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                color: AppColors.secondaryText,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                           ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(
-                                                isDamagedItem
-                                                    ? Icons.warning_amber_rounded
-                                                    : Icons.check_circle_outline_rounded,
-                                                size: Responsive.icon(AppSizes.iconTiny - 2),
-                                                color: isDamagedItem ? AppColors.warning : AppColors.success,
+                                        if (hasDbDamage && damagedQty > 0)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.warning.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
                                               ),
-                                              SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
-                                              Text(
-                                                'Returned: ${item.returnedQuantity ?? item.quantity} (${item.conditionRating?.name.toUpperCase() ?? 'GOOD'})',
-                                                style: TextStyle(
-                                                  fontSize: Responsive.sp(AppSizes.fontTiny - 1),
-                                                  color: isDamagedItem ? AppColors.warning : AppColors.success,
-                                                  fontWeight: FontWeight.bold,
+                                              border: Border.all(
+                                                color: AppColors.warning.withValues(alpha: 0.4),
+                                                width: AppSizes.spacingTiny / 4,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                  color: AppColors.warning,
                                                 ),
-                                              ),
-                                            ],
+                                                SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                                Text(
+                                                  'Damaged: $damagedQty',
+                                                  style: TextStyle(
+                                                    fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                    color: AppColors.warning,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
-                                        ),
-                                        if (isDamagedItem &&
-                                            (item.quantity - (item.damagedQuantity ?? item.quantity)) > 0)
+                                        if (damageCharges > 0)
+                                          Container(
+                                            padding: Responsive.symmetric(
+                                              horizontal: AppSizes.spacingSmall - 2,
+                                              vertical: AppSizes.spacingTiny / 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.warning.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(
+                                                Responsive.r(AppSizes.radiusSmall / 2),
+                                              ),
+                                              border: Border.all(
+                                                color: AppColors.warning.withValues(alpha: 0.4),
+                                                width: AppSizes.spacingTiny / 4,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.currency_rupee_rounded,
+                                                  size: Responsive.icon(AppSizes.iconTiny - 2),
+                                                  color: AppColors.warning,
+                                                ),
+                                                Text(
+                                                  'Damage Fee: ₹${damageCharges.toStringAsFixed(0)}',
+                                                  style: TextStyle(
+                                                    fontSize: Responsive.sp(AppSizes.fontTiny - 1),
+                                                    color: AppColors.warning,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        if (hasDbDamage && (item.quantity - damagedQty) > 0)
                                           Container(
                                             padding: Responsive.symmetric(
                                               horizontal: AppSizes.spacingSmall - 2,
@@ -2647,7 +3302,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                               ),
                                             ),
                                             child: Text(
-                                              '✓ ${(item.quantity - (item.damagedQuantity ?? item.quantity))} of ${item.quantity} auto-marked Good',
+                                              '✓ ${(item.quantity - damagedQty)} of ${item.quantity} auto-marked Good',
                                               style: TextStyle(
                                                 fontSize: Responsive.sp(AppSizes.fontTiny - 1),
                                                 color: AppColors.success,
@@ -2658,88 +3313,56 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                       ],
                                     ),
                                   ),
-                                if (isDamagedItem) ...[
-                                  if (item.damageDescription != null &&
-                                      item.damageDescription!.isNotEmpty)
-                                    Container(
-                                      width: double.infinity,
-                                      margin: Responsive.only(top: AppSizes.spacingSmall),
-                                      padding: Responsive.all(AppSizes.spacingSmall),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.warning.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(
-                                          Responsive.r(AppSizes.radiusSmall),
-                                        ),
-                                        border: Border.all(
-                                          color: AppColors.warning.withValues(alpha: 0.3),
-                                        ),
+                                if (hasDbDamage &&
+                                    item.damageDescription != null &&
+                                    item.damageDescription!.isNotEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    margin: Responsive.only(top: AppSizes.spacingSmall),
+                                    padding: Responsive.all(AppSizes.spacingSmall),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(
+                                        Responsive.r(AppSizes.radiusSmall),
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.report_problem_outlined,
-                                                size: Responsive.icon(AppSizes.iconTiny - 2),
-                                                color: AppColors.warning,
-                                              ),
-                                              SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
-                                              Text(
-                                                'DAMAGE NOTES',
-                                                style: TextStyle(
-                                                  fontSize: Responsive.sp(AppSizes.fontTiny - 2),
-                                                  fontWeight: FontWeight.w900,
-                                                  color: AppColors.warning,
-                                                  letterSpacing: 0.8,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
-                                          Text(
-                                            item.damageDescription!,
-                                            style: TextStyle(
-                                              fontSize: Responsive.sp(AppSizes.fontTiny),
-                                              color: AppColors.text,
-                                            ),
-                                          ),
-                                        ],
+                                      border: Border.all(
+                                        color: AppColors.warning.withValues(alpha: 0.3),
+                                        width: AppSizes.spacingTiny / 4,
                                       ),
                                     ),
-                                  if ((item.damageCharges ?? 0.0) > 0)
-                                    Container(
-                                      margin: Responsive.only(top: AppSizes.spacingTiny),
-                                      padding: Responsive.symmetric(
-                                        horizontal: AppSizes.spacingSmall,
-                                        vertical: AppSizes.spacingTiny / 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.warning.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(
-                                          Responsive.r(AppSizes.radiusSmall / 2),
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.currency_rupee_rounded,
-                                            size: Responsive.icon(AppSizes.iconTiny - 2),
-                                            color: AppColors.warning,
-                                          ),
-                                          Text(
-                                            'Damage Fee: ₹${item.damageCharges?.toStringAsFixed(0)}',
-                                            style: TextStyle(
-                                              fontSize: Responsive.sp(AppSizes.fontTiny),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.report_problem_outlined,
+                                              size: Responsive.icon(AppSizes.iconTiny - 2),
                                               color: AppColors.warning,
-                                              fontWeight: FontWeight.bold,
                                             ),
+                                            SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+                                            Text(
+                                              'DAMAGE NOTES',
+                                              style: TextStyle(
+                                                fontSize: Responsive.sp(AppSizes.fontTiny - 2),
+                                                fontWeight: FontWeight.w900,
+                                                color: AppColors.warning,
+                                                letterSpacing: 0.8,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                                        Text(
+                                          item.damageDescription!,
+                                          style: TextStyle(
+                                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                                            color: AppColors.text,
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
-                                ],
+                                  ),
                               ],
                             ),
                           ),
@@ -2760,9 +3383,424 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                 );
               },
             ),
+          if (isReturnable && items.isNotEmpty)
+            _buildItemsReturnFooter(items),
         ],
       ),
     );
+  }
+
+  Widget _buildItemsReturnFooter(List<OrderItem> items) {
+    // 1. Calculate live damage fees from _localReturnItems
+    double liveDamageTotal = 0.0;
+    for (final item in items) {
+      final state = _localReturnItems[item.id];
+      final status = state?['status'];
+      if (status == 'damaged') {
+        liveDamageTotal += (state?['damage_fee'] as num? ?? 0.0).toDouble();
+      }
+    }
+
+    final double extraDiscount =
+        double.tryParse(_extraDiscountController.text) ?? 0.0;
+
+    return Container(
+      padding: Responsive.all(AppSizes.spacingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.border,
+            width: AppSizes.spacingTiny / 4,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Live Settlement Preview
+          _buildProjectedSettlementCard(
+            liveDamage: liveDamageTotal,
+            liveDiscount: extraDiscount,
+            onCollectPayment: _openPaymentDialog,
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+
+          // Return Discount (Optional)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Return Discount (Optional)',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+              TextField(
+                controller: _extraDiscountController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  hintText: '0',
+                  isDense: true,
+                  contentPadding: Responsive.symmetric(
+                    horizontal: AppSizes.spacingSmall,
+                    vertical: AppSizes.spacingSmall,
+                  ),
+                  prefixText: '₹ ',
+                  prefixStyle: TextStyle(
+                    fontSize: Responsive.sp(AppSizes.fontSmall),
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.secondaryText,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                      width: AppSizes.spacingTiny / 4,
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+
+          // Optional Return Notes
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Return Notes (optional)',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+              TextField(
+                controller: _returnNotesController,
+                style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall)),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Returned on time, minor wear',
+                  isDense: true,
+                  contentPadding: Responsive.symmetric(
+                    horizontal: AppSizes.spacingSmall,
+                    vertical: AppSizes.spacingSmall,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(
+                      Responsive.r(AppSizes.radiusSmall),
+                    ),
+                    borderSide: BorderSide(
+                      color: AppColors.border,
+                      width: AppSizes.spacingTiny / 4,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+
+          // Primary Return Completion Action
+          SizedBox(
+            width: double.infinity,
+            height: Responsive.h(AppSizes.spacingHuge + AppSizes.spacingSmall),
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
+                ),
+              ),
+              onPressed: () => _confirmAndSubmitInlineReturn(items),
+              icon: Icon(
+                Icons.assignment_turned_in_rounded,
+                size: Responsive.icon(AppSizes.iconSmall),
+              ),
+              label: Text(
+                'Complete Return Process',
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontMedium),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmAndSubmitInlineReturn(List<OrderItem> items) async {
+    // 1. Check for unmarked items
+    final unmarked = items.where((item) {
+      final status = _localReturnItems[item.id]?['status'];
+      return status == null;
+    }).toList();
+
+    if (unmarked.isNotEmpty) {
+      final action = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                color: AppColors.warning,
+                size: Responsive.icon(AppSizes.iconMedium),
+              ),
+              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+              const Text('Incomplete Checkup'),
+            ],
+          ),
+          content: Text(
+            '${unmarked.length} item(s) have not been inspected yet. Would you like to mark them as Good and proceed, or review them?',
+            style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'review'),
+              child: const Text('Review Items'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    Responsive.r(AppSizes.radiusSmall),
+                  ),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, 'mark_good'),
+              child: const Text('Mark Remaining Good & Proceed'),
+            ),
+          ],
+        ),
+      );
+
+      if (action != 'mark_good') return;
+
+      // Auto mark remaining unmarked as good
+      for (final item in unmarked) {
+        _localReturnItems[item.id] = {
+          'status': 'good',
+          'damage_fee': 0.0,
+          'damaged_quantity': 0,
+          'notes': '',
+        };
+        if (_notesControllers.containsKey(item.id)) {
+          _notesControllers[item.id]!.text = '';
+        }
+        if (_feeControllers.containsKey(item.id)) {
+          _feeControllers[item.id]!.text = '0';
+        }
+      }
+      setState(() {});
+    }
+
+    // 2. Compute summary
+    double liveDamageTotal = 0.0;
+    int goodCount = 0;
+    int damagedCount = 0;
+
+    for (final item in items) {
+      final state = _localReturnItems[item.id];
+      if (state?['status'] == 'damaged') {
+        damagedCount++;
+        liveDamageTotal += (state?['damage_fee'] as num? ?? 0.0).toDouble();
+      } else {
+        goodCount++;
+      }
+    }
+
+    final double extraDiscount =
+        double.tryParse(_extraDiscountController.text) ?? 0.0;
+    final double originalBaseTotal =
+        _currentOrder.totalAmount -
+        _currentOrder.damageChargesTotal -
+        _currentOrder.lateFee;
+    final double newTotal =
+        originalBaseTotal + liveDamageTotal - extraDiscount;
+    final double balanceDue = newTotal - _currentOrder.amountPaid;
+
+    // 3. Confirmation Dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm & Complete Return'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to complete the return process for this order?',
+              style: TextStyle(fontSize: Responsive.sp(AppSizes.fontSmall)),
+            ),
+            SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+            Container(
+              padding: Responsive.all(AppSizes.spacingSmall),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+                border: Border.all(
+                  color: AppColors.border,
+                  width: AppSizes.spacingTiny / 4,
+                ),
+              ),
+              child: Column(
+                children: [
+                  _buildSettlementRow(
+                    'Inspected Items',
+                    '${items.length} ($goodCount Good, $damagedCount Damaged)',
+                  ),
+                  if (liveDamageTotal > 0)
+                    _buildSettlementRow(
+                      'Damage Fees',
+                      '+₹${liveDamageTotal.toStringAsFixed(2)}',
+                      valueColor: AppColors.warning,
+                      isBoldValue: true,
+                    ),
+                  if (extraDiscount > 0)
+                    _buildSettlementRow(
+                      'Return Discount',
+                      '−₹${extraDiscount.toStringAsFixed(2)}',
+                      valueColor: AppColors.success,
+                      isBoldValue: true,
+                    ),
+                  Padding(
+                    padding: Responsive.symmetric(
+                      vertical: AppSizes.spacingTiny / 2,
+                    ),
+                    child: const Divider(height: 1, color: AppColors.border),
+                  ),
+                  _buildSettlementRow(
+                    'New Total',
+                    '₹${newTotal.toStringAsFixed(2)}',
+                    isBoldLabel: true,
+                    isBoldValue: true,
+                  ),
+                  _buildSettlementRow(
+                    'Amount Paid',
+                    '−₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                    valueColor: AppColors.success,
+                    isBoldValue: true,
+                  ),
+                  _buildSettlementRow(
+                    'Balance Due',
+                    '₹${balanceDue.toStringAsFixed(2)}',
+                    isBoldLabel: true,
+                    isBoldValue: true,
+                    valueColor:
+                        balanceDue > 0 ? AppColors.error : AppColors.success,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm & Complete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    // 4. Build return items payload
+    final returnItemsPayload = <Map<String, dynamic>>[];
+    for (final item in items) {
+      final rItem = _localReturnItems[item.id] ?? {};
+      final isDamaged = rItem['status'] == 'damaged';
+      final damagedQty = isDamaged
+          ? (rItem['damaged_quantity'] as int? ?? item.quantity)
+          : 0;
+      final fee = isDamaged
+          ? (rItem['damage_fee'] as double? ?? 0.0)
+          : 0.0;
+      final notes = isDamaged
+          ? (rItem['notes'] as String? ?? '')
+          : '';
+
+      returnItemsPayload.add({
+        'item_id': item.id,
+        'returned_quantity': item.quantity,
+        'condition_rating': isDamaged ? 'damaged' : 'excellent',
+        if (isDamaged) ...{
+          'damage_description': notes,
+          'damage_charges': fee,
+          'damaged_quantity': damagedQty,
+        },
+      });
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(orderOperationsProvider)
+          .processReturn(
+            orderId: _currentOrder.id,
+            items: returnItemsPayload,
+            notes: _returnNotesController.text,
+            lateFee: 0.0,
+            discount: extraDiscount,
+          );
+      await _refreshOrder();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order return completed successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to complete return: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildProjectedSettlementCard({
@@ -3315,6 +4353,21 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                   color: AppColors.secondaryText,
                                 ),
                               ),
+                              if (tx.transactionId != null &&
+                                  tx.transactionId!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2.0),
+                                  child: Text(
+                                    'Ref: ${tx.transactionId}',
+                                    style: TextStyle(
+                                      fontSize: Responsive.sp(
+                                        AppSizes.fontTiny + 1,
+                                      ),
+                                      color: AppColors.secondaryText,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
                               if (tx.notes != null && tx.notes!.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4.0),
@@ -3466,12 +4519,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   TextButton.icon(
                     onPressed: _openAdjustmentDialog,
                     icon: Icon(
-                      Icons.edit_outlined,
+                      Icons.local_offer_outlined,
                       size: Responsive.icon(14),
                       color: AppColors.primary,
                     ),
                     label: Text(
-                      'Adjust',
+                      'Discount',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
                         fontWeight: FontWeight.bold,
@@ -3664,13 +4717,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Money Kept (No Refund)',
-                            style: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontSmall),
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                            ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: Responsive.icon(AppSizes.iconSmall),
+                                color: AppColors.primary,
+                              ),
+                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                              Text(
+                                'Refund waived — money kept',
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                           Text(
                             '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
@@ -3731,6 +4794,71 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
                       valueColor: AppColors.warning,
                       isBold: true,
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber.shade100,
+                          foregroundColor: Colors.amber.shade900,
+                          elevation: 0,
+                          side: BorderSide(
+                            color: Colors.amber.shade300,
+                            width: AppSizes.spacingTiny / 4,
+                          ),
+                          padding: Responsive.symmetric(
+                            vertical: AppSizes.spacingMedium - 2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
+                          ),
+                        ),
+                        onPressed: _openCancellationRefundDialog,
+                        icon: Icon(
+                          Icons.replay_rounded,
+                          size: Responsive.icon(AppSizes.iconSmall),
+                        ),
+                        label: Text(
+                          'Refund Payment (₹${_currentOrder.amountPaid.toStringAsFixed(2)})',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.teal.shade50,
+                          foregroundColor: Colors.teal.shade800,
+                          side: BorderSide(
+                            color: Colors.teal.shade200,
+                            width: AppSizes.spacingTiny / 4,
+                          ),
+                          padding: Responsive.symmetric(
+                            vertical: AppSizes.spacingMedium - 2,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              Responsive.r(AppSizes.radiusSmall),
+                            ),
+                          ),
+                        ),
+                        onPressed: _openKeepMoneyDialog,
+                        child: Text(
+                          'Keep Money — No Refund Needed',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                   if (_currentOrder.cancellationReason != null &&
@@ -3877,6 +5005,36 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   Future<void> _startRentalWithCheck() async {
+    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+    final creationDateStr = _currentOrder.createdAt.split('T')[0];
+    final isBackdated = _currentOrder.startDate.compareTo(creationDateStr) < 0;
+
+    final todayDate = DateTime.parse(todayStr);
+    final endDate = DateTime.tryParse(_currentOrder.endDate);
+    if (!isBackdated && endDate != null && endDate.isBefore(todayDate)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Rental Expired: Cannot start a rental whose scheduled return date has already passed. Please create a new order instead.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (_currentOrder.hasStockConflict) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cannot start rental: Inventory fulfillment conflict detected. Please resolve stock issues first.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final checkStartDate = isBackdated ? _currentOrder.startDate : todayStr;
+
     setState(() => _isLoading = true);
 
     try {
@@ -3887,7 +5045,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       final checkResult = await ref
           .read(orderOperationsProvider)
           .checkAvailability(
-            startDate: _currentOrder.startDate,
+            startDate: checkStartDate,
             endDate: _currentOrder.endDate,
             branchId: _currentOrder.branchId,
             items: itemsPayload,
@@ -3905,11 +5063,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         return;
       }
 
-      // If available, transition status to ongoing
+      // If available, transition status to ongoing and sync start_date
       await ref.read(orderOperationsProvider).updateOrder(_currentOrder.id, {
         'status': 'ongoing',
+        'start_date': checkStartDate,
       });
       await _refreshOrder();
+      ref.invalidate(ordersProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Rental started successfully!')),
@@ -3968,6 +5128,787 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
               child: const Text('OK'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _openBackfillReturnDialog() {
+    final noteController = TextEditingController();
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusLarge)),
+        ),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: Responsive.w(AppSizes.spacingLarge),
+                right: Responsive.w(AppSizes.spacingLarge),
+                top: Responsive.h(AppSizes.spacingLarge),
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom +
+                    Responsive.h(AppSizes.spacingLarge),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Record as Returned',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontLarge),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close_rounded),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Container(
+                    padding: Responsive.all(AppSizes.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      border: Border.all(
+                        color: Colors.amber.shade200,
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Recording an untracked rental',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                        Text(
+                          'This order was never marked as delivered or ongoing in the system, but the return date has passed. Use this to record that the costume was actually given and has been returned. A note explaining why it was not tracked is required.',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                            color: Colors.amber.shade800,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  RichText(
+                    text: TextSpan(
+                      text: 'REASON / NOTE ',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.secondaryText,
+                        letterSpacing: 0.5,
+                      ),
+                      children: const [
+                        TextSpan(
+                          text: '*',
+                          style: TextStyle(color: AppColors.error),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  TextField(
+                    controller: noteController,
+                    maxLines: 3,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                    ),
+                    decoration: InputDecoration(
+                      hintText:
+                          'e.g., Staff was not present at delivery. Costume was given offline and returned on time.',
+                      hintStyle: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontSmall),
+                        color: AppColors.secondaryText.withValues(alpha: 0.7),
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: BorderSide(
+                          color: Colors.amber.shade600,
+                          width: AppSizes.spacingTiny / 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () => Navigator.pop(sheetContext),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber.shade700,
+                            foregroundColor: Colors.white,
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  final note = noteController.text.trim();
+                                  if (note.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please enter a reason note',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setSheetState(() => isSubmitting = true);
+                                  try {
+                                    await ref
+                                        .read(orderOperationsProvider)
+                                        .updateOrder(_currentOrder.id, {
+                                          'status': 'returned',
+                                          'backfill_note': note,
+                                        });
+                                    if (sheetContext.mounted) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                    await _refreshOrder();
+                                    ref.invalidate(ordersProvider);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Order recorded as returned successfully',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setSheetState(() => isSubmitting = false);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to record return: $e',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          child: isSubmitting
+                              ? SizedBox(
+                                  width: Responsive.w(18),
+                                  height: Responsive.h(18),
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Confirm & Record',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(
+                                      AppSizes.fontMedium,
+                                    ),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openKeepMoneyDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusLarge)),
+        ),
+      ),
+      builder: (sheetContext) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: Responsive.all(AppSizes.spacingLarge),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Keep Money — Confirm',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontLarge),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close_rounded),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Container(
+                    padding: Responsive.all(AppSizes.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.shade50,
+                      border: Border.all(
+                        color: Colors.teal.shade200,
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No refund will be issued',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontSmall),
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal.shade900,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
+                        Text(
+                          'You are choosing to keep ₹${_currentOrder.amountPaid.toStringAsFixed(2)} from this cancelled order. This action will mark the refund as waived and the amount will remain in your revenue.',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny + 1),
+                            color: Colors.teal.shade800,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Container(
+                    width: double.infinity,
+                    padding: Responsive.all(AppSizes.spacingMedium),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border.all(
+                        color: Colors.grey.shade200,
+                        width: AppSizes.spacingTiny / 4,
+                      ),
+                      borderRadius: BorderRadius.circular(
+                        Responsive.r(AppSizes.radiusSmall),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'AMOUNT TO KEEP',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontTiny),
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.secondaryText,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                        SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+                        Text(
+                          '₹${_currentOrder.amountPaid.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: Responsive.sp(AppSizes.fontXLarge + 4),
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () => Navigator.pop(sheetContext),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal.shade700,
+                            foregroundColor: Colors.white,
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  setSheetState(() => isSubmitting = true);
+                                  try {
+                                    await ref
+                                        .read(orderOperationsProvider)
+                                        .updateOrder(_currentOrder.id, {
+                                          'payment_status': PaymentStatus.refundWaived.toJsonValue(),
+                                        });
+                                    if (sheetContext.mounted) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                    await _refreshOrder();
+                                    ref.invalidate(ordersProvider);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'Refund marked as waived — money kept.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setSheetState(() => isSubmitting = false);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to update refund status: $e',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          child: isSubmitting
+                              ? SizedBox(
+                                  width: Responsive.w(18),
+                                  height: Responsive.h(18),
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Confirm — Keep',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(
+                                      AppSizes.fontMedium,
+                                    ),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _openCancellationRefundDialog() {
+    final maxRefund = _currentOrder.amountPaid;
+    final amountController = TextEditingController(
+      text: maxRefund.toStringAsFixed(0),
+    );
+    final notesController = TextEditingController(text: 'Cancellation Refund');
+    String paymentMode = 'cash';
+    bool isSubmitting = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(Responsive.r(AppSizes.radiusLarge)),
+        ),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: Responsive.w(AppSizes.spacingLarge),
+                right: Responsive.w(AppSizes.spacingLarge),
+                top: Responsive.h(AppSizes.spacingLarge),
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom +
+                    Responsive.h(AppSizes.spacingLarge),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Refund Payment',
+                        style: TextStyle(
+                          fontSize: Responsive.sp(AppSizes.fontLarge),
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close_rounded),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Text(
+                    'REFUND AMOUNT (₹)',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.secondaryText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontXLarge),
+                      fontWeight: FontWeight.w900,
+                    ),
+                    decoration: InputDecoration(
+                      prefixIcon: Icon(
+                        Icons.currency_rupee_rounded,
+                        size: Responsive.icon(AppSizes.iconMedium),
+                      ),
+                      helperText:
+                          'Maximum refundable: ₹${maxRefund.toStringAsFixed(2)}',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: BorderSide(
+                          color: Colors.amber.shade700,
+                          width: AppSizes.spacingTiny / 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Text(
+                    'REFUND METHOD',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.secondaryText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  DropdownButtonFormField<String>(
+                    initialValue: paymentMode,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                      DropdownMenuItem(value: 'upi', child: Text('UPI / GPay')),
+                      DropdownMenuItem(
+                        value: 'bank_transfer',
+                        child: Text('Bank Transfer'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) setSheetState(() => paymentMode = val);
+                    },
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                  Text(
+                    'NOTES / REF ID (OPTIONAL)',
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontTiny),
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.secondaryText,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  TextField(
+                    controller: notesController,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontMedium),
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'E.g. Refunded via UPI',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          Responsive.r(AppSizes.radiusSmall),
+                        ),
+                        borderSide: const BorderSide(color: AppColors.border),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () => Navigator.pop(sheetContext),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontMedium),
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber.shade700,
+                            foregroundColor: Colors.white,
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingMedium - 2,
+                            ),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                Responsive.r(AppSizes.radiusSmall),
+                              ),
+                            ),
+                          ),
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  final amt =
+                                      double.tryParse(amountController.text) ??
+                                      0.0;
+                                  if (amt <= 0) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please enter a valid refund amount',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  if (amt > maxRefund) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Refund cannot exceed paid amount (₹${maxRefund.toStringAsFixed(2)})',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  setSheetState(() => isSubmitting = true);
+                                  try {
+                                    await ref
+                                        .read(orderOperationsProvider)
+                                        .collectPayment(
+                                          orderId: _currentOrder.id,
+                                          amount: amt,
+                                          paymentMode: paymentMode,
+                                          paymentType: 'refund',
+                                          notes: notesController.text
+                                                  .trim()
+                                                  .isEmpty
+                                              ? 'Cancellation Refund'
+                                              : notesController.text.trim(),
+                                        );
+                                    if (sheetContext.mounted) {
+                                      Navigator.pop(sheetContext);
+                                    }
+                                    await _refreshOrder();
+                                    ref.invalidate(ordersProvider);
+                                    ref.invalidate(
+                                      orderPaymentsProvider(_currentOrder.id),
+                                    );
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '₹${amt.toStringAsFixed(2)} has been refunded.',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    setSheetState(() => isSubmitting = false);
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Failed to process refund: $e',
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                          child: isSubmitting
+                              ? SizedBox(
+                                  width: Responsive.w(18),
+                                  height: Responsive.h(18),
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(
+                                  'Confirm Refund',
+                                  style: TextStyle(
+                                    fontSize: Responsive.sp(
+                                      AppSizes.fontMedium,
+                                    ),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -4282,8 +6223,14 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   void _openEditTransactionDialog(PaymentTransaction tx) {
-    String paymentMode = tx.paymentMode;
+    String initialMode = tx.paymentMode.toLowerCase();
+    if (!['upi', 'gpay', 'cash', 'bank_transfer'].contains(initialMode)) {
+      initialMode = 'upi';
+    }
+    String paymentMode = initialMode;
     final amountController = TextEditingController(text: tx.amount.toString());
+    final transactionIdController =
+        TextEditingController(text: tx.transactionId ?? '');
     final notesController = TextEditingController(text: tx.notes);
 
     showModalBottomSheet(
@@ -4349,9 +6296,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
             }
 
             final modes = [
-              {'id': 'upi', 'label': 'UPI / GPay', 'icon': Icons.qr_code_scanner_rounded},
+              {'id': 'upi', 'label': 'UPI', 'icon': Icons.qr_code_scanner_rounded},
+              {'id': 'gpay', 'label': 'GPay', 'icon': Icons.account_balance_wallet_outlined},
               {'id': 'cash', 'label': 'Cash', 'icon': Icons.payments_outlined},
-              {'id': 'card', 'label': 'Card', 'icon': Icons.credit_card_rounded},
               {'id': 'bank_transfer', 'label': 'Bank Transfer', 'icon': Icons.account_balance_outlined},
             ];
 
@@ -4507,9 +6454,35 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       ],
                     ),
                     SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    // 4. Notes Field
+                    // 4. Transaction / Ref ID Field
                     Text(
-                      'NOTES / REF ID (OPTIONAL)',
+                      'TRANSACTION / REFERENCE ID (OPTIONAL)',
+                      style: TextStyle(
+                        fontSize: Responsive.sp(AppSizes.fontTiny),
+                        fontWeight: FontWeight.w900,
+                        color: Colors.grey[500],
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                    TextField(
+                      controller: transactionIdController,
+                      decoration: InputDecoration(
+                        hintText: 'E.g. UPI Ref # or UTR / Txn ID',
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(
+                            Responsive.r(AppSizes.radiusSmall),
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+                    // 5. Notes Field
+                    Text(
+                      'NOTES (OPTIONAL)',
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontTiny),
                         fontWeight: FontWeight.w900,
@@ -4521,7 +6494,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     TextField(
                       controller: notesController,
                       decoration: InputDecoration(
-                        hintText: 'E.g. UPI Ref #123456',
+                        hintText: 'E.g. Paid via customer mobile',
                         filled: true,
                         fillColor: Colors.grey[50],
                         border: OutlineInputBorder(
@@ -4533,7 +6506,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       ),
                     ),
                     SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
-                    // 5. Actions
+                    // 6. Actions
                     Row(
                       children: [
                         Expanded(
@@ -4608,6 +6581,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                         paymentId: tx.id,
                                         amount: amt,
                                         paymentMode: paymentMode,
+                                        transactionId: transactionIdController.text.trim().isNotEmpty
+                                            ? transactionIdController.text.trim()
+                                            : null,
                                         notes: notesController.text.trim(),
                                       );
                                 }
@@ -4650,486 +6626,92 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _openReturnDialog() {
-    final items = _currentOrder.items ?? [];
-    final returnQuantities = <String, int>{};
-    final returnConditions = <String, ConditionRating>{};
-    final damageQuantities = <String, int>{};
-    final damageCharges = <String, double>{};
-    final damageDescriptions = <String, String>{};
-
-    final lateFeeController = TextEditingController(text: '0');
-    final discountController = TextEditingController(text: '0');
-    final notesController = TextEditingController();
-
-    // Default initialization
-    for (final item in items) {
-      final maxReturn = item.quantity - (item.returnedQuantity ?? 0);
-      returnQuantities[item.id] = maxReturn;
-      returnConditions[item.id] = ConditionRating.good;
-      damageQuantities[item.id] = 0;
-      damageCharges[item.id] = 0.0;
-      damageDescriptions[item.id] = '';
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            double liveDamageTotal = 0.0;
-            returnConditions.forEach((itemId, cond) {
-              if (cond == ConditionRating.damaged) {
-                liveDamageTotal += damageCharges[itemId] ?? 0.0;
-              }
-            });
-
-            final double parsedLate =
-                double.tryParse(lateFeeController.text) ?? 0.0;
-            final double parsedDiscount =
-                double.tryParse(discountController.text) ?? 0.0;
-
-            // Barcode scan function
-            void handleBarcodeScan() {
-              showDialog(
-                context: modalContext,
-                builder: (dialogContext) => QRScannerDialog(
-                  onRawCodeScanned: (rawCode) async {
-                    try {
-                      final response = await ref
-                          .read(productRepositoryProvider)
-                          .getProducts(search: rawCode, limit: 1);
-
-                      if (response.products.isNotEmpty) {
-                        final matchedProduct = response.products.first;
-                        final matchedId = matchedProduct.id;
-                        final matchedItem = items.firstWhere(
-                          (item) => item.productId == matchedId,
-                          orElse: () => throw Exception(
-                            'Product not found in this order',
-                          ),
-                        );
-
-                        setModalState(() {
-                          final maxReturn =
-                              matchedItem.quantity -
-                              (matchedItem.returnedQuantity ?? 0);
-                          returnQuantities[matchedItem.id] = maxReturn;
-                          returnConditions[matchedItem.id] =
-                              ConditionRating.good;
-                        });
-
-                        if (modalContext.mounted) {
-                          ScaffoldMessenger.of(modalContext).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Item marked as GOOD: ${matchedItem.product?.name ?? "Product"}',
-                              ),
-                              backgroundColor: Colors.green,
+                    if (!tx.id.startsWith('virtual-')) ...[
+                      SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.error,
+                            padding: Responsive.symmetric(
+                              vertical: AppSizes.spacingSmall,
                             ),
-                          );
-                        }
-                      } else {
-                        if (modalContext.mounted) {
-                          ScaffoldMessenger.of(modalContext).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'No matching item in order for barcode/SKU',
-                              ),
-                            ),
-                          );
-                        }
-                      }
-                    } catch (e) {
-                      if (modalContext.mounted) {
-                        ScaffoldMessenger.of(modalContext).showSnackBar(
-                          SnackBar(
-                            content: Text('Error resolving barcode: $e'),
                           ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              );
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Process Returns Check-In',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(16),
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        IconButton(
                           icon: Icon(
-                            Icons.qr_code_scanner_rounded,
-                            color: AppColors.primary,
-                            size: Responsive.icon(22),
+                            Icons.delete_outline_rounded,
+                            size: Responsive.icon(AppSizes.iconSmall),
                           ),
-                          onPressed: handleBarcodeScan,
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    ...items.map((item) {
-                      final maxReturn =
-                          item.quantity - (item.returnedQuantity ?? 0);
-                      if (maxReturn <= 0) {
-                        return Container(
-                          margin: Responsive.symmetric(vertical: AppSizes.spacingTiny),
-                          padding: Responsive.all(AppSizes.spacingMedium),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            border: Border.all(color: Colors.grey.shade300),
-                            borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.success,
-                                size: Responsive.icon(AppSizes.iconSmall + 2),
-                              ),
-                              SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                              Expanded(
-                                child: Text(
-                                  item.product?.name ??
-                                      'Product #${item.productId.substring(0, 8)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: Responsive.sp(AppSizes.fontSmall),
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: Responsive.symmetric(
-                                  horizontal: AppSizes.spacingSmall,
-                                  vertical: AppSizes.spacingTiny / 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(
-                                    Responsive.r(AppSizes.radiusSmall),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Returned (${item.quantity}/${item.quantity})',
-                                  style: TextStyle(
-                                    fontSize: Responsive.sp(AppSizes.fontTiny),
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.success,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      final currentCondition = returnConditions[item.id];
-
-                      return Container(
-                        margin: const EdgeInsets.symmetric(vertical: 8.0),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[50],
-                          border: Border.all(color: Colors.grey[200]!),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.product?.name ??
-                                  'Product #${item.productId.substring(0, 8)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          label: Text(
+                            'Delete Payment Record',
+                            style: TextStyle(
+                              fontSize: Responsive.sp(AppSizes.fontSmall),
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                const Text('Qty: '),
-                                DropdownButton<int>(
-                                  value: returnQuantities[item.id],
-                                  items: List.generate(maxReturn + 1, (i) => i)
-                                      .map(
-                                        (i) => DropdownMenuItem(
-                                          value: i,
-                                          child: Text('$i'),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setModalState(
-                                        () => returnQuantities[item.id] = val,
-                                      );
-                                    }
-                                  },
+                          ),
+                          onPressed: () async {
+                            final confirmed = await showDialog<bool>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                title: const Text('Delete Payment Record'),
+                                content: const Text(
+                                  'Are you sure you want to delete this payment record? This action will update the order\'s financial balance and status, and cannot be undone.',
                                 ),
-                                const Spacer(),
-                                const Text('Condition: '),
-                                DropdownButton<ConditionRating>(
-                                  value: currentCondition,
-                                  items: ConditionRating.values
-                                      .map(
-                                        (e) => DropdownMenuItem(
-                                          value: e,
-                                          child: Text(e.name.toUpperCase()),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setModalState(
-                                        () => returnConditions[item.id] = val,
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
-                            if (currentCondition ==
-                                ConditionRating.damaged) ...[
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Text('Damaged Qty: '),
-                                  DropdownButton<int>(
-                                    value: damageQuantities[item.id],
-                                    items:
-                                        List.generate(
-                                              returnQuantities[item.id]! + 1,
-                                              (i) => i,
-                                            )
-                                            .map(
-                                              (i) => DropdownMenuItem(
-                                                value: i,
-                                                child: Text('$i'),
-                                              ),
-                                            )
-                                            .toList(),
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        setModalState(
-                                          () => damageQuantities[item.id] = val,
-                                        );
-                                      }
-                                    },
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, false),
+                                    child: const Text('Cancel'),
                                   ),
-                                  const Spacer(),
-                                  SizedBox(
-                                    width: Responsive.w(120),
-                                    child: TextField(
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Damage Fee (₹)',
-                                        isDense: true,
-                                      ),
-                                      onChanged: (val) {
-                                        setModalState(() {
-                                          damageCharges[item.id] =
-                                              double.tryParse(val) ?? 0.0;
-                                        });
-                                      },
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.error,
+                                      foregroundColor: Colors.white,
                                     ),
+                                    onPressed: () =>
+                                        Navigator.pop(dialogContext, true),
+                                    child: const Text('Delete'),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                decoration: const InputDecoration(
-                                  labelText: 'Describe Damage',
-                                  isDense: true,
-                                ),
-                                onChanged: (val) {
-                                  damageDescriptions[item.id] = val;
-                                },
-                              ),
-                            ],
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              setModalState(() {
-                                for (final item in items) {
-                                  returnQuantities[item.id] =
-                                      item.quantity -
-                                      (item.returnedQuantity ?? 0);
-                                  returnConditions[item.id] =
-                                      ConditionRating.excellent;
+                            );
+
+                            if (confirmed == true) {
+                              Navigator.pop(modalContext);
+                              setState(() => _isLoading = true);
+                              try {
+                                await ref
+                                    .read(orderOperationsProvider)
+                                    .deletePayment(tx.id);
+                                await _refreshOrder();
+                                ref.invalidate(
+                                  orderPaymentsProvider(_currentOrder.id),
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Payment record deleted successfully',
+                                      ),
+                                    ),
+                                  );
                                 }
-                              });
-                            },
-                            child: const Text('Mark All Good'),
-                          ),
+                              } catch (e) {
+                                setState(() => _isLoading = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Failed to delete payment: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              }
+                            }
+                          },
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: lateFeeController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Late Fee charges (₹)',
-                      ),
-                      onChanged: (_) => setModalState(() {}),
-                    ),
-                    SizedBox(height: Responsive.h(12)),
-                    TextField(
-                      controller: discountController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Discounts (₹)',
-                      ),
-                      onChanged: (_) => setModalState(() {}),
-                    ),
-                    SizedBox(height: Responsive.h(12)),
-                    TextField(
-                      controller: notesController,
-                      decoration: const InputDecoration(
-                        labelText: 'Return Notes',
-                      ),
-                    ),
-                    if (liveDamageTotal > 0 || parsedLate > 0 || parsedDiscount > 0) ...[
-                      SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
-                      _buildProjectedSettlementCard(
-                        liveDamage: liveDamageTotal,
-                        liveLate: parsedLate,
-                        liveDiscount: parsedDiscount,
-                        onCollectPayment: null,
                       ),
                     ],
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: Responsive.symmetric(
-                            vertical: AppSizes.spacingMedium - 2,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              Responsive.r(AppSizes.radiusSmall),
-                            ),
-                          ),
-                        ),
-                        onPressed: () async {
-                          final returnItemsPayload = <Map<String, dynamic>>[];
-                          returnQuantities.forEach((itemId, qty) {
-                            if (qty > 0) {
-                              returnItemsPayload.add({
-                                'item_id': itemId,
-                                'returned_quantity': qty,
-                                'condition_rating': returnConditions[itemId]!
-                                    .name
-                                    .toLowerCase(),
-                                if (returnConditions[itemId] ==
-                                    ConditionRating.damaged) ...{
-                                  'damage_description':
-                                      damageDescriptions[itemId],
-                                  'damage_charges': damageCharges[itemId],
-                                  'damaged_quantity': damageQuantities[itemId],
-                                },
-                              });
-                            }
-                          });
-
-                          if (returnItemsPayload.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Please select at least 1 item to return',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          Navigator.pop(modalContext);
-                          setState(() => _isLoading = true);
-                          try {
-                            await ref
-                                .read(orderOperationsProvider)
-                                .processReturn(
-                                  orderId: _currentOrder.id,
-                                  items: returnItemsPayload,
-                                  notes: notesController.text,
-                                  lateFee:
-                                      double.tryParse(lateFeeController.text) ??
-                                      0.0,
-                                  discount:
-                                      double.tryParse(
-                                        discountController.text,
-                                      ) ??
-                                      0.0,
-                                );
-                            await _refreshOrder();
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Return processed successfully',
-                                  ),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            setState(() => _isLoading = false);
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to process return: $e'),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        child: const Text('Settle & Submit Return'),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -5139,6 +6721,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       },
     );
   }
+
 
   Future<void> _deleteOrder() async {
     final confirmed = await showDialog<bool>(

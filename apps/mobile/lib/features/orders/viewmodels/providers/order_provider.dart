@@ -375,14 +375,20 @@ class OrderOperations {
     required String paymentId,
     required double amount,
     required String paymentMode,
+    String? transactionId,
     String? notes,
   }) async {
     await _repository.updatePayment(
       paymentId: paymentId,
       amount: amount,
       paymentMode: paymentMode,
+      transactionId: transactionId,
       notes: notes,
     );
+  }
+
+  Future<void> deletePayment(String paymentId) async {
+    await _repository.deletePayment(paymentId);
   }
 
   Future<void> updateOrderItemDamage({
