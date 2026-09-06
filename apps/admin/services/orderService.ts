@@ -780,7 +780,11 @@ export class OrderService {
     // After any update that changes payment_status or status, check auto-complete
     // Run in background — auto-complete is only relevant for returned/paid orders,
     // not for scheduled→ongoing transitions. Saves 1 blocking DB round-trip.
-    if (result.success && (data.payment_status || data.status)) {
+    // FLAGGED orders always re-check: legacy flagged orders with all damage
+    // assessments already decided must un-stick on ANY save (e.g. a notes-only
+    // edit), not only on status/payment changes — otherwise they sit in
+    // flagged forever until an unrelated event fires.
+    if (result.success && (data.payment_status || data.status || currentStatus === OrderStatus.FLAGGED)) {
       this.checkAndAutoComplete(id).catch(err => {
         console.error('[OrderService.updateOrder] Background auto-complete check failed:', err);
       });
