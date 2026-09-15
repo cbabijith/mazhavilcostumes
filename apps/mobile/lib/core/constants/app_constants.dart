@@ -86,6 +86,29 @@ class AppStrings {
   static const String noItemsFound = 'No items found in this order';
   static const String loadingItems = 'Loading order items...';
   static const String failedToLoadCalendar = 'Failed to load calendar';
+  static const String returnGood = 'Good';
+  static const String returnDamaged = 'Damaged';
+  static const String notReturned = 'Not Returned';
+  static const String returnDiscount = 'Discount';
+  static const String projectedSettlement = 'PROJECTED SETTLEMENT';
+  static const String orderDiscount = 'Order Discount';
+  static const String initialDiscount = 'Initial Discount';
+  static const String returnSettlementDiscount = 'Return Settlement Disc.';
+  static const String grandTotal = 'Grand Total';
+  static const String partialReturn = 'PARTIAL RETURN';
+  static const String completeReturn = 'Complete Return Process';
+  static const String incompleteCheckup =
+      'Please mark Good, Damaged or Not Returned for every item before saving.';
+  static String savePartialReturn(int pending) =>
+      'Save Partial Return ($pending Pending)';
+  static String pendingReturnMessage(int pending) =>
+      '$pending ${pending == 1 ? 'unit is' : 'units are'} still with the customer. '
+      'Saving keeps this order partially returned. Rent for pending units is '
+      'still charged; complete the return when the customer brings them back.';
+  static const String invalidReturnAdjustment =
+      'Enter a valid, non-negative discount.';
+  static const String returnUnavailable =
+      'Only ongoing, in-use or partial orders can be returned.';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility

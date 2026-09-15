@@ -307,6 +307,8 @@ class OrderOperations {
 
   OrderOperations(this._repository);
 
+  Future<Order> getOrderById(String id) => _repository.getOrderById(id);
+
   Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     return await _repository.createOrder(body, cancelToken: cancelToken);
   }

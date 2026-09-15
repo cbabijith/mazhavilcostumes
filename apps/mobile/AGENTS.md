@@ -304,6 +304,16 @@ Always reuse existing ViewModels and repositories when possible.
 
 ## Mazhavil Business Rules
 
+### Return flow invariants
+
+- Keep return settlement presentation in `order_return_viewmodel.dart`; the shared Next.js API validates and persists financial changes.
+- `total_amount` already includes saved discounts and fees. Replace existing damage charges and apply only new return adjustments; never subtract `order.discount` from the saved total again.
+- Keep the Order Items UI to Good, Damaged, Not Returned, Discount and a return action, with conditional damage details. Show the settlement panel only when a discount or fee is present. Keep its live totals, the financial receipt and payment balance synchronized with the same return draft; typing must not persist changes. Good remains a draft until return confirmation. Do not reintroduce extra late-fee or return-notes inputs here.
+- Restore saved inspections and preserve drafts on refresh. Pending quantities use cumulative `returned_quantity`; do not reduce already-returned quantities or treat `is_returned` alone as a full return.
+- The existing API's `late_fee` field is absolute. Submit the saved late fee unchanged; do not send unsupported `additional_late_fee`.
+- Keep Flutter preview behavior separate from persistence guarantees: the unchanged server's existing-discount recalculation issue is outside this Flutter-only change. See `README.md`.
+- Run the return viewmodel, repository, and widget regression tests listed in `README.md` when changing this flow. Keep tests offline.
+
 Products:
 - Must support inventory tracking
 - Must support branch assignment

@@ -25,6 +25,25 @@ The app uses a **Feature-First Architecture**. Instead of grouping by technical 
 
 ## Implemented Features
 
+### Order return settlement
+
+- The Order Items section matches the website reference: **Mark All Good**, **Good / Damaged / Not Returned**, **Discount**, and one return action. The settlement preview appears when a discount or fee is present and updates while typing; it stays hidden when there are no adjustments. Extra late-fee and return-notes inputs and the separate Good-condition save button are omitted. Damage details appear only when Damaged is selected.
+- The financial receipt uses the same draft total and balance as the preview. During a new return discount it shows the combined Order Discount, the discount saved at the start of this return (Initial Discount), and Return Settlement Disc. Clearing the input restores saved amounts. Typing does not save the order or change payments.
+- **Not Returned** shows a pending-unit warning and **Save Partial Return (N Pending)**. The existing API receives cumulative `returned_quantity` values, preserving units already received. **Good / Damaged** marks the remaining units returned. Unmarked items must be explicitly checked before submission.
+- Discount and inspection drafts survive refreshes and are submitted on confirmation. Previously saved inspections are restored; explicit `returned_quantity` takes precedence over the API's older `is_returned` flag for pending items.
+- Previews, confirmation, and the payment limit share `OrderReturnViewModel`. They start from the saved order total, replace damage charges, preserve existing late fees, and deduct only the newly entered return discount.
+- The Flutter preview does not subtract an existing discount again: a saved ₹150 total previews as ₹150 without a new discount, or ₹80 with a new ₹70 return discount.
+- Return controls follow the API's accepted statuses: ongoing, in use, and partial.
+- Mobile uses the existing `late_fee` field on `PATCH /api/orders/:id/return`, sending the saved late fee unchanged because the API replaces that value. No API update is required for these Flutter changes.
+- Scope limitation: the unchanged API can still deduct an existing order discount again when saving an inspection or completing a return. The Flutter-only changes do not correct that server calculation or repair historical totals. The tests below verify Flutter behavior and request compatibility, not server-side persistence.
+
+Offline regression checks (no live order writes):
+
+```sh
+flutter analyze --no-pub
+flutter test --no-pub test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
+```
+
 ### 1. Unified Dashboard
 *   **Greeting Banner**: Dynamic greeting tailored to the logged-in user.
 *   **Quick Actions & Summary**: Direct access to creating orders, adding products, and viewing high-level stats (Total Sales, Pending Orders, Customers).
