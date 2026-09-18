@@ -175,6 +175,11 @@ export function apiRepositoryError(
     AUTH_DELETE_FAILED: 400,
     LIMIT_EXCEEDED: 409,
     POSITION_TAKEN: 409,
+    // Payment guards — collecting beyond the order's outstanding balance is a
+    // conflict with the order's current state, not a malformed request.
+    PAYMENT_ALREADY_SETTLED: 409,
+    PAYMENT_EXCEEDS_DUE: 409,
+    PAYMENT_STATE_UNKNOWN: 500,
   };
 
   const status = statusMap[code] ?? 400;

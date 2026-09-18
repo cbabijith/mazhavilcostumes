@@ -407,9 +407,16 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (!editingPayment) return;
 
     const amountVal = parseFloat(paymentEditForm.amount) || 0;
-    if (amountVal <= 0) {
-      showError("Validation Error", "Amount must be greater than 0. If you want to undo/delete this payment, please click the 'Delete Payment' button.");
+    if (amountVal < 0 || !Number.isFinite(parseFloat(paymentEditForm.amount))) {
+      showError("Validation Error", "Amount cannot be negative");
       return;
+    }
+
+    // Zeroing a collected payment is allowed (keeps the row as an audit
+    // trail), but confirm first — restoring it later is capped at the order's
+    // outstanding balance, so this isn't always trivially reversible.
+    if (amountVal === 0 && Number(editingPayment.amount) > 0) {
+      if (!confirm(`Set this ${editingPayment.payment_type} payment of ${formatCurrency(editingPayment.amount)} to ₹0? The order's balance will re-open by that amount.`)) return;
     }
 
     try {
@@ -437,10 +444,22 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const handleCollectPayment = async () => {
     const amountVal = parseFloat(paymentForm.amount) || 0;
-    const maxAmount = amount_due;
+    // Cap at the PERSISTED balance (total_amount − amount_paid), the same
+    // ceiling the API enforces. Damage fees typed into the return form are
+    // only persisted when the return is processed — they become collectable
+    // after that, not before.
+    const maxAmount = base_amount_due;
 
     if (!order || amountVal <= 0) {
       showError("Validation Error", "Amount must be greater than 0");
+      return;
+    }
+
+    if (maxAmount <= 0) {
+      showError(
+        "Nothing to Collect",
+        "This order's recorded balance is already fully paid. New damage fees become collectable after the return is processed."
+      );
       return;
     }
 
@@ -460,15 +479,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         },
         {
           onSuccess: () => {
-            const newAmountPaid = (order.amount_paid || 0) + amountVal;
-            const newStatus = newAmountPaid >= order.total_amount ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
-            updateOrder({
-              id: order.id,
-              data: {
-                amount_paid: newAmountPaid,
-                payment_status: newStatus,
-              },
-            });
+            // No local amount_paid writeback: the server syncs amount_paid /
+            // payment_status from the payments table (paymentService.syncOrderPaymentStatus)
+            // and the hook invalidates the order query. Writing back a locally
+            // computed total from (possibly stale) UI state could resurrect a
+            // phantom "due" on the order.
             setIsPaymentModalOpen(false);
             setPaymentForm({ amount: "0", paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
             showSuccess("Payment Recorded", "Payment was successfully processed.");
@@ -1361,7 +1376,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     <Button
                       type="button"
                       onClick={() => {
-                        setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                        setPaymentForm({ amount: base_amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
                         setIsPaymentModalOpen(true);
                       }}
                       className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
@@ -1724,7 +1739,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           {!isFinalized && amount_due > 0 && (
             <Button
               onClick={() => {
-                setPaymentForm({ amount: amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
+                setPaymentForm({ amount: base_amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
                 setIsPaymentModalOpen(true);
               }}
               className="w-full mt-6 h-12 bg-slate-900 hover:bg-slate-800 text-white font-bold text-base rounded-xl shadow-md"
