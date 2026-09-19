@@ -655,13 +655,17 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const pendingMarkedCount = pendingReturnItems.filter(i => returnItems[i.id]?.status === 'missing').length;
   // Units that will STILL be out after this return is saved — counts both
   // "Not Returned" items and partially-counted items (e.g. 1 of 3 coming back).
+  // Undecided items (status not chosen yet) follow the same default as the
+  // checklist init and the save validation: everything outstanding comes
+  // back. They must NOT be pre-judged as staying with the customer, or every
+  // returnable order shows the partial-return warning before staff decide.
   const unitsStillOut = pendingReturnItems.reduce((sum, item) => {
     const rItem = returnItems[item.id];
     const outstanding = item.quantity - (item.returned_quantity || 0);
-    const count = (rItem?.status === 'excellent' || rItem?.status === 'damaged')
-      ? (rItem?.return_count ?? outstanding)
-      : 0;
-    return sum + (outstanding - count);
+    if (!rItem || rItem.status === null) return sum;
+    if (rItem.status === 'missing') return sum + outstanding;
+    const count = rItem.return_count ?? outstanding;
+    return sum + Math.max(0, outstanding - count);
   }, 0);
 
   return (
