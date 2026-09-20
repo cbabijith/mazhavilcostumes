@@ -17,6 +17,9 @@
 
 // This script sends the dev-only auth-bypass header, so it is hardcoded to
 // the local dev server and must never be pointed at a deployed environment.
+// `export {}` marks this file as a module so its top-level declarations
+// don't share the global scope with other scripts (TS2393).
+export {};
 const BASE_URL = 'http://localhost:3001';
 const AUTH_HEADER = { 'x-bypass-auth': 'true' };
 

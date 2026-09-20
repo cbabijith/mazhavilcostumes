@@ -10,7 +10,9 @@ import { RepositoryResult } from '@/repository';
 import {
   Setting,
   SettingKey,
-  UpdateSettingDTO
+  UpdateSettingDTO,
+  GSTIN_PATTERN,
+  DEFAULT_GST_NUMBER,
 } from '@/domain/types/settings';
 import { DEFAULT_GST_SLABS } from '@/domain/types/category';
 import { settingsRepository } from '@/repository';
@@ -82,6 +84,71 @@ export class SettingsService {
       this.storeId,
       key,
       value,
+      this.currentUserId
+    );
+  }
+
+  /**
+   * Get the business GSTIN printed on invoices.
+   *
+   * Resolution order: store-scoped setting → same key under any store
+   * (single-store fallback, same reasoning as getIsGSTEnabled) →
+   * DEFAULT_GST_NUMBER. Returns '' only when explicitly cleared AND the
+   * default is undesired — the default keeps invoices legally complete.
+   */
+  async getGstNumber(): Promise<RepositoryResult<string>> {
+    let result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_NUMBER);
+    if (!result.success || !result.data) {
+      const fallback = await settingsRepository.findByKeyAnyStore(SettingKey.GST_NUMBER);
+      if (fallback.success && fallback.data) result = fallback;
+    }
+    if (!result.success || !result.data) {
+      return { data: DEFAULT_GST_NUMBER, error: null, success: true };
+    }
+    const value = result.data.value.trim();
+    // A row that was explicitly cleared ('') means "print no GSTIN" — honor it.
+    return { data: value, error: null, success: true };
+  }
+
+  /**
+   * Set the business GSTIN. Accepts a 15-char GSTIN or an empty string to
+   * remove it from invoices; anything else is rejected.
+   */
+  async setGstNumber(value: string): Promise<RepositoryResult<Setting>> {
+    const cleaned = (value ?? '').trim().toUpperCase();
+    if (cleaned !== '' && !GSTIN_PATTERN.test(cleaned)) {
+      return {
+        data: null,
+        error: {
+          message: 'Invalid GSTIN — expected 15 characters like 32ATOPS2936C1ZO (2-digit state code, PAN, entity code, Z, checksum)',
+          code: 'VALIDATION_ERROR',
+        } as any,
+        success: false,
+      };
+    }
+
+    // Write-fallback mirroring getGstNumber's read-fallback: when this
+    // service's store_id is a placeholder/wrong scope (route didn't call
+    // setStoreId) but a gst_number row already exists under another store,
+    // update THAT row instead of inserting a duplicate scoped to a store that
+    // may not even exist (FK violation).
+    const scoped = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_NUMBER);
+    if (!scoped.success || !scoped.data) {
+      const anyStore = await settingsRepository.findByKeyAnyStore(SettingKey.GST_NUMBER);
+      if (anyStore.success && anyStore.data) {
+        return await settingsRepository.upsert(
+          anyStore.data.store_id,
+          SettingKey.GST_NUMBER,
+          cleaned,
+          this.currentUserId
+        );
+      }
+    }
+
+    return await settingsRepository.upsert(
+      this.storeId,
+      SettingKey.GST_NUMBER,
+      cleaned,
       this.currentUserId
     );
   }

@@ -31,6 +31,7 @@ export interface InvoiceData {
     invoicePrefix: string;
     paymentTerms: string;
     authorizedSignature: string;
+    gstNumber: string;
   };
 }
 
@@ -106,11 +107,14 @@ export class InvoiceService {
     const prefixResult = await settingsService.findByKey('invoice_prefix');
     const termsResult = await settingsService.findByKey('payment_terms');
     const signatureResult = await settingsService.findByKey('authorized_signature');
+    const gstNumberResult = await settingsService.getGstNumber();
 
     return {
       invoicePrefix: prefixResult.success && prefixResult.data ? prefixResult.data.value : 'INV-',
       paymentTerms: termsResult.success && termsResult.data ? termsResult.data.value : '',
       authorizedSignature: signatureResult.success && signatureResult.data ? signatureResult.data.value : '',
+      // getGstNumber resolves: stored setting → any-store fallback → default
+      gstNumber: gstNumberResult.success && gstNumberResult.data ? gstNumberResult.data : '',
     };
   }
 
@@ -146,7 +150,7 @@ export class InvoiceService {
     invoiceNumber: string,
     invoiceDate: string,
     payments: any[],
-    settings: { invoicePrefix: string; paymentTerms: string; authorizedSignature: string },
+    settings: { invoicePrefix: string; paymentTerms: string; authorizedSignature: string; gstNumber: string },
     history: any[] = [],
   ): TallyInvoiceProps {
     // Build line items
@@ -233,7 +237,7 @@ export class InvoiceService {
       companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
       companyPhone: order.store?.phone || '9446961765, 9447961765',
       companyEmail: order.store?.email,
-      companyGstin: order.store?.gstin,
+      companyGstin: settings.gstNumber || order.store?.gstin || undefined,
 
       invoiceNumber,
       invoiceDate,

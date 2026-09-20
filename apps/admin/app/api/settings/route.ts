@@ -39,6 +39,13 @@ export async function GET(request: NextRequest) {
       return apiSuccess({ value: result.data });
     }
 
+    // Special case: gst_number resolves with any-store fallback + default
+    if (key === 'gst_number') {
+      const result = await settingsService.getGstNumber();
+      if (!result.success) return apiRepositoryError(result.error, 'Failed to fetch GST number');
+      return apiSuccess({ value: result.data });
+    }
+
     const result = await settingsService.findByKey(key);
     if (!result.success) {
       return apiRepositoryError(result.error, `Failed to fetch setting ${key}`);
@@ -71,6 +78,17 @@ export async function PATCH(request: NextRequest) {
     if (authUser.store_id) {
       settingsService.setStoreId(authUser.store_id);
     }
+
+    // GST number has format validation — route through its dedicated setter
+    // so an invalid GSTIN can never be persisted.
+    if (key === 'gst_number') {
+      const result = await settingsService.setGstNumber(value);
+      if (!result.success || !result.data) {
+        return apiRepositoryError(result.error, 'Failed to update GST number');
+      }
+      return apiSuccess({ value: result.data.value }, { message: 'GST number updated' });
+    }
+
     const result = await settingsService.setValue(key as SettingKey, value);
     
     if (!result.success || !result.data) {
