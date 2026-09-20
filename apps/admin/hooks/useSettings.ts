@@ -21,6 +21,7 @@ const queryKeys = {
   invoicePrefix: ['settings', 'invoice_prefix'] as const,
   paymentTerms: ['settings', 'payment_terms'] as const,
   authorizedSignature: ['settings', 'authorized_signature'] as const,
+  gstNumber: ['settings', 'gst_number'] as const,
   gstSlabs: ['settings', 'gstSlabs'] as const,
 };
 
@@ -121,6 +122,19 @@ export function useAuthorizedSignature() {
     queryKey: queryKeys.authorizedSignature,
     queryFn: async () => {
       const value = await fetchSettingValue('authorized_signature');
+      return { success: true, data: value != null ? { value } : null };
+    },
+  });
+}
+
+/**
+ * Get the business GSTIN printed on invoices (resolves default when unset)
+ */
+export function useGstNumber() {
+  return useQuery({
+    queryKey: queryKeys.gstNumber,
+    queryFn: async () => {
+      const value = await fetchSettingValue('gst_number');
       return { success: true, data: value != null ? { value } : null };
     },
   });

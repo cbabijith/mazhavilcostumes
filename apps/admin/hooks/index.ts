@@ -127,6 +127,7 @@ export {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useGstNumber,
   useUpdateSetting,
   useGstSlabs,
   useUpdateGstSlabs,

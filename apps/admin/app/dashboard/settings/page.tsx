@@ -11,12 +11,14 @@ import {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useGstNumber,
   useUpdateSetting,
   useGstSlabs,
   useUpdateGstSlabs,
 } from "@/hooks";
 import { useAppStore } from "@/stores";
 import { DEFAULT_GST_SLABS } from "@/domain/types/category";
+import { GSTIN_PATTERN, DEFAULT_GST_NUMBER } from "@/domain/types/settings";
 import { Plus, X } from "lucide-react";
 
 export default function SettingsPage() {
@@ -30,6 +32,7 @@ export default function SettingsPage() {
   const { data: invoicePrefixResult, isLoading: loadingPrefix } = useInvoicePrefix();
   const { data: paymentTermsResult, isLoading: loadingTerms } = usePaymentTerms();
   const { data: signatureResult, isLoading: loadingSig } = useAuthorizedSignature();
+  const { data: gstNumberResult, isLoading: loadingGstNumber } = useGstNumber();
   
   // Derive GST enabled from query result
   const isGstEnabled = (isGstEnabledResult?.success && isGstEnabledResult.data !== null) ? isGstEnabledResult.data : false;
@@ -38,6 +41,7 @@ export default function SettingsPage() {
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [authorizedSignature, setAuthorizedSignature] = useState('');
+  const [gstNumber, setGstNumber] = useState(DEFAULT_GST_NUMBER);
 
   // GST slabs management — admin/manager only feature
   const canManageSettings = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'manager';
@@ -81,14 +85,26 @@ export default function SettingsPage() {
     if (invoicePrefixResult?.success && invoicePrefixResult.data) setInvoicePrefix(invoicePrefixResult.data.value);
     if (paymentTermsResult?.success && paymentTermsResult.data) setPaymentTerms(paymentTermsResult.data.value);
     if (signatureResult?.success && signatureResult.data) setAuthorizedSignature(signatureResult.data.value);
-  }, [invoicePrefixResult, paymentTermsResult, signatureResult]);
+    if (gstNumberResult?.success && gstNumberResult.data) setGstNumber(gstNumberResult.data.value);
+  }, [invoicePrefixResult, paymentTermsResult, signatureResult, gstNumberResult]);
+
+  const gstNumberValid = gstNumber.trim() === '' || GSTIN_PATTERN.test(gstNumber.trim().toUpperCase());
 
   const handleSaveInvoiceSettings = async () => {
+    const cleanedGst = gstNumber.trim().toUpperCase();
+    if (!gstNumberValid) {
+      showError(
+        'Invalid GSTIN',
+        'GST number must be 15 characters like 32ATOPS2936C1ZO, or empty to remove it from invoices.'
+      );
+      return;
+    }
     try {
       await Promise.all([
         updateSetting({ key: 'invoice_prefix', value: invoicePrefix }),
         updateSetting({ key: 'payment_terms', value: paymentTerms }),
         updateSetting({ key: 'authorized_signature', value: authorizedSignature }),
+        updateSetting({ key: 'gst_number', value: cleanedGst }),
       ]);
       showSuccess("Invoice settings saved successfully");
     } catch (err) {
@@ -240,6 +256,24 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">GST Number (GSTIN)</label>
+              <Input
+                type="text"
+                value={gstNumber}
+                onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                onBlur={(e) => setGstNumber(e.target.value.trim().toUpperCase())}
+                className={`bg-slate-50 border-slate-200 focus:border-primary max-w-xs font-mono tracking-wide ${!gstNumberValid ? 'border-red-300 focus:border-red-400' : ''}`}
+                placeholder={DEFAULT_GST_NUMBER}
+                maxLength={15}
+              />
+              <p className={`text-xs mt-1 ${!gstNumberValid ? 'text-red-500 font-medium' : 'text-slate-500'}`}>
+                {gstNumberValid
+                  ? 'Printed as GSTIN on every invoice. Leave empty to remove it from invoices.'
+                  : 'Invalid format — expected 15 characters like 32ATOPS2936C1ZO.'}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Payment Terms</label>
               <Textarea
                 value={paymentTerms}
@@ -260,9 +294,9 @@ export default function SettingsPage() {
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleSaveInvoiceSettings}
-              disabled={updatingSettings || loadingPrefix || loadingTerms || loadingSig}
+              disabled={updatingSettings || loadingPrefix || loadingTerms || loadingSig || loadingGstNumber || !gstNumberValid}
               className="shadow-lg shadow-primary/25 bg-slate-900 text-white hover:bg-slate-800"
             >
               {updatingSettings ? "Saving..." : "Save Invoice Settings"}
