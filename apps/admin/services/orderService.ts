@@ -528,6 +528,18 @@ export class OrderService {
       if (!paymentResult.success) {
         console.error('[OrderService.createOrder] Failed to create advance payment record:', paymentResult.error);
       }
+
+      // Reconcile amount_paid / payment_status from the payments table. The
+      // order row's precomputed flag (`advance >= total ? paid : partial`) can
+      // disagree with the payments row actually inserted (e.g. drift from a
+      // string amount, or a payment insert failure above) — the sync makes
+      // the flag trustworthy from the order's first minute.
+      try {
+        const { paymentService } = await import('./paymentService');
+        await paymentService.syncOrderPaymentStatus(result.data.id);
+      } catch (err) {
+        console.error('[OrderService.createOrder] Post-advance payment sync failed:', err);
+      }
     }
 
     // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS (BACKGROUND NON-BLOCKING) ──────
@@ -1242,6 +1254,20 @@ export class OrderService {
     if (result.success && result.data) {
       // Clear dashboard cache immediately (in-memory, non-blocking)
       try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
+
+      // ─── PAYMENT SELF-HEAL ────────────────────────────────────────────────
+      // processReturn recomputes total_amount and derives payment_status from
+      // the order row's amount_paid. If that column ever drifted from the
+      // payments table (stale deployment, older flow, partial write), the
+      // derived flag is wrong — e.g. a fully-paid order left at 'partial',
+      // which then shows as a phantom "Revenue Due" forever. Reconcile from
+      // the payments table (source of truth) right after every return.
+      try {
+        const { paymentService } = await import('./paymentService');
+        await paymentService.syncOrderPaymentStatus(orderId);
+      } catch (err) {
+        console.error('[OrderService.processOrderReturn] Payment sync failed:', err);
+      }
 
       // ─── POST-RETURN HOUSEKEEPING ─────────────────────────────────────────
       // CRITICAL parts are AWAITED before the response: on Vercel serverless,

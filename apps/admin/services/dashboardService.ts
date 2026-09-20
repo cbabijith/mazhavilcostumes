@@ -233,6 +233,10 @@ export class DashboardService {
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
 
+    // p_branch_id MUST be sent explicitly (null, not dropped). The live DB
+    // carries two overloads of this function (6-param and 7-param); when the
+    // key is absent, PostgREST cannot choose between them (PGRST203) and the
+    // dashboard silently falls back to all-zero cards.
     const { data, error } = await supabase.rpc('get_operational_dashboard_metrics', {
       p_today_start: todayStart,
       p_today_end: todayEnd,
@@ -240,7 +244,7 @@ export class DashboardService {
       p_yesterday_date: yesterdayStr,
       p_tomorrow_date: tomorrowStr,
       p_next_5_days_date: next5DaysStr,
-      p_branch_id: branchId,
+      p_branch_id: branchId ?? null,
     });
 
     if (error) {
