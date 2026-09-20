@@ -185,15 +185,14 @@ BEGIN
     AND status IN ('scheduled', 'pending', 'confirmed')
     AND (p_branch_id IS NULL OR branch_id = p_branch_id);
 
-  -- Pending Return (overdue): active orders past end_date whose items are
-  -- NOT all physically back — an order whose every unit is returned is not
-  -- "pending return" even if its status flag lagged behind.
+  -- Pending Return (overdue): active orders past end_date that still have
+  -- units physically out with the customer (an order whose every unit is
+  -- returned is not "pending return" even if its status flag lagged behind).
   SELECT COALESCE(COUNT(*), 0) INTO v_pending_returns
   FROM orders o
   WHERE o.end_date < p_today_date
     AND o.status IN ('ongoing', 'in_use', 'late_return')
-    AND EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id)
-    AND NOT EXISTS (
+    AND EXISTS (
       SELECT 1 FROM order_items oi
       WHERE oi.order_id = o.id
         AND COALESCE(oi.returned_quantity, 0) < oi.quantity
@@ -220,7 +219,7 @@ BEGIN
       cr.expected_return_date,
       cr.priority_order_id,
       cr.notes,
-      JSONB_BUILD_OBJECT('name', p.name) AS product
+      JSONB_BUILD_OBJECT('name', pr.name) AS product
     FROM cleaning_records cr
     LEFT JOIN products pr ON cr.product_id = pr.id
     WHERE cr.status IN ('scheduled', 'pending')
