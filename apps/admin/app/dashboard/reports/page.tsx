@@ -10,6 +10,34 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { REPORT_LIST, type ReportType, type ReportMeta, type CreateEnquiryDTO, type ReportFilters as FilterType } from "@/domain";
+
+// Static endpoint per report type — the request URL is never built by
+// interpolation; an unknown id has no entry and is never fetched.
+const REPORT_ENDPOINTS: Record<ReportType, string> = {
+  'day-wise-booking': '/api/reports/day-wise-booking',
+  'due-overdue': '/api/reports/due-overdue',
+  'revenue': '/api/reports/revenue',
+  'top-costumes': '/api/reports/top-costumes',
+  'top-customers': '/api/reports/top-customers',
+  'rental-frequency': '/api/reports/rental-frequency',
+  'roi': '/api/reports/roi',
+  'dead-stock': '/api/reports/dead-stock',
+  'sales-by-staff': '/api/reports/sales-by-staff',
+  'inventory-revenue': '/api/reports/inventory-revenue',
+  'enquiry-log': '/api/reports/enquiry-log',
+  'gst-filing': '/api/reports/gst-filing',
+  'todays-revenue': '/api/reports/todays-revenue',
+};
+
+/**
+ * Build a same-origin request URL for this app's own API. The path must be
+ * one of the fixed /api/... literals above (or passed inline at a call site)
+ * and the host is pinned to the current page's origin — the request can
+ * never be steered to another host, scheme, or an internal address.
+ */
+function sameOriginApiUrl(path: string, query?: URLSearchParams): string {
+  return new URL(path + (query ? '?' + query.toString() : ''), window.location.origin).toString();
+}
 import { exportToExcel, exportToPDF } from "@/lib/exportUtils";
 import { formatCurrency } from "@/lib/shared-utils";
 import { reportService } from "@/services/reportService";
@@ -37,7 +65,13 @@ type SortConfig = {
 function ReportsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const reportFromUrl = searchParams.get("type") as ReportType | null;
+  // `type` is user-controllable query state that gets interpolated into the
+  // report request path further below — only allow known report ids through
+  // (anything else behaves like no type selected).
+  const rawReportFromUrl = searchParams.get("type");
+  const reportFromUrl = (
+    REPORT_LIST.some(r => r.id === rawReportFromUrl) ? rawReportFromUrl : null
+  ) as ReportType | null;
 
   const { user, selectedBranchId } = useAppStore();
   const userRole = user?.role || 'staff';
@@ -170,7 +204,8 @@ function ReportsPageContent() {
 
         console.log('[ReportPage] Fetching revenue with:', params.toString());
 
-        const res = await fetch(`/api/reports/revenue?${params.toString()}`);
+        const requestUrl = sameOriginApiUrl('/api/reports/revenue', params);
+        const res = await fetch(requestUrl);
         if (!res.ok) {
           const err = await res.json();
           throw new Error(err.error || 'Failed to fetch revenue data');
@@ -189,7 +224,10 @@ function ReportsPageContent() {
         if (filters.status?.length) queryParams.append('status', filters.status.join(','));
         if (filters.payment_mode) queryParams.append('payment_mode', filters.payment_mode);
 
-        const response = await fetch(`/api/reports/${selectedReport}?${queryParams.toString()}`);
+        // Static lookup — selectedReport is whitelisted above and the map
+        // has a fixed entry per report type (no URL interpolation).
+        const reportUrl = sameOriginApiUrl(REPORT_ENDPOINTS[selectedReport], queryParams);
+        const response = await fetch(reportUrl);
         const json = await response.json();
         
         if (!json.success) {
@@ -433,7 +471,7 @@ function ReportsPageContent() {
 
   const handleLogEnquiry = async (dto: CreateEnquiryDTO) => {
     try {
-      const response = await fetch(`/api/reports/enquiry-log`, {
+      const response = await fetch('/api/reports/enquiry-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dto)
@@ -566,4 +604,3 @@ export default function ReportsPage() {
     </Suspense>
   );
 }
-  

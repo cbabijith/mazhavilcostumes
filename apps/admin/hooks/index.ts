@@ -125,6 +125,7 @@ export {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useGstNumber,
   useUpdateSetting,
 } from './useSettings';
 

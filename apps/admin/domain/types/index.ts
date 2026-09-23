@@ -187,6 +187,7 @@ export type {
 
 export {
   OrderStatus,
+  PaymentStatus,
   ConditionRating,
   DeliveryMethod,
 } from './order';
@@ -201,6 +202,8 @@ export type {
 
 export {
   SettingKey,
+  GSTIN_PATTERN,
+  DEFAULT_GST_NUMBER,
 } from './settings';
 
 // Payment types

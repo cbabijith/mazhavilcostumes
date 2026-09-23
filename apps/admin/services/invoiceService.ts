@@ -12,7 +12,7 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import { OrderWithRelations } from '@/domain/types/order';
 import { orderRepository } from '@/repository';
 import { createAdminClient } from '@/lib/supabase/server';
-import { settingsService } from './settingsService';
+import { SettingsService } from '@/services';
 import { paymentService } from './paymentService';
 import { orderService } from './orderService';
 import {
@@ -31,6 +31,7 @@ export interface InvoiceData {
     invoicePrefix: string;
     paymentTerms: string;
     authorizedSignature: string;
+    gstNumber: string;
   };
 }
 
@@ -48,7 +49,7 @@ export class InvoiceService {
     const order = orderResult.data;
 
     // Fetch invoice settings
-    const settings = await this.getInvoiceSettings();
+    const settings = await this.getInvoiceSettings(order.store_id);
 
     // Fetch payments for the order
     const paymentsResult = await paymentService.getPaymentsByOrder(orderId);
@@ -102,15 +103,22 @@ export class InvoiceService {
   /**
    * Get invoice settings
    */
-  private async getInvoiceSettings() {
+  private async getInvoiceSettings(storeId: string) {
+    const settingsService = new SettingsService();
+    settingsService.setStoreId(storeId);
     const prefixResult = await settingsService.findByKey('invoice_prefix');
     const termsResult = await settingsService.findByKey('payment_terms');
     const signatureResult = await settingsService.findByKey('authorized_signature');
+    const gstNumberResult = await settingsService.getGstNumber();
+    if (!gstNumberResult.success) {
+      throw new Error(gstNumberResult.error?.message || 'Failed to load invoice GSTIN');
+    }
 
     return {
       invoicePrefix: prefixResult.success && prefixResult.data ? prefixResult.data.value : 'INV-',
       paymentTerms: termsResult.success && termsResult.data ? termsResult.data.value : '',
       authorizedSignature: signatureResult.success && signatureResult.data ? signatureResult.data.value : '',
+      gstNumber: gstNumberResult.data ?? '',
     };
   }
 
@@ -146,7 +154,7 @@ export class InvoiceService {
     invoiceNumber: string,
     invoiceDate: string,
     payments: any[],
-    settings: { invoicePrefix: string; paymentTerms: string; authorizedSignature: string },
+    settings: InvoiceData['settings'],
     history: any[] = [],
   ): TallyInvoiceProps {
     // Build line items
@@ -233,7 +241,8 @@ export class InvoiceService {
       companyAddress: order.store?.address || 'Near QRS, Karamana P.O., Thiruvananthapuram - 695002',
       companyPhone: order.store?.phone || '9446961765, 9447961765',
       companyEmail: order.store?.email,
-      companyGstin: order.store?.gstin,
+      // Fallbacks are resolved above; a saved empty value means no GSTIN.
+      companyGstin: settings.gstNumber || undefined,
 
       invoiceNumber,
       invoiceDate,

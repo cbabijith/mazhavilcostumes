@@ -17,6 +17,7 @@ import {
 } from '@/domain/types/payment';
 import { paymentRepository } from '@/repository';
 import { dashboardService } from './dashboardService';
+import { PaymentStatus, type OrderWithRelations } from '@/domain';
 
 export class PaymentService {
   private currentUserId: string | null = null;
@@ -263,37 +264,51 @@ export class PaymentService {
     return { data: final || null, error: null, success: true };
   }
 
-  async syncOrderPaymentStatus(orderId: string): Promise<void> {
+  /**
+   * Reconcile order totals from recorded payments and finish settled returns.
+   * @param orderId Order whose payment ledger should be reconciled.
+   * @returns The refreshed order after reconciliation and completion.
+   * @throws When the ledger cannot be read or the order cannot be updated.
+   */
+  async syncOrderPaymentStatus(orderId: string): Promise<OrderWithRelations> {
     const { orderRepository } = await import('@/repository');
     const paymentsResult = await paymentRepository.findByOrderId(orderId);
     const orderResult = await orderRepository.findById(orderId);
-    if (paymentsResult.success && paymentsResult.data && orderResult.success && orderResult.data) {
-      const order = orderResult.data;
-      const newAmountPaid = paymentsResult.data.reduce((sum, p) => {
-        if (p.payment_type === PaymentType.REFUND) {
-          return sum - p.amount;
-        }
-        return sum + p.amount;
-      }, 0);
-      const clampedAmountPaid = Math.max(0, newAmountPaid);
-      const newPaymentStatus = clampedAmountPaid >= order.total_amount ? 'paid' : clampedAmountPaid > 0 ? 'partial' : 'pending';
-      
-      // Only perform update and checks if values have changed to prevent infinite loops
-      if (order.amount_paid !== clampedAmountPaid || order.payment_status !== newPaymentStatus) {
-        await orderRepository.update(orderId, {
-          amount_paid: clampedAmountPaid,
-          payment_status: newPaymentStatus,
-        } as any);
-
-        // Check if the status needs to be auto-completed (since payment status changed)
-        try {
-          const { orderService } = await import('./orderService');
-          await orderService.checkAndAutoComplete(orderId);
-        } catch (err) {
-          console.error('[paymentService.syncOrderPaymentStatus] Failed to check and auto-complete order:', err);
-        }
-      }
+    if (!paymentsResult.success || !paymentsResult.data || !orderResult.success || !orderResult.data) {
+      throw new Error(paymentsResult.error?.message || orderResult.error?.message || 'Failed to read order payments');
     }
+    const order = orderResult.data;
+    const newAmountPaid = paymentsResult.data.reduce((sum, p) => {
+      // Work in paise so decimal addition cannot leave a tiny unpaid balance.
+      const amount = Math.round(Number(p.amount) * 100);
+      if (p.payment_type === PaymentType.REFUND) {
+        return sum - amount;
+      }
+      return sum + amount;
+    }, 0);
+    const clampedAmountPaid = Math.max(0, newAmountPaid) / 100;
+    const newPaymentStatus = order.payment_status === PaymentStatus.REFUND_WAIVED
+      ? PaymentStatus.REFUND_WAIVED
+      : Math.round(clampedAmountPaid * 100) >= Math.round(Number(order.total_amount) * 100)
+        ? PaymentStatus.PAID : clampedAmountPaid > 0 ? PaymentStatus.PARTIAL : PaymentStatus.PENDING;
+
+    // Only perform update and checks if values have changed to prevent infinite loops
+    if (order.amount_paid !== clampedAmountPaid || order.payment_status !== newPaymentStatus) {
+      const updateResult = await orderRepository.update(orderId, {
+        amount_paid: clampedAmountPaid,
+        payment_status: newPaymentStatus,
+      } as any);
+      if (!updateResult.success) throw new Error(updateResult.error?.message || 'Failed to reconcile order payments');
+    }
+
+    // Also complete returns when payment totals were already correct.
+    const { orderService } = await import('./orderService');
+    await orderService.checkAndAutoComplete(orderId);
+    const refreshed = await orderRepository.findById(orderId);
+    if (!refreshed.success || !refreshed.data) {
+      throw new Error(refreshed.error?.message || 'Failed to reload reconciled order');
+    }
+    return refreshed.data;
   }
 }
 

@@ -18,6 +18,17 @@ export class SettingsRepository extends BaseRepository {
   private readonly tableName = 'settings';
 
   /**
+   * Read the store's legacy invoice GSTIN.
+   * @param storeId Store owning the invoice.
+   * @returns The stored GSTIN, or null when unset.
+   */
+  async getStoreGstin(storeId: string): Promise<RepositoryResult<string | null>> {
+    const response = await this.client.from('stores').select('gstin').eq('id', storeId).maybeSingle();
+    const result = this.handleResponse<{ gstin: string | null }>(response);
+    return { ...result, data: result.data?.gstin ?? null };
+  }
+
+  /**
    * Find a setting by store and key
    */
   async findByStoreAndKey(storeId: string, key: SettingKey): Promise<RepositoryResult<Setting | null>> {

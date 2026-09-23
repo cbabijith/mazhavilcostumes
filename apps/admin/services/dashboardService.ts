@@ -240,11 +240,14 @@ export class DashboardService {
       p_yesterday_date: yesterdayStr,
       p_tomorrow_date: tomorrowStr,
       p_next_5_days_date: next5DaysStr,
-      p_branch_id: branchId,
+      // Keep the key when all branches are selected so PostgREST picks the
+      // seven-argument RPC even while the legacy overload still exists.
+      p_branch_id: branchId ?? null,
     });
 
     if (error) {
       console.error('[DashboardService] Error fetching operational metrics RPC:', error);
+      throw new Error('Failed to fetch operational dashboard metrics');
     }
 
     const rpcData = data || {

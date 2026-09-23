@@ -12,6 +12,7 @@ import '../features/branches/models/branch.dart';
 import '../features/branches/viewmodels/providers/branch_provider.dart';
 import '../features/branches/views/branches_view.dart';
 import '../features/customers/views/customers_view.dart';
+import '../features/settings/views/invoice_settings_view.dart';
 import 'utils/responsive.dart';
 import 'constants/app_constants.dart';
 import 'providers/navigation_provider.dart';
@@ -89,7 +90,7 @@ class _MainLayoutState extends State<MainLayout> {
       );
     }
 
-    final titles = ['', 'Orders', 'Calendar', 'Products'];
+    final titles = ['', 'Orders', 'Calendar', 'Products', AppStrings.invoiceSettings];
     return AppBar(
       backgroundColor: AppColors.primary,
       iconTheme: const IconThemeData(color: Colors.white),
@@ -194,6 +195,7 @@ class _MainLayoutState extends State<MainLayout> {
                 children: [
                   // Admin-only menu items
                   if (isAdmin) ...[
+                    _buildDrawerItem(ref, Icons.settings_outlined, AppStrings.invoiceSettings, 4, selectedIndex),
                     _buildDrawerSectionLabel('Management'),
                     _buildDrawerItem(ref, Icons.dashboard_rounded, 'Dashboard', 0, selectedIndex),
                     _buildDrawerItem(ref, Icons.account_tree_rounded, 'Categories', null, selectedIndex, onTap: () {
@@ -583,6 +585,7 @@ class _MainLayoutState extends State<MainLayout> {
       case 1: return const OrdersView();
       case 2: return const CalendarView();
       case 3: return const ProductsView();
+      case 4: return const InvoiceSettingsView();
       default: return const DashboardView();
     }
   }

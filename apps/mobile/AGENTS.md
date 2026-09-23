@@ -304,6 +304,15 @@ Always reuse existing ViewModels and repositories when possible.
 
 ## Mazhavil Business Rules
 
+### Invoice GSTIN and settlement refresh (PR #89)
+
+- Admins reach the GSTIN editor through the existing main-layout drawer tab. Keep navigation in `MainLayout`; no additional navigation stack was introduced.
+- The settings repository uses the shared Dio API (`GET/PATCH /api/settings`, key `gst_number`). Flutter must not write store settings or calculate payment settlement directly in Supabase.
+- GSTIN load state and save state are separate, so failed saves retain the draft. A saved empty string means remove the GSTIN; never replace it with a client default.
+- Successful order/payment operations invalidate cached order lists, details, payments, dashboard metrics and reports. Failed operations must not masquerade as successful settlement.
+- The server owns payment reconciliation and invoice PDF generation. Deploy the matching admin changes before relying on the PR #89 behavior in mobile.
+- Offline checks: `test/widget/invoice_settings_test.dart`, `test/unit/pr89_mobile_contract_test.dart`, and the existing return-flow tests below.
+
 ### Return flow invariants
 
 - Keep return settlement presentation in `order_return_viewmodel.dart`; the shared Next.js API validates and persists financial changes.

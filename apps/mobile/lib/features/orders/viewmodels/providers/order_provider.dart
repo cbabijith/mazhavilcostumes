@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
 import '../../../branches/viewmodels/providers/branch_provider.dart';
+import '../../../dashboard/viewmodels/providers/dashboard_provider.dart';
 
 // Repository provider
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
@@ -304,21 +305,28 @@ final cancelTokenProvider = Provider<CancelToken>((ref) {
 // Order operations - simple function-based approach
 class OrderOperations {
   final OrderRepository _repository;
+  final void Function()? _onChanged;
 
-  OrderOperations(this._repository);
+  OrderOperations(this._repository, {void Function()? onChanged})
+      : _onChanged = onChanged;
 
   Future<Order> getOrderById(String id) => _repository.getOrderById(id);
 
   Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
-    return await _repository.createOrder(body, cancelToken: cancelToken);
+    final order = await _repository.createOrder(body, cancelToken: cancelToken);
+    _onChanged?.call();
+    return order;
   }
 
   Future<Order> updateOrder(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
-    return await _repository.updateOrder(id, body, cancelToken: cancelToken);
+    final order = await _repository.updateOrder(id, body, cancelToken: cancelToken);
+    _onChanged?.call();
+    return order;
   }
 
   Future<void> deleteOrder(String id, {CancelToken? cancelToken}) async {
     await _repository.deleteOrder(id, cancelToken: cancelToken);
+    _onChanged?.call();
   }
 
   Future<Map<String, dynamic>> collectPayment({
@@ -329,7 +337,7 @@ class OrderOperations {
     String? notes,
     CancelToken? cancelToken,
   }) async {
-    return await _repository.collectPayment(
+    final payment = await _repository.collectPayment(
       orderId: orderId,
       amount: amount,
       paymentMode: paymentMode,
@@ -337,6 +345,8 @@ class OrderOperations {
       notes: notes,
       cancelToken: cancelToken,
     );
+    _onChanged?.call();
+    return payment;
   }
 
   Future<Order> processReturn({
@@ -347,7 +357,7 @@ class OrderOperations {
     double? discount,
     CancelToken? cancelToken,
   }) async {
-    return await _repository.processReturn(
+    final order = await _repository.processReturn(
       orderId: orderId,
       items: items,
       notes: notes,
@@ -355,6 +365,8 @@ class OrderOperations {
       discount: discount,
       cancelToken: cancelToken,
     );
+    _onChanged?.call();
+    return order;
   }
 
   Future<Map<String, dynamic>> createDamageAssessment({
@@ -387,10 +399,12 @@ class OrderOperations {
       transactionId: transactionId,
       notes: notes,
     );
+    _onChanged?.call();
   }
 
   Future<void> deletePayment(String paymentId) async {
     await _repository.deletePayment(paymentId);
+    _onChanged?.call();
   }
 
   Future<void> updateOrderItemDamage({
@@ -446,7 +460,19 @@ class OrderOperations {
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {
   final repository = ref.watch(orderRepositoryProvider);
-  return OrderOperations(repository);
+  return OrderOperations(repository, onChanged: () {
+    if (!ref.mounted) return;
+    // A settled return/payment must not leave old Revenue Due or pending cards.
+    ref.invalidate(ordersProvider);
+    ref.invalidate(orderProvider);
+    ref.invalidate(orderPaymentsProvider);
+    ref.invalidate(dashboardMetricsProvider);
+    ref.invalidate(operationalMetricsProvider);
+    ref.invalidate(analyticsMetricsProvider);
+    ref.invalidate(categoryRevenueProvider);
+    ref.invalidate(inventoryRoiProvider);
+    ref.invalidate(transactionReportProvider);
+  });
 });
 
 final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {

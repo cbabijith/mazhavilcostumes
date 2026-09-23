@@ -8,24 +8,15 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { queryUtils } from '@/lib/query-client';
+import { queryKeys, queryUtils } from '@/lib/query-client';
 import { useAppStore } from '@/stores';
-
-// Query keys
-const queryKeys = {
-  settings: ['settings'] as const,
-  gst: ['settings', 'gst'] as const,
-  invoicePrefix: ['settings', 'invoice_prefix'] as const,
-  paymentTerms: ['settings', 'payment_terms'] as const,
-  authorizedSignature: ['settings', 'authorized_signature'] as const,
-};
 
 /**
  * Generic fetch helper for settings API
  */
 async function fetchSettingValue(key: string): Promise<string | null> {
   const res = await fetch(`/api/settings?key=${encodeURIComponent(key)}`);
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`Failed to load invoice settings (${res.status})`);
   const json = await res.json();
   return json.data?.value ?? null;
 }
@@ -88,7 +79,7 @@ export function useUpdateIsGSTEnabled() {
  */
 export function useInvoicePrefix() {
   return useQuery({
-    queryKey: queryKeys.invoicePrefix,
+    queryKey: queryKeys.setting('invoice_prefix'),
     queryFn: async () => {
       const value = await fetchSettingValue('invoice_prefix');
       return { success: true, data: value != null ? { value } : null };
@@ -101,7 +92,7 @@ export function useInvoicePrefix() {
  */
 export function usePaymentTerms() {
   return useQuery({
-    queryKey: queryKeys.paymentTerms,
+    queryKey: queryKeys.setting('payment_terms'),
     queryFn: async () => {
       const value = await fetchSettingValue('payment_terms');
       return { success: true, data: value != null ? { value } : null };
@@ -114,9 +105,23 @@ export function usePaymentTerms() {
  */
 export function useAuthorizedSignature() {
   return useQuery({
-    queryKey: queryKeys.authorizedSignature,
+    queryKey: queryKeys.setting('authorized_signature'),
     queryFn: async () => {
       const value = await fetchSettingValue('authorized_signature');
+      return { success: true, data: value != null ? { value } : null };
+    },
+  });
+}
+
+/**
+ * Load the business GSTIN, retaining an explicitly empty value.
+ * @returns The invoice GSTIN query and its loading/error state.
+ */
+export function useGstNumber() {
+  return useQuery({
+    queryKey: queryKeys.setting('gst_number'),
+    queryFn: async () => {
+      const value = await fetchSettingValue('gst_number');
       return { success: true, data: value != null ? { value } : null };
     },
   });

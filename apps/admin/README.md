@@ -56,6 +56,30 @@ pnpm start
 
 ---
 
+## Invoice GSTIN and order settlement (PR #89)
+
+**Settings → Invoice Settings → GST Number (GSTIN)** controls the business GSTIN on deposit and final bills. Values are trimmed, uppercased, and format-validated on both client and server. Saving an empty value removes the GSTIN from bills, including when the legacy store record has a value. Until configured, the store's GSTIN is used, followed by the Mazhavil default `32ATOPS2936C1ZO`.
+
+- `GET /api/settings?key=gst_number` returns `{ success: true, data: { value } }` with the resolved value, including `""` when cleared.
+- Admin-only `PATCH /api/settings` accepts `{ "key": "gst_number", "value": "..." }`; malformed GSTIN values return HTTP 400.
+- Creation with an advance and every return reconcile the payment ledger. Fully returned, settled orders complete before the return response; genuine balances and partial item returns stay open.
+- The dashboard always sends the branch RPC parameter, including `null` for all branches, and reports RPC failures instead of showing fabricated zero cards.
+- Reports accept only known report IDs from the URL.
+
+`database/migrations/045_payment_status_consistency.sql` is the migration from PR #89: it repairs stale payment/order states, normalizes future payment flags, removes the old dashboard overload, and calculates revenue due from actual balances. It requires explicit approval before execution on a live database. The PR discussion reports it was already applied to production; this local port does not reapply it.
+
+Offline regression checks (no live data writes):
+
+```bash
+node scripts/test-pr89-regressions.cjs
+# Requires a separately installed @electric-sql/pglite package:
+node scripts/test-pr89-migration.cjs <path-to-@electric-sql/pglite>
+```
+
+The service/API suite checks payment reconciliation, refunds, partial returns, GSTIN validation/clearing, and real PDF rendering. The SQL suite runs migration 045 twice in disposable PostgreSQL and verifies repaired orders, overload removal, branch filtering, genuine dues, and pending returns.
+
+---
+
 ## 📁 Project Structure
 
 ```

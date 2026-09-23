@@ -413,7 +413,7 @@ export class OrderService {
     }
 
     // Look up per-item category GST rates (GST-inclusive: the rent amount already includes GST)
-    let perItemGstRates: Map<string, number> = new Map();
+    const perItemGstRates: Map<string, number> = new Map();
     if (isGstEnabled && products) {
       for (const p of products) {
         const cat = Array.isArray(p.categories) ? p.categories[0] : p.categories;
@@ -450,6 +450,10 @@ export class OrderService {
       if (!paymentResult.success) {
         console.error('[OrderService.createOrder] Failed to create advance payment record:', paymentResult.error);
       }
+
+      // The ledger is authoritative even if inserting the advance failed.
+      const { paymentService } = await import('./paymentService');
+      result.data = await paymentService.syncOrderPaymentStatus(result.data.id);
     }
 
     // ─── AUTO-SCHEDULE CLEANING FOR ALL ITEMS (BACKGROUND NON-BLOCKING) ──────
@@ -981,21 +985,17 @@ export class OrderService {
       // Clear dashboard cache immediately (in-memory, non-blocking)
       try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
 
-      // ─── POST-RETURN HOUSEKEEPING (BACKGROUND, NON-BLOCKING) ─────────────
-      // Auto-complete check, cleaning record transitions, and damage assessments
-      // don't affect the return response. Run them in the background so the user
-      // sees "returned" status immediately. "completed" status and cleaning
-      // records appear within ~2s via background processing.
+      // Reconcile and auto-complete before responding. Serverless runtimes may
+      // freeze background work; the response must contain the settled state.
+      const { paymentService } = await import('./paymentService');
+      result.data = await paymentService.syncOrderPaymentStatus(orderId);
+
+      // Cleaning transitions and damage assessments retain their existing flow.
       const returnedOrderData = result.data;
       (async () => {
         // Fetch order items for background processing (returnedOrderData is a bare Order without joins)
         const itemsResult = await orderRepository.getOrderItems(orderId);
         const orderItems = itemsResult.data || [];
-
-        // 1. Auto-complete check (returned + paid → completed)
-        await this.checkAndAutoComplete(orderId).catch(err =>
-          console.error('[OrderService.processOrderReturn] Background auto-complete failed:', err)
-        );
 
         // 2. Transition cleaning records: scheduled → in_progress
         try {
@@ -1145,10 +1145,13 @@ export class OrderService {
 
     const order = orderResult.data;
 
+    // Reconciliation may run more than once; do not duplicate completion history.
+    if (order.status === OrderStatus.COMPLETED) return;
+
     const paymentDone = order.payment_status === PaymentStatus.PAID;
     
     // Status-based "items done" check
-    let itemsDone = order.status === OrderStatus.RETURNED || order.status === OrderStatus.COMPLETED;
+    let itemsDone = order.status === OrderStatus.RETURNED;
 
     // If flagged, check if all damage assessments are resolved
     if (order.status === OrderStatus.FLAGGED) {

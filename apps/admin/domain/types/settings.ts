@@ -12,7 +12,14 @@ export enum SettingKey {
   INVOICE_PREFIX = 'invoice_prefix',
   PAYMENT_TERMS = 'payment_terms',
   AUTHORIZED_SIGNATURE = 'authorized_signature',
+  GST_NUMBER = 'gst_number',
 }
+
+/** GSTIN format: state code, PAN, entity code, Z, and checksum character. */
+export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
+/** Mazhavil's default invoice GSTIN, used only when no value is configured. */
+export const DEFAULT_GST_NUMBER = '32ATOPS2936C1ZO';
 
 // Setting Entity
 export interface Setting {

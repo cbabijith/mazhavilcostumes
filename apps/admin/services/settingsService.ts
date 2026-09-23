@@ -6,12 +6,13 @@
  * @module services/settingsService
  */
 
-import { RepositoryResult } from '@/repository';
+import { RepositoryResult, RepositoryError } from '@/repository';
 import { 
   Setting, 
   SettingKey,
-  UpdateSettingDTO
-} from '@/domain/types/settings';
+  GSTIN_PATTERN,
+  DEFAULT_GST_NUMBER,
+} from '@/domain';
 import { settingsRepository } from '@/repository';
 
 export class SettingsService {
@@ -72,12 +73,48 @@ export class SettingsService {
    * Set a generic string value for a setting key
    */
   async setValue(key: SettingKey, value: string): Promise<RepositoryResult<Setting>> {
+    if (key === SettingKey.GST_NUMBER) return this.setGstNumber(value);
     return await settingsRepository.upsert(
       this.storeId,
       key,
       value,
       this.currentUserId
     );
+  }
+
+  /**
+   * Resolve the invoice GSTIN from the setting, store, then Mazhavil default.
+   * An explicitly empty setting suppresses the GSTIN; read failures propagate.
+   * @returns The resolved GSTIN or a repository error.
+   */
+  async getGstNumber(): Promise<RepositoryResult<string>> {
+    const result = await settingsRepository.findByStoreAndKey(this.storeId, SettingKey.GST_NUMBER);
+    if (!result.success) return { ...result, data: null };
+    if (result.data) return { data: result.data.value.trim(), error: null, success: true };
+
+    const storeResult = await settingsRepository.getStoreGstin(this.storeId);
+    if (!storeResult.success) return { ...storeResult, data: null };
+    return { data: storeResult.data?.trim() || DEFAULT_GST_NUMBER, error: null, success: true };
+  }
+
+  /**
+   * Validate and save the GSTIN; an empty string removes it from bills.
+   * @param value GSTIN entered in invoice settings.
+   * @returns The saved setting or a validation/repository error.
+   */
+  async setGstNumber(value: string): Promise<RepositoryResult<Setting>> {
+    const cleaned = value.trim().toUpperCase();
+    if (cleaned !== '' && !GSTIN_PATTERN.test(cleaned)) {
+      return {
+        data: null,
+        error: new RepositoryError(
+          'Invalid GSTIN: enter 15 characters like 32ATOPS2936C1ZO, or leave it empty.',
+          'VALIDATION_ERROR',
+        ),
+        success: false,
+      };
+    }
+    return settingsRepository.upsert(this.storeId, SettingKey.GST_NUMBER, cleaned, this.currentUserId);
   }
 
   /**

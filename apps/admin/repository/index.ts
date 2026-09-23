@@ -7,7 +7,7 @@
  */
 
 // Base repository
-export { BaseRepository } from './supabaseClient';
+export { BaseRepository, RepositoryError } from './supabaseClient';
 export type { RepositoryResult } from './supabaseClient';
 export { 
   createRepositoryResult, 

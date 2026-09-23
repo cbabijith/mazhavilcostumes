@@ -121,6 +121,7 @@ export const queryKeys = {
   
   // Settings queries
   settings: ['settings'] as const,
+  setting: (key: string) => ['settings', key] as const,
 } as const;
 
 /**

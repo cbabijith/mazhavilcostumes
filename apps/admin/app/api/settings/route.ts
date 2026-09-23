@@ -1,15 +1,16 @@
 import { NextRequest } from "next/server";
-import { settingsService } from "@/services/settingsService";
+import { SettingsService } from "@/services";
 import { apiGuard } from "@/lib/apiGuard";
 import { getAuthUser } from "@/lib/auth";
 import { apiSuccess, apiRepositoryError, apiBadRequest, apiForbidden, apiInternalError } from "@/lib/apiResponse";
-import { SettingKey } from "@/domain/types/settings";
+import { SettingKey } from "@/domain";
 
 export async function GET(request: NextRequest) {
   try {
     const guard = await apiGuard(request, 'settings');
     if (guard.error) return guard.error;
 
+    const settingsService = new SettingsService();
     // Set the real store_id from the authenticated user
     const authUser = await getAuthUser(request);
     if (authUser?.store_id) {
@@ -32,11 +33,17 @@ export async function GET(request: NextRequest) {
       return apiSuccess({ value: result.data });
     }
 
+    if (key === SettingKey.GST_NUMBER) {
+      const result = await settingsService.getGstNumber();
+      if (!result.success) return apiRepositoryError(result.error, 'Failed to fetch GST number');
+      return apiSuccess({ value: result.data });
+    }
+
     const result = await settingsService.findByKey(key);
     if (!result.success) {
       return apiRepositoryError(result.error, `Failed to fetch setting ${key}`);
     }
-    return apiSuccess({ value: result.data?.value || null });
+    return apiSuccess({ value: result.data?.value ?? null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiInternalError(message);
@@ -60,6 +67,7 @@ export async function PATCH(request: NextRequest) {
       return apiBadRequest('Key and string value are required');
     }
 
+    const settingsService = new SettingsService();
     settingsService.setUserContext(authUser.staff_id || null, authUser.branch_id || null);
     if (authUser.store_id) {
       settingsService.setStoreId(authUser.store_id);

@@ -25,6 +25,20 @@ The app uses a **Feature-First Architecture**. Instead of grouping by technical 
 
 ## Implemented Features
 
+### Invoice GSTIN and settlement refresh (PR #89)
+
+- Admins can open **Drawer → Invoice Settings** to edit the business GSTIN printed on deposit and final bills. Input is trimmed, uppercased and format-validated; saving an empty value removes the GSTIN. Loading failures cannot overwrite a saved value, and failed saves retain the draft for retry.
+- The settings viewmodel calls `SettingsRepository`, which uses the authenticated shared API: `GET /api/settings?key=gst_number` and `PATCH /api/settings` with `{ "key": "gst_number", "value": "..." }`. Manager/staff accounts cannot access the editor, and the server enforces write permissions.
+- Successful order creation, updates, deletions, returns and payment changes refresh cached order lists, details, payments, dashboard metrics and reports. This prevents a completed return from leaving stale Pending/Revenue Due cards on mobile.
+- The shared admin backend performs the payment reconciliation, dashboard RPC fix and invoice PDF rendering. These Flutter changes require the corresponding backend deployment; no live database migration is executed by the app.
+
+Offline verification:
+
+```sh
+flutter analyze --no-pub
+flutter test --no-pub test/widget/invoice_settings_test.dart test/unit/pr89_mobile_contract_test.dart test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
+```
+
 ### Order return settlement
 
 - The Order Items section matches the website reference: **Mark All Good**, **Good / Damaged / Not Returned**, **Discount**, and one return action. The settlement preview appears when a discount or fee is present and updates while typing; it stays hidden when there are no adjustments. Extra late-fee and return-notes inputs and the separate Good-condition save button are omitted. Damage details appear only when Damaged is selected.

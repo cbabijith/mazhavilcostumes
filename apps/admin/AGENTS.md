@@ -6,6 +6,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## September 23, 2026 - PR #89 port
+- Ported payment-ledger reconciliation after order creation/returns and await settlement before responding. Preserve `refund_waived`; repeat reconciliation must not duplicate completion history.
+- Send `p_branch_id: null` for all-branch dashboard RPC calls and propagate RPC failures instead of presenting zero cards.
+- Invoice GSTIN resolves from the invoice store's `gst_number` setting, then `stores.gstin`, then the Mazhavil default. An explicitly empty setting suppresses GSTIN; never substitute another store's setting.
+- GSTIN settings use request-local service instances and shared client/server format validation. Reports accept only known report IDs.
+- Migration 045 is retained from PR #89 for other environments. Do not execute it against a live database without explicit permission.
+- Offline regression checks: `node scripts/test-pr89-regressions.cjs`; migration checks: `node scripts/test-pr89-migration.cjs <path-to-@electric-sql/pglite>` against disposable PostgreSQL only.
+
 ## April 23, 2026 - Login Page Redesign
 - Redesigned the admin login page with a cleaner, minimalist UI
 - Changed background from dark gradient to light slate-50 for better readability

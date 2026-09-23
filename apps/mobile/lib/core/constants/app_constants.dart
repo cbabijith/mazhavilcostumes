@@ -41,6 +41,17 @@ class AppStrings {
   static const String newProduct = 'New Product';
   static const String unableToLoadDashboard = 'Unable to load dashboard';
   static const String retry = 'Retry';
+  static const String invoiceSettings = 'Invoice Settings';
+  static const String gstNumber = 'GST Number (GSTIN)';
+  static const String gstNumberHelp =
+      'Printed on deposit and final bills. Leave empty to remove the GSTIN.';
+  static const String invalidGstNumber =
+      'Enter a valid 15-character GSTIN or leave it empty.';
+  static const String saveInvoiceSettings = 'Save Invoice Settings';
+  static const String invoiceSettingsSaved = 'Invoice settings saved';
+  static const String saving = 'Saving...';
+  static const String settingsAdminOnly = 'Only admins can edit invoice settings.';
+  static const String settingsLoadFailed = 'Unable to load invoice settings.';
 
   // Analytics strings
   static const String revenueAnalytics = 'Revenue & Analytics';

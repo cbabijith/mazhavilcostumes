@@ -11,9 +11,11 @@ import {
   useInvoicePrefix,
   usePaymentTerms,
   useAuthorizedSignature,
+  useGstNumber,
   useUpdateSetting
 } from "@/hooks";
 import { useAppStore } from "@/stores";
+import { GSTIN_PATTERN, DEFAULT_GST_NUMBER } from "@/domain";
 
 export default function SettingsPage() {
   const { data: isGstEnabledResult, isLoading: loadingGstEnabled } = useIsGSTEnabled();
@@ -26,6 +28,7 @@ export default function SettingsPage() {
   const { data: invoicePrefixResult, isLoading: loadingPrefix } = useInvoicePrefix();
   const { data: paymentTermsResult, isLoading: loadingTerms } = usePaymentTerms();
   const { data: signatureResult, isLoading: loadingSig } = useAuthorizedSignature();
+  const { data: gstNumberResult, isLoading: loadingGstNumber, error: gstNumberError } = useGstNumber();
   
   // Derive GST enabled from query result
   const isGstEnabled = (isGstEnabledResult?.success && isGstEnabledResult.data !== null) ? isGstEnabledResult.data : false;
@@ -34,20 +37,29 @@ export default function SettingsPage() {
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [paymentTerms, setPaymentTerms] = useState('');
   const [authorizedSignature, setAuthorizedSignature] = useState('');
+  const [gstNumber, setGstNumber] = useState('');
 
   // Sync invoice hooks with state when data loads
   useEffect(() => {
     if (invoicePrefixResult?.success && invoicePrefixResult.data) setInvoicePrefix(invoicePrefixResult.data.value);
     if (paymentTermsResult?.success && paymentTermsResult.data) setPaymentTerms(paymentTermsResult.data.value);
     if (signatureResult?.success && signatureResult.data) setAuthorizedSignature(signatureResult.data.value);
-  }, [invoicePrefixResult, paymentTermsResult, signatureResult]);
+    if (gstNumberResult?.data) setGstNumber(gstNumberResult.data.value);
+  }, [invoicePrefixResult, paymentTermsResult, signatureResult, gstNumberResult]);
+
+  const gstNumberValid = gstNumber.trim() === '' || GSTIN_PATTERN.test(gstNumber.trim().toUpperCase());
 
   const handleSaveInvoiceSettings = async () => {
+    if (!gstNumberValid) {
+      showError('Invalid GSTIN', 'Enter a 15-character GSTIN or leave it empty to remove it from bills.');
+      return;
+    }
     try {
       await Promise.all([
         updateSetting({ key: 'invoice_prefix', value: invoicePrefix }),
         updateSetting({ key: 'payment_terms', value: paymentTerms }),
         updateSetting({ key: 'authorized_signature', value: authorizedSignature }),
+        updateSetting({ key: 'gst_number', value: gstNumber.trim().toUpperCase() }),
       ]);
       showSuccess("Invoice settings saved successfully");
     } catch (err) {
@@ -122,6 +134,27 @@ export default function SettingsPage() {
             </div>
 
             <div className="space-y-2">
+              <label htmlFor="gst-number" className="text-sm font-semibold text-slate-700">GST Number (GSTIN)</label>
+              <Input
+                id="gst-number"
+                value={gstNumber}
+                onChange={(event) => setGstNumber(event.target.value.toUpperCase())}
+                onBlur={() => setGstNumber(gstNumber.trim().toUpperCase())}
+                placeholder={DEFAULT_GST_NUMBER}
+                maxLength={15}
+                disabled={loadingGstNumber || !!gstNumberError}
+                aria-invalid={!gstNumberValid}
+                aria-describedby="gst-number-help"
+                className="bg-slate-50 border-slate-200 focus:border-primary max-w-xs font-mono"
+              />
+              <p id="gst-number-help" className={`text-xs ${!gstNumberValid || gstNumberError ? 'text-red-600' : 'text-slate-500'}`}>
+                {gstNumberError ? 'Unable to load the saved GSTIN. Reload settings before saving.'
+                  : gstNumberValid ? 'Printed on bills. Leave empty to remove the GSTIN.'
+                    : `Enter a valid 15-character GSTIN, such as ${DEFAULT_GST_NUMBER}.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-700">Payment Terms</label>
               <Textarea
                 value={paymentTerms}
@@ -144,7 +177,7 @@ export default function SettingsPage() {
 
             <Button 
               onClick={handleSaveInvoiceSettings}
-              disabled={updatingSettings || loadingPrefix || loadingTerms || loadingSig}
+              disabled={updatingSettings || loadingPrefix || loadingTerms || loadingSig || loadingGstNumber || !!gstNumberError || !gstNumberValid}
               className="shadow-lg shadow-primary/25 bg-slate-900 text-white hover:bg-slate-800"
             >
               {updatingSettings ? "Saving..." : "Save Invoice Settings"}
