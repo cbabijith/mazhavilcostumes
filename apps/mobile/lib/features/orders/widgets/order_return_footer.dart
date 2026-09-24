@@ -1,4 +1,4 @@
-/// Website-aligned return footer: pending notice, discount and one save action.
+/// Website-aligned return footer: payment, pending notice, discount and save.
 library;
 
 import 'package:flutter/material.dart';
@@ -13,6 +13,8 @@ class OrderReturnFooter extends StatelessWidget {
     required this.discountController,
     required this.onDiscountChanged,
     required this.onSubmit,
+    required this.balanceDue,
+    required this.onCollectPayment,
     this.settlementPreview,
   });
 
@@ -20,6 +22,8 @@ class OrderReturnFooter extends StatelessWidget {
   final TextEditingController discountController;
   final ValueChanged<String> onDiscountChanged;
   final VoidCallback? onSubmit;
+  final double balanceDue;
+  final VoidCallback? onCollectPayment;
   final Widget? settlementPreview;
 
   @override
@@ -42,6 +46,79 @@ class OrderReturnFooter extends StatelessWidget {
         children: [
           if (settlementPreview != null) ...[
             settlementPreview!,
+            SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
+          ],
+          if (balanceDue > 0) ...[
+            Container(
+              key: const ValueKey('return-payment-due'),
+              padding: Responsive.all(AppSizes.spacingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.05),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.25),
+                ),
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: AppColors.error,
+                        size: Responsive.icon(AppSizes.iconSmall),
+                      ),
+                      SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppStrings.paymentDue(balanceDue),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                              ),
+                            ),
+                            SizedBox(
+                              height: Responsive.h(AppSizes.spacingTiny),
+                            ),
+                            Text(
+                              AppStrings.returnPaymentHint,
+                              style: TextStyle(
+                                fontSize: Responsive.sp(AppSizes.fontSmall),
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+                  FilledButton(
+                    onPressed: onCollectPayment,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                    ),
+                    child: Text(
+                      AppStrings.collectPayment,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           ],
           if (pendingUnits > 0) ...[
@@ -133,7 +210,7 @@ class OrderReturnFooter extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: pendingUnits > 0
                   ? AppColors.warning
-                  : AppColors.primary,
+                  : AppColors.text,
               foregroundColor: AppColors.background,
               padding: Responsive.all(AppSizes.spacingLarge),
               shape: RoundedRectangleBorder(

@@ -11,6 +11,7 @@ import 'package:mobile/features/orders/repositories/order_repository.dart';
 import 'package:mobile/features/orders/viewmodels/providers/order_provider.dart';
 import 'package:mobile/features/orders/views/order_detail_view.dart';
 import 'package:mobile/features/orders/widgets/order_return_footer.dart';
+import 'package:mobile/features/orders/widgets/return_quantity_selector.dart';
 
 import '../support/order_return_fixtures.dart';
 
@@ -66,7 +67,8 @@ class FakeReturnRepository extends OrderRepository {
     submittedNotes = notes;
     final returned = items.single['returned_quantity'] as int;
     order = returnOrder(
-      status: returned == 0 ? 'partial' : 'returned',
+      status: returned < order.items!.single.quantity ? 'partial' : 'returned',
+      quantity: order.items!.single.quantity,
       total: order.totalAmount - (discount ?? 0),
       discount: order.discount + (discount ?? 0),
       late: lateFee ?? order.lateFee,
@@ -102,6 +104,178 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets(
+    'return count can split a line across visits without double counting',
+    (tester) async {
+      final repository = FakeReturnRepository()
+        ..order = returnOrder(quantity: 3);
+      await openOrder(tester, repository);
+      final selector = find.byType(ReturnQuantitySelector);
+      final count = find.descendant(
+        of: selector,
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(count).controller!.text, '3');
+      expect(find.text(AppStrings.partialReturn), findsNothing);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+      );
+      await tapVisible(
+        tester,
+        find.byTooltip(AppStrings.decreaseReturnQuantity),
+      );
+      await tapVisible(
+        tester,
+        find.byTooltip(AppStrings.decreaseReturnQuantity),
+      );
+      expect(tester.widget<TextField>(count).controller!.text, '1');
+      expect(find.text(AppStrings.savePartialReturn(2)), findsOneWidget);
+      await tapVisible(tester, find.text(AppStrings.savePartialReturn(2)));
+      expect(find.text('1 (1 Good, 0 Damaged)'), findsOneWidget);
+      await tapVisible(tester, find.text('Confirm & Save'));
+      expect(repository.submissions.single.single['returned_quantity'], 1);
+      expect(find.text(AppStrings.unitsOut(2)), findsOneWidget);
+      expect(tester.widget<TextField>(count).controller!.text, '2');
+      await tapVisible(
+        tester,
+        find.byTooltip(AppStrings.decreaseReturnQuantity),
+      );
+      await tapVisible(tester, find.text(AppStrings.savePartialReturn(1)));
+      await tapVisible(tester, find.text('Confirm & Save'));
+      expect(repository.submissions.last.single['returned_quantity'], 2);
+      expect(selector, findsNothing);
+      await tapVisible(tester, find.text(AppStrings.completeReturn));
+      await tapVisible(tester, find.text('Confirm & Complete'));
+      expect(repository.submissions.last.single['returned_quantity'], 3);
+      expect(find.byType(OrderReturnFooter), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'quantity entry clamps damage, blocks zero, and Mark All Good resets count',
+    (tester) async {
+      final repository = FakeReturnRepository()
+        ..order = returnOrder(quantity: 3);
+      await openOrder(tester, repository);
+      final selector = find.byType(ReturnQuantitySelector);
+      final count = find.descendant(
+        of: selector,
+        matching: find.byType(TextField),
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.returnDamaged),
+      );
+      await tester.ensureVisible(count);
+      await tester.enterText(count, '2');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<DropdownButton<int>>(find.byType(DropdownButton<int>))
+            .value,
+        2,
+      );
+      await tester.enterText(count, '99');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(count).controller!.text, '3');
+      await tester.enterText(count, '0');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text(AppStrings.savePartialReturn(3)));
+      expect(find.text(AppStrings.invalidReturnCount), findsOneWidget);
+      expect(repository.submissions, isEmpty);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.notReturned),
+      );
+      expect(tester.widget<TextField>(count).enabled, isFalse);
+      await tapVisible(tester, find.text('Mark All Good'));
+      expect(tester.widget<TextField>(count).controller!.text, '3');
+      expect(find.text(AppStrings.partialReturn), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'footer payment due opens collection with the live discounted balance',
+    (tester) async {
+      final repository = FakeReturnRepository();
+      await openOrder(tester, repository);
+      final banner = find.byKey(const ValueKey('return-payment-due'));
+      expect(find.text(AppStrings.paymentDue(120)), findsOneWidget);
+      final discount = find.byKey(const ValueKey('return-discount'));
+      await tester.ensureVisible(discount);
+      await tester.enterText(discount, '20');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.paymentDue(100)), findsOneWidget);
+      await tapVisible(
+        tester,
+        find.descendant(
+          of: banner,
+          matching: find.text(AppStrings.collectPayment),
+        ),
+      );
+      final amount = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(amount).controller!.text, '100.00');
+      expect(repository.submissions, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('new return controls fit a narrow screen with large text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final discount = TextEditingController();
+    addTearDown(discount.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 844),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    ReturnQuantitySelector(
+                      count: 1,
+                      outstanding: 3,
+                      status: 'good',
+                      onChanged: (_) {},
+                    ),
+                    OrderReturnFooter(
+                      pendingUnits: 2,
+                      balanceDue: 240,
+                      discountController: discount,
+                      onDiscountChanged: (_) {},
+                      onSubmit: () {},
+                      onCollectPayment: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.returningNow), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final savedLateFee in [0.0, 50.0]) {
     testWidgets('simple Good return preserves saved late fee $savedLateFee', (
       tester,
@@ -152,44 +326,42 @@ void main() {
     });
   }
 
-  testWidgets(
-    'Not Returned saves pending units and can later complete the return',
-    (tester) async {
-      final repository = FakeReturnRepository();
-      await openOrder(tester, repository);
-      await tapVisible(
-        tester,
-        find.widgetWithText(OutlinedButton, AppStrings.notReturned),
-      );
-      expect(find.text(AppStrings.partialReturn), findsOneWidget);
-      expect(find.text(AppStrings.savePartialReturn(1)), findsOneWidget);
-      expect(repository.submissions, isEmpty);
-      await tapVisible(tester, find.text(AppStrings.savePartialReturn(1)));
-      expect(find.text('Confirm Partial Return'), findsOneWidget);
-      await tapVisible(tester, find.text('Confirm & Save'));
-      expect(repository.submissions.single.single['returned_quantity'], 0);
-      expect(repository.submissions.single.single['damage_charges'], 0);
-      expect(find.text(AppStrings.savePartialReturn(1)), findsOneWidget);
-      expect(find.text('Good Condition Saved'), findsNothing);
-      await tapVisible(
-        tester,
-        find.widgetWithText(OutlinedButton, AppStrings.returnGood),
-      );
-      expect(find.text(AppStrings.partialReturn), findsNothing);
-      await tapVisible(tester, find.text(AppStrings.completeReturn));
-      await tapVisible(tester, find.text('Confirm & Complete'));
-      expect(repository.submissions.last.single['returned_quantity'], 1);
-      expect(find.byType(OrderReturnFooter), findsNothing);
-      expect(tester.takeException(), isNull);
-    },
-  );
+  testWidgets('Not Returned alone is blocked; Good can complete the return', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository();
+    await openOrder(tester, repository);
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.notReturned),
+    );
+    expect(find.text(AppStrings.partialReturn), findsOneWidget);
+    expect(find.text(AppStrings.savePartialReturn(1)), findsOneWidget);
+    expect(repository.submissions, isEmpty);
+    await tapVisible(tester, find.text(AppStrings.savePartialReturn(1)));
+    expect(find.text(AppStrings.noItemsReturned), findsOneWidget);
+    expect(repository.submissions, isEmpty);
+    expect(find.text(AppStrings.savePartialReturn(1)), findsOneWidget);
+    expect(find.text('Good Condition Saved'), findsNothing);
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+    );
+    expect(find.text(AppStrings.partialReturn), findsNothing);
+    await tapVisible(tester, find.text(AppStrings.completeReturn));
+    await tapVisible(tester, find.text('Confirm & Complete'));
+    expect(repository.submissions.last.single['returned_quantity'], 1);
+    expect(find.byType(OrderReturnFooter), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'unmarked items must be checked; Mark All Good completes the checklist',
     (tester) async {
       final repository = FakeReturnRepository();
       await openOrder(tester, repository);
-      await tapVisible(tester, find.text(AppStrings.savePartialReturn(1)));
+      expect(find.text(AppStrings.partialReturn), findsNothing);
+      await tapVisible(tester, find.text(AppStrings.completeReturn));
       expect(find.text(AppStrings.incompleteCheckup), findsOneWidget);
       expect(find.byType(AlertDialog), findsNothing);
       expect(repository.submissions, isEmpty);
@@ -273,7 +445,7 @@ void main() {
           '₹${total.toStringAsFixed(2)}',
         );
         expectRow(receipt, 'Balance Due', '₹${balance.toStringAsFixed(2)}');
-        expect(find.text(AppStrings.savePartialReturn(1)), findsOneWidget);
+        expect(find.text(AppStrings.completeReturn), findsOneWidget);
       }
 
       for (final cleared in ['0', '', 'NaN']) {

@@ -108,6 +108,23 @@ class AppStrings {
   static const String grandTotal = 'Grand Total';
   static const String partialReturn = 'PARTIAL RETURN';
   static const String completeReturn = 'Complete Return Process';
+  static const String returningNow = 'RETURNING NOW';
+  static const String returningUnits = 'Returning Units';
+  static const String decreaseReturnQuantity = 'Decrease returning quantity';
+  static const String increaseReturnQuantity = 'Increase returning quantity';
+  static const String stayingWithCustomer = 'Staying with customer';
+  static const String earlierReturn = 'Returned · Saved in an earlier return';
+  static const String collectPayment = 'Collect Payment';
+  static const String returnPaymentHint =
+      'Collect the remaining balance before or after completing the return.';
+  static const String invalidReturnCount =
+      'The returning count must be between 1 and the units still out. '
+      'Choose Not Returned for items staying with the customer.';
+  static const String noItemsReturned =
+      'Mark at least one item as Good or Damaged to save a return.';
+  static String unitsOut(int count) => 'of $count out';
+  static String unitsStayingOut(int count) => '$count staying out';
+  static String paymentDue(double amount) => 'Payment Due — ₹${amount.toStringAsFixed(2)}';
   static const String incompleteCheckup =
       'Please mark Good, Damaged or Not Returned for every item before saving.';
   static String savePartialReturn(int pending) =>
@@ -119,7 +136,7 @@ class AppStrings {
   static const String invalidReturnAdjustment =
       'Enter a valid, non-negative discount.';
   static const String returnUnavailable =
-      'Only ongoing, in-use or partial orders can be returned.';
+      'Only ongoing, in-use, partial or flagged orders can be returned.';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility

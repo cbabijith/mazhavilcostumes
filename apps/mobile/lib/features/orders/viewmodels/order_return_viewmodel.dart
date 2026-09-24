@@ -29,22 +29,26 @@ class OrderReturnViewModel {
   bool canReturn(OrderStatus status) =>
       status == OrderStatus.ongoing ||
       status == OrderStatus.inUse ||
-      status == OrderStatus.partial;
+      status == OrderStatus.partial ||
+      status == OrderStatus.flagged;
 
   /// An inspection can be saved before the physical return is completed.
   Map<String, Object?> inspectionFor(OrderItem item) => {
-    'status':
-        (item.isReturned == true || receivedQuantity(item) > 0) &&
-            receivedQuantity(item) < item.quantity
-        ? 'missing'
-        : switch (item.conditionRating) {
-            ConditionRating.damaged => 'damaged',
-            ConditionRating.excellent || ConditionRating.good => 'good',
-            _ => null,
-          },
+    'status': switch (item.conditionRating) {
+      ConditionRating.damaged => 'damaged',
+      ConditionRating.excellent || ConditionRating.good => 'good',
+      _ => null,
+    },
     'damage_fee': item.damageCharges ?? 0.0,
-    'damaged_quantity': item.damagedQuantity ?? item.quantity,
+    'damaged_quantity': outstandingQuantity(item) > 0
+        ? (item.conditionRating == ConditionRating.damaged &&
+                      (item.damagedQuantity ?? 0) > 0
+                  ? item.damagedQuantity!
+                  : outstandingQuantity(item))
+              .clamp(1, outstandingQuantity(item))
+        : 0,
     'notes': item.damageDescription ?? '',
+    'return_count': outstandingQuantity(item),
   };
 
   /// Refresh saved values while retaining inspections edited on this screen.
@@ -76,6 +80,7 @@ class OrderReturnViewModel {
     if (preserveDraft &&
         previous != null &&
         local != null &&
+        item.quantity == previous.quantity &&
         item.isReturned == previous.isReturned &&
         receivedQuantity(item) == receivedQuantity(previous)) {
       final saved = inspectionFor(previous);
@@ -112,37 +117,148 @@ class OrderReturnViewModel {
   double inspectionDamage(
     List<OrderItem> items,
     Map<String, Map<String, Object?>> inspections,
-  ) => returnPayload(
-    items,
-    inspections,
-  ).fold(0.0, (sum, item) => sum + (item['damage_charges'] as num).toDouble());
+  ) => items.fold(0.0, (sum, item) {
+    final inspection = inspections[item.id];
+    // Excluded rows retain their saved assessment on the server.
+    if (outstandingQuantity(item) == 0 ||
+        inspection?['status'] == null ||
+        inspection?['status'] == 'missing' ||
+        returningNow(item, inspection) == 0) {
+      return sum + (item.damageCharges ?? 0);
+    }
+    return sum +
+        (inspection?['status'] == 'damaged'
+            ? (inspection?['damage_fee'] as num? ?? 0).toDouble()
+            : 0);
+  });
 
   /// Prefer the cumulative quantity; older API responses may set is_returned
   /// even when no units have physically returned.
   int receivedQuantity(OrderItem item) =>
-      (item.returnedQuantity ?? (item.isReturned == true ? item.quantity : 0))
-          .clamp(0, item.quantity);
+      (item.returnedQuantity ?? 0).clamp(0, item.quantity);
 
+  int outstandingQuantity(OrderItem item) =>
+      item.quantity - receivedQuantity(item);
+
+  int returningNow(OrderItem item, Map<String, Object?>? inspection) =>
+      inspection?['status'] == 'missing'
+      ? 0
+      : ((inspection?['return_count'] as int?) ?? outstandingQuantity(item))
+            .clamp(0, outstandingQuantity(item));
+
+  /// Quantities sent to the API are cumulative, while the control shows this visit.
   int returnedQuantity(OrderItem item, Map<String, Object?>? inspection) =>
-      inspection?['status'] == 'good' || inspection?['status'] == 'damaged'
-      ? item.quantity
-      : receivedQuantity(item);
+      receivedQuantity(item) +
+      (inspection?['status'] == 'good' || inspection?['status'] == 'damaged'
+          ? returningNow(item, inspection)
+          : 0);
+
+  Map<String, Object?> withStatus(
+    OrderItem item,
+    Map<String, Object?> inspection,
+    String status,
+  ) {
+    final count = status == 'missing'
+        ? 0
+        : returningNow(item, inspection) > 0
+        ? returningNow(item, inspection)
+        : outstandingQuantity(item);
+    return {
+      ...inspection,
+      'status': status,
+      'return_count': count,
+      'damaged_quantity': status == 'damaged' && count > 0
+          ? ((inspection['damaged_quantity'] as int? ?? 0) > 0
+                    ? inspection['damaged_quantity'] as int
+                    : count)
+                .clamp(1, count)
+          : 0,
+      'damage_fee': status == 'damaged' ? inspection['damage_fee'] ?? 0.0 : 0.0,
+      'notes': status == 'damaged' ? inspection['notes'] ?? '' : '',
+    };
+  }
+
+  Map<String, Object?> withReturningCount(
+    OrderItem item,
+    Map<String, Object?> inspection,
+    int count,
+  ) {
+    final clamped = count.clamp(0, outstandingQuantity(item));
+    return {
+      ...inspection,
+      'return_count': clamped,
+      'damaged_quantity': inspection['status'] == 'damaged' && clamped > 0
+          ? ((inspection['damaged_quantity'] as int?) ?? clamped).clamp(
+              1,
+              clamped,
+            )
+          : 0,
+    };
+  }
 
   int pendingUnits(
     List<OrderItem> items,
     Map<String, Map<String, Object?>> inspections,
   ) => items.fold(
     0,
-    (sum, item) =>
-        sum + item.quantity - returnedQuantity(item, inspections[item.id]),
+    (sum, item) => inspections[item.id]?['status'] == null
+        ? sum
+        : sum + item.quantity - returnedQuantity(item, inspections[item.id]),
   );
 
-  /// Build cumulative return quantities without reducing previously received stock.
+  /// Match the web checklist: every outstanding row needs a decision, and at
+  /// least one unit must come back. A zero-count Good/Damaged row is invalid.
+  String? inspectionError(
+    List<OrderItem> items,
+    Map<String, Map<String, Object?>> inspections,
+  ) {
+    final outstanding = items.where((item) => outstandingQuantity(item) > 0);
+    if (outstanding.any((item) => inspections[item.id]?['status'] == null)) {
+      return AppStrings.incompleteCheckup;
+    }
+    if (outstanding.any(
+      (item) =>
+          inspections[item.id]?['status'] != 'missing' &&
+          returningNow(item, inspections[item.id]) == 0,
+    )) {
+      return AppStrings.invalidReturnCount;
+    }
+    if (!outstanding.any(
+      (item) => returningNow(item, inspections[item.id]) > 0,
+    )) {
+      return AppStrings.noItemsReturned;
+    }
+    return null;
+  }
+
+  /// Summarize this visit in units, including good units on a damaged line.
+  ({int good, int damaged}) inspectionSummary(
+    List<OrderItem> items,
+    Map<String, Map<String, Object?>> inspections,
+  ) {
+    var good = 0;
+    var damaged = 0;
+    for (final item in items) {
+      final draft = inspections[item.id];
+      if (draft?['status'] != 'good' && draft?['status'] != 'damaged') continue;
+      final count = returningNow(item, draft);
+      final damagedCount = draft?['status'] == 'damaged'
+          ? ((draft?['damaged_quantity'] as int?) ?? count).clamp(0, count)
+          : 0;
+      damaged += damagedCount;
+      good += count - damagedCount;
+    }
+    return (good: good, damaged: damaged);
+  }
+
+  /// Only send units received now; excluded rows keep their saved assessment.
   List<Map<String, dynamic>> returnPayload(
     List<OrderItem> items,
     Map<String, Map<String, Object?>> inspections,
   ) => [
-    for (final item in items) _returnItem(item, inspections[item.id] ?? {}),
+    for (final item in items)
+      if (returnedQuantity(item, inspections[item.id]) > receivedQuantity(item))
+        _returnItem(item, inspections[item.id] ?? {}),
   ];
 
   Map<String, dynamic> _returnItem(
@@ -150,29 +266,17 @@ class OrderReturnViewModel {
     Map<String, Object?> inspection,
   ) {
     final damaged = inspection['status'] == 'damaged';
-    final keepSavedDamage =
-        inspection['status'] == 'missing' &&
-        receivedQuantity(item) > 0 &&
-        item.conditionRating == ConditionRating.damaged;
     return {
       'item_id': item.id,
       'returned_quantity': returnedQuantity(item, inspection),
-      'condition_rating': damaged || keepSavedDamage ? 'damaged' : 'excellent',
-      'damage_charges': damaged
-          ? inspection['damage_fee'] ?? 0
-          : keepSavedDamage
-          ? item.damageCharges ?? 0
-          : 0,
+      'condition_rating': damaged ? 'damaged' : 'excellent',
+      'damage_charges': damaged ? inspection['damage_fee'] ?? 0 : 0,
       'damaged_quantity': damaged
-          ? inspection['damaged_quantity'] ?? item.quantity
-          : keepSavedDamage
-          ? item.damagedQuantity ?? 0
+          ? ((inspection['damaged_quantity'] as int?) ??
+                    returningNow(item, inspection))
+                .clamp(1, returningNow(item, inspection))
           : 0,
-      'damage_description': damaged
-          ? inspection['notes'] ?? ''
-          : keepSavedDamage
-          ? item.damageDescription ?? ''
-          : '',
+      'damage_description': damaged ? inspection['notes'] ?? '' : '',
     };
   }
 

@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mobile/core/constants/app_constants.dart';
 import 'package:mobile/features/orders/models/order.dart';
 import 'package:mobile/features/orders/viewmodels/order_return_viewmodel.dart';
 
@@ -138,6 +139,7 @@ void main() {
       OrderStatus.ongoing,
       OrderStatus.inUse,
       OrderStatus.partial,
+      OrderStatus.flagged,
     });
   });
 
@@ -153,15 +155,17 @@ void main() {
     },
   );
 
-  test('Not Returned sends zero units and keeps the rent unchanged', () {
+  test('Not Returned is excluded and keeps the rent unchanged', () {
     final order = returnOrder(quantity: 2);
     final draft = {
       'test-item': <String, Object?>{'status': 'missing'},
     };
     expect(viewModel.pendingUnits(order.items!, draft), 2);
-    final payload = viewModel.returnPayload(order.items!, draft).single;
-    expect(payload['returned_quantity'], 0);
-    expect(payload['damage_charges'], 0);
+    expect(viewModel.returnPayload(order.items!, draft), isEmpty);
+    expect(
+      viewModel.inspectionError(order.items!, draft),
+      AppStrings.noItemsReturned,
+    );
     expect(viewModel.settlement(order).total, 150);
   });
 
@@ -176,15 +180,19 @@ void main() {
         condition: 'excellent',
       );
       final draft = {'test-item': viewModel.inspectionFor(order.items!.single)};
-      expect(draft['test-item']!['status'], 'missing');
-      expect(viewModel.pendingUnits(order.items!, draft), 2);
-      expect(
-        viewModel
-            .returnPayload(order.items!, draft)
-            .single['returned_quantity'],
-        1,
+      expect(draft['test-item']!['return_count'], 2);
+      draft['test-item'] = viewModel.withStatus(
+        order.items!.single,
+        draft['test-item']!,
+        'missing',
       );
-      draft['test-item']!['status'] = 'good';
+      expect(viewModel.pendingUnits(order.items!, draft), 2);
+      expect(viewModel.returnPayload(order.items!, draft), isEmpty);
+      draft['test-item'] = viewModel.withStatus(
+        order.items!.single,
+        draft['test-item']!,
+        'good',
+      );
       expect(viewModel.pendingUnits(order.items!, draft), 0);
       expect(
         viewModel
@@ -202,8 +210,8 @@ void main() {
       returnedQuantity: 0,
       condition: 'excellent',
     ).items!.single;
-    expect(viewModel.inspectionFor(item)['status'], 'missing');
     expect(viewModel.receivedQuantity(item), 0);
+    expect(viewModel.inspectionFor(item)['return_count'], 1);
   });
 
   test('pending units preserve damage already charged for received units', () {
@@ -216,13 +224,170 @@ void main() {
       damage: 30,
       total: 180,
     );
-    final draft = {'test-item': viewModel.inspectionFor(order.items!.single)};
+    final item = order.items!.single;
+    final draft = {
+      'test-item': viewModel.withStatus(
+        item,
+        viewModel.inspectionFor(item),
+        'missing',
+      ),
+    };
     final damage = viewModel.inspectionDamage(order.items!, draft);
     expect(damage, 30);
     expect(viewModel.settlement(order, damageFees: damage).total, 180);
+    expect(viewModel.returnPayload(order.items!, draft), isEmpty);
+  });
+
+  test('unmarked rows do not produce a false partial warning', () {
+    final order = returnOrder(quantity: 3);
+    final draft = {'test-item': viewModel.inspectionFor(order.items!.single)};
+    expect(viewModel.pendingUnits(order.items!, draft), 0);
     expect(
-      viewModel.returnPayload(order.items!, draft).single['damage_charges'],
-      30,
+      viewModel.inspectionError(order.items!, draft),
+      AppStrings.incompleteCheckup,
     );
   });
+
+  test(
+    'quantity controls use outstanding units and submit a cumulative total',
+    () {
+      final order = returnOrder(
+        quantity: 4,
+        returnedQuantity: 1,
+        condition: 'excellent',
+      );
+      final item = order.items!.single;
+      final draft = viewModel.withReturningCount(
+        item,
+        viewModel.inspectionFor(item),
+        2,
+      );
+      expect(viewModel.pendingUnits(order.items!, {'test-item': draft}), 1);
+      expect(
+        viewModel.returnPayload(order.items!, {
+          'test-item': draft,
+        }).single['returned_quantity'],
+        3,
+      );
+      expect(viewModel.withReturningCount(item, draft, 100)['return_count'], 3);
+      final zero = viewModel.withReturningCount(item, draft, -1);
+      expect(zero['return_count'], 0);
+      expect(
+        viewModel.inspectionError(order.items!, {'test-item': zero}),
+        AppStrings.invalidReturnCount,
+      );
+    },
+  );
+
+  test('reducing returning quantity also clamps damaged units', () {
+    final item = returnOrder(quantity: 4).items!.single;
+    final damaged = viewModel.withStatus(
+      item,
+      viewModel.inspectionFor(item),
+      'damaged',
+    )..['damaged_quantity'] = 4;
+    final draft = viewModel.withReturningCount(item, damaged, 2);
+    expect(draft['damaged_quantity'], 2);
+    final payload = viewModel
+        .returnPayload([item], {'test-item': draft})
+        .single;
+    expect(payload['returned_quantity'], 2);
+    expect(payload['damaged_quantity'], 2);
+    final missing = viewModel.withStatus(item, draft, 'missing');
+    expect(viewModel.returningNow(item, missing), 0);
+    expect(viewModel.withStatus(item, missing, 'damaged')['return_count'], 4);
+  });
+
+  test(
+    'fully returned items retain saved damage and are never resubmitted',
+    () {
+      final item = returnOrder(
+        quantity: 2,
+        returnedQuantity: 2,
+        condition: 'damaged',
+        damage: 30,
+      ).items!.single;
+      final draft = {'test-item': viewModel.inspectionFor(item)};
+      expect(viewModel.returnPayload([item], draft), isEmpty);
+      expect(viewModel.inspectionDamage([item], draft), 30);
+      expect(viewModel.pendingUnits([item], draft), 0);
+    },
+  );
+
+  test(
+    'mixed returns submit only arriving stock and retain excluded assessments',
+    () {
+      final saved = returnOrder(
+        quantity: 2,
+        returnedQuantity: 2,
+        condition: 'damaged',
+        damage: 30,
+      ).items!.single;
+      final arriving = OrderItem.fromJson({
+        ...returnOrder(quantity: 3, returnedQuantity: 1).items!.single.toJson(),
+        'id': 'arriving',
+      });
+      final missing = OrderItem.fromJson({
+        ...returnOrder().items!.single.toJson(),
+        'id': 'missing',
+      });
+      final items = [saved, arriving, missing];
+      final draft = {
+        saved.id: viewModel.inspectionFor(saved),
+        arriving.id: viewModel.withReturningCount(
+          arriving,
+          viewModel.withStatus(
+            arriving,
+            viewModel.inspectionFor(arriving),
+            'good',
+          ),
+          1,
+        ),
+        missing.id: viewModel.withStatus(
+          missing,
+          viewModel.inspectionFor(missing),
+          'missing',
+        ),
+      };
+      expect(viewModel.inspectionError(items, draft), isNull);
+      expect(viewModel.pendingUnits(items, draft), 2);
+      expect(viewModel.inspectionSummary(items, draft), (good: 1, damaged: 0));
+      final payload = viewModel.returnPayload(items, draft);
+      expect(payload, hasLength(1));
+      expect(payload.single['item_id'], 'arriving');
+      expect(payload.single['returned_quantity'], 2);
+      expect(viewModel.inspectionDamage(items, draft), 30);
+    },
+  );
+
+  test(
+    'refresh preserves quantity drafts but resets when received stock changes',
+    () {
+      final order = returnOrder(quantity: 3);
+      final item = order.items!.single;
+      final draft = {
+        'test-item': viewModel.withReturningCount(
+          item,
+          viewModel.withStatus(item, viewModel.inspectionFor(item), 'good'),
+          1,
+        ),
+      };
+      final merged = viewModel.mergeInspections(
+        updated: returnOrder(quantity: 3),
+        previous: order,
+        local: draft,
+      );
+      expect(merged['test-item']!['return_count'], 1);
+      final saved = viewModel.mergeInspections(
+        updated: returnOrder(
+          quantity: 3,
+          returnedQuantity: 1,
+          condition: 'excellent',
+        ),
+        previous: order,
+        local: draft,
+      );
+      expect(saved['test-item']!['return_count'], 2);
+    },
+  );
 }
