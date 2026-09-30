@@ -140,7 +140,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   }, [itemsSignature, isReturnable]);
 
   // Projected amount due including pending return fees (live preview)
-  const calculatedDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
+  const calculatedItemDamage = Object.values(returnItems).reduce((sum, item) => sum + (item.damage_fee || 0), 0);
+  const orderLevelDamage = order
+    ? Math.max(0, (order.damage_charges_total || 0)
+      - (order.items?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0))
+    : 0;
+  const calculatedDamage = orderLevelDamage + calculatedItemDamage;
 
   // Calculate if the order is overdue based on current date vs end_date
   const todayStr = typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '';
@@ -153,7 +158,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
 
   const projected_total = order
     ? (isReturnable
-      ? originalOrderTotalBeforeReturn + calculatedDamage + lateFee - discount
+      ? originalOrderTotalBeforeReturn + calculatedDamage + (order.late_fee || 0) + lateFee - discount
       : order.total_amount)
     : 0;
 
@@ -447,7 +452,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           // The good quantity is implicitly: item.quantity - damagedQty
         };
       }) || [],
-      late_fee: lateFee,
+      late_fee: (order.late_fee || 0) + lateFee,
       discount: discount,
     };
 

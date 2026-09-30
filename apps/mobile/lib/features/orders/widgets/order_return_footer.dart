@@ -1,4 +1,4 @@
-/// Website-aligned return footer: payment, pending notice, discount and save.
+/// Return footer with manual late fees, discount, payment and partial returns.
 library;
 
 import 'package:flutter/material.dart';
@@ -12,6 +12,8 @@ class OrderReturnFooter extends StatelessWidget {
     required this.pendingUnits,
     required this.discountController,
     required this.onDiscountChanged,
+    required this.lateFeeController,
+    required this.onLateFeeChanged,
     required this.onSubmit,
     required this.balanceDue,
     required this.onCollectPayment,
@@ -21,6 +23,8 @@ class OrderReturnFooter extends StatelessWidget {
   final int pendingUnits;
   final TextEditingController discountController;
   final ValueChanged<String> onDiscountChanged;
+  final TextEditingController lateFeeController;
+  final ValueChanged<String> onLateFeeChanged;
   final VoidCallback? onSubmit;
   final double balanceDue;
   final VoidCallback? onCollectPayment;
@@ -173,6 +177,38 @@ class OrderReturnFooter extends StatelessWidget {
             ),
             SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           ],
+          Text(
+            AppStrings.extraLateFee.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontTiny),
+              fontWeight: FontWeight.bold,
+              color: AppColors.secondaryText,
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+          TextField(
+            key: const ValueKey('return-late-fee'),
+            controller: lateFeeController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            onChanged: onLateFeeChanged,
+            style: TextStyle(
+              fontSize: Responsive.sp(AppSizes.fontSmall),
+              fontWeight: FontWeight.bold,
+            ),
+            decoration: InputDecoration(
+              hintText: '0',
+              isDense: true,
+              contentPadding: Responsive.all(AppSizes.spacingMedium),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(
+                  Responsive.r(AppSizes.radiusSmall),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
           Text(
             AppStrings.returnDiscount.toUpperCase(),
             maxLines: 1,

@@ -56,6 +56,18 @@ pnpm start
 
 ---
 
+## Order charges and returns
+
+`PATCH /api/orders/:id` accepts cumulative financial fields (`discount`, `late_fee`, `damage_charges_total`) and the resulting absolute `total_amount`. Extra charges are retained in the saved total. Record adjustment reasons in order notes; charging or discounting an order does not itself collect a payment.
+
+`PATCH /api/orders/:id/return` accepts the complete desired `late_fee` (omitting it keeps the saved fee) and an additional return-time `discount` in currency. Returns and `PATCH /api/orders/items/:id/damage` preserve the saved discounted rental, extra charges and order-level damage while replacing item assessments. Fees and existing discounts are not added again on later partial returns.
+
+Run the production repository regressions without network access or live database writes:
+
+```bash
+node scripts/test-order-return-adjustments.cjs
+```
+
 ## Invoice GSTIN and order settlement (PR #89)
 
 **Settings → Invoice Settings → GST Number (GSTIN)** controls the business GSTIN on deposit and final bills. Values are trimmed, uppercased, and format-validated on both client and server. Saving an empty value removes the GSTIN from bills, including when the legacy store record has a value. Until configured, the store's GSTIN is used, followed by the Mazhavil default `32ATOPS2936C1ZO`.

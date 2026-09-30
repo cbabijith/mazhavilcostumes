@@ -41,22 +41,36 @@ flutter test --no-pub test/widget/invoice_settings_test.dart test/unit/pr89_mobi
 
 ### Order return settlement
 
-- The Order Items section follows the web return flow (main `73170bf`): **Mark All Good**, **Good / Damaged / Not Returned**, **Returning Now**, **Discount**, and one return action. Multi-unit outstanding lines have minus/plus buttons and editable quantities, initially set to all outstanding units. Single-unit lines use the condition choices alone. Damage quantity is limited to units returning now. Previously returned lines show a saved label and cannot be edited or returned twice.
-- The settlement preview appears when a discount or fee is present. A separate **Payment Due / Collect Payment** panel appears whenever a balance remains, including orders without adjustments. It uses the same live balance as the collection dialog. Extra late-fee and return-notes inputs and the separate Good-condition save button are omitted.
+- The Order Items section provides **Mark All Good**, **Good / Damaged / Not Returned**, **Returning Now**, **Discount**, an optional **Extra Late Fee**, and one return action. Multi-unit outstanding lines have minus/plus buttons and editable quantities, initially set to all outstanding units. Single-unit lines use the condition choices alone. Damage quantity is limited to units returning now. Previously returned lines show a saved label and cannot be edited or returned twice.
+- The settlement preview appears when a discount or fee is present. A separate **Payment Due / Collect Payment** panel appears whenever a balance remains, including orders without adjustments. It uses the same live balance as the collection dialog. Extra Late Fee adds only the newly entered amount to any saved fee; the app does not automatically calculate daily late charges. Return-notes inputs and the separate Good-condition save button are omitted.
 - The financial receipt uses the same draft total and balance as the preview. During a new return discount it shows the combined Order Discount, the discount saved at the start of this return (Initial Discount), and Return Settlement Disc. Clearing the input restores saved amounts. Typing does not save the order or change payments.
 - **Not Returned** or a reduced count on an inspected line shows **Save Partial Return (N Pending)**. Unmarked lines do not cause a false partial-return warning, but must be inspected before submission. A zero-count Good/Damaged line is blocked; a submission must return at least one unit. Confirmation shows unit counts. Only lines returning units are sent to the API, with cumulative `returned_quantity` (previously received + returning now). Other lines retain their saved assessment and rent.
-- Discount, inspection and quantity drafts survive refreshes. A changed received quantity resets the line for the next visit. Physical returns use `returned_quantity`; the legacy `is_returned` flag alone cannot prove every unit is back.
-- Previews, confirmation, and the payment limit share `OrderReturnViewModel`. They start from the saved order total, replace damage charges, preserve existing late fees, and deduct only the newly entered return discount.
+- Discount, extra late-fee, inspection and quantity drafts survive refreshes. A successful return clears newly entered discount and fee values so a later partial-return visit does not apply them twice. A changed received quantity resets the line for the next visit. Physical returns use `returned_quantity`; the legacy `is_returned` flag alone cannot prove every unit is back.
+- Previews, the financial receipt, confirmation, and the payment limit share `OrderReturnViewModel`. They start from the saved order total, replace damage charges, preserve existing late fees, add only the newly entered late fee, and deduct only the newly entered return discount. Negative, non-numeric, NaN and infinite adjustments block return submission and payment collection.
+- Entering an extra fee before the return is overdue shows an on-time warning. The due date remains on time for its entire local calendar day; the next day is overdue. Saved fees alone do not trigger this warning.
 - The Flutter preview does not subtract an existing discount again: a saved ₹150 total previews as ₹150 without a new discount, or ₹80 with a new ₹70 return discount.
 - Return controls follow the current web statuses: ongoing, in use, partial and flagged. Flagged returns and omission of pending/already-returned rows require the matching current web backend; the older admin service in this checkout is not the reference implementation.
-- Mobile uses `PATCH /api/orders/:id/return` through the existing repository and shared Dio client. It sends the saved `late_fee` unchanged because the API replaces that value; no database operations run from Flutter.
-- Scope limitation: the unchanged API can still deduct an existing order discount again when saving an inspection or completing a return. The Flutter-only changes do not correct that server calculation or repair historical totals. The tests below verify Flutter behavior and request compatibility, not server-side persistence.
+- Mobile uses `PATCH /api/orders/:id/return` through the existing repository and shared Dio client. Because the API replaces `late_fee`, mobile sends the saved fee plus the newly entered fee as one absolute amount; it does not send `additional_late_fee`. No database operations run from Flutter.
+- Return settlement on the matching admin API preserves saved discounts and order-level damage charges while replacing item damage assessments and the absolute late fee. Deploy the matching admin changes with the mobile update. The offline tests use local fixtures and do not modify live orders or repair historical totals.
 
 Offline regression checks (no live order writes):
 
 ```sh
 flutter analyze --no-pub
 flutter test --no-pub test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
+```
+
+### Financial adjustments
+
+- **Adjust** in Order Details opens a shared sheet with four types: **Discount**, **Late Fee**, **Damage Fee**, and **Extra Charge**. Amounts must be finite positive currency values. Reasons are optional, and late fees show the same on-time warning as the return form.
+- Applying an adjustment first loads the latest order with `GET /api/orders/:id`, then sends an absolute `PATCH /api/orders/:id`. Discounts reduce the total and add to saved discount; fees and extra charges increase the total. Late and damage fees add to their saved fields. Extra charges are included in the total and labelled notes rather than a separate fee column.
+- Notes retain earlier order notes and append the type, amount and optional reason, for example `Late Fee: ₹25.00 — Returned late`. Adjustments change charges or discounts; they do not collect money, change `amount_paid`, or create payment-ledger entries. Payment collection remains a separate action.
+- Saving refreshes the order and financial receipt. Pending return discount, late-fee and inspection drafts remain independent and continue to preview on top of the refreshed saved amounts. Cancelling changes nothing; failed saves retain the sheet draft for retry. A subsequent return preserves saved adjustments and applies only new return inputs.
+- The model, viewmodel and sheet live in `lib/features/orders/models/order_adjustment.dart`, `viewmodels/order_adjustment_viewmodel.dart`, and `widgets/order_adjustment_sheet.dart`. Offline unit/sheet tests are `test/unit/order_adjustment_viewmodel_test.dart` and `test/widget/order_adjustment_sheet_test.dart`; `test/widget/order_return_flow_test.dart` also exercises the actual Order Details integration and subsequent return.
+
+```sh
+flutter analyze --no-pub
+flutter test --no-pub test/unit/order_adjustment_viewmodel_test.dart test/widget/order_adjustment_sheet_test.dart test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
 ```
 
 ### 1. Unified Dashboard

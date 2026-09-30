@@ -423,6 +423,7 @@ class OrderOperations {
       damagedQuantity: damagedQuantity,
       cancelToken: cancelToken,
     );
+    _onChanged?.call();
   }
 
   Future<Map<String, dynamic>> checkAvailability({

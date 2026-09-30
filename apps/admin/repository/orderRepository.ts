@@ -1689,18 +1689,38 @@ export class OrderRepository extends BaseRepository {
   }
 
   /**
-   * Process order return with condition assessment
+   * Process order return with condition assessment while preserving saved adjustments.
+   * @param orderId Order being returned.
+   * @param returnData Item assessments, absolute late fee, and additional discount.
+   * @returns The updated order or a repository error.
    */
   async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
     // Determine final status based on return condition
     let newStatus = 'returned';
 
-    // Fetch order items being returned — includes branch_id via join for inventory updates
-    const itemIds = returnData.items.map(i => i.item_id);
-    const { data: orderItems } = await this.client
-      .from(this.orderItemsTable)
-      .select('id, returned_quantity, product_id, orders(branch_id)')
-      .in('id', itemIds);
+    // Snapshot finances before replacing item assessments. Saved totals already
+    // include order discounts and extra charges that are not stored on items.
+    const [currentOrderResponse, priorItemsResponse] = await Promise.all([
+      this.client
+        .from(this.tableName)
+        .select('total_amount, discount, late_fee, damage_charges_total, amount_paid, payment_status')
+        .eq('id', orderId)
+        .single(),
+      this.client
+        .from(this.orderItemsTable)
+        .select('id, returned_quantity, product_id, damage_charges, orders(branch_id)')
+        .eq('order_id', orderId),
+    ]);
+    if (currentOrderResponse.error || !currentOrderResponse.data) {
+      return { data: null, error: currentOrderResponse.error, success: false };
+    }
+    if (priorItemsResponse.error) {
+      return { data: null, error: priorItemsResponse.error, success: false };
+    }
+    const currentOrder = currentOrderResponse.data;
+    const orderItems = priorItemsResponse.data || [];
+    const priorItemDamage = orderItems.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0);
+    const orderLevelDamage = Math.max(0, Number(currentOrder.damage_charges_total || 0) - priorItemDamage);
 
     // Create a map for quick O(1) lookup
     const orderItemsMap = new Map<string, { id: string; returned_quantity: number; product_id: string; branch_id: string }>();
@@ -1786,13 +1806,17 @@ export class OrderRepository extends BaseRepository {
       })
     );
 
-    // 2. Now recalculate totals from source of truth
-    const { data: allItems } = await this.client
+    // Re-read item assessments after the return while retaining separate order-level charges.
+    const { data: allItems, error: itemsError } = await this.client
       .from(this.orderItemsTable)
-      .select('damage_charges, condition_rating, quantity, returned_quantity, base_amount, gst_amount')
+      .select('damage_charges, condition_rating, quantity, returned_quantity')
       .eq('order_id', orderId);
+    if (itemsError) {
+      return { data: null, error: itemsError, success: false };
+    }
 
-    const totalDamageCharges = allItems?.reduce((sum, i) => sum + (i.damage_charges || 0), 0) || 0;
+    const itemDamage = allItems?.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0) || 0;
+    const totalDamageCharges = Math.round((orderLevelDamage + itemDamage) * 100) / 100;
     const hasDamage = allItems?.some(i => i.condition_rating === 'damaged') || false;
     const hasMissing = allItems?.some(i => (i.returned_quantity || 0) < i.quantity) || false;
 
@@ -1802,34 +1826,28 @@ export class OrderRepository extends BaseRepository {
       newStatus = 'partial';
     }
 
-    const itemTotalAfterDiscounts = allItems?.reduce((sum, i) => sum + (i.base_amount || 0) + (i.gst_amount || 0), 0) || 0;
-
-    // 3. Fetch current order to get the clean base (original discount, amount paid)
-    const { data: currentOrder } = await this.client
-      .from(this.tableName)
-      .select('discount, amount_paid')
-      .eq('id', orderId)
-      .single();
-
-    const additionalLateFee = Number(returnData.late_fee || 0);
+    // late_fee is the complete desired fee, not an increment; omitted fees stay saved.
+    const newLateFee = Number(returnData.late_fee ?? currentOrder.late_fee ?? 0);
     const additionalDiscount = Number(returnData.discount || 0);
-    const originalOrderDiscount = Number(currentOrder?.discount || 0);
+    const originalOrderDiscount = Number(currentOrder.discount || 0);
 
-    const newDiscountTotal = originalOrderDiscount + additionalDiscount;
-    
-    // Total amount = Item Total After Item Discounts - Original Order Discount + Additional Late Fee + Total Item Damage - Additional Discount
-    const newTotalAmount = Math.max(0, 
-      itemTotalAfterDiscounts - 
-      originalOrderDiscount + 
-      additionalLateFee + 
-      totalDamageCharges - 
-      additionalDiscount
-    );
+    const newDiscountTotal = Math.round((originalOrderDiscount + additionalDiscount) * 100) / 100;
+
+    // Subtract only fees being replaced. The saved base is already discounted,
+    // so rebuilding it from rental items would lose extra charges or discount it twice.
+    const savedBaseTotal = Number(currentOrder.total_amount || 0)
+      - Number(currentOrder.damage_charges_total || 0)
+      - Number(currentOrder.late_fee || 0);
+    const newTotalAmount = Math.round(Math.max(0,
+      savedBaseTotal + newLateFee + totalDamageCharges - additionalDiscount
+    ) * 100) / 100;
     
     // Update payment status if the new total changed and is not fully paid anymore
     let paymentStatus = undefined;
-    const amountPaid = Number(currentOrder?.amount_paid || 0);
-    if (newTotalAmount > amountPaid) {
+    const amountPaid = Number(currentOrder.amount_paid || 0);
+    if (currentOrder.payment_status === 'refund_waived') {
+       paymentStatus = 'refund_waived';
+    } else if (newTotalAmount > amountPaid) {
        paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
     } else {
        paymentStatus = 'paid';
@@ -1841,7 +1859,7 @@ export class OrderRepository extends BaseRepository {
       .update({
         status: newStatus,
         total_amount: newTotalAmount,
-        late_fee: additionalLateFee,
+        late_fee: newLateFee,
         discount: newDiscountTotal,
         damage_charges_total: totalDamageCharges,
         payment_status: paymentStatus,
@@ -1872,7 +1890,10 @@ export class OrderRepository extends BaseRepository {
   }
 
   /**
-   * Update damage details for a specific order item incrementally.
+   * Replace an item damage assessment without losing saved order adjustments.
+   * @param itemId Item whose damage assessment is being replaced.
+   * @param data Complete replacement assessment for the item.
+   * @returns The updated item or a repository error.
    */
   async updateOrderItemDamage(itemId: string, data: {
     condition_rating: ConditionRating;
@@ -1880,7 +1901,38 @@ export class OrderRepository extends BaseRepository {
     damage_charges: number;
     damaged_quantity: number;
   }): Promise<RepositoryResult<OrderItem>> {
-    // 1. Update the order item
+    // Snapshot the order and old item charges before replacing the assessment.
+    const existingItemResponse = await this.client
+      .from(this.orderItemsTable)
+      .select('order_id')
+      .eq('id', itemId)
+      .single();
+    if (existingItemResponse.error || !existingItemResponse.data) {
+      return { data: null, error: existingItemResponse.error, success: false };
+    }
+    const orderId = existingItemResponse.data.order_id;
+    const [orderSnapshot, priorItemsResponse] = await Promise.all([
+      this.client
+        .from(this.tableName)
+        .select('total_amount, damage_charges_total, amount_paid, payment_status')
+        .eq('id', orderId)
+        .single(),
+      this.client
+        .from(this.orderItemsTable)
+        .select('damage_charges')
+        .eq('order_id', orderId),
+    ]);
+    if (orderSnapshot.error || !orderSnapshot.data) {
+      return { data: null, error: orderSnapshot.error, success: false };
+    }
+    if (priorItemsResponse.error) {
+      return { data: null, error: priorItemsResponse.error, success: false };
+    }
+    const order = orderSnapshot.data;
+    const priorItemDamage = priorItemsResponse.data?.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0) || 0;
+    const orderLevelDamage = Math.max(0, Number(order.damage_charges_total || 0) - priorItemDamage);
+
+    // Update the order item.
     const itemResponse = await this.client
       .from(this.orderItemsTable)
       .update({
@@ -1897,44 +1949,38 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<OrderItem>(itemResponse);
     }
 
-    const orderId = itemResponse.data.order_id;
-
-    // 2. Recalculate order total damage and item totals
-    const { data: allItems } = await this.client
+    // Replace only assessment charges; discounts, late fees and extra charges
+    // are already represented by the saved total and must not be rebuilt from items.
+    const { data: allItems, error: itemsError } = await this.client
       .from(this.orderItemsTable)
-      .select('damage_charges, base_amount, gst_amount')
+      .select('damage_charges')
       .eq('order_id', orderId);
+    if (itemsError) {
+      return { data: null, error: itemsError, success: false };
+    }
 
-    const totalDamageCharges = allItems?.reduce((sum, item) => sum + (item.damage_charges || 0), 0) || 0;
-    const itemTotalAfterDiscounts = allItems?.reduce((sum, item) => sum + (item.base_amount || 0) + (item.gst_amount || 0), 0) || 0;
+    const itemDamage = allItems?.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0) || 0;
+    const totalDamageCharges = Math.round((orderLevelDamage + itemDamage) * 100) / 100;
+    const newTotalAmount = Math.round(Math.max(0,
+      Number(order.total_amount || 0) - Number(order.damage_charges_total || 0) + totalDamageCharges
+    ) * 100) / 100;
+    const amountPaid = Number(order.amount_paid || 0);
+    const paymentStatus = order.payment_status === 'refund_waived'
+      ? 'refund_waived'
+      : amountPaid >= newTotalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
 
-    // 3. Fetch current order to recalculate total_amount
-    const { data: order } = await this.client
+    const orderResponse = await this.client
       .from(this.tableName)
-      .select('discount, late_fee, amount_paid')
+      .update({
+        damage_charges_total: totalDamageCharges,
+        total_amount: newTotalAmount,
+        payment_status: paymentStatus,
+      })
       .eq('id', orderId)
+      .select('id')
       .single();
-
-    if (order) {
-      const newTotalAmount = Math.max(0, 
-        itemTotalAfterDiscounts + 
-        Number(order.late_fee || 0) + 
-        totalDamageCharges - 
-        Number(order.discount || 0)
-      );
-
-      const amountPaid = Number(order.amount_paid || 0);
-      const paymentStatus = amountPaid >= newTotalAmount ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
-
-      // 4. Update the order with new totals
-      await this.client
-        .from(this.tableName)
-        .update({ 
-          damage_charges_total: totalDamageCharges,
-          total_amount: newTotalAmount,
-          payment_status: paymentStatus
-        })
-        .eq('id', orderId);
+    if (orderResponse.error) {
+      return { data: null, error: orderResponse.error, success: false };
     }
 
     return this.handleResponse<OrderItem>(itemResponse);

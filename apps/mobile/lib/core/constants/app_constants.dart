@@ -101,6 +101,27 @@ class AppStrings {
   static const String returnDamaged = 'Damaged';
   static const String notReturned = 'Not Returned';
   static const String returnDiscount = 'Discount';
+  static const String lateFee = 'Late Fee';
+  static const String extraLateFee = 'Extra Late Fee';
+  static const String initialLateFee = 'Initial Late Fee';
+  static const String additionalLateFee = 'Additional Late Fee';
+  static const String financialAdjustment = 'Apply Financial Adjustment';
+  static const String adjust = 'Adjust';
+  static const String adjustmentType = 'Adjustment Type';
+  static const String damageFee = 'Damage Fee';
+  static const String extraCharge = 'Extra Charge';
+  static const String adjustmentAmount = 'Amount (₹)';
+  static const String adjustmentNotes = 'Reason / Notes (optional)';
+  static const String applyAdjustment = 'Apply Adjustment';
+  static const String invalidFinancialAdjustment =
+      'Enter a valid amount greater than zero.';
+  static const String adjustmentSaved = 'Adjustment applied successfully';
+  static const String adjustmentFailed = 'Unable to apply adjustment';
+  static const String onTimeReturnWarning = 'ON-TIME RETURN WARNING';
+  static const String invalidLateFee = 'Enter a valid, non-negative late fee.';
+  static String onTimeLateFeeWarning(double amount) =>
+      'This order is returned on-time. Extra late fee of '
+      '₹${amount.toStringAsFixed(2)} is being applied.';
   static const String projectedSettlement = 'PROJECTED SETTLEMENT';
   static const String orderDiscount = 'Order Discount';
   static const String initialDiscount = 'Initial Discount';

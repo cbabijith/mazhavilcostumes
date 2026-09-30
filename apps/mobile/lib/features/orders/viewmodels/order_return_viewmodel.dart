@@ -32,6 +32,27 @@ class OrderReturnViewModel {
       status == OrderStatus.partial ||
       status == OrderStatus.flagged;
 
+  /// Compare calendar dates so the due date itself is an on-time return.
+  bool isOverdue(Order order, {DateTime? now}) {
+    final end = DateTime.tryParse(order.endDate);
+    if (end == null) return false;
+    final current = now ?? DateTime.now();
+    return DateTime(
+      end.year,
+      end.month,
+      end.day,
+    ).isBefore(DateTime(current.year, current.month, current.day));
+  }
+
+  /// Keep standalone damage adjustments when item inspections are replaced.
+  double orderDamage(Order order) {
+    final itemDamage = (order.items ?? <OrderItem>[]).fold<double>(
+      0,
+      (sum, item) => sum + (item.damageCharges ?? 0),
+    );
+    return math.max(0, order.damageChargesTotal - itemDamage);
+  }
+
   /// An inspection can be saved before the physical return is completed.
   Map<String, Object?> inspectionFor(OrderItem item) => {
     'status': switch (item.conditionRating) {
@@ -281,13 +302,18 @@ class OrderReturnViewModel {
   }
 
   /// Reject malformed and negative discounts before confirmation/payment.
-  String? adjustmentError(String discount) {
-    if (discount.trim().isEmpty) return null;
-    final amount = double.tryParse(discount);
-    if (amount == null || !amount.isFinite || amount < 0) {
+  String? adjustmentError(String discount, {String lateFee = ''}) {
+    if (!_validAdjustment(discount)) {
       return AppStrings.invalidReturnAdjustment;
     }
+    if (!_validAdjustment(lateFee)) return AppStrings.invalidLateFee;
     return null;
+  }
+
+  bool _validAdjustment(String input) {
+    if (input.trim().isEmpty) return true;
+    final amount = double.tryParse(input);
+    return amount != null && amount.isFinite && amount >= 0;
   }
 
   /// Keep a temporarily invalid text input from breaking a live preview.

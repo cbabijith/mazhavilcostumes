@@ -16,6 +16,7 @@ import '../../../core/utils/responsive.dart';
 import '../models/order.dart';
 import '../viewmodels/order_return_viewmodel.dart';
 import '../widgets/order_return_footer.dart';
+import '../widgets/order_adjustment_sheet.dart';
 import '../widgets/return_condition_selector.dart';
 import '../widgets/return_quantity_selector.dart';
 import '../viewmodels/providers/order_provider.dart';
@@ -50,6 +51,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   final GlobalKey _itemsCardKey = GlobalKey();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _extraDiscountController = TextEditingController();
+  final TextEditingController _extraLateFeeController = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
@@ -75,6 +77,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   void dispose() {
     _scrollController.dispose();
     _extraDiscountController.dispose();
+    _extraLateFeeController.dispose();
     for (final ctrl in _notesControllers.values) {
       ctrl.dispose();
     }
@@ -127,8 +130,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       _returnViewModel.canReturn(_currentOrder.status)
       ? _returnViewModel.settlement(
           _currentOrder,
-          damageFees: _returnViewModel.inspectionDamage(
-            _currentOrder.items ?? [], _localReturnItems),
+          damageFees: _returnViewModel.orderDamage(_currentOrder) +
+              _returnViewModel.inspectionDamage(
+                _currentOrder.items ?? [], _localReturnItems,
+              ),
+          additionalLateFee: _returnViewModel.previewAmount(
+            _extraLateFeeController.text,
+          ),
           additionalDiscount: _returnViewModel.previewAmount(_extraDiscountController.text),
         )
       : _returnViewModel.settlement(_currentOrder);
@@ -168,276 +176,26 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     );
   }
 
-  void _openAdjustmentDialog() {
-    final amountController = TextEditingController();
-    final notesController = TextEditingController();
-
-    showModalBottomSheet(
+  Future<void> _openAdjustmentDialog() async {
+    if (_isLoading) return;
+    final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.background,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(Responsive.r(AppSizes.radiusXLarge)),
         ),
       ),
-      builder: (modalContext) {
-        return StatefulBuilder(
-          builder: (modalContext, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: Responsive.w(AppSizes.screenPaddingSmall),
-                right: Responsive.w(AppSizes.screenPaddingSmall),
-                top: Responsive.h(AppSizes.screenPaddingSmall),
-                bottom: MediaQuery.of(modalContext).viewInsets.bottom +
-                    MediaQuery.of(context).padding.bottom +
-                    Responsive.h(AppSizes.spacingLarge),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Apply Discount',
-                          style: TextStyle(
-                            fontSize: Responsive.sp(AppSizes.fontLarge),
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.close_rounded,
-                            size: Responsive.icon(AppSizes.iconMedium),
-                          ),
-                          onPressed: () => Navigator.pop(modalContext),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
-                    Text(
-                      'Directly deduct an amount from the order total. This directly updates the order balance.',
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontSmall),
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    Text(
-                      'DISCOUNT AMOUNT (₹)',
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                        fontWeight: FontWeight.w900,
-                        color: Colors.grey[500],
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    TextField(
-                      controller: amountController,
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      style: TextStyle(
-                        fontSize: Responsive.sp(22),
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.primary,
-                      ),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        prefixIcon: Icon(
-                          Icons.currency_rupee_rounded,
-                          color: AppColors.primary,
-                          size: Responsive.icon(AppSizes.iconMedium),
-                        ),
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(
-                            Responsive.r(AppSizes.radiusMedium),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderSide: const BorderSide(
-                            color: AppColors.primary,
-                            width: 2,
-                          ),
-                          borderRadius: BorderRadius.circular(
-                            Responsive.r(AppSizes.radiusMedium),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingLarge)),
-                    Text(
-                      'REASON / NOTES (OPTIONAL)',
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontTiny),
-                        fontWeight: FontWeight.w900,
-                        color: Colors.grey[500],
-                        letterSpacing: 1.1,
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
-                    TextField(
-                      controller: notesController,
-                      style: TextStyle(
-                        fontSize: Responsive.sp(AppSizes.fontMedium),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'E.g. Loyal customer discount',
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        border: OutlineInputBorder(
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(
-                            Responsive.r(AppSizes.radiusSmall),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: Responsive.h(AppSizes.spacingXXLarge)),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              padding: Responsive.symmetric(
-                                vertical: AppSizes.spacingMedium,
-                              ),
-                              side: BorderSide(color: Colors.grey.shade300),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  Responsive.r(AppSizes.radiusSmall),
-                                ),
-                              ),
-                            ),
-                            onPressed: () => Navigator.pop(modalContext),
-                            child: Text(
-                              'Cancel',
-                              style: TextStyle(
-                                fontSize: Responsive.sp(AppSizes.fontMedium),
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: Responsive.w(AppSizes.spacingMedium)),
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                              padding: Responsive.symmetric(
-                                vertical: AppSizes.spacingMedium,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  Responsive.r(AppSizes.radiusSmall),
-                                ),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: () async {
-                              final val =
-                                  double.tryParse(amountController.text) ??
-                                  0.0;
-                              if (val <= 0) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Please enter a discount amount greater than 0',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              final double updatedTotal =
-                                  (_currentOrder.totalAmount - val).clamp(
-                                    0.0,
-                                    double.infinity,
-                                  );
-                              final double newDiscount =
-                                  _currentOrder.discount + val;
-                              final double newAmountPaid =
-                                  _currentOrder.amountPaid;
-                              final String newPaymentStatus =
-                                  newAmountPaid >= updatedTotal
-                                      ? 'paid'
-                                      : newAmountPaid > 0
-                                          ? 'partial'
-                                          : 'pending';
-
-                              Navigator.pop(modalContext);
-                              setState(() => _isLoading = true);
-                              try {
-                                final noteReason =
-                                    notesController.text.trim();
-                                final noteUpdate = noteReason.isNotEmpty
-                                    ? (_currentOrder.notes != null &&
-                                            _currentOrder.notes!.isNotEmpty
-                                        ? '${_currentOrder.notes} | Discount: $noteReason'
-                                        : 'Discount: $noteReason')
-                                    : null;
-
-                                await ref
-                                    .read(orderOperationsProvider)
-                                    .updateOrder(_currentOrder.id, {
-                                      'total_amount': updatedTotal,
-                                      'discount': newDiscount,
-                                      'payment_status': newPaymentStatus,
-                                      'notes': ?noteUpdate,
-                                    });
-
-                                await _refreshOrder();
-                                ref.invalidate(
-                                  orderPaymentsProvider(_currentOrder.id),
-                                );
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Discount of ₹${val.toStringAsFixed(2)} applied successfully.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              } catch (e) {
-                                setState(() => _isLoading = false);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Failed to apply discount: $e',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: Text(
-                              'Apply Discount',
-                              style: TextStyle(
-                                fontSize: Responsive.sp(AppSizes.fontMedium),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) => OrderAdjustmentSheet(order: _currentOrder),
+    );
+    if (changed != true || !mounted) return;
+    await _refreshOrder();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(AppStrings.adjustmentSaved)),
     );
   }
 
@@ -998,7 +756,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   Widget _buildHeroCard() {
-    final balanceDue = _currentOrder.totalAmount - _currentOrder.amountPaid;
+    final settlement = _returnSettlement;
+    final balanceDue = settlement.balanceDue;
     final statusText = _currentOrder.isLate
         ? 'OVERDUE'
         : _formatStatusName(_currentOrder.status);
@@ -1099,7 +858,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                   ),
                   SizedBox(height: Responsive.h(2)),
                   Text(
-                    '₹${_currentOrder.totalAmount.toStringAsFixed(2)}',
+                    '₹${settlement.total.toStringAsFixed(2)}',
                     style: TextStyle(
                       fontSize: Responsive.sp(AppSizes.fontLarge + 2),
                       fontWeight: FontWeight.bold,
@@ -3266,6 +3025,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
           ? _buildProjectedSettlementCard(
               key: const ValueKey('return-settlement-preview'),
               liveDamage: settlement.damageFees,
+              liveLate: _returnViewModel.previewAmount(_extraLateFeeController.text),
               liveDiscount: settlement.discount,
               showPaymentAction: false,
             )
@@ -3275,6 +3035,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
       onCollectPayment: _isLoading ? null : _openPaymentDialog,
       discountController: _extraDiscountController,
       onDiscountChanged: (_) => setState(() {}),
+      lateFeeController: _extraLateFeeController,
+      onLateFeeChanged: (_) => setState(() {}),
       onSubmit: _isLoading ? null : () => _confirmAndSubmitInlineReturn(items),
     );
   }
@@ -3282,6 +3044,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   Future<void> _confirmAndSubmitInlineReturn(List<OrderItem> items) async {
     final adjustmentError = _returnViewModel.adjustmentError(
       _extraDiscountController.text,
+      lateFee: _extraLateFeeController.text,
     );
     if (!_returnViewModel.canReturn(_currentOrder.status) || adjustmentError != null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -3349,6 +3112,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       'Damage Fees',
                       '+₹${liveDamageTotal.toStringAsFixed(2)}',
                       valueColor: AppColors.warning,
+                      isBoldValue: true,
+                    ),
+                  if (settlement.lateFees > 0)
+                    _buildSettlementRow(
+                      AppStrings.lateFee,
+                      '+₹${settlement.lateFees.toStringAsFixed(2)}',
+                      valueColor: AppColors.error,
                       isBoldValue: true,
                     ),
                   if (pendingUnits > 0)
@@ -3424,12 +3194,13 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
           .processReturn(
             orderId: _currentOrder.id,
             items: returnItemsPayload,
-            // The existing API replaces late_fee, so include the saved fee.
+            // The API's fee is absolute: saved fee plus this visit's addition.
             lateFee: settlement.lateFees,
             discount: extraDiscount,
           );
       if (!mounted) return;
       _extraDiscountController.clear();
+      _extraLateFeeController.clear();
       await _refreshOrder();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3474,7 +3245,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     final double amountPaid = _currentOrder.amountPaid;
     final double balanceDue = settlement.balanceDue;
 
-    final bool showLateWarning = (liveLate ?? 0) > 0 && !_currentOrder.isLate;
+    final bool showLateWarning = (liveLate ?? 0) > 0 &&
+        !_returnViewModel.isOverdue(_currentOrder);
 
     return Container(
       key: key,
@@ -3536,6 +3308,12 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
               valueColor: AppColors.error,
               isBoldValue: true,
             ),
+            if (_currentOrder.lateFee > 0 && (liveLate ?? 0) > 0) ...[
+              _buildSettlementRow(AppStrings.initialLateFee,
+                '+₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
+              _buildSettlementRow(AppStrings.additionalLateFee,
+                '+₹${liveLate!.toStringAsFixed(2)}'),
+            ],
           ],
           if (discount > 0) ...[
             SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
@@ -3621,7 +3399,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'ON-TIME RETURN WARNING',
+                          AppStrings.onTimeReturnWarning,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: Responsive.sp(AppSizes.fontTiny - 1),
                             fontWeight: FontWeight.w900,
@@ -3631,7 +3411,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         ),
                         SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
                         Text(
-                          'This order is returned on-time. Extra late fee of ₹${lateFees.toStringAsFixed(2)} is being applied.',
+                          AppStrings.onTimeLateFeeWarning(liveLate!),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: Responsive.sp(AppSizes.fontTiny),
                             color: AppColors.text,
@@ -4209,7 +3991,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       color: AppColors.primary,
                     ),
                     label: Text(
-                      'Discount',
+                      AppStrings.adjust,
                       style: TextStyle(
                         fontSize: Responsive.sp(AppSizes.fontSmall),
                         fontWeight: FontWeight.bold,
@@ -4350,11 +4132,17 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                     'Damage Charges',
                     '₹${settlement.damageFees.toStringAsFixed(2)}',
                   ),
-                if (_currentOrder.lateFee > 0)
+                if (settlement.lateFees > 0)
                   _buildReceiptRow(
-                    'Late Fee',
-                    '₹${_currentOrder.lateFee.toStringAsFixed(2)}',
+                    AppStrings.lateFee,
+                    '₹${settlement.lateFees.toStringAsFixed(2)}',
                   ),
+                if (_currentOrder.lateFee > 0 && settlement.lateFees > _currentOrder.lateFee) ...[
+                  _buildReceiptRow(AppStrings.initialLateFee,
+                    '₹${_currentOrder.lateFee.toStringAsFixed(2)}'),
+                  _buildReceiptRow(AppStrings.additionalLateFee,
+                    '₹${(settlement.lateFees - _currentOrder.lateFee).toStringAsFixed(2)}'),
+                ],
                 SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                 if (_currentOrder.status == OrderStatus.cancelled) ...[
                   if (_currentOrder.advanceAmount > 0.01)
@@ -5773,6 +5561,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     final adjustmentError = _returnViewModel.canReturn(_currentOrder.status)
         ? _returnViewModel.adjustmentError(
             _extraDiscountController.text,
+            lateFee: _extraLateFeeController.text,
           )
         : null;
     if (adjustmentError != null) {

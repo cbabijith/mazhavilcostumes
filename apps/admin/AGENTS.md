@@ -6,6 +6,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## September 30, 2026 - Order charge preservation
+- Return `late_fee` is the complete desired fee; omitted values preserve the saved fee. Return `discount` is an additional currency discount. Web returns submit saved plus additional late fees.
+- Return processing and individual item-damage saves preserve the saved discounted total, extra charges and damage charges not allocated to items. Replace item assessments without applying saved discounts or fees twice.
+- Financial adjustments use order PATCH fields and order notes. Do not create `payment_type=adjustment` records for uncollected charges: payment reconciliation currently includes every non-refund record in amount paid.
+- Offline repository checks: `node scripts/test-order-return-adjustments.cjs`; this executes production methods with an in-memory database substitute and no live writes.
+
 ## September 23, 2026 - PR #89 port
 - Ported payment-ledger reconciliation after order creation/returns and await settlement before responding. Preserve `refund_waived`; repeat reconciliation must not duplicate completion history.
 - Send `p_branch_id: null` for all-branch dashboard RPC calls and propagate RPC failures instead of presenting zero cards.

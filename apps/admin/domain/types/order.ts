@@ -256,7 +256,9 @@ export interface ReturnOrderDTO {
     damaged_quantity?: number;
   }[];
   notes?: string;
+  /** Complete desired late fee; omission preserves the saved fee. */
   late_fee?: number;
+  /** Additional return-time discount in currency, applied to the saved total. */
   discount?: number;
 }
 

@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/constants/app_constants.dart';
 import 'package:mobile/features/orders/models/order.dart';
+import 'package:mobile/features/orders/models/order_adjustment.dart';
 import 'package:mobile/features/orders/repositories/order_repository.dart';
 import 'package:mobile/features/orders/viewmodels/providers/order_provider.dart';
 import 'package:mobile/features/orders/views/order_detail_view.dart';
+import 'package:mobile/features/orders/widgets/order_adjustment_sheet.dart';
 import 'package:mobile/features/orders/widgets/order_return_footer.dart';
 import 'package:mobile/features/orders/widgets/return_quantity_selector.dart';
 
@@ -25,20 +27,58 @@ class FakeReturnRepository extends OrderRepository {
 
   Order order;
   final List<List<Map<String, dynamic>>> submissions = [];
+  final List<Map<String, dynamic>> adjustments = [];
+  final List<String> requests = [];
   int conditionSaves = 0;
+  int paymentAttempts = 0;
   double? submittedDiscount;
   double? submittedLateFee;
   String? submittedNotes;
 
   @override
-  Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async =>
-      order;
+  Future<Order> getOrderById(String id, {CancelToken? cancelToken}) async {
+    requests.add('GET');
+    return order;
+  }
+
+  @override
+  Future<Order> updateOrder(
+    String id,
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
+    requests.add('PATCH');
+    adjustments.add(Map.of(body));
+    order = Order.fromJson({
+      ...order.toJson(),
+      // A missing inspection stays unmarked when the fake response is decoded.
+      'items': [
+        for (final item in order.items ?? <OrderItem>[])
+          {...item.toJson(), 'condition_rating': item.conditionRating?.name},
+      ],
+      ...body,
+    });
+    return order;
+  }
 
   @override
   Future<List<PaymentTransaction>> getOrderPayments(
     String orderId, {
     CancelToken? cancelToken,
   }) async => [];
+
+  @override
+  Future<Map<String, dynamic>> collectPayment({
+    required String orderId,
+    required double amount,
+    required String paymentMode,
+    String? paymentType,
+    String? notes,
+    CancelToken? cancelToken,
+  }) async {
+    paymentAttempts++;
+    throw StateError('Payment requests must remain blocked in this fixture');
+  }
 
   @override
   Future<void> updateOrderItemDamage({
@@ -69,9 +109,14 @@ class FakeReturnRepository extends OrderRepository {
     order = returnOrder(
       status: returned < order.items!.single.quantity ? 'partial' : 'returned',
       quantity: order.items!.single.quantity,
-      total: order.totalAmount - (discount ?? 0),
+      total:
+          order.totalAmount +
+          (lateFee ?? order.lateFee) -
+          order.lateFee -
+          (discount ?? 0),
       discount: order.discount + (discount ?? 0),
       late: lateFee ?? order.lateFee,
+      endDate: order.endDate,
       condition: items.single['condition_rating'] as String,
       returned: true,
       returnedQuantity: returned,
@@ -101,6 +146,40 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();
+}
+
+void expectMoneyRow(Finder scope, String label, String value) {
+  final row = find
+      .ancestor(
+        of: find.descendant(of: scope, matching: find.text(label)),
+        matching: find.byType(Row),
+      )
+      .first;
+  expect(find.descendant(of: row, matching: find.text(value)), findsOneWidget);
+}
+
+Future<void> applyLateFeeAdjustment(
+  WidgetTester tester,
+  String amount,
+  String reason,
+) async {
+  await tapVisible(tester, find.text(AppStrings.adjust));
+  await tapVisible(
+    tester,
+    find.byType(DropdownButtonFormField<OrderAdjustmentType>),
+  );
+  await tapVisible(tester, find.text(AppStrings.lateFee).last);
+  final amountField = find.byKey(const ValueKey('adjustment-amount'));
+  final reasonField = find.byKey(const ValueKey('adjustment-notes'));
+  await tester.ensureVisible(amountField);
+  await tester.enterText(amountField, amount);
+  await tester.ensureVisible(reasonField);
+  await tester.enterText(reasonField, reason);
+  await tester.testTextInput.receiveAction(TextInputAction.done);
+  await tapVisible(
+    tester,
+    find.widgetWithText(FilledButton, AppStrings.applyAdjustment),
+  );
 }
 
 void main() {
@@ -236,6 +315,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     final discount = TextEditingController();
     addTearDown(discount.dispose);
+    final lateFee = TextEditingController();
+    addTearDown(lateFee.dispose);
     await tester.pumpWidget(
       MaterialApp(
         home: MediaQuery(
@@ -260,6 +341,8 @@ void main() {
                       balanceDue: 240,
                       discountController: discount,
                       onDiscountChanged: (_) {},
+                      lateFeeController: lateFee,
+                      onLateFeeChanged: (_) {},
                       onSubmit: () {},
                       onCollectPayment: () {},
                     ),
@@ -273,6 +356,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text(AppStrings.returningNow), findsOneWidget);
+    expect(find.byKey(const ValueKey('return-late-fee')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -285,13 +369,13 @@ void main() {
       final footer = find.byType(OrderReturnFooter);
       expect(
         find.descendant(of: footer, matching: find.byType(TextField)),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(
         find.text(AppStrings.projectedSettlement),
         savedLateFee > 0 ? findsOneWidget : findsNothing,
       );
-      expect(find.text('Extra Late Fee (Optional)'), findsNothing);
+      expect(find.byKey(const ValueKey('return-late-fee')), findsOneWidget);
       expect(find.text('Return Notes (optional)'), findsNothing);
       expect(find.text('DISCOUNT'), findsOneWidget);
       final discount = find.byKey(const ValueKey('return-discount'));
@@ -325,6 +409,315 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('new late fee updates preview, receipt and saved return once', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository(savedLateFee: 50);
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    final discount = find.byKey(const ValueKey('return-discount'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '25.50');
+    await tester.ensureVisible(discount);
+    await tester.enterText(discount, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    final preview = find.byKey(const ValueKey('return-settlement-preview'));
+    final receipt = find.byKey(const ValueKey('financial-receipt'));
+    expectMoneyRow(preview, 'Base Order Total', '₹220.00');
+    expectMoneyRow(preview, '+ Late Fee', '+₹75.50');
+    expectMoneyRow(preview, 'New Total', '₹285.50');
+    expectMoneyRow(preview, 'Balance Due', '₹185.50');
+    expectMoneyRow(receipt, 'Late Fee', '₹75.50');
+    expectMoneyRow(receipt, 'Initial Late Fee', '₹50.00');
+    expectMoneyRow(receipt, 'Additional Late Fee', '₹25.50');
+    expectMoneyRow(receipt, AppStrings.grandTotal, '₹285.50');
+    expectMoneyRow(receipt, 'Balance Due', '₹185.50');
+    expect(find.text(AppStrings.paymentDue(185.5)), findsOneWidget);
+    expect(repository.order.lateFee, 50);
+    expect(repository.order.totalAmount, 270);
+    expect(repository.submissions, isEmpty);
+
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+    );
+    await tapVisible(tester, find.text(AppStrings.completeReturn));
+    final confirmation = find.byType(AlertDialog);
+    expectMoneyRow(confirmation, 'New Total', '₹285.50');
+    expectMoneyRow(confirmation, 'Balance Due', '₹185.50');
+    await tapVisible(tester, find.text('Confirm & Complete'));
+    expect(repository.submittedLateFee, 75.5);
+    expect(repository.submittedDiscount, 10);
+    expect(repository.order.lateFee, 75.5);
+    expect(repository.order.totalAmount, 285.5);
+    expect(find.byType(OrderReturnFooter), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('collection amount and upper limit include the draft late fee', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository(savedLateFee: 50);
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    final discount = find.byKey(const ValueKey('return-discount'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '25.50');
+    await tester.ensureVisible(discount);
+    await tester.enterText(discount, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final banner = find.byKey(const ValueKey('return-payment-due'));
+    await tapVisible(
+      tester,
+      find.descendant(
+        of: banner,
+        matching: find.text(AppStrings.collectPayment),
+      ),
+    );
+    final amount = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.byType(TextField),
+    );
+    expect(tester.widget<TextField>(amount).controller!.text, '185.50');
+    await tester.enterText(amount, '185.51');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester, find.text('Record Payment'));
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(
+      find.text('Warning: Amount exceeds balance due of ₹186'),
+      findsOneWidget,
+    );
+    expect(repository.paymentAttempts, 0);
+    expect(repository.order.totalAmount, 270);
+    expect(repository.submissions, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('partial return clears the new fee before the next visit', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository(savedLateFee: 50)
+      ..order = returnOrder(quantity: 2, total: 270, discount: 0, late: 50);
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '20');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+    );
+    await tapVisible(tester, find.byTooltip(AppStrings.decreaseReturnQuantity));
+    await tapVisible(tester, find.text(AppStrings.savePartialReturn(1)));
+    await tapVisible(tester, find.text('Confirm & Save'));
+    expect(repository.submittedLateFee, 70);
+    expect(repository.order.totalAmount, 290);
+    expect(tester.widget<TextField>(lateFee).controller!.text, '');
+    expectMoneyRow(
+      find.byKey(const ValueKey('return-settlement-preview')),
+      '+ Late Fee',
+      '+₹70.00',
+    );
+    await tapVisible(tester, find.text(AppStrings.completeReturn));
+    await tapVisible(tester, find.text('Confirm & Complete'));
+    expect(repository.submittedLateFee, 70);
+    expect(repository.order.totalAmount, 290);
+    expect(repository.submissions, hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('on-time warning applies only to a new additional fee', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository(savedLateFee: 50)
+      ..order = returnOrder(
+        total: 270,
+        discount: 0,
+        late: 50,
+        endDate: '9999-12-31',
+      );
+    await openOrder(tester, repository);
+    final warning = find.text('ON-TIME RETURN WARNING');
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    expect(warning, findsNothing);
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '20');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(warning, findsOneWidget);
+    expect(
+      find.text(
+        'This order is returned on-time. Extra late fee of ₹20.00 is being applied.',
+      ),
+      findsOneWidget,
+    );
+    await tester.enterText(lateFee, '');
+    await tester.pumpAndSettle();
+    expect(warning, findsNothing);
+    expect(repository.submissions, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('overdue return permits extra fee without an on-time warning', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository()
+      ..order = returnOrder(endDate: '2000-01-01');
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '20');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('ON-TIME RETURN WARNING'), findsNothing);
+    expectMoneyRow(
+      find.byKey(const ValueKey('return-settlement-preview')),
+      '+ Late Fee',
+      '+₹20.00',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final invalid in ['-1', 'NaN', 'Infinity']) {
+    testWidgets('invalid late fee $invalid blocks return and collection', (
+      tester,
+    ) async {
+      final repository = FakeReturnRepository();
+      await openOrder(tester, repository);
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+      );
+      final lateFee = find.byKey(const ValueKey('return-late-fee'));
+      await tester.ensureVisible(lateFee);
+      await tester.enterText(lateFee, invalid);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tapVisible(tester, find.text(AppStrings.completeReturn));
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(repository.submissions, isEmpty);
+      final banner = find.byKey(const ValueKey('return-payment-due'));
+      await tapVisible(
+        tester,
+        find.descendant(
+          of: banner,
+          matching: find.text(AppStrings.collectPayment),
+        ),
+      );
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(repository.paymentAttempts, 0);
+      expect(repository.order.lateFee, 0);
+      expect(tester.widget<TextField>(lateFee).controller!.text, invalid);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'Adjust refreshes a saved late fee and Good return keeps it once',
+    (tester) async {
+      final repository = FakeReturnRepository(savedLateFee: 50);
+      await openOrder(tester, repository);
+      repository.requests.clear();
+      await applyLateFeeAdjustment(tester, '25', 'Returned late');
+      expect(repository.requests.take(2), ['GET', 'PATCH']);
+      expect(repository.requests.last, 'GET');
+      expect(repository.adjustments, hasLength(1));
+      expect(repository.adjustments.single['late_fee'], 75);
+      expect(
+        repository.adjustments.single['notes'],
+        'Late Fee: ₹25.00 — Returned late',
+      );
+      expect(repository.adjustments.single.containsKey('amount_paid'), isFalse);
+      expect(repository.paymentAttempts, 0);
+      expect(repository.order.amountPaid, 100);
+      expect(repository.order.customer?.id, 'test-customer');
+      expect(repository.order.items?.single.id, 'test-item');
+      expect(repository.order.items?.single.conditionRating, isNull);
+      expect(find.byType(OrderAdjustmentSheet), findsNothing);
+      final receipt = find.byKey(const ValueKey('financial-receipt'));
+      expectMoneyRow(receipt, 'Late Fee', '₹75.00');
+      expectMoneyRow(receipt, AppStrings.grandTotal, '₹295.00');
+      expectMoneyRow(receipt, 'Balance Due', '₹195.00');
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('return-late-fee')))
+            .controller!
+            .text,
+        '',
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+      );
+      await tapVisible(tester, find.text(AppStrings.completeReturn));
+      expectMoneyRow(find.byType(AlertDialog), 'New Total', '₹295.00');
+      await tapVisible(tester, find.text('Confirm & Complete'));
+      expect(repository.submittedLateFee, 75);
+      expect(repository.submittedDiscount, 0);
+      expect(repository.order.totalAmount, 295);
+      expect(repository.order.lateFee, 75);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Adjust cancellation and saving keep pending return drafts', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository(savedLateFee: 50);
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    final discount = find.byKey(const ValueKey('return-discount'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '20');
+    await tester.ensureVisible(discount);
+    await tester.enterText(discount, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester, find.text(AppStrings.adjust));
+    await tester.enterText(
+      find.byKey(const ValueKey('adjustment-amount')),
+      '99',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(
+      tester,
+      find.descendant(
+        of: find.byType(OrderAdjustmentSheet),
+        matching: find.widgetWithText(OutlinedButton, 'Cancel'),
+      ),
+    );
+    expect(repository.adjustments, isEmpty);
+    expect(repository.order.totalAmount, 270);
+    expect(repository.order.lateFee, 50);
+    expect(tester.widget<TextField>(lateFee).controller!.text, '20');
+    expect(tester.widget<TextField>(discount).controller!.text, '10');
+
+    await applyLateFeeAdjustment(tester, '25', 'Counter adjustment');
+    expect(find.byType(OrderAdjustmentSheet), findsNothing);
+    expect(repository.order.totalAmount, 295);
+    expect(repository.order.lateFee, 75);
+    expect(tester.widget<TextField>(lateFee).controller!.text, '20');
+    expect(tester.widget<TextField>(discount).controller!.text, '10');
+    final receipt = find.byKey(const ValueKey('financial-receipt'));
+    expectMoneyRow(receipt, 'Late Fee', '₹95.00');
+    expectMoneyRow(receipt, 'Initial Late Fee', '₹75.00');
+    expectMoneyRow(receipt, 'Additional Late Fee', '₹20.00');
+    expectMoneyRow(receipt, AppStrings.grandTotal, '₹305.00');
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.returnGood),
+    );
+    await tapVisible(tester, find.text(AppStrings.completeReturn));
+    await tapVisible(tester, find.text('Confirm & Complete'));
+    expect(repository.submittedLateFee, 95);
+    expect(repository.submittedDiscount, 10);
+    expect(repository.order.totalAmount, 305);
+    expect(repository.paymentAttempts, 0);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Not Returned alone is blocked; Good can complete the return', (
     tester,

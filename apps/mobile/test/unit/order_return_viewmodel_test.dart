@@ -38,12 +38,71 @@ void main() {
     );
     expect(result.total, 220);
     expect(result.lateFees, 70);
+    expect(result.balanceDue, 120);
   });
+
+  test('new late fees and discounts share the same payment limit', () {
+    final result = viewModel.settlement(
+      returnOrder(total: 200, late: 50),
+      additionalLateFee: 20,
+      additionalDiscount: 10,
+    );
+    expect(result.total, 210);
+    expect(result.lateFees, 70);
+    expect(result.balanceDue, 110);
+  });
+
+  test(
+    'overdue warning uses local calendar dates including all of due day',
+    () {
+      final now = DateTime(2026, 9, 30, 23, 59);
+      expect(
+        viewModel.isOverdue(returnOrder(endDate: '2026-09-29'), now: now),
+        isTrue,
+      );
+      expect(
+        viewModel.isOverdue(returnOrder(endDate: '2026-09-30'), now: now),
+        isFalse,
+      );
+      expect(
+        viewModel.isOverdue(returnOrder(endDate: '2026-10-01'), now: now),
+        isFalse,
+      );
+      expect(
+        viewModel.isOverdue(returnOrder(endDate: 'invalid'), now: now),
+        isFalse,
+      );
+    },
+  );
 
   test('damage changes replace previous damage charges', () {
     final order = returnOrder(total: 180, damage: 30);
     expect(viewModel.settlement(order, damageFees: 50).total, 200);
     expect(viewModel.settlement(order, damageFees: 0).total, 150);
+  });
+
+  test('order-level damage remains separate from item inspections', () {
+    final order = Order.fromJson({
+      ...returnOrder(total: 200, damage: 30, condition: 'damaged').toJson(),
+      'damage_charges_total': 50,
+    });
+    expect(viewModel.orderDamage(order), 20);
+    final itemDamage = viewModel.inspectionDamage(order.items!, {
+      'test-item': viewModel.inspectionFor(order.items!.single),
+    });
+    final result = viewModel.settlement(
+      order,
+      damageFees: viewModel.orderDamage(order) + itemDamage,
+      additionalLateFee: 10,
+    );
+    expect(result.damageFees, 50);
+    expect(result.total, 210);
+    expect(
+      viewModel.orderDamage(
+        Order.fromJson({...order.toJson(), 'damage_charges_total': 10}),
+      ),
+      0,
+    );
   });
 
   test('payment limit includes pending damage and return discounts', () {
@@ -149,9 +208,12 @@ void main() {
       for (final invalid in ['-1', 'NaN', 'Infinity', 'wrong']) {
         expect(viewModel.previewAmount(invalid), 0);
         expect(viewModel.adjustmentError(invalid), isNotNull);
+        expect(viewModel.adjustmentError('', lateFee: invalid), isNotNull);
       }
       expect(viewModel.adjustmentError('70'), isNull);
       expect(viewModel.adjustmentError(''), isNull);
+      expect(viewModel.adjustmentError('70', lateFee: '20.50'), isNull);
+      expect(viewModel.adjustmentError('', lateFee: '0'), isNull);
     },
   );
 
