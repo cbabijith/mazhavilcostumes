@@ -15,9 +15,9 @@
 **This is non-negotiable. Every single change must be verified.**
 
 ### 🚫 No Automatic Git Push
-- The agent must **NEVER** run `git add`, `git commit`, or `git push` automatically.
-- Git operations are the **user's responsibility**. The agent should not suggest or attempt to push code.
-- If the user explicitly asks to push, the target branch is `abijithcb`. NEVER push to `main`.
+- The agent must **NEVER** run `git add`, `git commit`, or `git push` automatically — only when the user **explicitly asks**.
+- When the user explicitly asks to push or commit, push to **`main`** (the default working branch). Direct pushes to `main` are allowed.
+- **NEVER force-push to `main`** and never push to `main` without explicit user instruction.
 
 ### 🚫 No Direct Database Schema Execution
 - The agent must **NEVER** execute database migrations or run DDL/DML queries directly against the live database (using CLI, scripts, or RPC) without **explicit permission** from the user.
