@@ -12,6 +12,9 @@ class AppColors {
   static const Color success = Color(0xFF10B981); // Green
   static const Color warning = Color(0xFFF59E0B); // Amber
   static const Color info = Color(0xFF3B82F6); // Blue
+  static const Color gold = Color(0xFFFFD700); // Rank #1 medal
+  static const Color silver = Color(0xFF9E9E9E); // Rank #2 medal
+  static const Color bronze = Color(0xFFCD7F32); // Rank #3 medal
 }
 
 class AppStrings {
@@ -81,6 +84,18 @@ class AppStrings {
   static const String startRental = 'Start Rental';
   static const String confirmStartRental = 'Confirm Start Rental';
   static const String amount = 'AMOUNT';
+
+  // Reports strings
+  static const String reports = 'Reports';
+  static const String dayWiseBooking = 'Day-wise Booking';
+  static const String dayWiseBookingDesc = 'Daily pickups and deliveries schedule';
+  static const String topCostumes = 'Top Costumes';
+  static const String topCostumesDesc = 'Most rented or highest earning costumes';
+  static const String rentals = 'rentals';
+  static const String avgDays = 'avg days';
+  static const String noBookingsFound = 'No bookings in this period';
+  static const String noCostumesFound = 'No costume rentals recorded yet';
+  static const String failedToLoadReport = 'Failed to load report';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility

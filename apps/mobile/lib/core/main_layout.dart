@@ -12,6 +12,7 @@ import '../features/branches/models/branch.dart';
 import '../features/branches/viewmodels/providers/branch_provider.dart';
 import '../features/branches/views/branches_view.dart';
 import '../features/customers/views/customers_view.dart';
+import '../features/reports/views/reports_hub_view.dart';
 import 'utils/responsive.dart';
 import 'constants/app_constants.dart';
 import 'providers/navigation_provider.dart';
@@ -206,6 +207,13 @@ class _MainLayoutState extends State<MainLayout> {
                     _buildDrawerItem(ref, Icons.inventory_2_rounded, 'Products', 3, selectedIndex),
                     _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
                     _buildDrawerItem(ref, Icons.calendar_month_rounded, 'Calendar', 2, selectedIndex),
+                    _buildDrawerItem(ref, Icons.bar_chart_rounded, 'Reports', null, selectedIndex, onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ReportsHubView()),
+                      );
+                    }),
                     Padding(
                       padding: Responsive.symmetric(horizontal: 24),
                       child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
@@ -239,6 +247,13 @@ class _MainLayoutState extends State<MainLayout> {
                     _buildDrawerItem(ref, Icons.inventory_2_rounded, 'Products', 3, selectedIndex),
                     _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
                     _buildDrawerItem(ref, Icons.calendar_month_rounded, 'Calendar', 2, selectedIndex),
+                    _buildDrawerItem(ref, Icons.bar_chart_rounded, 'Reports', null, selectedIndex, onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ReportsHubView()),
+                      );
+                    }),
                     Padding(
                       padding: Responsive.symmetric(horizontal: 24),
                       child: Divider(height: Responsive.h(24), color: Colors.grey[200]),
@@ -263,6 +278,13 @@ class _MainLayoutState extends State<MainLayout> {
                     _buildDrawerSectionLabel('Navigation'),
                     _buildDrawerItem(ref, Icons.dashboard_rounded, 'Dashboard', 0, selectedIndex),
                     _buildDrawerItem(ref, Icons.receipt_long_rounded, 'Orders', 1, selectedIndex),
+                    _buildDrawerItem(ref, Icons.bar_chart_rounded, 'Reports', null, selectedIndex, onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ReportsHubView()),
+                      );
+                    }),
                   ],
                 ],
               ),
