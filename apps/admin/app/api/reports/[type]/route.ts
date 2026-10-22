@@ -15,6 +15,11 @@ import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 import { reportService } from '@/services/reportService';
 import type { ReportType, ReportFilters } from '@/domain';
 
+// Revenue-class reports aggregate thousands of rows across several Supabase
+// round trips — Vercel's default 10s function limit killed wide windows and
+// the page showed nothing. Allow up to 60s.
+export const maxDuration = 60;
+
 const VALID_TYPES: ReportType[] = [
   'day-wise-booking', 'due-overdue', 'revenue', 'top-costumes',
   'top-customers', 'rental-frequency', 'roi', 'dead-stock',

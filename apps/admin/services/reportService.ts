@@ -62,7 +62,10 @@ export class ReportService {
    * rows and the report looks "frozen" at an arbitrary date.
    *
    * The builder receives a zero-based range and must apply stable ordering
-   * (unique column, e.g. id) so pages don't overlap/skip.
+   * (unique column, e.g. id) so pages don't overlap/skip. Remaining pages
+   * are fetched in PARALLEL — serial paging made every extra page cost a
+   * full Vercel↔Supabase round trip (the report took 5–10s+ server-side,
+   * which Vercel's 10s function limit turns into a dead page).
    */
   private async fetchAllPages<T = any>(
     buildPage: (from: number, to: number) => any,
@@ -72,12 +75,17 @@ export class ReportService {
     if (first.error) throw new Error(first.error.message);
     const all: T[] = [...((first.data || []) as T[])];
     const total = typeof first.count === 'number' ? first.count : all.length;
+    if (all.length >= total || all.length === 0) return all;
 
-    while (all.length < total) {
-      const page = await buildPage(all.length, all.length + pageSize - 1);
+    const pageCount = Math.ceil(total / pageSize);
+    const rest = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, i) =>
+        buildPage((i + 1) * pageSize, (i + 2) * pageSize - 1)
+      )
+    );
+    for (const page of rest) {
       if (page.error) throw new Error(page.error.message);
-      if (!page.data || page.data.length === 0) break;
-      all.push(...(page.data as T[]));
+      all.push(...((page.data || []) as T[]));
     }
     return all;
   }
@@ -388,17 +396,42 @@ export class ReportService {
     // gst_amount sums. The orders.gst_amount column drifts on legacy/edited
     // orders (verified: 19,988 vs the true item-level 30,956 on a year of
     // data), which skewed the GST-in-collections figure.
+    // Only orders WITH payments in this window are needed — the old code
+    // paged the ENTIRE order_items table on every load (3+ serial round
+    // trips), which dominated the report's server latency.
     const itemGstMap: Record<string, number> = {};
     {
-      const itemRows = await this.fetchAllPages((from, to) =>
-        supabase()
-          .from('order_items')
-          .select('order_id, gst_amount', { count: 'exact' })
-          .order('id', { ascending: true })
-          .range(from, to)
+      const paidOrderIds = [...new Set(
+        rawPayments.map((p: any) => p.order?.id).filter(Boolean)
+      )];
+      const CHUNK = 50;
+      const chunks: string[][] = [];
+      for (let i = 0; i < paidOrderIds.length; i += CHUNK) {
+        chunks.push(paidOrderIds.slice(i, i + CHUNK));
+      }
+      const chunkResults = await Promise.all(
+        chunks.map(async (ids) => {
+          const collected: any[] = [];
+          // Guard against >1000 rows per chunk (orders can hold many items)
+          for (let from = 0; ; from += 1000) {
+            const page = await supabase()
+              .from('order_items')
+              .select('order_id, gst_amount', { count: 'exact' })
+              .in('order_id', ids)
+              .order('id', { ascending: true })
+              .range(from, from + 999);
+            if (page.error) throw new Error(page.error.message);
+            collected.push(...(page.data || []));
+            const total = typeof page.count === 'number' ? page.count : collected.length;
+            if (collected.length >= total || !page.data || page.data.length === 0) break;
+          }
+          return collected;
+        })
       );
-      for (const it of itemRows as any[]) {
-        itemGstMap[it.order_id] = (itemGstMap[it.order_id] || 0) + Number(it.gst_amount || 0);
+      for (const rows of chunkResults) {
+        for (const it of rows) {
+          itemGstMap[it.order_id] = (itemGstMap[it.order_id] || 0) + Number(it.gst_amount || 0);
+        }
       }
     }
 

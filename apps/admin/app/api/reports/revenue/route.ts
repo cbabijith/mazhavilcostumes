@@ -5,10 +5,15 @@ import { apiGuard } from '@/lib/apiGuard';
 
 /**
  * Revenue Report API Route
- * 
- * Fetches revenue metrics on the server to bypass RLS issues 
+ *
+ * Fetches revenue metrics on the server to bypass RLS issues
  * and use the SERVICE_ROLE_KEY safely.
  */
+
+// Wide windows (a full year) aggregate thousands of rows across several
+// Supabase round trips — Vercel's default 10s function limit killed those
+// requests and the page showed nothing. Allow up to 60s.
+export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   try {
     // 1. Secure the endpoint

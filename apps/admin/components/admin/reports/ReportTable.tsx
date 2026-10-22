@@ -41,7 +41,7 @@ export function ReportTable({
           Report Data
         </CardTitle>
         <div className="text-xs text-slate-400 font-medium">
-          Showing {data.length} records
+          {loading ? 'Loading…' : `Showing ${data.length} records`}
         </div>
       </CardHeader>
       <div className="overflow-x-auto">
@@ -71,7 +71,14 @@ export function ReportTable({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr><td colSpan={columns.length} className="px-5 py-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" /></td></tr>
+              <tr>
+                <td colSpan={columns.length} className="px-5 py-12 text-center">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-slate-400" />
+                  <p className="text-xs text-slate-400 font-medium mt-3">
+                    Crunching numbers — large date ranges can take a few seconds…
+                  </p>
+                </td>
+              </tr>
             ) : error ? (
               <tr><td colSpan={columns.length} className="px-5 py-12 text-center text-red-600">{error}</td></tr>
             ) : data.length === 0 ? (
