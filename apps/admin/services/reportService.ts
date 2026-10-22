@@ -177,9 +177,6 @@ export class ReportService {
     const statusFilter = filters.status?.length ? filters.status : null;
     const paymentMode = filters.payment_mode && filters.payment_mode !== 'all' ? filters.payment_mode : null;
 
-    // Use unified metrics helper for the summary part
-    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter, paymentMode);
-
     const offset = (page - 1) * limit;
 
     // 3. Fetch Paginated Details for the table.
@@ -187,6 +184,8 @@ export class ReportService {
     // the exact SQL count drives the pagination footer — client-side
     // filtering made the badge read "50 Total Transactions" and disabled
     // Next even when hundreds of matching rows existed.
+    // Built and STARTED before the metrics call so both run in parallel —
+    // running it after added a full Vercel↔Supabase round trip to every load.
     let detailsQuery = supabase()
       .from('payments')
       .select(`
@@ -217,7 +216,13 @@ export class ReportService {
     if (statusFilter) detailsQuery = detailsQuery.in('order.status', statusFilter);
     if (paymentMode) detailsQuery = detailsQuery.eq('payment_mode', paymentMode);
 
-    const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsQuery;
+    const detailsPromise = detailsQuery;
+
+    // Use unified metrics helper for the summary part (runs concurrently
+    // with the details query above)
+    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter, paymentMode);
+
+    const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsPromise;
     if (detailsError) throw new Error(detailsError.message);
 
     const formattedDetails = (rawDetails || []).map((p: any) => ({
