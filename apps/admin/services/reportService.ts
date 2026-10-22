@@ -29,6 +29,8 @@ import type {
 
 const supabase = () => createAdminClient();
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 export class ReportService {
   private getISTDateContext() {
     const now = new Date();
@@ -165,13 +167,18 @@ export class ReportService {
     
     // Resolve status filter for filtering payments by order status
     const statusFilter = filters.status?.length ? filters.status : null;
+    const paymentMode = filters.payment_mode && filters.payment_mode !== 'all' ? filters.payment_mode : null;
 
     // Use unified metrics helper for the summary part
-    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter);
-    
+    const metrics = await this.getUnifiedRevenueMetrics(fromDate, toDate, branchId, storeId, statusFilter, paymentMode);
+
     const offset = (page - 1) * limit;
 
-    // 3. Fetch Paginated Details for the table
+    // 3. Fetch Paginated Details for the table.
+    // Status + payment-mode are filtered IN the query (not client-side) so
+    // the exact SQL count drives the pagination footer — client-side
+    // filtering made the badge read "50 Total Transactions" and disabled
+    // Next even when hundreds of matching rows existed.
     let detailsQuery = supabase()
       .from('payments')
       .select(`
@@ -194,23 +201,18 @@ export class ReportService {
       .gte('payment_date', range.start)
       .lte('payment_date', range.end)
       .order('payment_date', { ascending: false })
+      .order('id', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (branchId) detailsQuery = detailsQuery.eq('order.branch_id', branchId);
     if (storeId) detailsQuery = detailsQuery.eq('order.store_id', storeId);
-
-    if (filters.payment_mode && filters.payment_mode !== 'all') {
-      detailsQuery = detailsQuery.eq('payment_mode', filters.payment_mode);
-    }
+    if (statusFilter) detailsQuery = detailsQuery.in('order.status', statusFilter);
+    if (paymentMode) detailsQuery = detailsQuery.eq('payment_mode', paymentMode);
 
     const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsQuery;
     if (detailsError) throw new Error(detailsError.message);
 
-    const detailsData = (statusFilter && statusFilter.length > 0)
-      ? (rawDetails || []).filter(p => p.order && statusFilter.includes((p.order as any).status))
-      : (rawDetails || []);
-
-    const formattedDetails = detailsData.map((p: any) => ({
+    const formattedDetails = (rawDetails || []).map((p: any) => ({
       order_id: p.order?.id,
       customer_name: p.order?.customer?.name || 'Walk-in',
       date: p.payment_date,
@@ -241,7 +243,7 @@ export class ReportService {
       total_bank_transfer: metrics.total_bank_transfer,
       total_damage_charges: metrics.total_damage_charges,
       total_late_fees: metrics.total_late_fees,
-      total_details_count: statusFilter ? detailsData.length : (totalDetailsCount || 0),
+      total_details_count: totalDetailsCount || 0,
     };
   }
 
@@ -250,13 +252,20 @@ export class ReportService {
    * Shared between getRevenue (Report) and Dashboard
    */
   public async getUnifiedRevenueMetrics(
-    fromDate: string, 
-    toDate: string, 
-    branchId?: string | null, 
+    fromDate: string,
+    toDate: string,
+    branchId?: string | null,
     storeId?: string | null,
-    statusFilter?: string[] | null
+    statusFilter?: string[] | null,
+    paymentMode?: string | null
   ) {
     const range = this.formatISTQueryRange(fromDate, toDate);
+
+    // Summary granularity follows the window span: a today-only report used
+    // to collapse into a single row labelled "Oct 2026" holding only that
+    // day's numbers — reading like the whole month's total.
+    const spanDays = Math.round((new Date(toDate).getTime() - new Date(fromDate).getTime()) / 86400000) + 1;
+    const groupPeriod = spanDays <= 31 ? 'day' : spanDays <= 120 ? 'week' : 'month';
 
     // 1. Fetch Aggregation Data — includes refunds and order details for GST calc
     //    (paged: a year/all-time window holds 1499+ payment rows today)
@@ -287,6 +296,7 @@ export class ReportService {
 
       if (branchId) q = q.eq('order.branch_id', branchId);
       if (storeId) q = q.eq('order.store_id', storeId);
+      if (paymentMode) q = q.eq('payment_mode', paymentMode);
       return q;
     };
 
@@ -318,18 +328,23 @@ export class ReportService {
         .range(from, to);
 
       if (branchId) q = q.eq('branch_id', branchId);
+      if (storeId) q = q.eq('store_id', storeId);
       return q;
     };
 
-    // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance)
+    // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance).
+    //    Semantics mirror get_operational_dashboard_metrics (migration 045):
+    //    balance-based, includes late_return, excludes refund_waived, and
+    //    only rows with a positive balance count/sum — a stale flag can never
+    //    create phantom dues and the count can't include zero-due rows.
     const buildRevenueDuePage = (from: number, to: number) => {
       let q = supabase()
         .from('orders')
         .select('id, total_amount, amount_paid, start_date, status, payment_status', { count: 'exact' })
         .gte('start_date', fromDate)
         .lte('start_date', toDate)
-        .in('status', ['returned', 'partial', 'flagged'])
-        .neq('payment_status', 'paid')
+        .in('status', ['returned', 'partial', 'flagged', 'late_return'])
+        .neq('payment_status', 'refund_waived')
         .order('id', { ascending: true })
         .range(from, to);
 
@@ -390,6 +405,7 @@ export class ReportService {
     // Process Summary Groups
     const summaryGroups: Record<string, RevenueRow> = {};
     const orderCounts: Record<string, Set<string>> = {};
+    const periodSortKeys: Record<string, string> = {};
     const dailyTrends: Record<string, { date: string; cash: number; sales: number }> = {};
 
     let totalBookingSales = 0;
@@ -404,37 +420,41 @@ export class ReportService {
     let totalBankTransfer = 0;
     let cancelledNet = 0;
     let totalRevenueDue = 0;
+    let revenueDueCount = 0;
 
     // A. Process Booking Sales (Business Won)
     for (const o of bookings) {
-      const key = this.getPeriodKey(o.created_at, 'month');
-      if (!summaryGroups[key]) {
-        summaryGroups[key] = this.initSummaryRow(key);
-        orderCounts[key] = new Set();
+      const istDate = this.toISTDateString(o.created_at);
+      const { label, sort } = this.periodKeys(istDate, groupPeriod);
+      if (!summaryGroups[label]) {
+        summaryGroups[label] = this.initSummaryRow(label);
+        orderCounts[label] = new Set();
+        periodSortKeys[label] = sort;
       }
-      
+
       const amount = Number(o.total_amount ?? 0);
-      summaryGroups[key].booking_sales += amount;
+      summaryGroups[label].booking_sales += amount;
       totalBookingSales += amount;
 
       // For daily trends
-      const dateKey = o.created_at.split('T')[0];
-      if (!dailyTrends[dateKey]) dailyTrends[dateKey] = { date: dateKey, cash: 0, sales: 0 };
-      dailyTrends[dateKey].sales += amount;
+      if (!dailyTrends[istDate]) dailyTrends[istDate] = { date: istDate, cash: 0, sales: 0 };
+      dailyTrends[istDate].sales += amount;
     }
 
     // B. Process Revenue Due (Outstanding)
     for (const o of revenueDueData) {
-      const key = this.getPeriodKey(o.start_date, 'month');
-      if (!summaryGroups[key]) {
-        summaryGroups[key] = this.initSummaryRow(key);
-        orderCounts[key] = new Set();
+      const { label, sort } = this.periodKeys(this.toISTDateString(o.start_date), groupPeriod);
+      if (!summaryGroups[label]) {
+        summaryGroups[label] = this.initSummaryRow(label);
+        orderCounts[label] = new Set();
+        periodSortKeys[label] = sort;
       }
-      
+
       const due = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
-      if (due > 0) {
-        summaryGroups[key].revenue_due += due;
+      if (due > 0.005) {
+        summaryGroups[label].revenue_due += due;
         totalRevenueDue += due;
+        revenueDueCount++;
       }
     }
 
@@ -443,21 +463,22 @@ export class ReportService {
       const order = p.order;
       if (!order) continue;
 
-      const date = p.payment_date || p.created_at.split('T')[0];
-      const key = this.getPeriodKey(date, 'month');
-      if (!summaryGroups[key]) {
-        summaryGroups[key] = this.initSummaryRow(key);
-        orderCounts[key] = new Set();
+      const istDate = this.toISTDateString(p.payment_date || p.created_at);
+      const { label, sort } = this.periodKeys(istDate, groupPeriod);
+      if (!summaryGroups[label]) {
+        summaryGroups[label] = this.initSummaryRow(label);
+        orderCounts[label] = new Set();
+        periodSortKeys[label] = sort;
       }
 
-      const g = summaryGroups[key];
+      const g = summaryGroups[label];
       const amount = Number(p.amount || 0);
       const isRefund = p.payment_type === 'refund';
       const isCancelledKeep = p.payment_type === 'cancelled_keep';
       const mode = (p.payment_mode || '').toLowerCase();
       const status = (order.status || '').toLowerCase();
 
-      orderCounts[key].add(order.id);
+      orderCounts[label].add(order.id);
 
       // GST Calculation Ratio — prefer the item-level sum (see itemGstMap note);
       // fall back to the order column only for orders without item rows.
@@ -471,8 +492,7 @@ export class ReportService {
       const netPortion = amount - gstPortion;
 
       // Trends
-      const dateKey = date.split('T')[0];
-      if (!dailyTrends[dateKey]) dailyTrends[dateKey] = { date: dateKey, cash: 0, sales: 0 };
+      if (!dailyTrends[istDate]) dailyTrends[istDate] = { date: istDate, cash: 0, sales: 0 };
 
       if (isRefund) {
         totalRefunded += amount;
@@ -483,17 +503,31 @@ export class ReportService {
         g.net_revenue -= netPortion;
         totalNetRevenue -= netPortion;
         totalGstCollected -= gstPortion;
-        dailyTrends[dateKey].cash -= amount;
+        dailyTrends[istDate].cash -= amount;
         if (status === 'cancelled') cancelledNet -= amount;
       } else if (isCancelledKeep) {
+        // Money KEPT from a cancellation is real money in hand: it belongs in
+        // collections, the mode split, and the net-cancellations card. The old
+        // code excluded it from totalReceived and then subtracted it again in
+        // total_amount_collection — a 2x undercount of kept money.
         totalCancelledKeep += amount;
+        totalReceived += amount;
+        dailyTrends[istDate].cash += amount;
         g.total_revenue += amount;
+        g.cash_collection += amount;
         g.net_revenue += netPortion;
         totalNetRevenue += netPortion;
-        dailyTrends[dateKey].cash += amount;
+
+        if (mode === 'cash') { g.cash_revenue += amount; totalCash += amount; }
+        else if (mode === 'upi') { g.upi_revenue += amount; totalUpi += amount; }
+        else if (mode === 'gpay') { g.gpay_revenue += amount; totalGpay += amount; }
+        else if (mode === 'bank_transfer') { g.bank_transfer_revenue += amount; totalBankTransfer += amount; }
+        else { g.other_revenue += amount; }
+
+        if (status === 'cancelled') cancelledNet += amount;
       } else {
         totalReceived += amount;
-        dailyTrends[dateKey].cash += amount;
+        dailyTrends[istDate].cash += amount;
         g.total_revenue += amount;
         g.cash_collection += amount;
         g.gst_collected += gstPortion;
@@ -507,9 +541,9 @@ export class ReportService {
         else if (mode === 'bank_transfer') { g.bank_transfer_revenue += amount; totalBankTransfer += amount; }
         else { g.other_revenue += amount; }
 
-        // Status breakdown
         if (status === 'cancelled') {
            g.cancelled_revenue += amount;
+           cancelledNet += amount;
         } else if (['completed', 'returned'].includes(status)) {
            g.completed_revenue += amount;
         } else if (['ongoing', 'in_use', 'delivered'].includes(status)) {
@@ -524,8 +558,10 @@ export class ReportService {
       const val = Math.round(n * 100) / 100;
       return isNaN(val) ? 0 : val;
     };
-    const total_amount_collection = totalReceived - (totalRefunded + totalCancelledKeep);
-    
+    // Kept cancellations are already inside totalReceived (they are money in
+    // hand), so only refunds come back out.
+    const total_amount_collection = totalReceived - totalRefunded;
+
     // Finalize summary
     const summary = Object.entries(summaryGroups).map(([key, g]) => ({
       ...g,
@@ -547,7 +583,9 @@ export class ReportService {
       gpay_revenue: r(g.gpay_revenue),
       bank_transfer_revenue: r(g.bank_transfer_revenue),
       other_revenue: r(g.other_revenue),
-    })).sort((a: any, b: any) => b.period.localeCompare(a.period));
+    })).sort((a: any, b: any) =>
+      (periodSortKeys[b.period] || b.period).localeCompare(periodSortKeys[a.period] || a.period)
+    );
 
     // Process accrual-based charges
     const dueCharges = dueChargesResult as any[];
@@ -571,7 +609,7 @@ export class ReportService {
       cancelled_total: r(cancelledNet), // Net profit from cancellations
       refund_due: r(refundDueAmount),
       revenue_due: r(totalRevenueDue),
-      revenue_due_count: revenueDueData.length,
+      revenue_due_count: revenueDueCount,
       total_damage_charges: r(totalDamageCharges),
       total_late_fees: r(totalLateFees),
       dailyTrends: this.padDailyTrends(dailyTrends, fromDate, toDate)
@@ -1504,14 +1542,47 @@ export class ReportService {
     }
   }
 
-  private getPeriodKey(dateStr: string, period: string): string {
-    const d = new Date(dateStr);
+  /**
+   * Convert a timestamp (or pass through a plain date) to the IST calendar
+   * date string 'YYYY-MM-DD'. Server-local Date methods shift by the server's
+   * timezone (UTC on Vercel), which mis-attributes early-morning IST
+   * payments/orders to the previous day and month.
+   */
+  private toISTDateString(input: string): string {
+    if (!input) return input;
+    const s = String(input);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(s));
+  }
+
+  /**
+   * Period label + ISO sort key for a 'YYYY-MM-DD' (IST) date.
+   * Pure string/UTC arithmetic — never touches server-local timezone, so the
+   * bucket a row lands in can't change between dev (IST) and prod (UTC).
+   */
+  private periodKeys(dateStr: string, period: string): { label: string; sort: string } {
+    const day = dateStr.slice(0, 10);
+    const [y, m, d] = day.split('-').map(Number);
     switch (period) {
-      case 'day': return d.toISOString().split('T')[0];
-      case 'week': { const start = new Date(d); start.setDate(start.getDate() - start.getDay() + 1); return `Week of ${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}`; }
-      case 'month': return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-      case 'year': return String(d.getFullYear());
-      default: return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+      case 'day':
+        return { label: day, sort: day };
+      case 'week': {
+        const utc = Date.UTC(y, m - 1, d);
+        const dow = new Date(utc).getUTCDay(); // 0 = Sunday
+        const monday = new Date(utc - ((dow + 6) % 7) * 86400000);
+        const mondayISO = monday.toISOString().slice(0, 10);
+        return { label: `Week of ${MONTH_NAMES[m - 1]} ${monday.getUTCDate()}`, sort: mondayISO };
+      }
+      case 'year':
+        return { label: String(y), sort: String(y) };
+      case 'month':
+      default:
+        return { label: `${MONTH_NAMES[m - 1]} ${y}`, sort: `${y}-${String(m).padStart(2, '0')}` };
     }
   }
 

@@ -222,6 +222,13 @@ function ReportsPageContent() {
         const params = new URLSearchParams();
         params.append('fromDate', filters.from_date || '');
         params.append('toDate', filters.to_date || '');
+        // The transaction table paginates server-side — page/limit must reach
+        // the API or "Next" silently refetches page 1 forever.
+        params.append('page', String(filters.page || 1));
+        params.append('limit', String(filters.limit || 50));
+        if (filters.payment_mode && filters.payment_mode !== 'all') {
+          params.append('paymentMode', filters.payment_mode);
+        }
         if (selectedBranchId) params.append('branchId', selectedBranchId);
         if (storeId) params.append('storeId', storeId.toString());
         if (filters.status?.length) params.append('statusFilter', filters.status.join(','));

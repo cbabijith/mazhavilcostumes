@@ -52,7 +52,14 @@ export function RevenueView({
 }: RevenueViewProps) {
   const router = useRouter();
   const summaryColumns = [
-    { header: "Period", key: "period" },
+    {
+      header: "Period",
+      key: "period",
+      // Short windows group daily — render 'YYYY-MM-DD' keys as readable dates.
+      render: (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
+        ? new Date(v + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : v,
+    },
     { header: "Rental Revenue", key: "booking_sales", format: "currency" as const },
     { header: "Amount Collection", key: "amount_collection", format: "currency" as const },
     { header: "Revenue Due", key: "revenue_due", format: "currency" as const },

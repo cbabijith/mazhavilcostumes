@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
     const branchId = searchParams.get('branchId') || undefined;
     const storeId = searchParams.get('storeId') || undefined;
     const statusFilter = searchParams.get('statusFilter') || undefined;
+    const paymentMode = searchParams.get('paymentMode') || undefined;
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50));
 
     if (!fromDate || !toDate) {
       return apiBadRequest('Missing required date parameters');
@@ -29,7 +32,14 @@ export async function GET(request: NextRequest) {
 
     // 3. Fetch data using the service (which uses adminClient on server)
     const reportData = await reportService.getRevenue(
-      { from_date: fromDate, to_date: toDate, status: statusFilter ? statusFilter.split(',') : undefined },
+      {
+        from_date: fromDate,
+        to_date: toDate,
+        status: statusFilter ? statusFilter.split(',') : undefined,
+        payment_mode: paymentMode,
+        page,
+        limit,
+      },
       branchId,
       storeId
     );
