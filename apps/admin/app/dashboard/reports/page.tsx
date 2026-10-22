@@ -39,7 +39,7 @@ const REPORT_ENDPOINTS: Record<ReportType, string> = {
 function sameOriginApiUrl(path: string, query?: URLSearchParams): string {
   return new URL(path + (query ? '?' + query.toString() : ''), window.location.origin).toString();
 }
-import { exportToExcel, exportToPDF } from "@/lib/exportUtils";
+import { exportToExcel, exportToPDF, exportGstFilingToExcel, exportGstFilingToPDF, GstFilingExportPayload } from "@/lib/exportUtils";
 import { formatCurrency } from "@/lib/shared-utils";
 import { reportService } from "@/services/reportService";
 import { useAppStore } from "@/stores/appStore";
@@ -129,6 +129,14 @@ function ReportsPageContent() {
 
     let from_date = urlFrom || todayStr;
     let to_date = urlTo || todayStr;
+
+    // GST filing is a monthly return — a "today only" default produced a
+    // near-empty report and owners exported the wrong window. Default the
+    // GST report to the current month-to-date instead.
+    if (reportFromUrl === 'gst-filing' && !urlFrom && !urlTo && !range) {
+      from_date = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-01`;
+      to_date = todayStr;
+    }
 
     // Handle range logic if dates not explicitly provided (or to override)
     if (range && range !== 'custom' && !urlFrom) {
@@ -425,25 +433,42 @@ function ReportsPageContent() {
     }
   };
 
+  /** Payload for the filing-grade GST exports (summary + full register + scope notes). */
+  const buildGstPayload = (): GstFilingExportPayload => ({
+    businessName: reportSummary?.business_name || 'Mazhavil Dance Costumes',
+    gstin: reportSummary?.business_gstin || 'Not configured',
+    period: reportSummary?.period || `${filters.from_date} to ${filters.to_date}`,
+    summary: sortedData.map((s: any) => ({
+      slab: s.slab,
+      taxable_value: s.taxable_value,
+      cgst: s.cgst,
+      sgst: s.sgst,
+      total_gst: s.total_gst,
+    })),
+    totals: {
+      taxable: reportSummary?.total_taxable ?? 0,
+      cgst: reportSummary?.total_cgst ?? 0,
+      sgst: reportSummary?.total_sgst ?? 0,
+      gst: reportSummary?.total_gst ?? 0,
+    },
+    composition: reportSummary?.composition,
+    excluded: reportSummary?.excluded_by_status,
+    invoices: gstDetails,
+  });
+
   const handleExportExcel = () => {
     const meta = REPORT_LIST.find(r => r.id === selectedReport);
     if (!meta) return;
-    
+
     let exportData = sortedData;
     let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
+
+    if (selectedReport === 'gst-filing' && reportSummary) {
+      // Filing-grade export: summary + full register + totals + GSTIN/period.
+      // Uses the COMPLETE invoice set — screen filters (slab/type) must never
+      // produce a partial filing document.
+      exportGstFilingToExcel(buildGstPayload(), `GST_Filing_${filters.from_date}_to_${filters.to_date}`);
+      return;
     } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
       exportData = gstDetails;
       exportColumns = [
@@ -465,22 +490,13 @@ function ReportsPageContent() {
   const handleExportPDF = () => {
     const meta = REPORT_LIST.find(r => r.id === selectedReport);
     if (!meta) return;
-    
+
     let exportData = sortedData;
     let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
+
+    if (selectedReport === 'gst-filing' && reportSummary) {
+      exportGstFilingToPDF(buildGstPayload(), `GST_Filing_${filters.from_date}_to_${filters.to_date}`);
+      return;
     } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
       exportData = gstDetails;
       exportColumns = [

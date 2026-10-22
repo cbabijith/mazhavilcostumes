@@ -78,6 +78,20 @@ export function GSTFilingView({
 
   const [gstSortConfig, setGstSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
+  // Human-readable scope note for orders in the period that are NOT in the
+  // filed figures (cancelled / not-yet-finalized rentals), derived from the
+  // service's excluded_by_status breakdown.
+  const excludedNote = useMemo(() => {
+    const excluded = reportSummary?.excluded_by_status;
+    if (!excluded) return null;
+    const parts = Object.entries(excluded as Record<string, { orders: number; taxable_value: number; gst_amount: number }>)
+      .filter(([, v]) => v.orders > 0)
+      .map(([status, v]) =>
+        `${v.orders} ${status.replace(/_/g, ' ')} (taxable ${formatCurrency(v.taxable_value)}, GST ${formatCurrency(v.gst_amount)})`
+      );
+    return parts.length ? parts.join(' · ') : null;
+  }, [reportSummary]);
+
   const handleGstSort = (key: string) => {
     setGstSortConfig(prev => {
       if (prev && prev.key === key) {
@@ -201,12 +215,26 @@ export function GSTFilingView({
       {/* Filing Basis Note */}
       <div className="flex items-start gap-3 p-4 bg-sky-50 border border-sky-200 rounded-xl">
         <Info className="w-4 h-4 text-sky-600 mt-0.5 flex-shrink-0" />
-        <p className="text-xs text-sky-800 leading-relaxed">
-          <span className="font-bold">Filing basis:</span> invoices dated in the selected period, for rentals that have
-          concluded (completed or fully returned) with payment settled where applicable. Exempt items (ornaments) are
-          listed separately and excluded from the liability. This is the figure to report in GSTR-1 — the Revenue
-          report&apos;s &quot;GST in Collections&quot; card is cash-basis and must not be used for filing.
-        </p>
+        <div className="text-xs text-sky-800 leading-relaxed space-y-1">
+          <p>
+            <span className="font-bold">Filing basis:</span> invoices dated in the selected period, for rentals that have
+            concluded (completed or fully returned) with payment settled where applicable. Exempt items (ornaments) are
+            listed separately and excluded from the liability. This is the figure to report in GSTR-1 — the Revenue
+            report&apos;s &quot;GST in Collections&quot; card is cash-basis and must not be used for filing.
+          </p>
+          {reportSummary?.business_gstin && (
+            <p>
+              <span className="font-bold">GSTIN:</span> {reportSummary.business_gstin}
+              {reportSummary?.period ? <span className="font-bold"> · Period:</span> : null}
+              {reportSummary?.period ? ` ${reportSummary.period}` : null}
+            </p>
+          )}
+          {excludedNote && (
+            <p>
+              <span className="font-bold">Not in this period&apos;s figures:</span> {excludedNote}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}

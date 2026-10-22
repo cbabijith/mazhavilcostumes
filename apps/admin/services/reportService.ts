@@ -1213,6 +1213,10 @@ export class ReportService {
     const gstEnabledResult = await settingsService.getIsGSTEnabled();
     const isGstEnabled = !!(gstEnabledResult.success && gstEnabledResult.data);
 
+    // Business GSTIN for the filing document header (exports must carry it)
+    const gstinResult = await settingsService.getGstNumber();
+    const businessGstin = gstinResult.success && gstinResult.data ? gstinResult.data : '';
+
     // Fetch invoice prefix from settings
     const { data: settingsData } = await supabase()
       .from('settings')
@@ -1266,13 +1270,38 @@ export class ReportService {
     const GST_ELIGIBLE_STATUSES = new Set(['completed', 'returned']);
     const fromTs = new Date(range.start).getTime();
     const toTs = new Date(range.end).getTime();
-    const items = (data || []).filter((item: any) => {
+
+    // Items in the date range, partitioned into filing-eligible vs excluded.
+    // Excluded orders are counted per status (with their would-be GST) so the
+    // report can show the owner exactly what is NOT in the filed figures —
+    // a filing document must explain its own scope.
+    const items: any[] = [];
+    const excludedByStatus: Record<string, { orders: Set<string>; taxable: number; gst: number }> = {};
+    (data || []).forEach((item: any) => {
       const order = item.order;
-      if (!order) return false;
-      if (!GST_ELIGIBLE_STATUSES.has(order.status)) return false;
+      if (!order) return;
       const orderTs = new Date(order.created_at).getTime();
-      return orderTs >= fromTs && orderTs <= toTs;
+      if (orderTs < fromTs || orderTs > toTs) return;
+      if (GST_ELIGIBLE_STATUSES.has(order.status)) {
+        items.push(item);
+      } else {
+        if (!excludedByStatus[order.status]) excludedByStatus[order.status] = { orders: new Set(), taxable: 0, gst: 0 };
+        const ex = excludedByStatus[order.status];
+        ex.orders.add(order.id);
+        ex.taxable += Number(item.base_amount || 0);
+        ex.gst += Number(item.gst_amount || 0);
+      }
     });
+    const excludedSummary = Object.fromEntries(
+      Object.entries(excludedByStatus).map(([status, v]) => [
+        status,
+        {
+          orders: v.orders.size,
+          taxable_value: Math.round(v.taxable * 100) / 100,
+          gst_amount: Math.round(v.gst * 100) / 100,
+        },
+      ])
+    );
 
     // Denominator for composition = distinct orders that actually have line items.
     // Empty/ghost orders (created but no items) are excluded so the GST adoption
@@ -1434,6 +1463,9 @@ export class ReportService {
       total_gst: Math.round(totalGst * 100) / 100,
       period: `${fromDate} to ${toDate}`,
       is_gst_enabled: isGstEnabled,
+      business_name: 'Mazhavil Dance Costumes',
+      business_gstin: businessGstin,
+      excluded_by_status: excludedSummary,
     };
   }
 
