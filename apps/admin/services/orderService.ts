@@ -26,6 +26,11 @@ import { dashboardService } from './dashboardService';
 import { CleaningPriority, CleaningStatus, DamageDecision } from '@/domain';
 import { PaymentType, PaymentMode } from '@/domain/types/payment';
 
+/** True if `v` is a valid PaymentMode string value. */
+function isValidPaymentMode(v: unknown): v is PaymentMode {
+  return typeof v === 'string' && Object.values(PaymentMode).includes(v as PaymentMode);
+}
+
 /** Buffer days for cleaning/prep — must match orderRepository.ts */
 const BUFFER_DAYS = 1;
 
@@ -237,6 +242,79 @@ export class OrderService {
    */
   async getOrderById(id: string): Promise<RepositoryResult<OrderWithRelations>> {
     return await orderRepository.findById(id);
+  }
+
+  /**
+   * Set (or edit/remove) the order's SINGLE discount.
+   *
+   * Business rules (client decision 2026-09-06): one discount per order, no
+   * stacking — a new value replaces the previous one; the total is recomputed
+   * by swapping old discount for new. Setting 0 removes the discount.
+   */
+  async setOrderDiscount(
+    orderId: string,
+    amount: number,
+    notes?: string,
+    changedBy?: string | null
+  ): Promise<RepositoryResult<Order>> {
+    if (!Number.isFinite(amount) || amount < 0) {
+      return {
+        data: null,
+        error: { message: 'Discount amount must be zero or a positive number', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    const orderResult = await orderRepository.findById(orderId);
+    if (!orderResult.success || !orderResult.data) {
+      return { data: null, error: { message: 'Order not found', code: 'ORDER_NOT_FOUND' } as any, success: false };
+    }
+    const order = orderResult.data;
+    if (order.status === 'cancelled') {
+      return { data: null, error: { message: 'Cannot adjust a cancelled order', code: 'VALIDATION_ERROR' } as any, success: false };
+    }
+
+    const currentDiscount = Number(order.discount || 0);
+    const newTotal = Number(order.total_amount || 0) - (amount - currentDiscount);
+    if (newTotal < 0) {
+      return {
+        data: null,
+        error: { message: `Discount of ₹${amount} exceeds the order total (max ₹${(Number(order.total_amount) + currentDiscount).toFixed(2)})`, code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+
+    const amountPaid = Number(order.amount_paid || 0);
+    const paymentStatus = amountPaid >= newTotal ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
+
+    const updateResult = await orderRepository.update(orderId, {
+      discount: amount,
+      total_amount: newTotal,
+      payment_status: paymentStatus,
+    } as any);
+    if (!updateResult.success || !updateResult.data) {
+      return updateResult;
+    }
+
+    await orderRepository.addStatusHistory(
+      orderId,
+      order.status,
+      amount > 0
+        ? `Discount set to ₹${amount}${notes ? ` — ${notes}` : ''} (was ₹${currentDiscount})`
+        : `Discount removed (was ₹${currentDiscount})`,
+    );
+
+    // A larger discount can settle the balance — auto-complete like the
+    // payment path does (best-effort).
+    this.checkAndAutoComplete(orderId).catch(err => {
+      console.error('[OrderService.setOrderDiscount] auto-complete failed:', err);
+    });
+
+    try {
+      dashboardService.clearCache();
+    } catch { /* best-effort */ }
+
+    return updateResult;
   }
 
   /**
@@ -680,6 +758,16 @@ export class OrderService {
       }
     }
 
+    // Defensive: never forward an empty items array to the repository.
+    // An empty array MUST mean "don't touch items", not "delete all items".
+    // The schema (UpdateOrderSchema) and repository both guard this too, but
+    // internal callers (auto-complete, status transitions) can reach this path
+    // without schema validation — strip empty items here as the final safety net.
+    if (Array.isArray((data as any).items) && (data as any).items.length === 0) {
+      const { items: _omit, ...dataWithoutItems } = data as any;
+      data = dataWithoutItems;
+    }
+
     const dbStart = performance.now();
     const result = await orderRepository.update(id, data);
     const dbDuration = performance.now() - dbStart;
@@ -696,7 +784,11 @@ export class OrderService {
     // After any update that changes payment_status or status, check auto-complete
     // Run in background — auto-complete is only relevant for returned/paid orders,
     // not for scheduled→ongoing transitions. Saves 1 blocking DB round-trip.
-    if (result.success && (data.payment_status || data.status)) {
+    // FLAGGED orders always re-check: legacy flagged orders with all damage
+    // assessments already decided must un-stick on ANY save (e.g. a notes-only
+    // edit), not only on status/payment changes — otherwise they sit in
+    // flagged forever until an unrelated event fires.
+    if (result.success && (data.payment_status || data.status || currentStatus === OrderStatus.FLAGGED)) {
       this.checkAndAutoComplete(id).catch(err => {
         console.error('[OrderService.updateOrder] Background auto-complete check failed:', err);
       });
@@ -791,6 +883,24 @@ export class OrderService {
     }
 
     if (result.success) {
+      // ─── ADVANCE PAYMENT RECONCILIATION ──────────────────────────────────
+      // The OrderForm only sends amount_paid/payment_status on CREATE, not on
+      // update. So if an advance is added/changed/removed during an edit, the
+      // `payments` table (the source of truth for amount_paid) is never touched,
+      // and the order detail/list pages show a wrong "Due" amount with no entry
+      // in Payment History. Reconcile the ADVANCE payment row here, BEFORE
+      // syncOrderPaymentStatus recomputes amount_paid from the payment rows.
+      if (
+        (data as any).advance_amount !== undefined ||
+        (data as any).advance_collected !== undefined
+      ) {
+        try {
+          await this.reconcileAdvancePayment(id, existingOrder.data, data);
+        } catch (err) {
+          console.error('[OrderService.updateOrder] Failed to reconcile advance payment:', err);
+        }
+      }
+
       try {
         const { paymentService } = await import('./paymentService');
         await paymentService.syncOrderPaymentStatus(id);
@@ -808,6 +918,79 @@ export class OrderService {
     const totalDuration = performance.now() - totalStart;
     console.log(`[OrderService.updateOrder] Total updateOrder flow duration: ${totalDuration.toFixed(2)}ms`);
     return result;
+  }
+
+  /**
+   * Synchronize the ADVANCE-type payment row for an order with the order's
+   * current `advance_amount` / `advance_collected` state.
+   *
+   * Called from updateOrder() whenever the edit form sends advance fields.
+   * `payments` is the source of truth for `amount_paid`: syncOrderPaymentStatus
+   * sums payment rows to recompute it, so the ADVANCE row must match.
+   *
+   * Logic:
+   *  - newAdvance <= 0 (or not collected): delete any existing ADVANCE row.
+   *  - newAdvance > 0 and no ADVANCE row exists: create one.
+   *  - newAdvance > 0 and ADVANCE row exists with a different amount: update it.
+   *  - Otherwise (same amount): no-op.
+   *
+   * We compare against the PRE-edit advance to detect a real change, and only
+   * touch the payments table when something actually moved — this keeps
+   * status-only or items-only edits from churning payment history.
+   */
+  private async reconcileAdvancePayment(
+    orderId: string,
+    existingOrder: OrderWithRelations,
+    data: UpdateOrderDTO,
+  ): Promise<void> {
+    const newAdvance = Number((data as any).advance_amount ?? 0) || 0;
+    const newCollected = (data as any).advance_collected ?? (newAdvance > 0);
+    const effectiveAdvance = newCollected ? newAdvance : 0;
+    const oldAdvance = Number(existingOrder.advance_amount ?? 0) || 0;
+
+    // No change in advance amount → nothing to reconcile.
+    if (effectiveAdvance === oldAdvance) return;
+
+    paymentRepository.setUserContext(this.currentUserId, this.currentBranchId);
+
+    // Find the existing ADVANCE payment row for this order, if any.
+    const existingPaymentsRes = await paymentRepository.findByOrderId(orderId);
+    const existingPayments = existingPaymentsRes.success && existingPaymentsRes.data ? existingPaymentsRes.data : [];
+    const advanceRow = existingPayments.find(p => p.payment_type === PaymentType.ADVANCE);
+
+    if (effectiveAdvance <= 0) {
+      // Advance was removed/cleared → delete the ADVANCE payment row.
+      if (advanceRow) {
+        await paymentRepository.delete(advanceRow.id);
+      }
+      return;
+    }
+
+    // advance_payment_method is typed as PaymentMethod on the order but
+    // PaymentMode on payments. The two enums share string values (cash, upi,
+    // gpay, bank_transfer) except for the outlier (OTHER vs CHEQUE), so coerce
+    // through the string and validate, falling back to CASH.
+    const methodStr = (data as any).advance_payment_method ||
+      existingOrder.advance_payment_method ||
+      PaymentMode.CASH;
+    const method = isValidPaymentMode(methodStr) ? methodStr : PaymentMode.CASH;
+
+    if (!advanceRow) {
+      // Advance added where none existed → create.
+      await paymentRepository.create({
+        order_id: orderId,
+        payment_type: PaymentType.ADVANCE,
+        amount: effectiveAdvance,
+        payment_mode: method,
+        notes: 'Advance payment updated during order edit',
+      });
+    } else if (Number(advanceRow.amount) !== effectiveAdvance) {
+      // Advance amount changed → update existing row.
+      await paymentRepository.update(advanceRow.id, {
+        amount: effectiveAdvance,
+        payment_mode: method,
+      });
+    }
   }
 
   /**
@@ -921,12 +1104,14 @@ export class OrderService {
     }
 
     // Validate order is in correct status for return
+    // FLAGGED is allowed: orders flagged for damage may still have unreturned
+    // items out with the customer that come back days later.
     const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL) {
+    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL && currentStatus !== OrderStatus.FLAGGED) {
       return {
         data: null,
         error: {
-          message: 'Order must be in use, ongoing, or partial to process return',
+          message: 'Order must be in use, ongoing, partial, or flagged to process return',
           code: 'INVALID_STATUS'
         } as any,
         success: false,
@@ -977,10 +1162,87 @@ export class OrderService {
           success: false,
         };
       }
+      // returned_quantity is the NEW TOTAL for the item (not a delta) — it can
+      // never exceed the ordered quantity, otherwise inventory would be
+      // incremented above what was ever rented out.
+      if (item.returned_quantity === undefined || item.returned_quantity === null
+        || !Number.isInteger(item.returned_quantity) || item.returned_quantity < 0) {
+        return {
+          data: null,
+          error: {
+            message: 'Returned quantity must be a non-negative integer for all items',
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      const orderItem = existingOrder.data.items?.find(i => i.id === item.item_id);
+      if (!orderItem) {
+        return {
+          data: null,
+          error: {
+            message: `Item ${item.item_id} does not belong to this order`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      if (item.returned_quantity > orderItem.quantity) {
+        return {
+          data: null,
+          error: {
+            message: `Returned quantity (${item.returned_quantity}) cannot exceed ordered quantity (${orderItem.quantity})`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      // returned_quantity is a NEW TOTAL, so it can never go DOWN — a lower
+      // value would silently un-return units, flip is_returned back to false
+      // and corrupt the outstanding-units math on every client.
+      const alreadyReturned = orderItem.returned_quantity || 0;
+      if (item.returned_quantity < alreadyReturned) {
+        return {
+          data: null,
+          error: {
+            message: `Returned quantity (${item.returned_quantity}) cannot be less than the ${alreadyReturned} unit(s) already returned. Send the NEW TOTAL (already returned + returning now), not just the units being returned now.`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+      // Damaged units are a subset of the units coming back
+      if ((item.damaged_quantity || 0) > item.returned_quantity) {
+        return {
+          data: null,
+          error: {
+            message: `Damaged quantity (${item.damaged_quantity}) cannot exceed returned quantity (${item.returned_quantity})`,
+            code: 'VALIDATION_ERROR'
+          } as any,
+          success: false,
+        };
+      }
+    }
+
+    // Return-time adjustments can never be negative — a negative late fee or
+    // discount would silently reduce the order total (an un-authorized refund).
+    if ((returnData.late_fee ?? 0) < 0) {
+      return {
+        data: null,
+        error: { message: 'Late fee cannot be negative', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
+    }
+    if ((returnData.discount ?? 0) < 0) {
+      return {
+        data: null,
+        error: { message: 'Discount cannot be negative', code: 'VALIDATION_ERROR' } as any,
+        success: false,
+      };
     }
 
     const result = await orderRepository.processReturn(orderId, returnData);
-    
+
     if (result.success && result.data) {
       // Clear dashboard cache immediately (in-memory, non-blocking)
       try { dashboardService.clearCache(); } catch (err) { console.error('Failed to clear dashboard cache:', err); }
@@ -992,104 +1254,117 @@ export class OrderService {
 
       // Cleaning transitions and damage assessments retain their existing flow.
       const returnedOrderData = result.data;
-      (async () => {
-        // Fetch order items for background processing (returnedOrderData is a bare Order without joins)
+
+      // 1. Auto-complete check (returned + paid → completed) — awaited
+      await this.checkAndAutoComplete(orderId).catch(err =>
+        console.error('[OrderService.processOrderReturn] Auto-complete failed:', err)
+      );
+
+      // 2. Damage assessments for damaged items — awaited (rows must exist)
+      try {
         const itemsResult = await orderRepository.getOrderItems(orderId);
         const orderItems = itemsResult.data || [];
+        const damagedItems = returnData.items
+          .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
+          .map(item => {
+            const orderItem = orderItems.find((i: any) => i.id === item.item_id);
+            return {
+              order_item_id: item.item_id,
+              product_id: orderItem?.product_id || '',
+              branch_id: returnedOrderData.branch_id,
+              damaged_quantity: item.damaged_quantity || 0,
+            };
+          })
+          .filter(item => item.product_id);
 
-        // 2. Transition cleaning records: scheduled → in_progress
-        try {
-          const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
-          for (const item of orderItems) {
-            if (!item.product_id) continue;
-            productReturnMap.set(item.product_id, {
-              quantity: item.quantity,
-              returnedQuantity: item.returned_quantity || 0,
-            });
-          }
-
-          await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
-            const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
-            if (!scheduledRecord.success || !scheduledRecord.data) return;
-
-            const record = scheduledRecord.data;
-            const totalQty = info.quantity;
-            const returnedQty = info.returnedQuantity;
-
-            if (returnedQty >= totalQty) {
-              await cleaningRepository.update(record.id, {
-                status: CleaningStatus.IN_PROGRESS,
-                started_at: new Date().toISOString(),
-                quantity: record.quantity,
-                notes: record.notes
-                  ? `${record.notes} — all items returned, cleaning started`
-                  : 'All items returned, cleaning started',
-              });
-            } else {
-              const justReturnedQty = Math.min(returnedQty, record.quantity);
-              const remainingQty = record.quantity - justReturnedQty;
-
-              if (justReturnedQty > 0) {
-                await cleaningRepository.update(record.id, {
-                  status: CleaningStatus.IN_PROGRESS,
-                  started_at: new Date().toISOString(),
-                  quantity: justReturnedQty,
-                  notes: record.notes
-                    ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
-                    : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
-                });
-
-                if (remainingQty > 0) {
-                  await cleaningRepository.create({
-                    product_id: productId,
-                    order_id: orderId,
-                    branch_id: returnedOrderData.branch_id,
-                    store_id: record.store_id,
-                    quantity: remainingQty,
-                    status: CleaningStatus.SCHEDULED,
-                    priority: record.priority,
-                    priority_order_id: record.priority_order_id || undefined,
-                    expected_return_date: record.expected_return_date || undefined,
-                    notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
-                  });
-                }
-              }
-            }
-          }));
-        } catch (err) {
-          console.error('Failed to transition cleaning records:', err);
+        if (damagedItems.length > 0) {
+          await damageAssessmentService.createAssessments({
+            order_id: orderId,
+            items: damagedItems,
+          });
         }
-
-        // 3. Auto-create damage assessments for damaged items
+        // cleaning transitions: awaited too — dropped work on serverless
+        // freeze would leave stale cleaning records
         try {
-          const damagedItems = returnData.items
-            .filter(item => item.condition_rating === 'damaged' && (item.damaged_quantity || 0) > 0)
-            .map(item => {
-              const orderItem = orderItems.find((i: any) => i.id === item.item_id);
-              return {
-                order_item_id: item.item_id,
-                product_id: orderItem?.product_id || '',
-                branch_id: returnedOrderData.branch_id,
-                damaged_quantity: item.damaged_quantity || 0,
-              };
-            })
-            .filter(item => item.product_id);
-
-          if (damagedItems.length > 0) {
-            await damageAssessmentService.createAssessments({
-              order_id: orderId,
-              items: damagedItems,
-            });
-          }
+          await this.transitionCleaningAfterReturn(orderId, returnedOrderData, orderItems);
         } catch (err) {
-          console.error('Failed to auto-create damage assessments:', err);
+          console.error('[OrderService.processOrderReturn] Cleaning transition failed:', err);
         }
-      })().catch(err => {
-        console.error('[OrderService.processOrderReturn] Background post-return housekeeping failed:', err);
-      });
+      } catch (err) {
+        console.error('Failed to create damage assessments:', err);
+      }
     }
 
     return result;
+  }
+
+  /**
+   * Transition cleaning records after a return: scheduled → in_progress for
+   * returned units, splitting records when only part of the units came back.
+   * Awaited before responding so serverless shutdown cannot drop the updates.
+   */
+  private async transitionCleaningAfterReturn(
+    orderId: string,
+    returnedOrderData: any,
+    orderItems: any[],
+  ): Promise<void> {
+    const productReturnMap = new Map<string, { quantity: number; returnedQuantity: number }>();
+    for (const item of orderItems) {
+      if (!item.product_id) continue;
+      productReturnMap.set(item.product_id, {
+        quantity: item.quantity,
+        returnedQuantity: item.returned_quantity || 0,
+      });
+    }
+
+    await Promise.all(Array.from(productReturnMap.entries()).map(async ([productId, info]) => {
+      const scheduledRecord = await cleaningRepository.findScheduledByOrderAndProduct(orderId, productId);
+      if (!scheduledRecord.success || !scheduledRecord.data) return;
+
+      const record = scheduledRecord.data;
+      const totalQty = info.quantity;
+      const returnedQty = info.returnedQuantity;
+
+      if (returnedQty >= totalQty) {
+        await cleaningRepository.update(record.id, {
+          status: CleaningStatus.IN_PROGRESS,
+          started_at: new Date().toISOString(),
+          quantity: record.quantity,
+          notes: record.notes
+            ? `${record.notes} — all items returned, cleaning started`
+            : 'All items returned, cleaning started',
+        });
+      } else {
+        const justReturnedQty = Math.min(returnedQty, record.quantity);
+        const remainingQty = record.quantity - justReturnedQty;
+
+        if (justReturnedQty > 0) {
+          await cleaningRepository.update(record.id, {
+            status: CleaningStatus.IN_PROGRESS,
+            started_at: new Date().toISOString(),
+            quantity: justReturnedQty,
+            notes: record.notes
+              ? `${record.notes} — partial return (${justReturnedQty} of ${totalQty}), cleaning started`
+              : `Partial return (${justReturnedQty} of ${totalQty}), cleaning started`,
+          });
+
+          if (remainingQty > 0) {
+            await cleaningRepository.create({
+              product_id: productId,
+              order_id: orderId,
+              branch_id: returnedOrderData.branch_id,
+              store_id: record.store_id,
+              quantity: remainingQty,
+              status: CleaningStatus.SCHEDULED,
+              priority: record.priority,
+              priority_order_id: record.priority_order_id || undefined,
+              expected_return_date: record.expected_return_date || undefined,
+              notes: `Partial return — awaiting ${remainingQty} more unit(s)`,
+            });
+          }
+        }
+      }
+    }));
   }
 
   /**
@@ -1156,21 +1431,45 @@ export class OrderService {
     // If flagged, check if all damage assessments are resolved
     if (order.status === OrderStatus.FLAGGED) {
       const assessmentResult = await damageAssessmentService.getAssessmentsForOrder(orderId);
-      if (assessmentResult.success && assessmentResult.data && assessmentResult.data.length > 0) {
-        const assessments = assessmentResult.data;
-        const allDone = assessments.every(a => a.decision !== DamageDecision.PENDING);
-        
-        // If all are assessed, transition order from FLAGGED to RETURNED status
+      const assessments = assessmentResult.success && assessmentResult.data ? assessmentResult.data : [];
+
+      // Zero assessment rows can mean two things:
+      //  a) nothing is assessable (damage recorded with 0 damaged units, or a
+      //     legacy flagged order without damaged quantities) — the order would
+      //     otherwise sit in FLAGGED forever, so it must transition here;
+      //  b) assessable damage exists but the rows were never created (legacy
+      //     order or failed auto-creation) — keep it flagged; the Damage
+      //     Assessment Panel offers a backfill button for exactly this case.
+      const hasAssessableDamage = (order.items || []).some(
+        i => i.condition_rating === 'damaged' && (i.damaged_quantity || 0) > 0
+      );
+      const allDone = assessments.length > 0
+        ? assessments.every(a => a.decision !== DamageDecision.PENDING)
+        : !hasAssessableDamage;
+
+        // If all are assessed, transition order out of FLAGGED — but only to
+        // RETURNED when every unit is physically back. Orders that still have
+        // units out with the customer must land in PARTIAL so staff can
+        // process the remaining returns later (completed/returned are not
+        // returnable statuses).
         if (allDone) {
-          await orderRepository.update(orderId, { status: OrderStatus.RETURNED } as any);
+          const itemsResult = await orderRepository.getOrderItems(orderId);
+          const items = itemsResult.data || [];
+          const allUnitsBack = items.length > 0 && items.every(i => (i.returned_quantity || 0) >= i.quantity);
+          const nextStatus = allUnitsBack ? OrderStatus.RETURNED : OrderStatus.PARTIAL;
+
+          await orderRepository.update(orderId, { status: nextStatus } as any);
           // Sync priority flag (clears it for returned/completed orders)
           await orderRepository.syncOrderPriorityFlag(orderId);
           // Add status history entry
-          await orderRepository.addStatusHistory(orderId, OrderStatus.RETURNED, 'Damage assessment complete: all units resolved');
-          order.status = OrderStatus.RETURNED;
-          itemsDone = true;
+          await orderRepository.addStatusHistory(orderId, nextStatus, assessments.length > 0
+            ? (allUnitsBack
+                ? 'Damage assessment complete: all units resolved'
+                : 'Damage assessment complete: units still out with customer')
+            : 'Unflagged: no assessable damage units on this order');
+          order.status = nextStatus;
+          itemsDone = allUnitsBack;
         }
-      }
     }
 
     if (itemsDone && paymentDone) {

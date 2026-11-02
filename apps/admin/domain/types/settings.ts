@@ -12,13 +12,19 @@ export enum SettingKey {
   INVOICE_PREFIX = 'invoice_prefix',
   PAYMENT_TERMS = 'payment_terms',
   AUTHORIZED_SIGNATURE = 'authorized_signature',
+  /** JSON-stringified array of available GST percentage slabs, e.g. "[0,5,12,18,28]". */
+  GST_SLABS = 'gst_slabs',
+  /** The business's GST identification number (GSTIN) printed on invoices. */
   GST_NUMBER = 'gst_number',
 }
 
-/** GSTIN format: state code, PAN, entity code, Z, and checksum character. */
-export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+/**
+ * Indian GSTIN format: 2-digit state code + 10-char PAN + 1 entity code +
+ * 'Z' + 1 checksum char (alphanumeric). Example: 32ATOPS2936C1ZO
+ */
+export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
-/** Mazhavil's default invoice GSTIN, used only when no value is configured. */
+/** Default GSTIN shown/used until the merchant edits it in Settings. */
 export const DEFAULT_GST_NUMBER = '32ATOPS2936C1ZO';
 
 // Setting Entity

@@ -39,29 +39,17 @@ final authServiceProvider = Provider<AuthService>((ref) {
 class AuthNotifier extends Notifier<AuthState> {
   @override
   AuthState build() {
-    // Start with loading false to allow form interaction
-    // Check auth status in background
-    _checkAuthStatus();
     return AuthState(isLoading: false);
   }
 
-  Future<void> _checkAuthStatus() async {
+  /// Restore both identity and token before branch-scoped screens start loading.
+  Future<bool> restoreSession() async {
     final authService = ref.read(authServiceProvider);
-    final isAuth = authService.isAuthenticated();
-    if (isAuth) {
-      final user = await authService.getCurrentUser();
-      state = AuthState(
-        isAuthenticated: true,
-        user: user,
-        isLoading: false,
-      );
-    } else {
-      state = AuthState(
-        isAuthenticated: false,
-        user: null,
-        isLoading: false,
-      );
-    }
+    final isAuth = await authService.loadSession();
+    final user = isAuth ? await authService.getCurrentUser() : null;
+    if (!ref.mounted) return false;
+    state = AuthState(isAuthenticated: user != null, user: user);
+    return user != null;
   }
 
   Future<bool> login(String email, String password) async {

@@ -13,6 +13,7 @@ const SettingKeyEnum = z.enum([
   'invoice_prefix',
   'payment_terms',
   'authorized_signature',
+  'gst_slabs',
 ]);
 
 /**

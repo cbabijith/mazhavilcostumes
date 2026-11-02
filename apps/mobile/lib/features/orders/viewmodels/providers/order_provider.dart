@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import '../../../../core/constants/app_durations.dart';
 import '../../models/order.dart';
 import '../../repositories/order_repository.dart';
 import '../../../branches/viewmodels/providers/branch_provider.dart';
@@ -25,22 +26,46 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
   dynamic _paymentStatus;
   bool? _hasStockConflict;
 
-  String? get currentStatus => _currentStatus is String ? _currentStatus as String? : null;
+  String? get currentStatus =>
+      _currentStatus is String ? _currentStatus as String? : null;
   dynamic get currentStatusRaw => _currentStatus;
   String get currentDateFilter => _currentDateFilter;
   String? get currentDateFrom => _currentDateFrom;
   String? get currentDateTo => _currentDateTo;
   String get currentSearch => _currentSearch;
 
+  CancelToken? _requestToken;
+  int _generation = 0;
+  bool _debounceSearch = false;
+
   @override
   Future<PaginatedOrders> build() async {
-    ref.keepAlive();
-    _currentBranchId = ref.watch(effectiveBranchIdProvider);
+    _generation++;
     _currentPage = 1;
+    _isLoadingMore = false;
+    final token = CancelToken();
+    _requestToken = token;
+    ref.onDispose(token.cancel);
     final repo = ref.watch(orderRepositoryProvider);
+    final branchFuture = ref.watch(resolvedBranchIdProvider.future);
+    final debounce = _debounceSearch;
+    _debounceSearch = false;
+    if (debounce) await Future<void>.delayed(AppDurations.searchDebounce);
+    if (token.isCancelled) throw token.cancelError!;
+    final branchId = await branchFuture;
+    if (token.isCancelled) throw token.cancelError!;
+    _currentBranchId = branchId;
+    return _getPage(repo, 1, token);
+  }
+
+  Future<PaginatedOrders> _getPage(
+    OrderRepository repo,
+    int page,
+    CancelToken? token,
+  ) {
     return repo.getOrders(
-      page: _currentPage,
-      limit: 15, // Reduced from 25 for faster initial load
+      page: page,
+      limit: 15,
       query: _currentSearch,
       status: _currentStatus,
       branchId: _currentBranchId,
@@ -51,109 +76,42 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
       excludeStatus: _excludeStatus,
       paymentStatus: _paymentStatus,
       hasStockConflict: _hasStockConflict,
+      cancelToken: token,
     );
   }
 
-  Future<void> search(String query) async {
-    _currentSearch = query;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15, // Reduced from 25 for faster initial load
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
-      );
-    });
+  Future<void> _reload({bool debounce = false}) async {
+    _debounceSearch = debounce;
+    ref.invalidateSelf();
+    try {
+      await future;
+    } catch (_) {
+      // AsyncValue renders the error without an unhandled callback future.
+    }
   }
 
-  Future<void> filterByStatus(String? status) async {
-    _currentStatus = status;
-    _excludeStatus = null;
-    _paymentStatus = null;
-    _dateField = null;
-    _hasStockConflict = null;
-    _currentDateFilter = 'ALL';
-    _currentDateFrom = null;
-    _currentDateTo = null;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15, // Reduced from 25 for faster initial load
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
-      );
-    });
+  Future<void> search(String query) async {
+    if (_currentSearch == query) return;
+    _currentSearch = query;
+    await _reload(debounce: true);
   }
+
+  Future<void> filterByStatus(String? status) => setFilters(status: status);
 
   Future<void> filterByBranch(String? branchId) async {
-    _currentBranchId = branchId;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15, // Reduced from 25 for faster initial load
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
-      );
-    });
+    ref.read(selectedBranchIdProvider.notifier).select(branchId);
   }
 
-  Future<void> filterByDate(String dateFilter, {String? dateFrom, String? dateTo}) async {
+  Future<void> filterByDate(
+    String dateFilter, {
+    String? dateFrom,
+    String? dateTo,
+  }) async {
     _currentDateFilter = dateFilter;
     _currentDateFrom = dateFrom;
     _currentDateTo = dateTo;
     _dateField = null;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15,
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
-      );
-    });
+    await _reload();
   }
 
   Future<void> setFilters({
@@ -174,126 +132,89 @@ class OrdersNotifier extends AsyncNotifier<PaginatedOrders> {
     _currentDateFrom = dateFrom;
     _currentDateTo = dateTo;
     _hasStockConflict = hasStockConflict;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15,
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
-      );
-    });
+    await _reload();
   }
 
   Future<void> clearFilters() async {
+    // Opening an already unfiltered tab must reuse its initial/cached request.
+    if (_currentSearch.isEmpty &&
+        _currentStatus == null &&
+        _currentDateFilter == 'ALL' &&
+        _currentDateFrom == null &&
+        _currentDateTo == null &&
+        _excludeStatus == null &&
+        _dateField == null &&
+        _paymentStatus == null &&
+        _hasStockConflict == null) {
+      return;
+    }
     _currentSearch = '';
-    _currentStatus = null;
-    _currentBranchId = null;
-    _currentDateFilter = 'ALL';
-    _currentDateFrom = null;
-    _currentDateTo = null;
-    _excludeStatus = null;
-    _dateField = null;
-    _paymentStatus = null;
-    _hasStockConflict = null;
-    _currentPage = 1;
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final repo = ref.read(orderRepositoryProvider);
-      return repo.getOrders(
-        page: _currentPage,
-        limit: 15,
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: null,
-        dateField: null,
-        dateFrom: null,
-        dateTo: null,
-        excludeStatus: null,
-        paymentStatus: null,
-        hasStockConflict: null,
-      );
-    });
+    await setFilters(); // Keep the branch selected by the signed-in user.
   }
 
   Future<void> loadMore() async {
-    if (_isLoadingMore || !state.hasValue) return;
-
+    if (_isLoadingMore || state.isLoading || !state.hasValue) return;
     final currentData = state.value!;
     if (_currentPage >= currentData.totalPages) return;
-
+    final generation = _generation;
     _isLoadingMore = true;
     try {
-      final repo = ref.read(orderRepositoryProvider);
-      final nextPageData = await repo.getOrders(
-        page: _currentPage + 1,
-        limit: 15, // Reduced from 25 for faster initial load
-        query: _currentSearch,
-        status: _currentStatus,
-        branchId: _currentBranchId,
-        dateFilter: _currentDateFilter == 'ALL' ? null : _currentDateFilter,
-        dateField: _dateField,
-        dateFrom: _currentDateFrom,
-        dateTo: _currentDateTo,
-        excludeStatus: _excludeStatus,
-        paymentStatus: _paymentStatus,
-        hasStockConflict: _hasStockConflict,
+      final nextPageData = await _getPage(
+        ref.read(orderRepositoryProvider),
+        _currentPage + 1,
+        _requestToken,
       );
-
-      _currentPage++;
-      state = AsyncValue.data(PaginatedOrders(
-        orders: [...currentData.orders, ...nextPageData.orders],
-        total: nextPageData.total,
-        page: nextPageData.page,
-        limit: nextPageData.limit,
-        totalPages: nextPageData.totalPages,
-        hasNext: nextPageData.hasNext,
-        hasPrev: nextPageData.hasPrev,
-      ));
+      if (!ref.mounted || generation != _generation || state.isLoading) return;
+      _currentPage = nextPageData.page;
+      state = AsyncData(
+        PaginatedOrders(
+          orders: [...currentData.orders, ...nextPageData.orders],
+          total: nextPageData.total,
+          page: nextPageData.page,
+          limit: nextPageData.limit,
+          totalPages: nextPageData.totalPages,
+          hasNext: nextPageData.hasNext,
+          hasPrev: nextPageData.hasPrev,
+        ),
+      );
+    } catch (_) {
+      // Retain the loaded rows and let the next scroll retry.
     } finally {
-      _isLoadingMore = false;
+      if (generation == _generation) _isLoadingMore = false;
     }
   }
 }
 
-final ordersProvider = AsyncNotifierProvider<OrdersNotifier, PaginatedOrders>(() {
-  return OrdersNotifier();
-});
+final ordersProvider = AsyncNotifierProvider<OrdersNotifier, PaginatedOrders>(
+  () {
+    return OrdersNotifier();
+  },
+);
 
 // Single order provider - removed autoDispose for instant navigation back
 final orderProvider = FutureProvider.family<Order, String>((ref, id) async {
   final repository = ref.watch(orderRepositoryProvider);
   final cancelToken = ref.watch(cancelTokenProvider);
-  
+
   ref.keepAlive();
   return repository.getOrderById(id, cancelToken: cancelToken);
 });
 
 // Availability check provider
-final availabilityCheckProvider = FutureProvider.autoDispose.family<Map<String, dynamic>, Map<String, dynamic>>((ref, params) async {
-  final repository = ref.watch(orderRepositoryProvider);
-  final cancelToken = ref.watch(cancelTokenProvider);
-  
-  return repository.checkAvailability(
-    items: params['items'] as List<Map<String, dynamic>>,
-    startDate: params['startDate'] as String,
-    endDate: params['endDate'] as String,
-    branchId: params['branchId'] as String,
-    excludeOrderId: params['excludeOrderId'] as String?,
-    cancelToken: cancelToken,
-  );
-});
+final availabilityCheckProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, Map<String, dynamic>>((ref, params) async {
+      final repository = ref.watch(orderRepositoryProvider);
+      final cancelToken = ref.watch(cancelTokenProvider);
+
+      return repository.checkAvailability(
+        items: params['items'] as List<Map<String, dynamic>>,
+        startDate: params['startDate'] as String,
+        endDate: params['endDate'] as String,
+        branchId: params['branchId'] as String,
+        excludeOrderId: params['excludeOrderId'] as String?,
+        cancelToken: cancelToken,
+      );
+    });
 
 // CancelToken provider for request cancellation
 final cancelTokenProvider = Provider<CancelToken>((ref) {
@@ -308,18 +229,29 @@ class OrderOperations {
   final void Function()? _onChanged;
 
   OrderOperations(this._repository, {void Function()? onChanged})
-      : _onChanged = onChanged;
+    : _onChanged = onChanged;
 
   Future<Order> getOrderById(String id) => _repository.getOrderById(id);
 
-  Future<Order> createOrder(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Order> createOrder(
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     final order = await _repository.createOrder(body, cancelToken: cancelToken);
     _onChanged?.call();
     return order;
   }
 
-  Future<Order> updateOrder(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
-    final order = await _repository.updateOrder(id, body, cancelToken: cancelToken);
+  Future<Order> updateOrder(
+    String id,
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
+    final order = await _repository.updateOrder(
+      id,
+      body,
+      cancelToken: cancelToken,
+    );
     _onChanged?.call();
     return order;
   }
@@ -461,38 +393,46 @@ class OrderOperations {
 
 final orderOperationsProvider = Provider<OrderOperations>((ref) {
   final repository = ref.watch(orderRepositoryProvider);
-  return OrderOperations(repository, onChanged: () {
-    if (!ref.mounted) return;
-    // A settled return/payment must not leave old Revenue Due or pending cards.
-    ref.invalidate(ordersProvider);
-    ref.invalidate(orderProvider);
-    ref.invalidate(orderPaymentsProvider);
-    ref.invalidate(dashboardMetricsProvider);
-    ref.invalidate(operationalMetricsProvider);
-    ref.invalidate(analyticsMetricsProvider);
-    ref.invalidate(categoryRevenueProvider);
-    ref.invalidate(inventoryRoiProvider);
-    ref.invalidate(transactionReportProvider);
-  });
+  return OrderOperations(
+    repository,
+    onChanged: () {
+      if (!ref.mounted) return;
+      // A settled return/payment must not leave old Revenue Due or pending cards.
+      ref.invalidate(ordersProvider);
+      ref.invalidate(orderProvider);
+      ref.invalidate(orderPaymentsProvider);
+      ref.invalidate(dashboardMetricsProvider);
+      ref.invalidate(operationalMetricsProvider);
+      ref.invalidate(analyticsRequestProvider);
+      ref.invalidate(analyticsMetricsProvider);
+      ref.invalidate(categoryRevenueProvider);
+      ref.invalidate(inventoryRoiProvider);
+      ref.invalidate(transactionReportProvider);
+    },
+  );
 });
 
-final orderPaymentsProvider = FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {
-  final repository = ref.watch(orderRepositoryProvider);
-  print('[orderPaymentsProvider] Fetching payments for order ID: $id');
-  try {
-    final payments = await repository.getOrderPayments(id);
-    print('[orderPaymentsProvider] Fetched ${payments.length} payments for order ID: $id');
-    return payments;
-  } catch (e, stack) {
-    print('[orderPaymentsProvider] Error fetching payments for order ID $id: $e');
-    print(stack);
-    rethrow;
-  }
-});
+final orderPaymentsProvider =
+    FutureProvider.family<List<PaymentTransaction>, String>((ref, id) async {
+      final repository = ref.watch(orderRepositoryProvider);
+      print('[orderPaymentsProvider] Fetching payments for order ID: $id');
+      try {
+        final payments = await repository.getOrderPayments(id);
+        print(
+          '[orderPaymentsProvider] Fetched ${payments.length} payments for order ID: $id',
+        );
+        return payments;
+      } catch (e, stack) {
+        print(
+          '[orderPaymentsProvider] Error fetching payments for order ID $id: $e',
+        );
+        print(stack);
+        rethrow;
+      }
+    });
 
-final orderDamageAssessmentsProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, orderId) async {
-  final repository = ref.watch(orderRepositoryProvider);
-  return await repository.getDamageAssessments(orderId);
-});
-
-
+final orderDamageAssessmentsProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, orderId) async {
+      final repository = ref.watch(orderRepositoryProvider);
+      return await repository.getDamageAssessments(orderId);
+    });

@@ -9,7 +9,7 @@
  * @module hooks/useOrders
  */
 
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { Order, OrderWithRelations, CreateOrderDTO, UpdateOrderDTO, OrderSearchParams, ReturnOrderDTO, OrderStatusHistory } from '@/domain/types/order';
 import { useAppStore } from '@/stores';
 import type { ApiSuccessResponse, PaginationMeta } from '@/lib/apiResponse';
@@ -331,5 +331,65 @@ export function useUpdateOrderItemDamage() {
     updateOrderItemDamage: mutation.mutate,
     isUpdating: mutation.isPending,
   };
+}
+
+/**
+ * Set / edit / remove the order's SINGLE discount (replaces any previous
+ * value — no stacking). One discount per order per the client's design.
+ */
+export function useSetOrderDiscount() {
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useAppStore();
+
+  const mutation = useMutation({
+    mutationFn: async ({ orderId, amount, notes }: { orderId: string; amount: number; notes?: string }) => {
+      const res = await apiFetch<ApiSuccessResponse<{ id: string; discount: number; total_amount: number }>>(
+        `/api/orders/${orderId}/discount`,
+        { method: 'PATCH', body: JSON.stringify({ amount, notes }) },
+      );
+      return res;
+    },
+    onSuccess: async (result, variables) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderDetail(variables.orderId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.orderLists() });
+      showSuccess(
+        variables.amount > 0 ? 'Discount Saved' : 'Discount Removed',
+        variables.amount > 0 ? `Discount set to ₹${variables.amount.toLocaleString('en-IN')}` : 'The order discount was removed.',
+      );
+    },
+    onError: (error: Error) => {
+      showError('Failed to save discount', error.message);
+    },
+  });
+
+  return {
+    ...mutation,
+    setOrderDiscount: mutation.mutate,
+    isSettingDiscount: mutation.isPending,
+  };
+}
+
+/**
+ * Paginated orders containing a specific product (product → order history).
+ * Cursor is page-number based to match GET /api/orders pagination.
+ */
+export function useProductOrdersInfinite(productId: string | null, pageSize = 20) {
+  return useInfiniteQuery({
+    queryKey: ['orders', 'by-product', productId, pageSize],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
+      const res = await apiFetch<ApiSuccessResponse<any[]> & { meta?: { total?: number; page?: number; limit?: number } }>(
+        `/api/orders?product_id=${productId}&limit=${pageSize}&page=${pageParam}&sort_by=created_at&sort_order=desc`,
+      );
+      return res;
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const total = lastPage.meta?.total ?? 0;
+      const loaded = allPages.reduce((n, p) => n + (p.data?.length || 0), 0);
+      return loaded < total ? allPages.length + 1 : undefined;
+    },
+    enabled: !!productId,
+    staleTime: 30_000,
+  });
 }
 

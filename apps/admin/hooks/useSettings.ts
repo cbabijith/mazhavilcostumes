@@ -10,6 +10,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, queryUtils } from '@/lib/query-client';
 import { useAppStore } from '@/stores';
+import { DEFAULT_GST_SLABS } from '@/domain/types/category';
 
 /**
  * Generic fetch helper for settings API
@@ -160,6 +161,65 @@ export function useUpdateSetting() {
   return {
     ...mutation,
     updateSetting: mutation.mutateAsync,
+    isLoading: mutation.isPending,
+  };
+}
+
+/**
+ * Get the configured GST percentage slabs.
+ * Returns the parsed number[] from the API, falling back to DEFAULT_GST_SLABS
+ * on any failure so consumers (e.g. CategoryForm) always have a usable list.
+ */
+export function useGstSlabs() {
+  return useQuery({
+    queryKey: queryKeys.gstSlabs,
+    queryFn: async () => {
+      const res = await fetch('/api/settings?key=gst_slabs');
+      if (!res.ok) return [...DEFAULT_GST_SLABS];
+      const json = await res.json();
+      const val = json.data?.value;
+      if (Array.isArray(val) && val.length > 0) return val as number[];
+      return [...DEFAULT_GST_SLABS];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Update the configured GST percentage slabs.
+ * Pass a complete number[] — it replaces the stored list.
+ */
+export function useUpdateGstSlabs() {
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useAppStore();
+
+  const mutation = useMutation({
+    mutationFn: async (slabs: number[]) => {
+      const res = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'gst_slabs', value: JSON.stringify(slabs) }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error?.message || body.error || `Request failed (${res.status})`);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      // Invalidate the slabs query and all category queries (the dropdown options change)
+      queryClient.invalidateQueries({ queryKey: queryKeys.gstSlabs });
+      queryUtils.invalidateCategories();
+      showSuccess('GST slabs updated successfully');
+    },
+    onError: (error) => {
+      showError('Failed to update GST slabs', error.message);
+    },
+  });
+
+  return {
+    ...mutation,
+    updateGstSlabs: mutation.mutate,
     isLoading: mutation.isPending,
   };
 }

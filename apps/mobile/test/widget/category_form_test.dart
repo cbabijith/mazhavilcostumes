@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +15,7 @@ import 'package:dio/dio.dart';
 class MockCategoryRepository extends CategoryRepository {
   final List<Map<String, dynamic>> createdBodies = [];
   final List<Map<String, dynamic>> updatedBodies = [];
+  Completer<void>? pendingSubmit;
   bool shouldThrow = false;
   String? throwMessage;
 
@@ -21,6 +23,7 @@ class MockCategoryRepository extends CategoryRepository {
   Future<Category> createCategory(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
     if (shouldThrow) throw Exception(throwMessage ?? 'Network error');
     createdBodies.add(body);
+    await pendingSubmit?.future;
     return Category(
       id: 'mock-id-123',
       name: body['name'] as String,
@@ -51,9 +54,21 @@ Widget buildTestApp(Widget child, {MockCategoryRepository? mockRepo}) {
       categoryRepositoryProvider.overrideWithValue(repo),
     ],
     child: MaterialApp(
-      home: child,
+      initialRoute: '/form',
+      routes: {
+        '/': (_) => const Scaffold(body: Text('Categories')),
+        '/form': (_) => child,
+      },
     ),
   );
+}
+
+/// Scroll lazy form fields into view before interacting with them.
+Future<void> scrollTo(WidgetTester tester, String label) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(find.text(label), 200, scrollable: find.byType(Scrollable).first);
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -69,9 +84,11 @@ void main() {
       expect(find.text('Category Name *'), findsOneWidget);     // Name label
       expect(find.text('Slug *'), findsOneWidget);              // Slug label
       expect(find.text('Description'), findsOneWidget);         // Description label
+      expect(find.text('Tap to add image'), findsOneWidget);
+      await scrollTo(tester, 'Sort Order');
       expect(find.text('Sort Order'), findsOneWidget);          // Sort order label
+      await scrollTo(tester, 'Create Category');
       expect(find.text('Create Category'), findsOneWidget);     // Submit button
-      expect(find.text('Tap to add image'), findsOneWidget);    // Image placeholder
     });
 
     testWidgets('shows validation error when name is empty on submit', (tester) async {
@@ -79,10 +96,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // Clear the name field (it starts empty, just tap submit)
+      await scrollTo(tester, 'Create Category');
       await tester.tap(find.text('Create Category'));
       await tester.pumpAndSettle();
 
       // Validation error should appear
+      await tester.scrollUntilVisible(find.text('Name is required'), -200, scrollable: find.byType(Scrollable).first);
       expect(find.text('Name is required'), findsOneWidget);
     });
 
@@ -105,9 +124,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Submit
+      await scrollTo(tester, 'Create Category');
       await tester.tap(find.text('Create Category'));
       await tester.pumpAndSettle();
 
+      await tester.scrollUntilVisible(find.text('Slug is required'), -200, scrollable: find.byType(Scrollable).first);
       expect(find.text('Slug is required'), findsOneWidget);
     });
 
@@ -150,6 +171,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Submit
+      await scrollTo(tester, 'Create Category');
       await tester.tap(find.text('Create Category'));
       await tester.pumpAndSettle();
 
@@ -162,8 +184,8 @@ void main() {
     });
 
     testWidgets('shows loading indicator while submitting', (tester) async {
-      // Make the mock delay to capture loading state
-      final mockRepo = MockCategoryRepository();
+      final pending = Completer<void>();
+      final mockRepo = MockCategoryRepository()..pendingSubmit = pending;
       await tester.pumpWidget(buildTestApp(const CategoryFormView(), mockRepo: mockRepo));
       await tester.pumpAndSettle();
 
@@ -173,11 +195,14 @@ void main() {
       );
 
       // Start tap but don't settle — catch loading state
+      await scrollTo(tester, 'Create Category');
       await tester.tap(find.text('Create Category'));
       await tester.pump(); // just one pump, not pumpAndSettle
 
       // CircularProgressIndicator should be visible during loading
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      pending.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('shows error snackbar when repository throws', (tester) async {
@@ -194,6 +219,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await scrollTo(tester, 'Create Category');
       await tester.tap(find.text('Create Category'));
       await tester.pumpAndSettle();
 
@@ -228,6 +254,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Edit Category'), findsOneWidget);
+      await scrollTo(tester, 'Update Category');
       expect(find.text('Update Category'), findsOneWidget); // Submit button
     });
 
@@ -267,6 +294,7 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
+      await scrollTo(tester, 'Update Category');
       await tester.tap(find.text('Update Category'));
       await tester.pumpAndSettle();
 

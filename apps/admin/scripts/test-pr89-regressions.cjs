@@ -26,7 +26,7 @@ function load(file, dependencies = {}) {
   return compiledModule.exports;
 }
 
-const domain = Object.assign({}, ...['order', 'payment', 'settings', 'cleaning', 'damageAssessment']
+const domain = Object.assign({}, ...['order', 'payment', 'settings', 'cleaning', 'damageAssessment', 'category']
   .map((name) => load(`domain/types/${name}.ts`)));
 const ok = (data) => ({ success: true, data, error: null });
 const failure = { success: false, data: null, error: { message: 'Simulated storage failure', code: 'DB_ERROR' } };
@@ -39,6 +39,7 @@ function setupSettings() {
   let legacyGstin = null;
   const repository = {
     findByStoreAndKey: async (store, key) => ok(records.has(`${store}:${key}`) ? { value: records.get(`${store}:${key}`) } : null),
+    findByKeyAnyStore: async () => ok(null),
     getStoreGstin: async () => ok(legacyGstin),
     upsert: async (store, key, value) => { records.set(`${store}:${key}`, value); return ok({ value, store_id: store }); },
   };
@@ -85,7 +86,8 @@ function setupOrders(overrides = {}, payments = []) {
   let order = {
     id: 'order-1', store_id: 'store-a', branch_id: 'branch-a', status: 'in_use',
     total_amount: 100, amount_paid: 20, payment_status: 'partial',
-    end_date: '2026-09-01', start_date: '2026-09-01', items: [], ...overrides,
+    end_date: '2026-09-01', start_date: '2026-09-01',
+    items: [{ id: 'item-1', product_id: 'product-1', quantity: 1, returned_quantity: 0 }], ...overrides,
   };
   const history = [];
   const repository = {
@@ -104,7 +106,11 @@ function setupOrders(overrides = {}, payments = []) {
   const paymentModule = {};
   const orderModule = {};
   const dependencies = {
-    '@/repository': { orderRepository: repository, paymentRepository, cleaningRepository: {} },
+    '@/repository': { orderRepository: repository, paymentRepository, cleaningRepository: {
+      create: async (record) => ok(record),
+      findMany: async () => ok([]),
+      findScheduledByOrderAndProduct: async () => ok(null),
+    } },
     '@/domain': domain, '@/domain/types/order': domain, '@/domain/types/payment': domain,
     './dashboardService': { dashboardService: { clearCache() {} } },
     './settingsService': { settingsService: { getIsGSTEnabled: async () => ok(false) } },
@@ -132,7 +138,7 @@ test('returns reconcile the ledger and await completion before returning', async
   ]) {
     await t.test(name, async () => {
       const { orderService, paymentService, history } = setupOrders(overrides, ledger);
-      const result = await orderService.processOrderReturn('order-1', { items: [{ item_id: 'item-1', condition_rating: 'good' }] });
+      const result = await orderService.processOrderReturn('order-1', { items: [{ item_id: 'item-1', condition_rating: 'good', returned_quantity: 1 }] });
       assert.equal(result.success, true);
       assert.deepEqual([result.data.payment_status, result.data.status, result.data.amount_paid], expected);
       await paymentService.syncOrderPaymentStatus('order-1');
@@ -142,7 +148,7 @@ test('returns reconcile the ledger and await completion before returning', async
   await t.test('partial item returns are not auto-completed', async () => {
     const { orderService, repository } = setupOrders({}, [{ amount: 100 }]);
     repository.processReturn = async () => repository.update('order-1', { status: 'partial' });
-    const result = await orderService.processOrderReturn('order-1', { items: [{ item_id: 'item-1', condition_rating: 'good' }] });
+    const result = await orderService.processOrderReturn('order-1', { items: [{ item_id: 'item-1', condition_rating: 'good', returned_quantity: 1 }] });
     assert.equal(result.data.status, 'partial');
   });
   await t.test('ledger read/write errors do not masquerade as successful settlement', async () => {
@@ -163,6 +169,52 @@ test('returns reconcile the ledger and await completion before returning', async
     assert.equal(result.data.payment_status, 'paid');
     assert.equal(result.data.status, 'scheduled');
   });
+});
+
+test('merged return validation rejects invalid cumulative quantities before writes', async (t) => {
+  for (const [name, item] of [
+    ['missing total', {}],
+    ['fractional total', { returned_quantity: 1.5 }],
+    ['exceeds ordered quantity', { returned_quantity: 3 }],
+    ['decreases a prior return', { returned_quantity: 0 }],
+    ['item from another order', { item_id: 'other-item', returned_quantity: 2 }],
+    ['damaged quantity exceeds returned', { returned_quantity: 2, damaged_quantity: 3 }],
+  ]) {
+    await t.test(name, async () => {
+      const context = setupOrders({ items: [{ id: 'item-1', quantity: 2, returned_quantity: 1 }] });
+      let writes = 0;
+      context.repository.processReturn = async () => { writes++; return failure; };
+      const result = await context.orderService.processOrderReturn('order-1', {
+        items: [{ item_id: 'item-1', condition_rating: 'excellent', ...item }],
+      });
+      assert.equal(result.success, false);
+      assert.equal(result.error.code, 'VALIDATION_ERROR');
+      assert.equal(writes, 0);
+    });
+  }
+});
+
+test('flagged orders accept remaining units and retain settlement reconciliation', async () => {
+  const { orderService } = setupOrders({ status: 'flagged', items: [
+    { id: 'item-1', product_id: 'product-1', quantity: 2, returned_quantity: 1 },
+  ] }, [{ amount: 100 }]);
+  const result = await orderService.processOrderReturn('order-1', {
+    items: [{ item_id: 'item-1', condition_rating: 'excellent', returned_quantity: 2 }],
+  });
+  assert.equal(result.success, true);
+  assert.equal(result.data.status, 'completed');
+  assert.equal(result.data.amount_paid, 100);
+});
+
+test('main GST slab configuration works with store-scoped settings service', async () => {
+  const { SettingsService, records } = setupSettings();
+  const service = new SettingsService();
+  service.setStoreId('store-a');
+  assert.deepEqual((await service.getGstSlabs()).data, [0, 5, 12, 18, 28]);
+  assert.equal((await service.setGstSlabs([18, 5, 5, 12])).success, true);
+  assert.equal(records.get('store-a:gst_slabs'), '[5,12,18]');
+  assert.deepEqual((await service.getGstSlabs()).data, [5, 12, 18]);
+  assert.equal((await service.setGstSlabs([])).success, false);
 });
 
 test('dashboard uses an explicit null branch and exposes RPC failures', async () => {

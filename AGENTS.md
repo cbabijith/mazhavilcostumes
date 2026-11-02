@@ -825,3 +825,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ## 26. Mandatory Post-Work Verification
 1. ALWAYS check the build for type issues (pnpm lint or 	sc --noEmit) after every significant change.
 2. If any runtime issues (e.g. React.Children.only Slot errors) or build issues are found, solve them PROPERLY before concluding the task.
+
+## 27. Graphify — query the graph, don't grep (2026-09-20)
+This repo ships a code knowledge graph (`graphify-out/`, rebuilt automatically by the post-commit/post-checkout git hooks; AST-only, 0 tokens).
+1. For any "where is X / how does X connect to Y / what calls Z" question, run `graphify query "..."` FIRST (keyword-style terms work best, e.g. `graphify query "auth"`); only open files it names (plus files you must edit). Also available: `graphify explain "NodeName"`, `graphify path "A" "B"`, `graphify affected "X"`, `graphify god-nodes`.
+2. NEVER read `graphify-out/graph.json` directly (~4MB) — always go through `graphify query`.
+3. After committing, the hook rebuilds; if it didn't run, `graphify update .` — never answer from a graph older than the last commit you made.
+4. NEVER commit `graphify-out/` or `graph.json` (gitignored; rebuild locally).
+5. Never add docs/PDFs/images to the graph — code only, so builds stay at 0 tokens (fresh builds: `graphify . --code-only`, then `graphify cluster-only . --no-label`).
+6. SECURITY: graphify stays LOCAL-ONLY in this repo — `query`/`explain`/`path`/`update` are local operations. NEVER feed `.env*`, secrets, keys, or any credentials into the graph or any graphify command; never use `graphify add <url>`, `--global`, or any hosted/cloud feature; never set a graphify LLM-backend API key for this repo.

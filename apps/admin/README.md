@@ -56,11 +56,19 @@ pnpm start
 
 ---
 
+## Revenue report exports
+
+Revenue Report and Today's Revenue PDF/Excel downloads include all matching transactions, independently of the current table page. Exports load batches before creating the file and show an error if any batch fails or is incomplete.
+
+`GET /api/reports/revenue` accepts `fromDate`, `toDate`, optional `branchId`, `storeId`, comma-separated `statusFilter`, `paymentMode`, `page` (default 1), and `limit` (default 50, maximum 500). Pagination retains the existing endpoint's defaults and clamping. Its `data.details` contains the requested page and `data.total_details_count` counts all transactions matching the detail filters. Today's Revenue uses `payment_mode` on `/api/reports/todays-revenue`; the export hook preserves each endpoint's parameter contract.
+
+Run offline regressions with `node scripts/test-revenue-export.cjs`.
+
 ## Order charges and returns
 
 `PATCH /api/orders/:id` accepts cumulative financial fields (`discount`, `late_fee`, `damage_charges_total`) and the resulting absolute `total_amount`. Extra charges are retained in the saved total. Record adjustment reasons in order notes; charging or discounting an order does not itself collect a payment.
 
-`PATCH /api/orders/:id/return` accepts the complete desired `late_fee` (omitting it keeps the saved fee) and an additional return-time `discount` in currency. Returns and `PATCH /api/orders/items/:id/damage` preserve the saved discounted rental, extra charges and order-level damage while replacing item assessments. Fees and existing discounts are not added again on later partial returns.
+`PATCH /api/orders/:id/return` accepts the complete desired `late_fee` (omitting it keeps the saved fee) and an additional return-time `discount` in currency. Returns preserve the saved discounted rental, extra charges and order-level damage. Later partial returns retain previously assessed damage; `PATCH /api/orders/items/:id/damage` explicitly replaces an assessment. Fees and existing discounts are not added again on later partial returns.
 
 Run the production repository regressions without network access or live database writes:
 
@@ -421,3 +429,26 @@ pnpm build
 ## 📄 License
 
 This project is proprietary to Mazhavil Dance Costumes. All rights reserved.
+
+### Mobile loading performance (October 21, 2026)
+
+- `GET /api/categories/product-counts` requires category access and returns its existing category map plus `meta.total`, including uncategorized products. Counts exclude soft-deleted products and respect the authenticated store and selected/assigned branch, including shared products. The repository reads only category references in pages of 1,000 with at most four subsequent pages in parallel. Database failures propagate instead of returning incomplete counts.
+- `GET /api/products?include_total_stock=false` omits the unused stock aggregate RPC. Existing callers retain the aggregate by default.
+- `GET /api/customers?lightweight=true` (also the legacy `select=id,name,phone`) uses a fixed projection of identity, contact, and verification fields for mobile selection/verification counts. It does not accept arbitrary client column lists.
+- Concurrent identical analytics requests share one computation. The existing 30-second cache is bounded; mutation invalidation also prevents an older pending read from repopulating the cache.
+- Offline regression checks: `node scripts/test-loading-performance.cjs`. No live database writes are required.
+
+
+## Local branch integration (November 2, 2026)
+
+The integration retains Shahil's cumulative mobile return payloads, saved rental/extra charges, store-scoped invoice GSTIN and awaited payment reconciliation, together with main's report pagination, GST filing and damage exports, configurable GST slabs, inventory guards, flagged/partial returns and cleaning transitions.
+
+Conflict resolutions keep the return API's `late_fee` as an absolute total. The web return screen continues to omit a new late-fee input and submits the saved total; mobile can still submit saved plus new fees. Item snapshots include quantity and prior damage so main's return safeguards can validate and preserve existing assessments. Shared domain exports include the default GST slabs, while both settings query keys remain available. Return controls calculate display values outside immediately invoked callbacks so React's ref rules remain satisfied without losing in-progress edits.
+
+Offline integration checks (no live database writes):
+
+```bash
+node --test scripts/test-pr89-regressions.cjs scripts/test-order-return-adjustments.cjs scripts/test-loading-performance.cjs scripts/test-revenue-export.cjs
+```
+
+The merged checks cover invalid cumulative quantities, flagged-order settlement, prior partial-return damage, GST settings and invoice rendering, loading behavior, complete PDF/Excel exports and existing GST/damage export routing. Test fixtures use valid order items and cumulative return totals required by main's stricter validation.

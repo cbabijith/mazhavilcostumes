@@ -181,6 +181,8 @@ export class DashboardService {
   // Admin metrics: 30 second cache (expensive analytics queries)
   // Daily report: 30 second cache (cash reconciliation stats)
   private lastMetrics: Record<string, { data: DashboardMetrics; timestamp: number }> = {};
+  private metricsInFlight = new Map<string, Promise<DashboardMetrics>>();
+  private metricsGeneration = 0;
   private lastDailyReport: { data: DailyReportStats; timestamp: number } | null = null;
 
   /**
@@ -190,6 +192,8 @@ export class DashboardService {
   public clearCache(): void {
     console.log('[DashboardService] Cache invalidated due to data mutations');
     this.lastMetrics = {};
+    this.metricsGeneration++;
+    this.metricsInFlight.clear();
     this.lastDailyReport = null;
   }
 
@@ -233,6 +237,10 @@ export class DashboardService {
     const supabase = createAdminClient();
     const { todayStart, todayEnd, todayStr, yesterdayStr, tomorrowStr, next5DaysStr } = this.getISTDateContext();
 
+    // p_branch_id MUST be sent explicitly (null, not dropped). The live DB
+    // carries two overloads of this function (6-param and 7-param); when the
+    // key is absent, PostgREST cannot choose between them (PGRST203) and the
+    // dashboard silently falls back to all-zero cards.
     const { data, error } = await supabase.rpc('get_operational_dashboard_metrics', {
       p_today_start: todayStart,
       p_today_end: todayEnd,
@@ -372,6 +380,11 @@ export class DashboardService {
       return this.lastMetrics[cacheKey].data;
     }
 
+    const existing = this.metricsInFlight.get(cacheKey);
+    if (existing) return existing;
+    const generation = this.metricsGeneration;
+    // Share concurrent reads without letting old reads refill an invalidated cache.
+    const pending = (async () => {
     const supabase = createAdminClient();
     const { now, todayStr } = this.getISTDateContext();
     const startDateStr = startDate.toISOString();
@@ -660,12 +673,25 @@ export class DashboardService {
       })),
     };
 
-    this.lastMetrics[cacheKey] = {
-      data: result,
-      timestamp: nowMs,
-    };
-
+    if (generation === this.metricsGeneration) {
+      const cutoff = Date.now() - 30000;
+      for (const key of Object.keys(this.lastMetrics)) {
+        if (this.lastMetrics[key].timestamp < cutoff) delete this.lastMetrics[key];
+      }
+      const keys = Object.keys(this.lastMetrics);
+      if (keys.length >= 64) delete this.lastMetrics[keys[0]];
+      this.lastMetrics[cacheKey] = { data: result, timestamp: Date.now() };
+    }
     return result;
+    })();
+    this.metricsInFlight.set(cacheKey, pending);
+    try {
+      return await pending;
+    } finally {
+      if (this.metricsInFlight.get(cacheKey) === pending) {
+        this.metricsInFlight.delete(cacheKey);
+      }
+    }
   }
 
   /**

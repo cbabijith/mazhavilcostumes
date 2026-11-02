@@ -1,20 +1,21 @@
-import { 
-  CalendarDays, AlertTriangle, TrendingUp, Trophy, Users, BarChart3, 
-  PiggyBank, PackageX, UserCheck, Boxes, MessageSquare 
+import {
+  CalendarDays, AlertTriangle, TrendingUp, Trophy, Users, BarChart3,
+  PiggyBank, PackageX, UserCheck, Boxes, MessageSquare, ShieldAlert
 } from "lucide-react";
 
 export const ICONS: Record<string, any> = {
-  CalendarDays, 
-  AlertTriangle, 
-  TrendingUp, 
-  Trophy, 
-  Users, 
+  CalendarDays,
+  AlertTriangle,
+  TrendingUp,
+  Trophy,
+  Users,
   BarChart3,
-  PiggyBank, 
-  PackageX, 
-  UserCheck, 
-  Boxes, 
+  PiggyBank,
+  PackageX,
+  UserCheck,
+  Boxes,
   MessageSquare,
+  ShieldAlert,
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {

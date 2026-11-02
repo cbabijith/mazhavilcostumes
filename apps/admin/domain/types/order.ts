@@ -140,6 +140,7 @@ export interface OrderWithRelations extends Order {
     phone: string;
     alt_phone?: string | null;
     email: string | null;
+    address?: string | null;
   };
   items?: OrderItem[];
   item_count?: number;

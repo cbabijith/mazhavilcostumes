@@ -14,36 +14,30 @@
  */
 
 import { NextRequest } from "next/server";
-import { categoryRepository } from "@/repository";
+import { categoryService } from "@/services";
 import { apiGuard } from "@/lib/apiGuard";
-import { apiSuccess, apiInternalError } from "@/lib/apiResponse";
+import { apiSuccess, apiInternalError, apiBadRequest, apiRepositoryError } from "@/lib/apiResponse";
+import { z } from "zod";
 
 /** GET /api/categories/product-counts — get product counts for all categories */
 export async function GET(request: NextRequest) {
   try {
-    // Public endpoint (or add auth guard if needed)
-    // const guard = await apiGuard(request, 'categories');
-    // if (guard.error) return guard.error;
-
-    // Get all categories
-    const categoriesResult = await categoryRepository.findAll();
-    if (!categoriesResult.success || !categoriesResult.data) {
-      return apiInternalError('Failed to fetch categories');
+    const guard = await apiGuard(request, 'categories');
+    if (guard.error) return guard.error;
+    const requestedBranch = request.nextUrl.searchParams.get('branch_id') || undefined;
+    if (requestedBranch && !z.uuid().safeParse(requestedBranch).success) {
+      return apiBadRequest('Invalid branch_id');
     }
-
-    // Build product counts map
-    const productCounts: Record<string, number> = {};
-    
-    for (const category of categoriesResult.data) {
-      const countResult = await categoryRepository.getProductCount(category.id);
-      if (countResult.success && countResult.data !== null) {
-        productCounts[category.id] = countResult.data;
-      } else {
-        productCounts[category.id] = 0;
-      }
+    const canSwitch = ['admin', 'super_admin'].includes(guard.user.role);
+    const branchId = canSwitch ? requestedBranch : guard.user.branch_id || undefined;
+    const result = await categoryService.getProductCounts(branchId, guard.user.store_id);
+    if (!result.success || !result.data) {
+      return apiRepositoryError(result.error, 'Failed to fetch product counts');
     }
-
-    return apiSuccess(productCounts);
+    return apiSuccess(result.data.counts, {
+      meta: { total: result.data.total, page: 1, limit: result.data.total,
+        totalPages: 1, hasNext: false, hasPrev: false },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiInternalError(message);

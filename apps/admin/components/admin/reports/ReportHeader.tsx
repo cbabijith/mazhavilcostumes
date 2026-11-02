@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, FileSpreadsheet, FileText } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { ReportMeta } from "@/domain";
@@ -11,10 +11,11 @@ interface ReportHeaderProps {
   onExportExcel: () => void;
   onExportPDF: () => void;
   hasData: boolean;
+  exporting?: boolean;
   extraActions?: React.ReactNode;
 }
 
-export function ReportHeader({ meta, onExportExcel, onExportPDF, hasData, extraActions }: ReportHeaderProps) {
+export function ReportHeader({ meta, onExportExcel, onExportPDF, hasData, exporting = false, extraActions }: ReportHeaderProps) {
   const router = useRouter();
   const Icon = (ICONS as any)[meta.icon] || Download;
 
@@ -40,11 +41,17 @@ export function ReportHeader({ meta, onExportExcel, onExportPDF, hasData, extraA
       
       <div className="flex items-center gap-2">
         {extraActions}
+        {exporting && (
+          <span role="status" className="flex items-center gap-2 text-xs text-slate-500">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Preparing export…
+          </span>
+        )}
         <div className="h-10 w-px bg-slate-200 mx-2 hidden sm:block" />
         <Button 
           variant="outline" 
           onClick={onExportExcel} 
-          disabled={!hasData}
+          disabled={!hasData || exporting}
           className="border-slate-200 text-slate-600 hover:bg-slate-50 h-10 px-4 rounded-xl font-medium"
         >
           <FileSpreadsheet className="w-4 h-4 mr-2 text-emerald-600" />
@@ -53,7 +60,7 @@ export function ReportHeader({ meta, onExportExcel, onExportPDF, hasData, extraA
         <Button 
           variant="outline" 
           onClick={onExportPDF} 
-          disabled={!hasData}
+          disabled={!hasData || exporting}
           className="border-slate-200 text-slate-600 hover:bg-slate-50 h-10 px-4 rounded-xl font-medium"
         >
           <FileText className="w-4 h-4 mr-2 text-red-600" />

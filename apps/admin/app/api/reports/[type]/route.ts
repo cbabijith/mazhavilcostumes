@@ -15,11 +15,16 @@ import { apiSuccess, apiBadRequest, apiInternalError } from '@/lib/apiResponse';
 import { reportService } from '@/services/reportService';
 import type { ReportType, ReportFilters } from '@/domain';
 
+// Revenue-class reports aggregate thousands of rows across several Supabase
+// round trips — Vercel's default 10s function limit killed wide windows and
+// the page showed nothing. Allow up to 60s.
+export const maxDuration = 60;
+
 const VALID_TYPES: ReportType[] = [
   'day-wise-booking', 'due-overdue', 'revenue', 'top-costumes',
   'top-customers', 'rental-frequency', 'roi', 'dead-stock',
   'sales-by-staff', 'inventory-revenue', 'enquiry-log', 'gst-filing',
-  'todays-revenue'
+  'todays-revenue', 'damage-report'
 ];
 
 export async function GET(
@@ -69,6 +74,7 @@ export async function GET(
         case 'rental-frequency': data = await reportService.getRentalFrequency(filters); break;
         case 'roi': data = await reportService.getROI(filters); break;
         case 'dead-stock': data = await reportService.getDeadStock(filters); break;
+        case 'damage-report': data = await reportService.getDamageReport(filters); break;
         case 'sales-by-staff': data = await reportService.getSalesByStaff(filters); break;
         case 'inventory-revenue': data = await reportService.getInventoryRevenue(); break;
         case 'enquiry-log': data = await reportService.getEnquiries(filters); break;

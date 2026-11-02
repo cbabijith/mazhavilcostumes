@@ -10,7 +10,6 @@ import '../../../core/providers/navigation_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
-import '../../customers/viewmodels/providers/customer_provider.dart';
 import '../domain/operational_card.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
 import 'widgets/analytics_section.dart';
@@ -30,9 +29,6 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _activeTab);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(customersCacheProvider);
-    });
   }
 
   @override
@@ -196,6 +192,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                 // Page 1: Analytics
                                 RefreshIndicator(
                                   onRefresh: () async {
+                                    ref.invalidate(analyticsRequestProvider);
                                     ref.invalidate(analyticsMetricsProvider);
                                     ref.invalidate(categoryRevenueProvider);
                                     ref.invalidate(inventoryRoiProvider);

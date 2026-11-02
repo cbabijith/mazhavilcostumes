@@ -27,6 +27,7 @@ const REPORT_ENDPOINTS: Record<ReportType, string> = {
   'enquiry-log': '/api/reports/enquiry-log',
   'gst-filing': '/api/reports/gst-filing',
   'todays-revenue': '/api/reports/todays-revenue',
+  'damage-report': '/api/reports/damage-report',
 };
 
 /**
@@ -38,9 +39,9 @@ const REPORT_ENDPOINTS: Record<ReportType, string> = {
 function sameOriginApiUrl(path: string, query?: URLSearchParams): string {
   return new URL(path + (query ? '?' + query.toString() : ''), window.location.origin).toString();
 }
-import { exportToExcel, exportToPDF } from "@/lib/exportUtils";
+import { exportToExcel, exportToPDF, exportGstFilingToExcel, exportGstFilingToPDF, GstFilingExportPayload } from "@/lib/exportUtils";
 import { formatCurrency } from "@/lib/shared-utils";
-import { reportService } from "@/services/reportService";
+import { useRevenueReport } from "@/hooks";
 import { useAppStore } from "@/stores/appStore";
 
 // Shared Components
@@ -48,11 +49,11 @@ import { ReportHeader } from "@/components/admin/reports/ReportHeader";
 import { ReportFilters } from "@/components/admin/reports/ReportFilters";
 
 // Modular Views
-import { 
+import {
   DayWiseBookingView, DueOverdueView, RevenueView, TopCostumesView,
   TopCustomersView, RentalFrequencyView, ROIView, DeadStockView,
   SalesByStaffView, InventoryRevenueView, EnquiryLogView, GSTFilingView,
-  TodaysRevenueView
+  TodaysRevenueView, DamageReportView
 } from "@/components/admin/reports/views";
 
 import { ICONS, CATEGORY_COLORS } from "@/lib/reports-shared";
@@ -89,15 +90,30 @@ function ReportsPageContent() {
   const [reportSummary, setReportSummary] = useState<any>(null);
   const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [gstSlabFilter, setGstSlabFilter] = useState<string>('all');
+  const [gstTypeFilter, setGstTypeFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { fetchAllRevenueDetails } = useRevenueReport();
 
   const filteredGstDetails = useMemo(() => {
-    if (gstSlabFilter === 'all') return gstDetails;
     return gstDetails.filter((inv: any) => {
-      return inv.slabs && inv.slabs.includes(gstSlabFilter + '%');
+      // Slab filter — match against the slabs string (e.g. "5%, 18%")
+      if (gstSlabFilter !== 'all') {
+        if (!inv.slabs || !inv.slabs.includes(gstSlabFilter + '%')) return false;
+      }
+      // Type filter — GST only / Exempt only / Mixed / All
+      if (gstTypeFilter !== 'all') {
+        const hasGst = !!inv.has_gst;
+        const hasExempt = !!inv.has_exempt;
+        const isMixed = hasGst && hasExempt;
+        if (gstTypeFilter === 'gst' && !hasGst) return false;
+        if (gstTypeFilter === 'exempt' && hasGst) return false;       // fully exempt = no GST
+        if (gstTypeFilter === 'mixed' && !isMixed) return false;
+      }
+      return true;
     });
-  }, [gstDetails, gstSlabFilter]);
+  }, [gstDetails, gstSlabFilter, gstTypeFilter]);
   
   const [filters, setFilters] = useState<FilterType>(() => {
     // Determine context (Server vs Client)
@@ -115,6 +131,14 @@ function ReportsPageContent() {
 
     let from_date = urlFrom || todayStr;
     let to_date = urlTo || todayStr;
+
+    // GST filing is a monthly return — a "today only" default produced a
+    // near-empty report and owners exported the wrong window. Default the
+    // GST report to the current month-to-date instead.
+    if (reportFromUrl === 'gst-filing' && !urlFrom && !urlTo && !range) {
+      from_date = `${istNow.getFullYear()}-${String(istNow.getMonth() + 1).padStart(2, '0')}-01`;
+      to_date = todayStr;
+    }
 
     // Handle range logic if dates not explicitly provided (or to override)
     if (range && range !== 'custom' && !urlFrom) {
@@ -156,16 +180,18 @@ function ReportsPageContent() {
       rank_by: 'count',
       limit: 50,
       page: 1,
-      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue' || reportFromUrl === 'gst-filing') ? [] : ['completed', 'returned'],
+      status: (reportFromUrl === 'revenue' || reportFromUrl === 'todays-revenue') ? [] : ['completed', 'returned'],
     };
   });
 
   const selectedReport = reportFromUrl;
 
-  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters
+  // Sync status filter defaults when selected report changes to avoid preserving incompatible filters.
+  // GST filing is statutorily limited to finalized orders (completed + returned) — no override.
+  // Revenue / today's revenue intentionally default to "All Statuses" and allow the dropdown.
   useEffect(() => {
     if (!selectedReport) return;
-    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'gst-filing') ? [] : ['completed', 'returned'];
+    const targetStatus = (selectedReport === 'revenue' || selectedReport === 'todays-revenue') ? [] : ['completed', 'returned'];
     
     setFilters(prev => {
       const currentJoined = prev.status?.join(',') || '';
@@ -198,6 +224,13 @@ function ReportsPageContent() {
         const params = new URLSearchParams();
         params.append('fromDate', filters.from_date || '');
         params.append('toDate', filters.to_date || '');
+        // The transaction table paginates server-side — page/limit must reach
+        // the API or "Next" silently refetches page 1 forever.
+        params.append('page', String(filters.page || 1));
+        params.append('limit', String(filters.limit || 50));
+        if (filters.payment_mode && filters.payment_mode !== 'all') {
+          params.append('paymentMode', filters.payment_mode);
+        }
         if (selectedBranchId) params.append('branchId', selectedBranchId);
         if (storeId) params.append('storeId', storeId.toString());
         if (filters.status?.length) params.append('statusFilter', filters.status.join(','));
@@ -236,7 +269,7 @@ function ReportsPageContent() {
         result = json.data.rows !== undefined ? json.data.rows : json.data;
       }
 
-      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+      if (selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue' || selectedReport === 'damage-report') {
         setData(result.summary || []);
         setReportSummary(result);
         setGstDetails(result.details || []);
@@ -357,7 +390,22 @@ function ReportsPageContent() {
           { header: "Category", key: "category_name" },
           { header: "Price/Day", key: "price_per_day", format: "currency" as const },
           { header: "Quantity", key: "quantity", format: "number" as const },
+          { header: "Stock Value", key: "stock_value", format: "currency" as const },
           { header: "Days Idle", key: "days_since_last_rental", format: "number" as const },
+          { header: "Never Rented", key: "never_rented" },
+          { header: "Added On", key: "created_at", format: "date" as const },
+        ];
+      case 'damage-report':
+        return [
+          { header: "Invoice", key: "invoice_number" },
+          { header: "Customer", key: "customer_name" },
+          { header: "Product", key: "product_name" },
+          { header: "Damaged Units", key: "damaged_units", format: "number" as const },
+          { header: "Damage Fee", key: "damage_fee", format: "currency" as const },
+          { header: "Reason", key: "reason" },
+          { header: "Payment", key: "payment_status" },
+          { header: "Order Date", key: "created_at", format: "date" as const },
+          { header: "Status", key: "order_status" },
         ];
       case 'sales-by-staff':
         return [
@@ -394,78 +442,81 @@ function ReportsPageContent() {
     }
   };
 
-  const handleExportExcel = () => {
-    const meta = REPORT_LIST.find(r => r.id === selectedReport);
-    if (!meta) return;
-    
-    let exportData = sortedData;
-    let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
-      exportData = gstDetails;
-      exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
-      ];
-    } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
-    }
-    
-    exportToExcel(exportData, exportColumns as any, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
-  };
+  /** Payload for the filing-grade GST exports (summary + full register + scope notes). */
+  const buildGstPayload = (): GstFilingExportPayload => ({
+    businessName: reportSummary?.business_name || 'Mazhavil Dance Costumes',
+    gstin: reportSummary?.business_gstin || 'Not configured',
+    period: reportSummary?.period || `${filters.from_date} to ${filters.to_date}`,
+    summary: sortedData.map((s: any) => ({
+      slab: s.slab,
+      taxable_value: s.taxable_value,
+      cgst: s.cgst,
+      sgst: s.sgst,
+      total_gst: s.total_gst,
+    })),
+    totals: {
+      taxable: reportSummary?.total_taxable ?? 0,
+      cgst: reportSummary?.total_cgst ?? 0,
+      sgst: reportSummary?.total_sgst ?? 0,
+      gst: reportSummary?.total_gst ?? 0,
+    },
+    composition: reportSummary?.composition,
+    excluded: reportSummary?.excluded_by_status,
+    invoices: gstDetails,
+  });
 
-  const handleExportPDF = () => {
+  const handleExport = async (format: 'excel' | 'pdf') => {
     const meta = REPORT_LIST.find(r => r.id === selectedReport);
-    if (!meta) return;
-    
-    let exportData = sortedData;
-    let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
-      exportData = gstDetails;
-      exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
-      ];
-    } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+    if (!meta || exporting || loading) return;
+    setExporting(true);
+    setError(null);
+
+    try {
+      // Keep GST filing exports on their dedicated generator with the full register.
+      if (selectedReport === 'gst-filing' && reportSummary) {
+        const filename = `GST_Filing_${filters.from_date}_to_${filters.to_date}`;
+        if (format === 'excel') {
+          await exportGstFilingToExcel(buildGstPayload(), filename);
+        } else {
+          await exportGstFilingToPDF(buildGstPayload(), filename);
+        }
+        return;
+      }
+
+      let exportData = sortedData;
+      let exportColumns = getExportColumns();
+
+      if (selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+        exportData = await fetchAllRevenueDetails({
+          type: selectedReport,
+          filters,
+          branchId: selectedBranchId,
+          storeId,
+        });
+        exportColumns = [
+          { header: "Date", key: "date", format: "date" as const },
+          { header: "Order ID", key: "order_id" },
+          { header: "Customer", key: "customer_name" },
+          { header: "Type", key: "payment_type" },
+          { header: "Payment Mode", key: "payment_mode" },
+          { header: "Amount", key: "amount", format: "currency" as const },
+          { header: "Order Status", key: "status" },
+        ];
+      } else if (selectedReport === 'enquiry-log') {
+        exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+      }
+
+      const filename = `${meta.name}_${new Date().toISOString().split('T')[0]}`;
+      if (format === 'excel') {
+        exportToExcel(exportData, exportColumns, filename);
+      } else {
+        await exportToPDF(exportData, exportColumns, meta.name, filename);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export report');
+    } finally {
+      setExporting(false);
     }
-    
-    exportToPDF(exportData, exportColumns as any, meta.name, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
   };
 
 
@@ -537,9 +588,10 @@ function ReportsPageContent() {
     <div className="space-y-6">
       <ReportHeader 
         meta={meta}
-        onExportExcel={handleExportExcel}
-        onExportPDF={handleExportPDF}
-        hasData={data.length > 0 || gstDetails.length > 0}
+        onExportExcel={() => handleExport('excel')}
+        onExportPDF={() => handleExport('pdf')}
+        hasData={!loading && !error && (data.length > 0 || gstDetails.length > 0)}
+        exporting={exporting}
       />
 
       <ReportFilters 
@@ -550,7 +602,7 @@ function ReportsPageContent() {
         needsDateFilter={needsDateFilter}
         needsRangeFilter={needsRangeFilter}
         needsRankBy={needsRankBy}
-        needsStatusFilter={selectedReport === 'gst-filing' || selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
+        needsStatusFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
         needsPaymentModeFilter={selectedReport === 'revenue' || selectedReport === 'todays-revenue'}
       />
 
@@ -571,6 +623,7 @@ function ReportsPageContent() {
         {selectedReport === 'rental-frequency' && <RentalFrequencyView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'roi' && <ROIView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'dead-stock' && <DeadStockView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
+        {selectedReport === 'damage-report' && <DamageReportView data={sortedData} reportSummary={reportSummary} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'sales-by-staff' && <SalesByStaffView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'inventory-revenue' && <InventoryRevenueView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} />}
         {selectedReport === 'enquiry-log' && <EnquiryLogView data={sortedData} loading={loading} error={error} sortConfig={sortConfig} onSort={handleSort} formatCell={formatCell} onLogEnquiry={handleLogEnquiry} />}
@@ -583,9 +636,11 @@ function ReportsPageContent() {
             sortConfig={sortConfig} 
             onSort={handleSort} 
             formatCell={formatCell} 
-            gstDetails={gstDetails} 
+            gstDetails={gstDetails}
             gstSlabFilter={gstSlabFilter}
             setGstSlabFilter={setGstSlabFilter}
+            gstTypeFilter={gstTypeFilter}
+            setGstTypeFilter={setGstTypeFilter}
             filteredGstDetails={filteredGstDetails}
           />
         )}

@@ -20,6 +20,47 @@ export class CategoryRepository extends BaseRepository {
   private readonly tableName = 'categories';
 
   /**
+   * Read only category references, paging past PostgREST's row limit.
+   * @param branchId Optional branch; shared products match the product list.
+   * @param storeId Store from the authenticated session.
+   * @returns All matching references, or a repository failure.
+   */
+  async findProductCategoryReferences(
+    branchId?: string,
+    storeId?: string | null,
+  ): Promise<RepositoryResult<{ category_id: string | null }[]>> {
+    return this.executeOperation(async () => {
+      const pageSize = 1000;
+      const pageQuery = (offset: number, count = false) => {
+        let query = this.client.from('products')
+          .select('category_id', count ? { count: 'exact' } : {})
+          .is('deleted_at', null)
+          .order('id')
+          .range(offset, offset + pageSize - 1);
+        if (branchId) query = query.or(`branch_id.eq.${branchId},branch_id.is.null`);
+        if (storeId) query = query.eq('store_id', storeId);
+        return query;
+      };
+      const first = await pageQuery(0, true);
+      if (first.error) return { data: null, error: first.error };
+      const rows = [...(first.data ?? [])];
+      // Bound concurrency rather than launching one request per category.
+      for (let offset = pageSize; offset < (first.count ?? 0); offset += pageSize * 4) {
+        const pages = await Promise.all(
+          Array.from({ length: 4 }, (_, index) => offset + index * pageSize)
+            .filter(start => start < (first.count ?? 0))
+            .map(start => pageQuery(start)),
+        );
+        for (const page of pages) {
+          if (page.error) return { data: null, error: page.error };
+          rows.push(...(page.data ?? []));
+        }
+      }
+      return { data: rows, error: null };
+    });
+  }
+
+  /**
    * Find all categories
    */
   async findAll(): Promise<RepositoryResult<Category[]>> {

@@ -171,6 +171,20 @@ test('partial and repeated returns preserve charges without adding fees or stock
   assert.equal(state.rows.product_inventory[0].available_quantity, 7);
 });
 
+test('later good partial return preserves previously recorded damage and saved fees', async () => {
+  const state = setup({ total_amount: 1100, damage_charges_total: 80, late_fee: 20 }, [
+    { damage_charges: 50, returned_quantity: 1, condition_rating: 'damaged', damaged_quantity: 1 },
+  ]);
+  const result = await state.repository.processReturn('order-1', {
+    items: [returnItem('item-1', 2)], late_fee: 20,
+  });
+  assert.equal(result.success, true);
+  assert.equal(state.items[0].damage_charges, 50);
+  assert.equal(state.items[0].damaged_quantity, 1);
+  assert.equal(state.order.damage_charges_total, 80);
+  assert.equal(state.order.total_amount, 1100);
+});
+
 test('partial request keeps other item assessments in total damage', async () => {
   const state = setup({ total_amount: 1060, damage_charges_total: 60 }, [
     { quantity: 1 },

@@ -73,6 +73,9 @@ export {
 // Permission hooks
 export { usePermissions } from './usePermissions';
 
+// Revenue report pagination and exports
+export { useRevenueReport } from './useRevenueReport';
+
 // Banner hooks
 export {
   useBanners,
@@ -116,6 +119,8 @@ export {
   useDeleteOrder,
   useProcessOrderReturn,
   useUpdateOrderItemDamage,
+  useSetOrderDiscount,
+  useProductOrdersInfinite,
 } from './useOrders';
 
 // Settings hooks
@@ -127,6 +132,8 @@ export {
   useAuthorizedSignature,
   useGstNumber,
   useUpdateSetting,
+  useGstSlabs,
+  useUpdateGstSlabs,
 } from './useSettings';
 
 // Payment hooks

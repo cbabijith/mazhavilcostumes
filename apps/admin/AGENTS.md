@@ -6,6 +6,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 2, 2026 - Complete revenue exports
+- Revenue and Today's Revenue exports fetch every matching detail page before generating PDF/Excel; never export only the visible 50 rows. Failed/incomplete pages must stop the download.
+- `/api/reports/revenue` retains its existing page/limit defaults and clamping (maximum 500) and accepts `paymentMode`. Today's Revenue uses `payment_mode`. Filter transaction status before pagination/counting and keep payment-date/ID ordering stable.
+- Revenue page/API access lives in `hooks/useRevenueReport.ts`; preserve date, branch, store, status and payment-mode filters when exporting. Date/payment filter changes reset the table to page one.
+- Offline regressions: `node scripts/test-revenue-export.cjs` (198 rows, multiple batches, filtered counts, failures and actual PDF/CSV output).
+
 ## September 30, 2026 - Order charge preservation
 - Return `late_fee` is the complete desired fee; omitted values preserve the saved fee. Return `discount` is an additional currency discount. Web returns submit saved plus additional late fees.
 - Return processing and individual item-damage saves preserve the saved discounted total, extra charges and damage charges not allocated to items. Replace item assessments without applying saved discounts or fees twice.
@@ -250,3 +256,15 @@ Write operations go through API routes using service_role (bypasses RLS).
 | `R2_ACCOUNT_ID` | R2 account ID |
 
 Default Store ID: `00000000-0000-0000-0000-000000000001` (single-tenant)
+
+## October 21, 2026 - Mobile loading policy
+- Preserve `meta.total` on category counts, including uncategorized products; batch scans must paginate and propagate page failures.
+- Product stock aggregation remains on by default; mobile opts out with `include_total_stock=false`. Customer lightweight projection is a server whitelist.
+- Analytics cache invalidation must also invalidate pending computations so pre-mutation reads cannot refill it.
+- Offline loading regressions: `node scripts/test-loading-performance.cjs`.
+
+
+## November 2, 2026 - Branch compatibility
+- Keep the mobile return contract: `returned_quantity` and `late_fee` are absolute totals. Validate quantities before writes and preserve earlier damage on later partial returns.
+- Preserve saved financial totals, explicit blank store-scoped GSTIN, awaited ledger reconciliation, configurable GST slabs and dedicated GST/damage exports together.
+- Item snapshots used by return safeguards must include quantity, prior damage charges and damaged quantity.

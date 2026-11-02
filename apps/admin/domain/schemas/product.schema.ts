@@ -130,6 +130,7 @@ export const ProductSearchSchema = z.object({
   min_price: positiveNumber.optional(),
   max_price: positiveNumber.optional(),
   in_stock: z.boolean().optional(),
+  include_total_stock: z.boolean().optional(),
   sort_by: z.enum(['name', 'price', 'created_at', 'stock']).optional(),
   sort_order: z.enum(['asc', 'desc']).optional(),
   page: z.number().int().min(1).default(1),

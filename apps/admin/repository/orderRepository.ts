@@ -64,6 +64,13 @@ export class OrderRepository extends BaseRepository {
       customerIds = matchingCustomers?.map(c => c.id) || [];
     }
 
+    // Product filter uses an inner join on order_items — the alternative
+    // (collect matching order ids then .in('id', ids)) breaks on popular
+    // products with 1000+ orders (PostgREST URL limit).
+    const productFilterSelect = params?.product_id
+      ? `, order_items!inner(product_id, quantity)`
+      : '';
+
     let query = this.client
       .from(this.tableName)
       .select(`
@@ -72,8 +79,12 @@ export class OrderRepository extends BaseRepository {
         has_priority_cleaning, has_stock_conflict,
         is_late, invoice_number, created_at,
         customer:customer_id(name, phone),
-        branch:branch_id(name)
+        branch:branch_id(name)${productFilterSelect}
       `, { count: 'exact' });
+
+    if (params?.product_id) {
+      query = query.eq('order_items.product_id', params.product_id);
+    }
 
     // Handle server-side sorting
     if (params?.sort_by && params?.sort_order) {
@@ -319,7 +330,7 @@ export class OrderRepository extends BaseRepository {
         conflict_details, notes, delivery_method, delivery_address, pickup_address,
         late_fee, discount, discount_type, damage_charges_total, cancellation_reason,
         cancelled_by, cancelled_at, is_late, invoice_number, created_at, updated_at,
-        customer:customer_id(id, name, phone, alt_phone, email),
+        customer:customer_id(id, name, phone, alt_phone, email, address),
         items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
           condition_rating, damage_description, damage_charges, damaged_quantity,
           is_returned, returned_quantity, base_amount, gst_amount,
@@ -877,7 +888,7 @@ export class OrderRepository extends BaseRepository {
       .from(this.tableName)
       .select(`
         *,
-        customer:customer_id(id, name, phone, alt_phone, email),
+        customer:customer_id(id, name, phone, alt_phone, email, address),
         items:order_items(id, product_id, quantity, price_per_day, discount, discount_type,
           condition_rating, damage_description, damage_charges, damaged_quantity,
           is_returned, returned_quantity, base_amount, gst_amount,
@@ -1123,7 +1134,22 @@ export class OrderRepository extends BaseRepository {
       return this.handleResponse<OrderWithRelations>(itemsResponse);
     }
 
+    // Defensive: Supabase's `.insert([])` returns { data: null, error: null }
+    // (silent success on an empty array). If the items insert produced no rows,
+    // the order must NOT survive — otherwise it becomes a ghost order with a
+    // total_amount but no line items. Roll back and return an error.
     const items = itemsResponse.data;
+    if (!items || items.length === 0) {
+      await this.client.from(this.tableName).delete().eq('id', order.id);
+      return {
+        data: null,
+        error: {
+          message: 'Order creation failed: no order items were inserted',
+          code: 'ITEMS_INSERT_EMPTY',
+        } as any,
+        success: false,
+      };
+    }
 
     // NOTE: Inventory is NOT deducted at creation time.
     // Stock deduction happens only when the user manually starts the rental
@@ -1205,8 +1231,13 @@ export class OrderRepository extends BaseRepository {
       .select()
       .single();
 
-    // If items are provided, sync them
-    if (items && Array.isArray(items)) {
+    // If items are provided, sync them.
+    // IMPORTANT: an empty items array (`[]`) is treated as "no item change",
+    // NOT as "delete every item". A caller that wants to wipe items must do so
+    // explicitly via a dedicated method. This guard prevents ghost orders
+    // (orders left with zero items) when a PATCH arrives with items: [].
+    // Only a non-empty items array triggers the differential sync.
+    if (items && Array.isArray(items) && items.length > 0) {
       // 1. Fetch existing items first to perform differential update
       const { data: existingItems } = await this.client
         .from(this.orderItemsTable)
@@ -1708,7 +1739,7 @@ export class OrderRepository extends BaseRepository {
         .single(),
       this.client
         .from(this.orderItemsTable)
-        .select('id, returned_quantity, product_id, damage_charges, orders(branch_id)')
+        .select('id, quantity, returned_quantity, product_id, damage_charges, damaged_quantity, orders(branch_id)')
         .eq('order_id', orderId),
     ]);
     if (currentOrderResponse.error || !currentOrderResponse.data) {
@@ -1723,13 +1754,16 @@ export class OrderRepository extends BaseRepository {
     const orderLevelDamage = Math.max(0, Number(currentOrder.damage_charges_total || 0) - priorItemDamage);
 
     // Create a map for quick O(1) lookup
-    const orderItemsMap = new Map<string, { id: string; returned_quantity: number; product_id: string; branch_id: string }>();
+    const orderItemsMap = new Map<string, { id: string; quantity: number; returned_quantity: number; damage_charges: number; damaged_quantity: number; product_id: string; branch_id: string }>();
     if (orderItems) {
       for (const item of orderItems) {
         const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
         orderItemsMap.set(item.id, {
           id: item.id,
+          quantity: item.quantity || 0,
           returned_quantity: item.returned_quantity || 0,
+          damage_charges: item.damage_charges || 0,
+          damaged_quantity: item.damaged_quantity || 0,
           product_id: item.product_id,
           branch_id: branchId
         });
@@ -1748,13 +1782,20 @@ export class OrderRepository extends BaseRepository {
           this.client
             .from(this.orderItemsTable)
             .update({
-              is_returned: true,
+              // Only flag as fully returned when every unit of the item is back;
+              // partially returned items keep is_returned=false so the UI can
+              // surface them as "pending return" until the remainder arrives.
+              is_returned: (item.returned_quantity || 0) >= (orderItem?.quantity ?? item.returned_quantity ?? 0),
               returned_at: new Date().toISOString(),
               returned_quantity: item.returned_quantity,
               condition_rating: item.condition_rating,
               damage_description: item.damage_description || null,
-              damage_charges: item.damage_charges || 0,
-              damaged_quantity: item.damaged_quantity || 0,
+              // Damage already recorded in an earlier return must survive a
+              // later submission that doesn't restate it (e.g. the remaining
+              // units come back in Good condition) — otherwise the order total
+              // recomputation would silently drop the previously charged fee.
+              damage_charges: Math.max(item.damage_charges || 0, orderItem?.damage_charges || 0),
+              damaged_quantity: Math.max(item.damaged_quantity || 0, orderItem?.damaged_quantity || 0),
             })
             .eq('id', item.item_id) as any
         ];

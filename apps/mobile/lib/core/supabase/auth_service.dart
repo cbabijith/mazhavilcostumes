@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
+import '../constants/app_durations.dart';
 
 class AuthUser {
   final String id;
@@ -196,24 +197,13 @@ class AuthService {
   /// Get current user
   Future<AuthUser?> getCurrentUser() async {
     try {
-      final id = await _storage
-          .read(key: _userIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final email = await _storage
-          .read(key: _userEmailKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final role = await _storage
-          .read(key: _userRoleKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final storeId = await _storage
-          .read(key: _storeIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final branchId = await _storage
-          .read(key: _branchIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final staffId = await _storage
-          .read(key: _staffIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final values = await Future.wait([
+        _userIdKey, _userEmailKey, _userRoleKey,
+        _storeIdKey, _branchIdKey, _staffIdKey,
+      ].map((key) => _storage.read(key: key).timeout(
+        AppDurations.storageTimeout, onTimeout: () => null,
+      )));
+      final [id, email, role, storeId, branchId, staffId] = values;
 
       if (id == null || email == null || role == null) {
         return null;

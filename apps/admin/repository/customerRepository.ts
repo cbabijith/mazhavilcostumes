@@ -40,7 +40,8 @@ export class CustomerRepository extends BaseRepository {
 
     // Build the main query
     let selectQuery = this.buildQuery(this.tableName, {
-      select: '*',
+      // Keep verification fields used by mobile customer summaries.
+      select: params.lightweight ? 'id,name,phone,id_type,id_number' : '*',
       filters,
       orderBy: { column: sort_by, ascending: sort_order === 'asc' },
       limit,

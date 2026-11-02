@@ -67,6 +67,18 @@ final effectiveBranchIdProvider = Provider<String?>((ref) {
   return user.branchId;
 });
 
+/// Wait for the initial branch selection instead of requesting every branch first.
+final resolvedBranchIdProvider = FutureProvider<String?>((ref) async {
+  final user = ref.watch(authUserProvider);
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  if (user?.canSwitchBranches == true && ref.watch(branchesProvider).isLoading) {
+    await ref.watch(branchesProvider.future);
+    if (!ref.mounted) throw StateError('Branch selection superseded');
+    return ref.read(effectiveBranchIdProvider);
+  }
+  return branchId;
+});
+
 final selectedBranchProvider = Provider<AsyncValue<Branch?>>((ref) {
   final selectedBranchId = ref.watch(selectedBranchIdProvider);
   if (selectedBranchId == null) return const AsyncData<Branch?>(null);

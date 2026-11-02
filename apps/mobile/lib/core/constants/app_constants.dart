@@ -14,6 +14,9 @@ class AppColors {
   static const Color info = Color(0xFF3B82F6); // Blue
   static const Color shimmerBase = Color(0xFFE0E0E0); // Grey 300
   static const Color shimmerHighlight = Color(0xFFF5F5F5); // Grey 100
+  static const Color gold = Color(0xFFFFD700); // Rank #1 medal
+  static const Color silver = Color(0xFF9E9E9E); // Rank #2 medal
+  static const Color bronze = Color(0xFFCD7F32); // Rank #3 medal
 }
 
 class AppStrings {
@@ -158,10 +161,23 @@ class AppStrings {
       'Enter a valid, non-negative discount.';
   static const String returnUnavailable =
       'Only ongoing, in-use, partial or flagged orders can be returned.';
+
+  // Reports strings
+  static const String reports = 'Reports';
+  static const String dayWiseBooking = 'Day-wise Booking';
+  static const String dayWiseBookingDesc = 'Daily pickups and deliveries schedule';
+  static const String topCostumes = 'Top Costumes';
+  static const String topCostumesDesc = 'Most rented or highest earning costumes';
+  static const String rentals = 'rentals';
+  static const String avgDays = 'avg days';
+  static const String noBookingsFound = 'No bookings in this period';
+  static const String noCostumesFound = 'No costume rentals recorded yet';
+  static const String failedToLoadReport = 'Failed to load report';
 }
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility
 class AppSizes {
+  static const double productThumbnail = 68;
   // Font Sizes (base values, will be scaled by Responsive.sp)
   static const double fontTiny = 10;
   static const double fontSmall = 12;

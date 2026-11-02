@@ -37,6 +37,7 @@ class ProductRepository {
       final queryParams = <String, dynamic>{
         'page': page,
         'limit': limit,
+        'include_total_stock': false,
       };
 
       if (search != null && search.isNotEmpty) {

@@ -7,13 +7,15 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GSTFilingReport as GSTReportType, GSTFilingRow } from "@/domain";
+import { DEFAULT_GST_SLABS } from "@/domain/types/category";
+import { useGstSlabs } from "@/hooks";
 import { formatCurrency } from "@/lib/shared-utils";
 import { ReportTable } from "../ReportTable";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 import Link from "next/link";
-import { AlertTriangle, Settings } from "lucide-react";
+import { AlertTriangle, Info, Settings } from "lucide-react";
 
 interface GSTFilingViewProps {
   data: GSTFilingRow[];
@@ -27,26 +29,68 @@ interface GSTFilingViewProps {
   gstSlabFilter: string;
   setGstSlabFilter: (slab: string) => void;
   filteredGstDetails: any[];
+  /** 'all' | 'gst' | 'exempt' | 'mixed' — toggles which invoice rows are shown. */
+  gstTypeFilter: string;
+  setGstTypeFilter: (filter: string) => void;
 }
 
-export function GSTFilingView({ 
-  data, 
-  reportSummary, 
-  loading, 
-  error, 
-  sortConfig, 
-  onSort, 
+export function GSTFilingView({
+  data,
+  reportSummary,
+  loading,
+  error,
+  sortConfig,
+  onSort,
   formatCell,
   gstDetails,
   gstSlabFilter,
   setGstSlabFilter,
-  filteredGstDetails
+  filteredGstDetails,
+  gstTypeFilter,
+  setGstTypeFilter,
 }: GSTFilingViewProps) {
   const stableChartData = useMemo(() => {
     return [...data].sort((a, b) => a.slab - b.slab);
   }, [data]);
 
+  // Slab filter dropdown options — sourced dynamically from the admin-configured
+  // gst_slabs setting (Settings → GST Configuration), unioned with any slab
+  // values that actually appear in the current report data (orphan safety, so
+  // an order with a slab that was later removed from settings is still filterable).
+  // Falls back to DEFAULT_GST_SLABS while loading.
+  const { data: configuredSlabs } = useGstSlabs();
+  const slabFilterOptions = useMemo(() => {
+    const base = Array.isArray(configuredSlabs) && configuredSlabs.length > 0
+      ? configuredSlabs
+      : [...DEFAULT_GST_SLABS];
+    const merged = new Set<number>(base);
+    // Include any slabs that appear in the summary table or the detail rows
+    data.forEach((row: any) => { if (typeof row.slab === 'number') merged.add(row.slab); });
+    gstDetails.forEach((inv: any) => {
+      if (!inv.slabs || inv.slabs === '-') return;
+      String(inv.slabs).split(',').forEach((s: string) => {
+        const n = Number(s.replace('%', '').trim());
+        if (Number.isFinite(n)) merged.add(n);
+      });
+    });
+    return Array.from(merged).sort((a, b) => a - b);
+  }, [configuredSlabs, data, gstDetails]);
+
   const [gstSortConfig, setGstSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  // Human-readable scope note for orders in the period that are NOT in the
+  // filed figures (cancelled / not-yet-finalized rentals), derived from the
+  // service's excluded_by_status breakdown.
+  const excludedNote = useMemo(() => {
+    const excluded = reportSummary?.excluded_by_status;
+    if (!excluded) return null;
+    const parts = Object.entries(excluded as Record<string, { orders: number; taxable_value: number; gst_amount: number }>)
+      .filter(([, v]) => v.orders > 0)
+      .map(([status, v]) =>
+        `${v.orders} ${status.replace(/_/g, ' ')} (taxable ${formatCurrency(v.taxable_value)}, GST ${formatCurrency(v.gst_amount)})`
+      );
+    return parts.length ? parts.join(' · ') : null;
+  }, [reportSummary]);
 
   const handleGstSort = (key: string) => {
     setGstSortConfig(prev => {
@@ -81,8 +125,8 @@ export function GSTFilingView({
     { header: "Date", key: "date", format: "date" as const },
     { header: "Invoice No", key: "invoice_no" },
     { header: "Customer", key: "customer_name" },
-    { 
-      header: "Status", 
+    {
+      header: "Status",
       key: "status",
       render: (status: string) => {
         const colors: any = {
@@ -99,9 +143,38 @@ export function GSTFilingView({
         );
       }
     },
-    { header: "Items & Qty", key: "items_summary" },
+    {
+      header: "Type",
+      key: "has_gst",
+      render: (_: any, row?: any) => {
+        // Mixed = order has both GST and exempt line items
+        const isMixed = row?.has_gst && row?.has_exempt;
+        const isExemptOnly = !row?.has_gst && row?.has_exempt;
+        if (isMixed) {
+          return (
+            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] px-1.5 py-0">
+              Mixed
+            </Badge>
+          );
+        }
+        if (isExemptOnly) {
+          return (
+            <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] px-1.5 py-0">
+              Exempt
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] px-1.5 py-0">
+            GST
+          </Badge>
+        );
+      }
+    },
+    { header: "Items (GST · Exempt)", key: "items_summary" },
     { header: "Total Value", key: "total_value", format: "currency" as const },
     { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+    { header: "Exempt Value", key: "exempt_value", format: "currency" as const },
     { header: "GST Slab", key: "slabs" },
     { header: "Total GST", key: "gst_amount", format: "currency" as const },
   ];
@@ -138,6 +211,31 @@ export function GSTFilingView({
           </Link>
         </div>
       )}
+
+      {/* Filing Basis Note */}
+      <div className="flex items-start gap-3 p-4 bg-sky-50 border border-sky-200 rounded-xl">
+        <Info className="w-4 h-4 text-sky-600 mt-0.5 flex-shrink-0" />
+        <div className="text-xs text-sky-800 leading-relaxed space-y-1">
+          <p>
+            <span className="font-bold">Filing basis:</span> invoices dated in the selected period, for rentals that have
+            concluded (completed or fully returned) with payment settled where applicable. Exempt items (ornaments) are
+            listed separately and excluded from the liability. This is the figure to report in GSTR-1 — the Revenue
+            report&apos;s &quot;GST in Collections&quot; card is cash-basis and must not be used for filing.
+          </p>
+          {reportSummary?.business_gstin && (
+            <p>
+              <span className="font-bold">GSTIN:</span> {reportSummary.business_gstin}
+              {reportSummary?.period ? <span className="font-bold"> · Period:</span> : null}
+              {reportSummary?.period ? ` ${reportSummary.period}` : null}
+            </p>
+          )}
+          {excludedNote && (
+            <p>
+              <span className="font-bold">Not in this period&apos;s figures:</span> {excludedNote}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Summary Cards */}
       {reportSummary && (
@@ -177,26 +275,29 @@ export function GSTFilingView({
               <div className="space-y-1">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Tax Filing Composition</h3>
                 <p className="text-sm text-slate-600">
-                  Out of <span className="font-bold text-slate-900">{reportSummary.composition.total_orders}</span> total orders, 
-                  <span className="font-bold text-slate-900"> {reportSummary.composition.gst_orders}</span> have GST included.
+                  Out of <span className="font-bold text-slate-900">{reportSummary.composition.total_orders}</span> orders with line items,
+                  <span className="font-bold text-emerald-700"> {reportSummary.composition.gst_orders}</span> have GST included and
+                  <span className="font-bold text-slate-500"> {reportSummary.composition.non_gst_orders}</span> are fully exempt.
                 </p>
               </div>
               <div className="flex items-center gap-8">
                 <div className="text-center">
-                  <p className="text-2xl font-black text-slate-900">{reportSummary.composition.gst_percentage}%</p>
+                  <p className="text-2xl font-black text-emerald-700">{reportSummary.composition.gst_percentage}%</p>
                   <p className="text-[10px] font-bold text-slate-500 uppercase">GST Included</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{reportSummary.composition.gst_orders} orders</p>
                 </div>
                 <div className="w-px h-10 bg-slate-200" />
                 <div className="text-center">
                   <p className="text-2xl font-black text-slate-400">{100 - reportSummary.composition.gst_percentage}%</p>
                   <p className="text-[10px] font-bold text-slate-500 uppercase">GST Exempted</p>
+                  <p className="text-[9px] text-slate-400 mt-0.5">{reportSummary.composition.non_gst_orders} orders</p>
                 </div>
               </div>
             </div>
             <div className="mt-4 w-full h-2 bg-slate-200 rounded-full overflow-hidden flex">
-              <div 
-                className="h-full bg-slate-900 transition-all duration-500" 
-                style={{ width: `${reportSummary.composition.gst_percentage}%` }} 
+              <div
+                className="h-full bg-emerald-600 transition-all duration-500"
+                style={{ width: `${reportSummary.composition.gst_percentage}%` }}
               />
             </div>
           </CardContent>
@@ -282,24 +383,44 @@ export function GSTFilingView({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                Detailed Invoice List (GSTR-1 B2C)
+                Detailed Invoice List
               </h3>
+              {/* Type filter — toggle GST / Exempt / Mixed / All */}
+              <div className="flex h-8 rounded-lg border border-slate-200 overflow-hidden bg-white">
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'gst', label: 'GST Only' },
+                  { value: 'exempt', label: 'Exempt Only' },
+                  { value: 'mixed', label: 'Mixed' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setGstTypeFilter(opt.value)}
+                    className={`px-3 text-xs font-semibold transition-colors ${gstTypeFilter === opt.value ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
               <select
                 value={gstSlabFilter}
                 onChange={e => setGstSlabFilter(e.target.value)}
                 className="h-8 border border-slate-200 rounded-lg px-2.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 bg-white"
               >
                 <option value="all">All Slabs</option>
-                <option value="5">5% Slab Only</option>
-                <option value="12">12% Slab Only</option>
-                <option value="18">18% Slab Only</option>
+                {slabFilterOptions.map((slab) => (
+                  <option key={slab} value={String(slab)}>
+                    {slab}% Slab Only
+                  </option>
+                ))}
               </select>
             </div>
             <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none px-3 py-1 font-semibold text-xs">
               {filteredGstDetails.length} {filteredGstDetails.length === 1 ? 'Invoice' : 'Invoices'}
             </Badge>
           </div>
-          <ReportTable 
+          <ReportTable
             columns={GST_DETAILED_COLUMNS}
             data={sortedGstDetails}
             loading={false}

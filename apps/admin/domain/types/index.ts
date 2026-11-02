@@ -53,6 +53,7 @@ export type {
 
 export {
   CategoryLevel,
+  DEFAULT_GST_SLABS,
 } from './category';
 
 export {

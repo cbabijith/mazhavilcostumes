@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
 
 /// Centralized API Client for communicating with Next.js Admin API
@@ -6,11 +7,17 @@ import 'auth_service.dart';
 /// This client handles all HTTP requests to the backend server,
 /// ensuring the mobile app acts as a thin client with no direct database access.
 class ApiClient {
+  static void _log(String message) {
+    if (kDebugMode || const bool.fromEnvironment('PERFORMANCE_LOGS')) {
+      debugPrint(message);
+    }
+  }
+
   late final Dio _dio;
   Dio get dio => _dio;
   static ApiClient? _instance;
   static final _auth = authService;
-  
+
   // Track if a token refresh is in progress to avoid multiple concurrent refreshes
   bool _isRefreshing = false;
   final List<void Function(bool success)> _refreshQueue = [];
@@ -27,94 +34,107 @@ class ApiClient {
       defaultValue: 'https://mazhavilcostumes-admin.vercel.app/api',
     );
 
-    _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-      sendTimeout: const Duration(seconds: 10),
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      listFormat: ListFormat.multi,
-    ));
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 10),
+        sendTimeout: const Duration(seconds: 10),
+        headers: {'Content-Type': 'application/json'},
+        listFormat: ListFormat.multi,
+      ),
+    );
 
     // Add auth interceptor
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        // Skip token injection for the login endpoint (no token needed)
-        if (!options.path.contains('/auth/login')) {
-          // Use in-memory token from AuthService to avoid secure storage hangs
-          final token = _auth.getAccessToken();
-          if (token != null) {
-            options.headers['Authorization'] = 'Bearer $token';
-            print('[ApiClient] Sending auth token for ${options.path}');
-            print('[ApiClient] Token preview: ${token.substring(0, 20)}...');
-          } else {
-            print('[ApiClient] No auth token available for ${options.path}');
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          // Skip token injection for the login endpoint (no token needed)
+          if (!options.path.contains('/auth/login')) {
+            // Use in-memory token from AuthService to avoid secure storage hangs
+            final token = _auth.getAccessToken();
+            if (token != null) {
+              options.headers['Authorization'] = 'Bearer $token';
+              _log('[ApiClient] Sending auth token for ${options.path}');
+            } else {
+              _log('[ApiClient] No auth token available for ${options.path}');
+            }
           }
-        }
-        print('[ApiClient] Request: ${options.method} ${options.baseUrl}${options.path} params: ${options.queryParameters}');
-        return handler.next(options);
-      },
-      onError: (error, handler) async {
-        // Handle 401 unauthorized - trigger token refresh
-        print('[ApiClient] Error for ${error.requestOptions.path}: ${error.type}');
-        print('[ApiClient] Status: ${error.response?.statusCode}');
-        print('[ApiClient] Response: ${error.response?.data}');
-        
-        if (error.response?.statusCode == 401 && !error.requestOptions.path.contains('/auth/refresh')) {
-          print('[ApiClient] 401 Unauthorized - attempting token refresh');
-          
-          // If refresh is already in progress, queue this request
-          if (_isRefreshing) {
-            print('[ApiClient] Refresh already in progress, queuing request');
-            _refreshQueue.add((bool success) {
-              if (success) {
-                _retryRequest(error.requestOptions, handler);
-              } else {
-                handler.next(error);
-              }
-            });
-            return;
-          }
-          
-          // Start refresh process
-          _isRefreshing = true;
-          print('[ApiClient] Starting token refresh');
-          
-          final success = await _auth.refreshAccessToken();
-          
-          _isRefreshing = false;
-          
-          final callbacks = List<void Function(bool)>.from(_refreshQueue);
-          _refreshQueue.clear();
+          options.extra['requestTimer'] = Stopwatch()..start();
+          _log('[ApiClient] Request: ${options.method} ${options.path}');
+          return handler.next(options);
+        },
+        onError: (error, handler) async {
+          // Handle 401 unauthorized - trigger token refresh
+          _log(
+            '[ApiClient] Error for ${error.requestOptions.path}: ${error.type}',
+          );
+          _log('[ApiClient] Status: ${error.response?.statusCode}');
 
-          for (final callback in callbacks) {
-            callback(success);
+          if (error.response?.statusCode == 401 &&
+              !error.requestOptions.path.contains('/auth/refresh')) {
+            _log('[ApiClient] 401 Unauthorized - attempting token refresh');
+
+            // If refresh is already in progress, queue this request
+            if (_isRefreshing) {
+              _log('[ApiClient] Refresh already in progress, queuing request');
+              _refreshQueue.add((bool success) {
+                if (success) {
+                  _retryRequest(error.requestOptions, handler);
+                } else {
+                  handler.next(error);
+                }
+              });
+              return;
+            }
+
+            // Start refresh process
+            _isRefreshing = true;
+            _log('[ApiClient] Starting token refresh');
+
+            final success = await _auth.refreshAccessToken();
+
+            _isRefreshing = false;
+
+            final callbacks = List<void Function(bool)>.from(_refreshQueue);
+            _refreshQueue.clear();
+
+            for (final callback in callbacks) {
+              callback(success);
+            }
+
+            if (success) {
+              _log(
+                '[ApiClient] Token refresh successful, retrying original request',
+              );
+              _retryRequest(error.requestOptions, handler);
+              return;
+            } else {
+              _log('[ApiClient] Token refresh failed, logging out user');
+              await _auth.logout();
+              return handler.next(error);
+            }
           }
 
-          if (success) {
-            print('[ApiClient] Token refresh successful, retrying original request');
-            _retryRequest(error.requestOptions, handler);
-            return;
-          } else {
-            print('[ApiClient] Token refresh failed, logging out user');
-            await _auth.logout();
-            return handler.next(error);
-          }
-        }
-        
-        return handler.next(error);
-      },
-    ));
+          return handler.next(error);
+        },
+      ),
+    );
 
     // Add response logging
-    _dio.interceptors.add(InterceptorsWrapper(
-      onResponse: (response, handler) {
-        print('[ApiClient] Response for ${response.requestOptions.path}: ${response.statusCode}');
-        return handler.next(response);
-      },
-    ));
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onResponse: (response, handler) {
+          final timer =
+              response.requestOptions.extra['requestTimer'] as Stopwatch?;
+          timer?.stop();
+          _log(
+            '[ApiClient] Response for ${response.requestOptions.path}: ${response.statusCode} in ${timer?.elapsedMilliseconds}ms',
+          );
+          return handler.next(response);
+        },
+      ),
+    );
   }
 
   /// GET request
@@ -200,19 +220,26 @@ class ApiClient {
   }
 
   /// Retry a failed request with the new access token
-  void _retryRequest(RequestOptions requestOptions, ErrorInterceptorHandler handler) {
+  void _retryRequest(
+    RequestOptions requestOptions,
+    ErrorInterceptorHandler handler,
+  ) {
     // Update the Authorization header with the new token
     final newToken = _auth.getAccessToken();
     if (newToken != null) {
       requestOptions.headers['Authorization'] = 'Bearer $newToken';
-      print('[ApiClient] Retrying request with new token: ${requestOptions.path}');
+      _log(
+        '[ApiClient] Retrying request with new token: ${requestOptions.path}',
+      );
     }
-    
+
     // Clone the request options and retry
-    _dio.fetch(requestOptions).then(
-      (response) => handler.resolve(response),
-      onError: (e) => handler.next(e),
-    );
+    _dio
+        .fetch(requestOptions)
+        .then(
+          (response) => handler.resolve(response),
+          onError: (e) => handler.next(e),
+        );
   }
 
   /// Handle Dio errors and convert to user-friendly exceptions
@@ -227,11 +254,12 @@ class ApiClient {
       case DioExceptionType.badResponse:
         final statusCode = error.response?.statusCode;
         final responseData = error.response?.data;
-        
+
         if (responseData != null && responseData is Map) {
-          message = responseData['error'] ?? 
-                    responseData['message'] ?? 
-                    'Server error occurred';
+          message =
+              responseData['error'] ??
+              responseData['message'] ??
+              'Server error occurred';
         } else {
           message = _getStatusMessage(statusCode);
         }
@@ -245,7 +273,7 @@ class ApiClient {
       default:
         message = 'An unexpected error occurred';
     }
-    
+
     return Exception(message);
   }
 

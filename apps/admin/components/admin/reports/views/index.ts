@@ -11,3 +11,4 @@ export * from "./InventoryRevenueReport";
 export * from "./EnquiryLogReport";
 export * from "./GSTFilingReport";
 export * from "./TodaysRevenueView";
+export * from "./DamageReportView";

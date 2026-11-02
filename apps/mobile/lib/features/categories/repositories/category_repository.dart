@@ -91,10 +91,13 @@ class CategoryRepository {
 
       // Response structure: { success: true, data: { "category_id": count, ... } }
       final data = response.data['data'] as Map<String, dynamic>? ?? {};
-      return data.map((key, value) => MapEntry(key, (value as num).toInt()));
+      final counts = data.map((key, value) => MapEntry(key, (value as num).toInt()));
+      final total = response.data['meta']?['total'] as num?;
+      // Older servers omit this total; do not mislabel uncategorized products.
+      if (total != null) counts['All'] = total.toInt();
+      return counts;
     } catch (e) {
-      // Return empty map on error to not block UI
-      return {};
+      throw Exception('Failed to load category counts: $e');
     }
   }
 

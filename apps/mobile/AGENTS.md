@@ -359,3 +359,16 @@ Reports:
 - GST Reports
 
 Never bypass inventory validation.
+
+## October 21, 2026 - Loading policy
+- Restore auth identity before branch-scoped startup requests, and use `resolvedBranchIdProvider` for initial list/dashboard loads.
+- List searches debounce and cancel superseded requests; pagination must not append to a changed filter generation. Default Orders navigation reuses its cache and preserves branch scope.
+- Analytics refresh/mutation flows invalidate `analyticsRequestProvider` as well as visible analytics providers. Never cache report data across authenticated users.
+- Category totals come from count response metadata, not a second product-list request.
+- Loading regression checks: `flutter test test/unit/loading_performance_test.dart`.
+
+
+## November 2, 2026 - Combined branch checks
+- Preserve both Invoice Settings and Reports navigation when reconciling the main layout.
+- Widget tests must scroll lazy form fields into view and use a controllable pending request when asserting loading states.
+- Settle Riverpod listener changes before asserting cache invalidation request counts.

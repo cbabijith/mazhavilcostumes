@@ -135,3 +135,20 @@ lib/
 ## Next Steps / Roadmap
 *   Finalize Calendar & Date-picker module for tracking exact rental dates.
 *   Implement Order Creation flow (adding products to a cart and assigning a customer).
+
+### Loading performance (October 21, 2026)
+
+Session restoration starts immediately on the splash screen and restores identity before dashboard loading. Branch-scoped providers await initial branch resolution. Dashboard startup no longer preloads the customer directory.
+
+Product and Order searches debounce for 300 ms, cancel replaced requests, and ignore obsolete results and pagination responses. Opening an unfiltered Orders tab reuses its request; clearing filters preserves the selected branch. Product totals reuse the category-count response; older APIs without `meta.total` show an unknown total instead of an inaccurate zero. Thumbnails decode at their display size and device pixel density.
+
+Analytics shares requests by branch/range/category period/ROI limit and retains unused completed results for up to 30 seconds after completion. Active reports refresh through explicit refresh or mutation invalidation. Refresh and order mutations invalidate both the request cache and visible metrics. Diagnostic request timings can be enabled with `--dart-define=PERFORMANCE_LOGS=true`; normal release API logging is disabled.
+
+Regression checks: `flutter test test/unit/loading_performance_test.dart` and `flutter analyze --no-pub`. To exercise an un-deployed admin build on Android over USB, run the admin production server on port 3001, use `adb reverse tcp:3001 tcp:3001`, and build with `--dart-define=API_BASE_URL=http://127.0.0.1:3001/api`. Restore a build without that override before disconnecting the device.
+
+
+### Local branch integration (November 2, 2026)
+
+The combined code keeps Shahil's mobile order flow, invoice settings, session restoration and loading improvements, and adds main's Reports navigation and report constants. Existing return payloads continue to send cumulative returned quantities and absolute late-fee totals; the integrated admin preserves this contract.
+
+Run `flutter test --no-pub` for the complete unit/widget suite and `flutter analyze --no-pub` for static analysis. The obsolete comment-only `test/widget_test.dart` was removed because Flutter treated it as a test without a `main` entry point. Category form tests now scroll lazy fields into view, use a real return route and hold the fake submission open when checking loading. The analytics cache test settles provider subscriptions before invalidation. These test changes do not replace mobile screen implementations.
