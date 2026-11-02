@@ -454,3 +454,11 @@ node --test scripts/test-pr89-regressions.cjs scripts/test-order-return-adjustme
 ```
 
 The merged checks cover invalid cumulative quantities, flagged-order settlement, prior partial-return damage, GST settings and invoice rendering, loading behavior, complete PDF/Excel exports and existing GST/damage export routing. Test fixtures use valid order items and cumulative return totals required by main's stricter validation.
+
+### Mobile API refresh improvements (November 2, 2026)
+
+- Bearer authentication overlaps remote token verification with the staff lookup. The token subject is only an untrusted lookup hint: staff data is used only after `getUser` verifies the same identity. Lookup errors fail closed; roles are not cached.
+- Orders obtains `item_count` using `item_totals:order_items(count)` in its main query, removing a sequential child-row request and its 1,000-row truncation risk.
+- `GET /api/calendar?...&summary=true` returns overview fields, customer identity/contact and item counts without full items, product images or detail-only financial fields. Omitting the flag preserves the existing full response. The route uses the service layer and rejects a non-admin request for another branch.
+- Orders, Calendar and operational-dashboard responses include safe `Server-Timing` durations for authentication, data retrieval and total route time. These headers contain no account data.
+- Run `node scripts/test-startup-api-performance.cjs`, `node scripts/test-loading-performance.cjs`, `tsc --noEmit` and the production build. These changes require a normal GitHub-triggered Vercel deployment before the production mobile API benefits; no database migration is needed.

@@ -1,14 +1,17 @@
 import { NextRequest } from 'next/server';
-import { orderRepository } from '@/repository/orderRepository';
+import { orderService } from '@/services';
+import { ApiTiming } from '@/lib/apiTiming';
 import { apiSuccess, apiError, apiUnauthorized, apiBadRequest } from '@/lib/apiResponse';
 import { getAuthUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  const timing = new ApiTiming();
   try {
     const authUser = await getAuthUser(request);
     if (!authUser) {
       return apiUnauthorized();
     }
+    timing.mark('auth');
 
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('start_date');
@@ -19,15 +22,18 @@ export async function GET(request: NextRequest) {
       return apiBadRequest('Missing required parameters: start_date, end_date, branch_id');
     }
 
-    orderRepository.setUserContext(authUser.id, authUser.store_id || '');
-
-    const result = await orderRepository.getCalendarOrders(branchId, startDate, endDate);
+    const canSwitchBranches = authUser.role === 'admin' || authUser.role === 'super_admin';
+    if (!canSwitchBranches && branchId !== authUser.branch_id) {
+      return apiError('Access denied for this branch', { status: 403 });
+    }
+    const result = await orderService.getCalendarOrders(branchId, startDate, endDate, searchParams.get('summary') === 'true');
+    timing.mark('data');
 
     if (!result.success) {
       return apiError(result.error?.message || 'Failed to fetch calendar orders');
     }
 
-    return apiSuccess(result.data || []);
+    return timing.attach(apiSuccess(result.data || []));
   } catch (error) {
     console.error('Calendar API Error:', error);
     return apiError('Internal server error', { status: 500 });

@@ -96,6 +96,9 @@ function setupOrders(overrides = {}, payments = []) {
     create: async () => ok(structuredClone(order)),
     processReturn: async () => { order.status = 'returned'; return ok(structuredClone(order)); },
     getOrderItems: async () => ok([]),
+    findActiveOrdersForProduct: async () => ok([]),
+    getProductBufferInfo: async () => ok({ quantity: 0, has_buffer: false }),
+    syncProductConflictsForRange: async () => ok(null),
     syncOrderPriorityFlag: async () => ok(null),
     addStatusHistory: async (...args) => { history.push(args); return ok(null); },
   };

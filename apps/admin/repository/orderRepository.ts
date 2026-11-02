@@ -79,7 +79,8 @@ export class OrderRepository extends BaseRepository {
         has_priority_cleaning, has_stock_conflict,
         is_late, invoice_number, created_at,
         customer:customer_id(name, phone),
-        branch:branch_id(name)${productFilterSelect}
+        branch:branch_id(name),
+        item_totals:order_items(count)${productFilterSelect}
       `, { count: 'exact' });
 
     if (params?.product_id) {
@@ -269,29 +270,11 @@ export class OrderRepository extends BaseRepository {
       };
     }
 
-    // Batch-fetch item counts for all returned orders (single query, no joins)
-    if (result.data.length > 0) {
-      const orderIds = result.data.map(o => o.id);
-      const { data: itemCounts, error: countError } = await this.client
-        .from('order_items')
-        .select('order_id')
-        .in('order_id', orderIds);
-
-      if (countError) {
-        console.error('[OrderRepository.findAll] Batch item count query failed:', countError);
-      }
-
-      const countMap = new Map<string, number>();
-      if (itemCounts) {
-        for (const row of itemCounts) {
-          countMap.set(row.order_id, (countMap.get(row.order_id) || 0) + 1);
-        }
-      }
-      result.data = result.data.map(o => ({
-        ...o,
-        item_count: countMap.get(o.id) || 0,
-      }));
-    }
+    // Embedded counts avoid a second HTTP query and the child-row response cap.
+    result.data = result.data.map(order => {
+      const { item_totals, ...fields } = order as OrderWithRelations & { item_totals?: { count: number }[] };
+      return { ...fields, item_count: item_totals?.[0]?.count ?? 0 };
+    });
 
     const limit = params?.limit || 20;
     const offset = params?.offset || 0;
@@ -319,10 +302,15 @@ export class OrderRepository extends BaseRepository {
   /**
    * Fetch active orders overlapping a specific date range for the calendar view.
    */
-  async getCalendarOrders(branchId: string, startDate: string, endDate: string): Promise<RepositoryResult<OrderWithRelations[]>> {
+  async getCalendarOrders(branchId: string, startDate: string, endDate: string, summary = false): Promise<RepositoryResult<OrderWithRelations[]>> {
+    const summaryColumns = `
+      id, branch_id, status, start_date, end_date, total_amount, amount_paid,
+      payment_status, is_late, invoice_number, has_stock_conflict,
+      customer:customer_id(id, name, phone), item_totals:order_items(count)
+    `;
     const response = await this.client
       .from(this.tableName)
-      .select(`
+      .select((summary ? summaryColumns : `
         id, store_id, customer_id, branch_id, status, start_date, end_date,
         event_date, total_amount, subtotal, gst_amount, advance_amount,
         advance_collected, advance_payment_method, advance_collected_at,
@@ -337,14 +325,21 @@ export class OrderRepository extends BaseRepository {
           product:product_id(id, name, images, category:category_id(has_buffer))
         ),
         branch:branch_id(id, name)
-      `)
+      `) as string)
       .eq('branch_id', branchId)
       .in('status', ['pending', 'confirmed', 'scheduled', 'ongoing', 'in_use', 'partial', 'flagged', 'returned'])
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .order('start_date', { ascending: true });
 
-    return this.handleResponse<OrderWithRelations[]>(response as any);
+    const result = this.handleResponse<OrderWithRelations[]>(response as any);
+    if (summary && result.data) {
+      result.data = result.data.map(order => {
+        const { item_totals, ...fields } = order as OrderWithRelations & { item_totals?: { count: number }[] };
+        return { ...fields, item_count: item_totals?.[0]?.count ?? 0 };
+      });
+    }
+    return result;
   }
 
   /**

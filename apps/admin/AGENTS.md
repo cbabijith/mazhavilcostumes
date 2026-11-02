@@ -6,6 +6,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 2, 2026 - Mobile API refresh path
+- Keep bearer-token verification authoritative when overlapping the staff query. Decoded JWT subjects are lookup hints only; require exact agreement with the verified identity and fail closed on lookup errors. Never cache roles to speed up these routes.
+- Orders embeds child counts in the list query. Calendar's opt-in `summary=true` projection must preserve customer/date/status/amount fields and `item_count`; default callers retain full details. Keep branch authorization before service calls.
+- `ApiTiming` headers contain stage durations only. Offline verification: `node scripts/test-startup-api-performance.cjs`.
+
+
 ## November 2, 2026 - Complete revenue exports
 - Revenue and Today's Revenue exports fetch every matching detail page before generating PDF/Excel; never export only the visible 50 rows. Failed/incomplete pages must stop the download.
 - `/api/reports/revenue` retains its existing page/limit defaults and clamping (maximum 500) and accepts `paymentMode`. Today's Revenue uses `payment_mode`. Filter transaction status before pagination/counting and keep payment-date/ID ordering stable.
