@@ -60,6 +60,8 @@ pnpm start
 
 Revenue Report and Today's Revenue PDF/Excel downloads include all matching transactions, independently of the current table page. Exports load batches before creating the file and show an error if any batch fails or is incomplete.
 
+The Excel button downloads a real `.xlsx` workbook. Date columns use `dd/mm/yyyy` and saved widths that fit the complete date; CSV downloads could not preserve widths and Excel displayed `#######` in narrow date columns. Amounts remain numeric for spreadsheet totals, identifiers retain leading zeros, and blank/invalid dates are preserved without producing negative date values. Workbook generation is awaited so download failures are shown and the export button stays busy until generation finishes.
+
 `GET /api/reports/revenue` accepts `fromDate`, `toDate`, optional `branchId`, `storeId`, comma-separated `statusFilter`, `paymentMode`, `page` (default 1), and `limit` (default 50, maximum 500). Pagination retains the existing endpoint's defaults and clamping. Its `data.details` contains the requested page and `data.total_details_count` counts all transactions matching the detail filters. Today's Revenue uses `payment_mode` on `/api/reports/todays-revenue`; the export hook preserves each endpoint's parameter contract.
 
 Run offline regressions with `node scripts/test-revenue-export.cjs`.

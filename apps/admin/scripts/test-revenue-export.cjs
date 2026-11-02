@@ -227,7 +227,9 @@ test('actual PDF and Excel exporters contain all 198 fetched transactions', asyn
   const api = setup(fixtures(198));
   const rows = await api.fetchAllRevenueDetails(request);
   let pdf;
-  let csv;
+  let excel;
+  const link = { click() {} };
+  const XLSX = require('xlsx');
   const { jsPDF } = require('jspdf');
   const { exportToPDF, exportToExcel } = load('lib/exportUtils.ts', {
     jspdf: { __esModule: true, default: function (options) {
@@ -236,9 +238,10 @@ test('actual PDF and Excel exporters contain all 198 fetched transactions', asyn
       return doc;
     } },
     'jspdf-autotable': require('jspdf-autotable'),
+    xlsx: XLSX,
   }, {
-    document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } },
-    URL: { createObjectURL: blob => { csv = blob; return 'blob:test'; }, revokeObjectURL() {} },
+    document: { createElement: () => link, body: { appendChild() {}, removeChild() {} } },
+    URL: { createObjectURL: blob => { excel = blob; return 'blob:test'; }, revokeObjectURL() {} },
   });
   const columns = [
     { header: 'Date', key: 'date', format: 'date' },
@@ -250,15 +253,62 @@ test('actual PDF and Excel exporters contain all 198 fetched transactions', asyn
     { header: 'Order Status', key: 'status' },
   ];
   await exportToPDF(rows, columns, 'Revenue Report', 'test');
-  exportToExcel(rows, columns, 'test');
+  await exportToExcel(rows, columns, 'test');
   const pdfText = pdf.output();
-  const csvText = await csv.text();
+  const workbook = XLSX.read(await excel.arrayBuffer(), { type: 'array', cellStyles: true, cellNF: true });
+  const sheet = workbook.Sheets.Report;
+  const excelRows = XLSX.utils.sheet_to_json(sheet);
   assert.ok(pdf.getNumberOfPages() > 1);
-  assert.equal(csvText.trim().split('\n').length, 199);
+  assert.equal(link.download, 'test.xlsx');
+  assert.equal(excel.type, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  assert.equal(excelRows.length, 198);
+  assert.equal(sheet.A2.t, 'n');
+  assert.equal(sheet.A2.z, 'dd/mm/yyyy');
+  assert.equal(XLSX.utils.format_cell(sheet.A2), '18/09/2026');
+  assert.ok(sheet['!cols'][0].wch >= 14, 'Date column must fit the complete date');
+  assert.equal(sheet.F2.t, 'n', 'Amounts stay numeric for Excel totals');
+  assert.equal(sheet.F2.z, '#,##0.00');
   for (const row of rows) {
     assert.ok(pdfText.includes(row.customer_name), `PDF missing ${row.customer_name}`);
-    assert.ok(csvText.includes(row.customer_name), `Excel missing ${row.customer_name}`);
+    assert.ok(excelRows.some(entry => entry.Customer === row.customer_name), `Excel missing ${row.customer_name}`);
   }
+});
+
+test('Excel keeps calendar dates, blank/invalid values and identifiers without coercion', async () => {
+  const XLSX = require('xlsx');
+  let blob;
+  const { exportToExcel } = load('lib/exportUtils.ts', { xlsx: XLSX }, {
+    document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } },
+    URL: { createObjectURL: value => { blob = value; return 'blob:test'; }, revokeObjectURL() {} },
+  });
+  await exportToExcel([
+    { date: '2026-09-18', amount: '123456.78', percent: 12.5, id: '00123', name: '=SUM(A1:A2)' },
+    { date: '2026-09-30', amount: 0, percent: 0, id: '00000' },
+    { date: null, amount: null },
+    { date: '', amount: '' },
+    { date: 'not-a-date', amount: 'unknown' },
+    { date: '1899-01-01' },
+  ], [
+    { header: 'Date', key: 'date', format: 'date' },
+    { header: 'Amount', key: 'amount', format: 'currency' },
+    { header: 'Rate', key: 'percent', format: 'percent' },
+    { header: 'Order', key: 'id' },
+    { header: 'Customer', key: 'name' },
+  ], 'dates');
+  const sheet = XLSX.read(await blob.arrayBuffer(), { type: 'array', cellStyles: true, cellNF: true }).Sheets.Report;
+  assert.equal(XLSX.utils.format_cell(sheet.A2), '18/09/2026');
+  assert.equal(XLSX.utils.format_cell(sheet.A3), '30/09/2026');
+  assert.equal(XLSX.utils.format_cell(sheet.B2), '123,456.78');
+  assert.equal(XLSX.utils.format_cell(sheet.C2), '12.5%');
+  assert.equal(sheet.B3.v, 0);
+  assert.equal(sheet.D2.v, '00123');
+  assert.equal(sheet.D2.t, 's');
+  assert.equal(sheet.E2.v, '=SUM(A1:A2)');
+  assert.equal(sheet.E2.f, undefined);
+  for (const address of ['A4', 'A5', 'B4', 'B5']) assert.equal(sheet[address].v, '');
+  assert.equal(sheet.A6.v, 'not-a-date');
+  assert.equal(sheet.B6.v, 'unknown');
+  assert.equal(sheet.A7.t, 's', 'Unsupported dates must not become negative Excel serials');
 });
 
 /** Execute the production page handler with observable download/state adapters. */
@@ -317,7 +367,7 @@ test('page PDF/Excel buttons export the complete fetched dataset instead of the 
   }
 });
 
-test('page handles both fetch and PDF-generation failures without an unhandled rejection', async () => {
+test('page handles fetch, PDF and asynchronous Excel failures without an unhandled rejection', async () => {
   const failedFetch = pageExport({ fetchAllRevenueDetails: async () => { throw new Error('Cannot load transactions'); } });
   await failedFetch.handleExport('pdf');
   assert.deepEqual(failedFetch.calls, []);
@@ -331,6 +381,14 @@ test('page handles both fetch and PDF-generation failures without an unhandled r
   await failedPdf.handleExport('pdf');
   assert.deepEqual(failedPdf.errors, [null, 'Cannot generate PDF']);
   assert.deepEqual(failedPdf.states, [true, false]);
+
+  const failedExcel = pageExport({
+    fetchAllRevenueDetails: async () => [],
+    exportToExcel: async () => { throw new Error('Cannot generate Excel'); },
+  });
+  await failedExcel.handleExport('excel');
+  assert.deepEqual(failedExcel.errors, [null, 'Cannot generate Excel']);
+  assert.deepEqual(failedExcel.states, [true, false]);
 });
 
 test('existing GST filing exports retain the complete register and dedicated generators', async () => {

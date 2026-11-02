@@ -3,7 +3,7 @@
  *
  * Client-side helpers for exporting report data to Excel (.xlsx) and PDF.
  * Uses jspdf + jspdf-autotable for PDF generation.
- * Uses a lightweight CSV-based approach for Excel (no extra dependency).
+ * Uses SheetJS for Excel workbooks with explicit date formats and column widths.
  *
  * @module lib/exportUtils
  */
@@ -16,37 +16,64 @@ interface ExportColumn {
 }
 
 /**
- * Export data to CSV (opens as Excel)
+ * Export a workbook with readable dates and numeric amounts.
+ *
+ * @param data Complete report rows to export.
+ * @param columns Ordered report columns and their display formats.
+ * @param filename Download name without an extension.
+ * @returns Resolves after the workbook download starts.
  */
-export function exportToExcel(
+export async function exportToExcel(
   data: Record<string, any>[],
   columns: ExportColumn[],
   filename: string
 ) {
+  const XLSX = await import('xlsx');
   const headers = columns.map(c => c.header);
   const rows = data.map(row =>
     columns.map(col => {
       const val = row[col.key];
-      if (val == null) return '';
-      if (col.format === 'currency') return Number(val).toFixed(2);
-      if (col.format === 'percent') return `${Number(val).toFixed(1)}%`;
-      if (col.format === 'date' && val) {
-        try { 
-          const d = new Date(val);
-          return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-        } catch { return val; }
+      if (val == null || val === '') return '';
+      if (col.format === 'date') {
+        // Date-only values are calendar dates, not UTC instants: preserve the
+        // same day when the workbook is generated outside India's timezone.
+        const date = new Date(typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)
+          ? `${val}T00:00:00`
+          : val);
+        if (Number.isFinite(date.getTime()) && date.getFullYear() >= 1900 && date.getFullYear() <= 9999) {
+          return date;
+        }
+        return String(val);
+      }
+      if (col.format === 'currency' || col.format === 'number' || col.format === 'percent') {
+        const number = Number(val);
+        if (Number.isFinite(number)) return col.format === 'percent' ? number / 100 : number;
       }
       return String(val);
     })
   );
 
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-  ].join('\n');
+  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows], { dateNF: 'dd/mm/yyyy' });
+  sheet['!cols'] = columns.map((col, columnIndex) => {
+    let width = Math.max(col.format === 'date' ? 16 : 12, col.header.length + 3);
+    for (let rowIndex = 1; rowIndex <= rows.length; rowIndex++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })];
+      if (!cell) continue;
+      if (cell.t === 'n') {
+        if (col.format === 'currency') cell.z = '#,##0.00';
+        if (col.format === 'percent') cell.z = '0.0%';
+      }
+      width = Math.max(width, XLSX.utils.format_cell(cell).length + 3);
+    }
+    // CSV cannot retain widths, which leaves Excel dates showing as #######.
+    return { wch: Math.min(width, 60) };
+  });
 
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, `${filename}.csv`);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Report');
+  const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', compression: true });
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  downloadBlob(blob, `${filename}.xlsx`);
 }
 
 /**

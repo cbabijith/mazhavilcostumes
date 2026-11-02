@@ -508,7 +508,7 @@ function ReportsPageContent() {
 
       const filename = `${meta.name}_${new Date().toISOString().split('T')[0]}`;
       if (format === 'excel') {
-        exportToExcel(exportData, exportColumns, filename);
+        await exportToExcel(exportData, exportColumns, filename);
       } else {
         await exportToPDF(exportData, exportColumns, meta.name, filename);
       }
