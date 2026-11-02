@@ -46,6 +46,10 @@ pnpm dev
 
 ### Build & Deploy
 
+The admin API runs in Vercel's Singapore region (`sin1`) through `vercel.json`, alongside the production Supabase project in `ap-southeast-1`. Leaving the function region unset previously ran the API in Washington, D.C. (`iad1`), adding intercontinental round trips for both authentication and fresh data. This applies to all admin functions and retains the existing cron schedule. Redeploy after changing the region.
+
+Verify the production project's region before changing this setting: local `.env.local` and old Supabase CLI pooler files can refer to different projects. Production API response `x-vercel-id` identifies the execution region; use `Server-Timing` and the release app's HTTP timings to measure fresh Orders, Calendar, and Home responses separately from saved-screen rendering. No role or operational-data caching is added by this configuration.
+
 ```bash
 # Build for production
 pnpm build

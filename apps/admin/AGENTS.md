@@ -6,6 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 2, 2026 - API and database region alignment
+- `vercel.json` pins admin functions to Singapore (`sin1`), matching the verified production Supabase project in `ap-southeast-1`. The previous default `iad1` added long-distance round trips to each authentication and data stage.
+- Verify the production project, not a developer's `.env.local` or stale CLI pooler file, before changing regions. Confirm the deployed execution region using `x-vercel-id`, then measure fresh release-app responses using `Server-Timing` and HTTP elapsed time. Keep the existing cron schedule and authoritative per-request authorization.
+
 ## November 2, 2026 - Mobile API refresh path
 - Keep bearer-token verification authoritative when overlapping the staff query. Decoded JWT subjects are lookup hints only; require exact agreement with the verified identity and fail closed on lookup errors. Never cache roles to speed up these routes.
 - Orders embeds child counts in the list query. Calendar's opt-in `summary=true` projection must preserve customer/date/status/amount fields and `item_count`; default callers retain full details. Keep branch authorization before service calls.
