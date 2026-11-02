@@ -9,8 +9,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/navigation_provider.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/startup_timing.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
-import '../../customers/viewmodels/providers/customer_provider.dart';
 import '../domain/operational_card.dart';
 import '../viewmodels/providers/dashboard_provider.dart';
 import 'widgets/analytics_section.dart';
@@ -23,6 +23,7 @@ class DashboardView extends ConsumerStatefulWidget {
 }
 
 class _DashboardViewState extends ConsumerState<DashboardView> {
+  final _timedFrames = <String>{};
   int _activeTab = 0;
   late PageController _pageController;
 
@@ -30,9 +31,6 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _activeTab);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(customersCacheProvider);
-    });
   }
 
   @override
@@ -45,6 +43,13 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final operationalAsync = ref.watch(operationalMetricsProvider);
+    if (StartupTiming.enabled && operationalAsync.hasValue) {
+      final event = operationalAsync.value!.savedAt == null
+          ? 'dashboard_fresh_frame' : 'dashboard_saved_frame';
+      if (_timedFrames.add(event)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => StartupTiming.mark(event));
+      }
+    }
     final user = ref.watch(authUserProvider);
     final isAdmin = user != null && user.isAdmin;
 
@@ -92,6 +97,21 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildPageHeader(screenWidth),
+                          if (_activeTab == 0 && operationalAsync.value?.savedAt != null)
+                            Padding(
+                              padding: Responsive.only(top: AppSizes.spacingSmall),
+                              child: Text(
+                                operationalAsync.value!.refreshFailed
+                                    ? AppStrings.savedOverviewRefreshFailed
+                                    : AppStrings.refreshingSavedOverview,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: Responsive.sp(AppSizes.fontSmall),
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                            ),
                           SizedBox(
                             height: Responsive.h(AppSizes.spacingMedium),
                           ),
@@ -125,7 +145,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                             screenWidth * 0.02,
                                       ),
                                       child: operationalAsync.when(
-                                        skipLoadingOnReload: true,
+                                        skipLoadingOnReload: false,
                                         data: (metrics) =>
                                             _buildDashboardContent(
                                               metrics,
@@ -173,7 +193,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                                 screenWidth * 0.02,
                                           ),
                                           child: operationalAsync.when(
-                                            skipLoadingOnReload: true,
+                                            skipLoadingOnReload: false,
                                             data: (metrics) =>
                                                 _buildDashboardContent(
                                                   metrics,
@@ -196,6 +216,7 @@ class _DashboardViewState extends ConsumerState<DashboardView> {
                                 // Page 1: Analytics
                                 RefreshIndicator(
                                   onRefresh: () async {
+                                    ref.invalidate(analyticsRequestProvider);
                                     ref.invalidate(analyticsMetricsProvider);
                                     ref.invalidate(categoryRevenueProvider);
                                     ref.invalidate(inventoryRoiProvider);

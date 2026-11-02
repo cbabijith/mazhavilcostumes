@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     
     // Parse and validate query parameters
     const params = ProductSearchSchema.parse({
+      include_total_stock: searchParams.get('include_total_stock') !== 'false',
       query: searchParams.get('query') || undefined,
       category_id: searchParams.get('category_id') || undefined,
       store_id: searchParams.get('store_id') || undefined,

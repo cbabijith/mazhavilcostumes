@@ -6,6 +6,24 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 2, 2026 - Pre-push React and lint verification
+- Keep order-panel queries and status-badge hooks unconditional; disable item queries while no order is selected.
+- Declare sortable header components outside their parent render. Synchronize upload queue refs in an effect before processing the queue.
+- Selector functions retain their public properties but use named hook implementations. Revenue sorting memoizes the exact details value it reads.
+- Define staff-history loading before the effect that calls it. Use explicit booking-toggle branches, immutable API locals, and a non-reserved `loadedModule` name in offline test loaders to satisfy lint without changing their behavior.
+- Before pushing, run the admin production build, ESLint with zero warnings, and the offline regression suites.
+
+## November 2, 2026 - Mobile API refresh path
+- Keep bearer-token verification authoritative when overlapping the staff query. Decoded JWT subjects are lookup hints only; require exact agreement with the verified identity and fail closed on lookup errors. Never cache roles to speed up these routes.
+- Orders embeds child counts in the list query. Calendar's opt-in `summary=true` projection must preserve customer/date/status/amount fields and `item_count`; default callers retain full details. Keep branch authorization before service calls.
+- `ApiTiming` headers contain stage durations only. Offline verification: `node scripts/test-startup-api-performance.cjs`.
+
+## November 2, 2026 - Complete revenue exports
+- Revenue and Today's Revenue exports fetch every matching detail page before generating PDF/Excel; never export only the visible 50 rows. Failed/incomplete pages must stop the download.
+- `/api/reports/revenue` accepts validated `page`/`limit` (maximum 500) and `payment_mode`. Filter transaction status before pagination/counting and keep payment-date/ID ordering stable.
+- Revenue page/API access lives in `hooks/useRevenueReport.ts`; preserve date, branch, store, status and payment-mode filters when exporting. Date/payment filter changes reset the table to page one.
+- Offline regressions: `node scripts/test-revenue-export.cjs` (198 rows, multiple batches, filtered counts, failures and actual PDF/CSV output).
+
 ## September 30, 2026 - Order charge preservation
 - Return `late_fee` is the complete desired fee; omitted values preserve the saved fee. Return `discount` is an additional currency discount. Web returns submit saved plus additional late fees.
 - Return processing and individual item-damage saves preserve the saved discounted total, extra charges and damage charges not allocated to items. Replace item assessments without applying saved discounts or fees twice.
@@ -250,3 +268,9 @@ Write operations go through API routes using service_role (bypasses RLS).
 | `R2_ACCOUNT_ID` | R2 account ID |
 
 Default Store ID: `00000000-0000-0000-0000-000000000001` (single-tenant)
+
+## October 21, 2026 - Mobile loading policy
+- Preserve `meta.total` on category counts, including uncategorized products; batch scans must paginate and propagate page failures.
+- Product stock aggregation remains on by default; mobile opts out with `include_total_stock=false`. Customer lightweight projection is a server whitelist.
+- Analytics cache invalidation must also invalidate pending computations so pre-mutation reads cannot refill it.
+- Offline loading regressions: `node scripts/test-loading-performance.cjs`.

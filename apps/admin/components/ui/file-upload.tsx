@@ -289,10 +289,13 @@ const FileUpload = React.forwardRef<HTMLDivElement, FileUploadProps>(
 
     // Refs to store latest values to avoid React state closure stale references in async queue loop
     const queueRef = useRef<QueueItem[]>([]);
-    queueRef.current = uploadQueue;
-
     const valueRef = useRef<string[]>(value);
-    valueRef.current = value;
+
+    // Sync committed state before the queue-processing effect starts an upload.
+    useEffect(() => {
+      queueRef.current = uploadQueue;
+      valueRef.current = value;
+    }, [uploadQueue, value]);
 
     // Maximum files the user can still add
     const remainingSlots = multiple ? maxFiles - value.length : value.length === 0 ? 1 : 0;

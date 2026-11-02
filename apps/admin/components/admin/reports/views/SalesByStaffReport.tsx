@@ -62,12 +62,6 @@ export function SalesByStaffView({
     },
   ];
 
-  useEffect(() => {
-    if (selectedStaff) {
-      fetchHistory(selectedStaff.staff_id);
-    }
-  }, [selectedStaff]);
-
   const fetchHistory = async (staffId: string) => {
     setHistoryLoading(true);
     try {
@@ -82,6 +76,12 @@ export function SalesByStaffView({
       setHistoryLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (selectedStaff) {
+      fetchHistory(selectedStaff.staff_id);
+    }
+  }, [selectedStaff]);
 
   // Calculate insights
   const totals = data.reduce((acc, curr) => ({

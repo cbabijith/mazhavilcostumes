@@ -166,10 +166,14 @@ export class ReportService {
       .gte('payment_date', range.start)
       .lte('payment_date', range.end)
       .order('payment_date', { ascending: false })
+      .order('id', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (branchId) detailsQuery = detailsQuery.eq('order.branch_id', branchId);
     if (storeId) detailsQuery = detailsQuery.eq('order.store_id', storeId);
+
+    // Filter before pagination so the rows and exact count describe the same set.
+    if (statusFilter) detailsQuery = detailsQuery.in('order.status', statusFilter);
 
     if (filters.payment_mode && filters.payment_mode !== 'all') {
       detailsQuery = detailsQuery.eq('payment_mode', filters.payment_mode);
@@ -178,11 +182,7 @@ export class ReportService {
     const { data: rawDetails, count: totalDetailsCount, error: detailsError } = await detailsQuery;
     if (detailsError) throw new Error(detailsError.message);
 
-    const detailsData = (statusFilter && statusFilter.length > 0)
-      ? (rawDetails || []).filter(p => p.order && statusFilter.includes((p.order as any).status))
-      : (rawDetails || []);
-
-    const formattedDetails = detailsData.map((p: any) => ({
+    const formattedDetails = (rawDetails || []).map((p: any) => ({
       order_id: p.order?.id,
       customer_name: p.order?.customer?.name || 'Walk-in',
       date: p.payment_date,
@@ -213,7 +213,7 @@ export class ReportService {
       total_bank_transfer: metrics.total_bank_transfer,
       total_damage_charges: metrics.total_damage_charges,
       total_late_fees: metrics.total_late_fees,
-      total_details_count: statusFilter ? detailsData.length : (totalDetailsCount || 0),
+      total_details_count: totalDetailsCount || 0,
     };
   }
 
@@ -328,7 +328,7 @@ export class ReportService {
     let totalRefunded = 0;
     let totalCancelledKeep = 0;
     let totalNetRevenue = 0;
-    let totalGstCollected = 0;
+    const totalGstCollected = 0;
     let totalCash = 0;
     let totalUpi = 0;
     let totalGpay = 0;

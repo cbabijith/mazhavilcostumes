@@ -54,6 +54,8 @@ export interface UpdateCustomerDTO extends Partial<CreateCustomerDTO> {}
  * Customer Search Parameters
  */
 export interface CustomerSearchParams extends SearchParams {
+  /** Fixed search/cache projection, never an arbitrary client-supplied select. */
+  lightweight?: boolean;
   query?: string;
   phone?: string;
   sort_by?: string;

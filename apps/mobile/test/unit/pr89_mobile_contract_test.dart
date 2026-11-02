@@ -145,9 +145,9 @@ void main() {
         overrides: [
           orderRepositoryProvider.overrideWithValue(repository),
           effectiveBranchIdProvider.overrideWithValue(null),
-          operationalMetricsProvider.overrideWith((ref) async {
+          operationalMetricsProvider.overrideWith((ref) async* {
             reads++;
-            return OperationalMetrics(cards: []);
+            yield OperationalMetrics(cards: []);
           }),
         ],
       );

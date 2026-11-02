@@ -135,3 +135,53 @@ lib/
 ## Next Steps / Roadmap
 *   Finalize Calendar & Date-picker module for tracking exact rental dates.
 *   Implement Order Creation flow (adding products to a cart and assigning a customer).
+
+### Loading performance (October 21, 2026)
+
+Session restoration starts immediately on the splash screen and restores identity before dashboard loading. Branch-scoped providers await initial branch resolution. Dashboard startup no longer preloads the customer directory.
+
+Product and Order searches debounce for 300 ms, cancel replaced requests, and ignore obsolete results and pagination responses. Opening an unfiltered Orders tab reuses its request; clearing filters preserves the selected branch. Product totals reuse the category-count response; older APIs without `meta.total` show an unknown total instead of an inaccurate zero. Thumbnails decode at their display size and device pixel density.
+
+Analytics shares requests by branch/range/category period/ROI limit and retains unused completed results for up to 30 seconds after completion. Active reports refresh through explicit refresh or mutation invalidation. Refresh and order mutations invalidate both the request cache and visible metrics. Diagnostic request timings can be enabled with `--dart-define=PERFORMANCE_LOGS=true`; normal release API logging is disabled.
+
+Regression checks: `flutter test test/unit/loading_performance_test.dart` and `flutter analyze --no-pub`. To exercise an un-deployed admin build on Android over USB, run the admin production server on port 3001, use `adb reverse tcp:3001 tcp:3001`, and build with `--dart-define=API_BASE_URL=http://127.0.0.1:3001/api`. Restore a build without that override before disconnecting the device.
+
+### Fast repeat startup (November 2, 2026)
+
+The connected phone previously waited for branches (~3.1 s), then the operational dashboard (~2.8 s). The branch switcher now requests `GET /api/branches?simple=true`, avoiding the staff-count query; branch management still requests full details. Two encrypted startup snapshots let returning users see their branch and saved overview while both live requests refresh in parallel. The overview explicitly shows “Saved overview · Updating…” or a refresh-failure message. First use, expired snapshots and a changed account/branch still require a live response.
+
+Snapshots are isolated by API URL, account, store, role, assigned branch/staff and selected branch, expire after 24 hours, and operational data cannot cross midnight in India. Logout and successful mutations invalidate snapshots immediately; queued writes and obsolete responses cannot repopulate invalidated data. Authorization failures surface as errors. This display cache never replaces server stock, booking or payment checks. Authentication logs no longer print session responses or token fragments.
+
+Visited tabs now retain widgets, search and scroll state, with inactive animations disabled; unseen tabs remain unmounted. Startup no longer initializes the upload SDK; the existing upload repository initializes it once when first needed and retries initialization after failure.
+
+Build with `flutter build apk --release --no-pub --target-platform android-arm64` for deployment. Add `--dart-define=PERFORMANCE_LOGS=true` for safe request timings and first-frame/saved-overview/fresh-overview timing markers. Markers measure from Dart entry to the rendered frame, excluding Android process/engine startup. Normal releases disable these diagnostics. Use the production API when verifying the user's existing signed-in session.
+
+Checks: `flutter analyze --no-pub` and `flutter test --no-pub test/unit/startup_snapshot_cache_test.dart test/unit/loading_performance_test.dart test/unit/pr89_mobile_contract_test.dart test/widget/retained_tab_view_test.dart`.
+
+### Saved Orders, Calendar and Products (November 2, 2026)
+
+Returning users can now open the unfiltered first Orders/Products page and the last Calendar month from encrypted storage while a live refresh runs. Each view labels saved data and offers retry if refreshing fails. Empty saved results work too. Account, API, role, branch and calendar-range changes never reuse another scope's snapshot; Calendar snapshots also expire at midnight in India. Search/filter results do not overwrite the default list snapshot, and pagination waits for fresh page one before appending live rows. Successful writes and logout clear the display snapshots. Order/product details and stock/payment checks continue to fetch authoritative server data.
+
+Stream providers register dependencies and cancellation before subscribing, so rapid searches and branch/month changes cancel obsolete requests. Calendar builds day lists without repeatedly copying prior bookings. List cards use the API's `item_count`; Product snapshot decoding preserves category names and image URLs. The diagnostic build logs saved/fresh frame markers for each main tab plus API `Server-Timing` when available.
+
+The Calendar client requests `summary=true`. Existing APIs can ignore this flag; deploying the companion admin changes enables the smaller payload. Saved-data loading works independently of that deployment. Additional checks: `flutter test --no-pub test/unit/saved_screens_test.dart` (saved-before-network behavior, scope isolation, refresh failure, pagination and a 1,500-booking calendar).
+
+#### v2 release verification on Nothing AIN065
+
+Installed `Mazhavil-Fast-2026-11-02-v2-release.apk` at 14:02 without clearing data, using the existing installation's certificate. Android package flags confirmed a non-debuggable release. The same APK is in the phone's Downloads folder. SHA-256: `3a9cde2ee91623e0f4240af11ca8d75ffeb4d47ec659c1f1053774c49194f690`.
+
+On the controlled cold-start pass, Android reported initial activity display at 588 ms. The saved Home overview rendered 253 ms after Dart entry. Separate on-device tap markers followed by saved-frame markers measured Orders at 83 ms, Calendar at 92 ms and Products at 102 ms. The markers precede the ADB tap command, so these include its dispatch overhead. Screenshots captured 338–388 ms after the tap commands confirmed populated content and the saved-data label before network completion.
+
+All background responses succeeded: Orders 1,593 ms, Calendar 2,269 ms, Products 2,323 ms and operational dashboard 2,876 ms. Returning through all four tabs issued zero additional API requests; populated screenshots completed 382–486 ms after each tap (includes screenshot overhead, not a frame-time benchmark). Fresh Orders/Calendar screenshots confirmed the saved-data label disappeared. No Flutter runtime/layout exceptions or crashes were found in the captured test logs. Original screen timeout was restored.
+
+These device measurements use the existing production API; they do **not** measure the undeployed admin optimizations. Earlier in the same run live refreshes took 2.8–4.3 seconds, so network/server variability remains. A first visit without a valid snapshot still needs a live response. The 27 Flutter regression checks and 57 admin offline checks passed; Flutter analysis had no errors/warnings (56 existing info lints), TypeScript and the admin production build passed, and the Android release build succeeded. Audit evidence is under ignored `.dart_tool/performance_audit/nov02-v2-*` files.
+
+#### Earlier connected-device baseline
+
+Verified on the unlocked Nothing AIN065 against the production API. The phone had subsequently been reinstalled with a debuggable APK; the verified release APK was restored using the existing installation's signing certificate, without clearing its authenticated session. Android package flags confirmed that the tested build was not debuggable.
+
+Two cold launches rendered the saved overview at 607 ms and 233 ms from Dart entry; Android reported initial activity display at 760 ms and 569 ms respectively. These are different timing scopes. In the second launch, a screenshot completed 1,501 ms after issuing the launch command and already showed populated cards with the saved-data refresh label. The live overview then replaced the snapshot; its rendered-frame markers were 3,411 ms and 3,493 ms from Dart entry.
+
+Returning through Home, Orders, Calendar and Products issued zero additional API requests. Each populated tab was visible in its first screenshot, completed 326–394 ms after issuing the tap (includes ADB/screenshot overhead, so these are upper bounds rather than frame-time measurements). A separate Products return check retained the scrolled list. No crashes or layout exceptions were found in the captured test logs.
+
+Fresh production requests remain a bottleneck: in the first pass Products took 3,616 ms, Orders 4,616 ms, Calendar 3,441 ms, Analytics 4,474 ms, and category counts 4,431 ms. A subsequent Orders request took 2,552 ms. Cached startup and tab reuse avoid these waits for already loaded data; the measurements do not establish instant first-time data loading. Diagnostic logs/screenshots are under the ignored `.dart_tool/performance_audit/nov02-*` paths. The phone's original screen timeout was restored after testing.

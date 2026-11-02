@@ -1,10 +1,26 @@
 import 'package:dio/dio.dart';
+import '../../../core/cache/startup_snapshot_cache.dart';
 import '../../../core/supabase/api_client.dart';
 import '../models/branch.dart';
 
 /// Repository layer for Branches communicating with Next.js API via Dio.
 class BranchRepository {
   final _api = apiClient;
+
+  /// The switcher needs branch identity only, not a second query for staff counts.
+  Stream<List<Branch>> watchStartupBranches({
+    required StartupSnapshotCache cache,
+    required String scope,
+    required CancelToken cancelToken,
+  }) => cache.watch<List<Branch>>(
+    resource: StartupResource.branches,
+    scope: scope,
+    fetch: () => getBranches(simple: true, cancelToken: cancelToken),
+    decode: (json) => (json['branches'] as List)
+        .map((value) => Branch.fromJson(value as Map<String, dynamic>)).toList(),
+    encode: (branches) => {'branches': branches.map((branch) => branch.toJson()).toList()},
+    cancelToken: cancelToken,
+  ).map((snapshot) => snapshot.data);
 
   /// Fetch all branches from Next.js API.
   Future<List<Branch>> getBranches({bool simple = false, CancelToken? cancelToken}) async {
@@ -17,6 +33,8 @@ class BranchRepository {
 
       final data = response.data['data'] as List<dynamic>? ?? [];
       return data.map((e) => Branch.fromJson(e as Map<String, dynamic>)).toList();
+    } on DioException {
+      rethrow;
     } catch (e) {
       throw Exception('Failed to load branches: $e');
     }

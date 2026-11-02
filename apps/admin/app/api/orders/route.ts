@@ -19,6 +19,7 @@
  */
 
 import { NextRequest } from "next/server";
+import { ApiTiming } from '@/lib/apiTiming';
 import { orderService } from "@/services/orderService";
 import { apiGuard } from "@/lib/apiGuard";
 import { CreateOrderSchema } from "@/domain";
@@ -26,9 +27,11 @@ import { apiSuccess, apiRepositoryError, apiBadRequest, apiInternalError } from 
 
 /** GET /api/orders — fetch all orders */
 export async function GET(request: NextRequest) {
+  const timing = new ApiTiming();
   try {
     const guard = await apiGuard(request, 'orders');
     if (guard.error) return guard.error;
+    timing.mark('auth');
 
     const searchParams = request.nextUrl.searchParams;
     const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
@@ -68,6 +71,7 @@ export async function GET(request: NextRequest) {
       orderService.countActionNeededOrders(params.branch_id),
       orderService.countConflictOrders(params.branch_id),
     ]);
+    timing.mark('data');
 
     if (!result.success || !result.data) {
       return apiRepositoryError(result.error, 'Failed to fetch orders');
@@ -75,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const { orders, total, total_pages, has_next, has_prev } = result.data;
 
-    return apiSuccess(orders, {
+    return timing.attach(apiSuccess(orders, {
       meta: {
         total,
         totalPages: total_pages,
@@ -86,7 +90,7 @@ export async function GET(request: NextRequest) {
         actionNeededCount: actionNeededResult.data || 0,
         conflictCount: conflictResult.data || 0,
       },
-    });
+    }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiInternalError(message);

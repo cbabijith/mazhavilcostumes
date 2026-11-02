@@ -56,6 +56,14 @@ pnpm start
 
 ---
 
+## Revenue report exports
+
+Revenue Report and Today's Revenue PDF/Excel downloads include all matching transactions, independently of the current table page. Exports load batches before creating the file and show an error if any batch fails or is incomplete.
+
+`GET /api/reports/revenue` accepts `fromDate`, `toDate`, optional `branchId`, `storeId`, comma-separated `statusFilter`, `payment_mode`, `page` (default 1), and `limit` (default 50, maximum 500). Its `data.details` contains the requested page and `data.total_details_count` counts all transactions matching the detail filters. Invalid pagination returns HTTP 400.
+
+Run offline regressions with `node scripts/test-revenue-export.cjs`.
+
 ## Order charges and returns
 
 `PATCH /api/orders/:id` accepts cumulative financial fields (`discount`, `late_fee`, `damage_charges_total`) and the resulting absolute `total_amount`. Extra charges are retained in the saved total. Record adjustment reasons in order notes; charging or discounting an order does not itself collect a payment.
@@ -421,3 +429,19 @@ pnpm build
 ## 📄 License
 
 This project is proprietary to Mazhavil Dance Costumes. All rights reserved.
+
+### Mobile loading performance (October 21, 2026)
+
+- `GET /api/categories/product-counts` requires category access and returns its existing category map plus `meta.total`, including uncategorized products. Counts exclude soft-deleted products and respect the authenticated store and selected/assigned branch, including shared products. The repository reads only category references in pages of 1,000 with at most four subsequent pages in parallel. Database failures propagate instead of returning incomplete counts.
+- `GET /api/products?include_total_stock=false` omits the unused stock aggregate RPC. Existing callers retain the aggregate by default.
+- `GET /api/customers?lightweight=true` (also the legacy `select=id,name,phone`) uses a fixed projection of identity, contact, and verification fields for mobile selection/verification counts. It does not accept arbitrary client column lists.
+- Concurrent identical analytics requests share one computation. The existing 30-second cache is bounded; mutation invalidation also prevents an older pending read from repopulating the cache.
+- Offline regression checks: `node scripts/test-loading-performance.cjs`. No live database writes are required.
+
+### Mobile API refresh improvements (November 2, 2026)
+
+- Bearer authentication overlaps remote token verification with the staff lookup. The token subject is only an untrusted lookup hint: staff data is used only after `getUser` verifies the same identity. Lookup errors fail closed; roles are not cached.
+- Orders obtains `item_count` using `item_totals:order_items(count)` in its main query, removing a sequential child-row request and its 1,000-row truncation risk.
+- `GET /api/calendar?...&summary=true` returns overview fields, customer identity/contact and item counts without full items, product images or detail-only financial fields. Omitting the flag preserves the existing full response. The route uses the service layer and rejects a non-admin request for another branch.
+- Orders, Calendar and operational-dashboard responses include safe `Server-Timing` durations for authentication, data retrieval and total route time. These headers contain no account data.
+- Run `node scripts/test-startup-api-performance.cjs`, `node scripts/test-loading-performance.cjs`, `tsc --noEmit` and the production build. These changes require a normal GitHub-triggered Vercel deployment before the production mobile API benefits; no database migration is needed.

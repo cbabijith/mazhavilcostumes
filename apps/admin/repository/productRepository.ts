@@ -104,7 +104,7 @@ export class ProductRepository extends BaseRepository {
     // Execute main query and stock sum RPC in parallel
     const [mainResponse, stockResponse] = await Promise.all([
       selectQuery,
-      this.client.rpc('get_total_stock', {
+      params.include_total_stock === false ? Promise.resolve({ data: null }) : this.client.rpc('get_total_stock', {
         p_query: query || null,
         p_category_id: category_id || null,
         p_store_id: store_id || null,
@@ -141,7 +141,7 @@ export class ProductRepository extends BaseRepository {
       total_pages: totalPages,
       has_next: page < totalPages,
       has_prev: page > 1,
-      total_stock: totalStock,
+      total_stock: params.include_total_stock === false ? undefined : totalStock,
     };
 
     return {

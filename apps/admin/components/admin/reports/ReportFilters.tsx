@@ -72,7 +72,7 @@ export function ReportFilters({
               <Input 
                 type="date" 
                 value={filters.from_date || ""} 
-                onChange={e => setFilters({ ...filters, from_date: e.target.value })}
+                onChange={e => setFilters({ ...filters, from_date: e.target.value, page: 1 })}
                 className="w-[180px] h-10 border-slate-200 focus:ring-slate-900 rounded-lg"
               />
             </div>
@@ -81,7 +81,7 @@ export function ReportFilters({
               <Input 
                 type="date" 
                 value={filters.to_date || ""} 
-                onChange={e => setFilters({ ...filters, to_date: e.target.value })}
+                onChange={e => setFilters({ ...filters, to_date: e.target.value, page: 1 })}
                 className="w-[180px] h-10 border-slate-200 focus:ring-slate-900 rounded-lg"
               />
             </div>
@@ -159,7 +159,7 @@ export function ReportFilters({
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Payment Mode</label>
             <select 
               value={filters.payment_mode || "all"} 
-              onChange={e => setFilters({ ...filters, payment_mode: e.target.value })}
+              onChange={e => setFilters({ ...filters, payment_mode: e.target.value, page: 1 })}
               className="w-[180px] h-10 border border-slate-200 rounded-lg px-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900"
             >
               <option value="all">All Modes</option>

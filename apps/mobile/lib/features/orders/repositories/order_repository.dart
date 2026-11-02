@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../core/cache/startup_snapshot_cache.dart';
 
 import '../../../core/supabase/api_client.dart';
 import '../models/order.dart';
@@ -13,6 +14,8 @@ class PaginatedOrders {
   final bool hasPrev;
   final int? actionNeededCount;
   final int? conflictCount;
+  final DateTime? savedAt;
+  final bool refreshFailed;
 
   PaginatedOrders({
     required this.orders,
@@ -24,12 +27,83 @@ class PaginatedOrders {
     required this.hasPrev,
     this.actionNeededCount,
     this.conflictCount,
+    this.savedAt,
+    this.refreshFailed = false,
   });
+
+  /// Snapshot serialization retains list metadata, without becoming a detail cache.
+  Map<String, dynamic> toJson() => {
+    'orders': orders.map((order) => order.toJson()).toList(),
+    'total': total,
+    'page': page,
+    'limit': limit,
+    'totalPages': totalPages,
+    'hasNext': hasNext,
+    'hasPrev': hasPrev,
+    'actionNeededCount': actionNeededCount,
+    'conflictCount': conflictCount,
+  };
+
+  factory PaginatedOrders.fromJson(Map<String, dynamic> json) =>
+      PaginatedOrders(
+        orders: (json['orders'] as List)
+            .map((value) => Order.fromJson(Map<String, dynamic>.from(value)))
+            .toList(),
+        total: json['total'] as int,
+        page: json['page'] as int,
+        limit: json['limit'] as int,
+        totalPages: json['totalPages'] as int,
+        hasNext: json['hasNext'] as bool,
+        hasPrev: json['hasPrev'] as bool,
+        actionNeededCount: json['actionNeededCount'] as int?,
+        conflictCount: json['conflictCount'] as int?,
+      );
+
+  PaginatedOrders withSnapshot(DateTime? date, bool failed) => PaginatedOrders(
+    orders: orders,
+    total: total,
+    page: page,
+    limit: limit,
+    totalPages: totalPages,
+    hasNext: hasNext,
+    hasPrev: hasPrev,
+    actionNeededCount: actionNeededCount,
+    conflictCount: conflictCount,
+    savedAt: date,
+    refreshFailed: failed,
+  );
 }
 
 /// Repository layer for Orders communicating with Next.js API via Dio.
 class OrderRepository {
   final _api = apiClient;
+
+  /// Only the unfiltered first page is persisted; searches cannot overwrite it.
+  Stream<PaginatedOrders> watchSavedOrders({
+    required StartupSnapshotCache cache,
+    required String scope,
+    required String? branchId,
+    required int limit,
+    required CancelToken cancelToken,
+  }) => cache
+      .watch<PaginatedOrders>(
+        resource: StartupResource.orders,
+        scope: '$scope/${branchId ?? 'all'}/$limit',
+        fetch: () => getOrders(
+          branchId: branchId,
+          limit: limit,
+          cancelToken: cancelToken,
+        ),
+        decode: PaginatedOrders.fromJson,
+        encode: (page) => page.toJson(),
+        cancelToken: cancelToken,
+      )
+      .map(
+        (snapshot) => snapshot.data.withSnapshot(
+          snapshot.savedAt,
+          snapshot.refreshFailed,
+        ),
+      );
 
   /// Fetch all orders from Next.js API with pagination.
   Future<PaginatedOrders> getOrders({
@@ -114,6 +188,8 @@ class OrderRepository {
         actionNeededCount: meta['actionNeededCount'] as int?,
         conflictCount: meta['conflictCount'] as int?,
       );
+    } on DioException {
+      rethrow;
     } catch (e) {
       throw Exception('Failed to load orders: $e');
     }
@@ -335,7 +411,10 @@ class OrderRepository {
   }
 
   /// Delete an existing payment transaction.
-  Future<void> deletePayment(String paymentId, {CancelToken? cancelToken}) async {
+  Future<void> deletePayment(
+    String paymentId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       await _api.delete('/payments/$paymentId', cancelToken: cancelToken);
     } catch (e) {
@@ -388,10 +467,7 @@ class OrderRepository {
     try {
       final response = await _api.patch(
         '/orders/$orderId/damage-assessments/$assessmentId',
-        data: {
-          'decision': decision,
-          'notes': notes,
-        },
+        data: {'decision': decision, 'notes': notes},
       );
       return response.data as Map<String, dynamic>;
     } catch (e) {
@@ -399,4 +475,3 @@ class OrderRepository {
     }
   }
 }
-

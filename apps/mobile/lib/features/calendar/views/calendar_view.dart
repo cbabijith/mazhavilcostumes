@@ -5,6 +5,8 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/startup_timing.dart';
+import '../../../core/widgets/saved_data_status.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../orders/models/order.dart';
 import '../../orders/views/order_detail_view.dart';
@@ -19,6 +21,7 @@ class CalendarView extends ConsumerStatefulWidget {
 }
 
 class _CalendarViewState extends ConsumerState<CalendarView> {
+  final _timedFrames = <String>{};
   String _activeTab = 'pickups'; // 'pickups' | 'ongoing' | 'returns'
 
   @override
@@ -29,6 +32,12 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
     final selectedDate = ref.watch(calendarSelectedDateProvider);
     final branchId = ref.watch(effectiveBranchIdProvider);
     final ordersAsync = ref.watch(calendarOrdersProvider);
+    if (StartupTiming.enabled && !ordersAsync.isLoading && !ordersAsync.hasError && ordersAsync.hasValue) {
+      final event = ordersAsync.value!.savedAt == null ? 'calendar_fresh_frame' : 'calendar_saved_frame';
+      if (_timedFrames.add(event)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => StartupTiming.mark(event));
+      }
+    }
     final daySummaries = ref.watch(calendarDaySummaryProvider);
     final monthStats = ref.watch(calendarMonthStatsProvider);
 
@@ -147,6 +156,10 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
             children: [
               // 1. Month Navigation Header
               _buildMonthHeader(currentMonth),
+              if (!ordersAsync.isLoading && ordersAsync.hasValue)
+                SavedDataStatus(savedAt: ordersAsync.value!.savedAt,
+                  refreshFailed: ordersAsync.value!.refreshFailed,
+                  onRetry: () => ref.invalidate(calendarOrdersProvider)),
               SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
 
               // 2. Monthly Stats Ribbon
@@ -967,7 +980,7 @@ class _CalendarViewState extends ConsumerState<CalendarView> {
     final displayId = order.invoiceNumber ?? (order.id.length >= 8 ? order.id.substring(0, 8).toUpperCase() : order.id);
     final startLabel = DateFormat('MMM d').format(_parseDateString(order.startDate));
     final endLabel = DateFormat('MMM d, yyyy').format(_parseDateString(order.endDate));
-    final itemCount = order.items?.length ?? 0;
+    final itemCount = order.itemCount ?? order.items?.length ?? 0;
 
     return Container(
       decoration: BoxDecoration(

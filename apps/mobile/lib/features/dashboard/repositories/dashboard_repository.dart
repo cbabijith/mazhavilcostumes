@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import '../../../core/cache/startup_snapshot_cache.dart';
 import '../../../core/supabase/api_client.dart';
 import '../domain/operational_card.dart';
 import '../domain/analytics_metrics.dart';
@@ -134,6 +135,23 @@ class DashboardMetrics {
 }
 
 class DashboardRepository {
+  /// Render a scoped snapshot immediately and replace it with the live response.
+  Stream<OperationalMetrics> watchOperationalMetrics({
+    required StartupSnapshotCache cache,
+    required String scope,
+    String? branchId,
+    required CancelToken cancelToken,
+  }) => cache.watch<OperationalMetrics>(
+    resource: StartupResource.operations,
+    scope: '$scope/${branchId ?? 'all'}',
+    fetch: () => getOperationalMetrics(branchId: branchId, cancelToken: cancelToken),
+    decode: OperationalMetrics.fromJson,
+    encode: (metrics) => metrics.toJson(),
+    cancelToken: cancelToken,
+  ).map((snapshot) => OperationalMetrics(
+    cards: snapshot.data.cards, savedAt: snapshot.savedAt,
+    refreshFailed: snapshot.refreshFailed,
+  ));
   final _api = apiClient;
 
   Future<DashboardMetrics> getMetrics({String? branchId, CancelToken? cancelToken}) async {
@@ -187,6 +205,8 @@ class DashboardRepository {
       }).toList();
 
       return OperationalMetrics(cards: cards);
+    } on DioException {
+      rethrow;
     } catch (e) {
       throw Exception('Failed to load operational metrics: $e');
     }

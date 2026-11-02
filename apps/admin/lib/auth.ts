@@ -26,6 +26,24 @@ export interface AuthUser {
 }
 
 /**
+ * Read an untrusted lookup hint only. Authentication still requires getUser()
+ * and an exact match with its verified user ID before any staff data is used.
+ * @param token Bearer JWT supplied by the caller.
+ * @returns A UUID subject hint, or null for malformed/unsupported tokens.
+ */
+function staffLookupHint(token: string): string | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload || payload.length > 16384) return null;
+    const subject = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')).sub;
+    return typeof subject === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subject)
+      ? subject : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Internal implementation of getAuthUser
  */
 async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
@@ -35,16 +53,24 @@ async function getAuthUserImpl(request: NextRequest): Promise<AuthUser | null> {
     if (authHeader?.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       const adminClient = createAdminClient();
-      
-      const { data: { user }, error } = await adminClient.auth.getUser(token);
+      const findStaff = (userId: string) => adminClient
+        .from('staff')
+        .select('id, role, branch_id, store_id, name')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle();
+      const hint = staffLookupHint(token);
+      // Overlap two network round trips without caching roles or skipping token
+      // verification. No unverified identity or staff result leaves this block.
+      const [authResult, prefetchedStaff] = await Promise.all([
+        adminClient.auth.getUser(token),
+        hint ? findStaff(hint) : Promise.resolve(null),
+      ]);
+      const { data: { user }, error } = authResult;
       if (!error && user) {
-        // Look up the staff record to get role + branch + store
-        const { data: staff } = await adminClient
-          .from('staff')
-          .select('id, role, branch_id, store_id, name')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .maybeSingle();
+        if (hint && hint !== user.id) return null;
+        const { data: staff, error: staffError } = prefetchedStaff ?? await findStaff(user.id);
+        if (staffError) return null; // A failed role lookup must not grant fallback privileges.
 
         const role = staff?.role || user.user_metadata?.role || 'admin';
         const storeId = staff?.store_id || user.user_metadata?.store_id || null;

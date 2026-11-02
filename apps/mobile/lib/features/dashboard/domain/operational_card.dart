@@ -33,6 +33,17 @@ class OperationalCard {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'label': label,
+    'orderCount': orderCount,
+    'icon': icon,
+    'color': color,
+    'filterUrl': filterUrl,
+    'completedCount': completedCount,
+    'totalCount': totalCount,
+    'amount': amount,
+  };
+
   /// Whether this is a progress card (delivery/return)
   bool get isProgressCard => completedCount != null && totalCount != null;
 
@@ -44,7 +55,8 @@ class OperationalCard {
     if (isProgressCard) {
       return pendingCount > 0;
     }
-    return orderCount > 0 && (icon == 'alert-triangle' || icon == 'clock-alert');
+    return orderCount > 0 &&
+        (icon == 'alert-triangle' || icon == 'clock-alert');
   }
 
   /// Status text to display
@@ -70,6 +82,25 @@ class OperationalCard {
 
 class OperationalMetrics {
   final List<OperationalCard> cards;
+  final DateTime? savedAt;
+  final bool refreshFailed;
 
-  OperationalMetrics({required this.cards});
+  OperationalMetrics({
+    required this.cards,
+    this.savedAt,
+    this.refreshFailed = false,
+  });
+
+  factory OperationalMetrics.fromJson(Map<String, dynamic> json) =>
+      OperationalMetrics(
+        cards: (json['cards'] as List)
+            .map(
+              (card) => OperationalCard.fromJson(card as Map<String, dynamic>),
+            )
+            .toList(),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'cards': cards.map((card) => card.toJson()).toList(),
+  };
 }

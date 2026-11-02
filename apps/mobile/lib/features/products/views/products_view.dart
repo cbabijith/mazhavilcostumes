@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/startup_timing.dart';
+import '../../../core/widgets/saved_data_status.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../auth/viewmodels/providers/auth_provider.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
@@ -22,6 +24,7 @@ class ProductsView extends ConsumerStatefulWidget {
 }
 
 class _ProductsViewState extends ConsumerState<ProductsView> {
+  final _timedFrames = <String>{};
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   String _searchQuery = '';
@@ -56,6 +59,12 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     Responsive.init(context);
     final canManage = ref.watch(canManageProvider);
     final productsAsync = ref.watch(productsProvider);
+    if (StartupTiming.enabled && !productsAsync.isLoading && !productsAsync.hasError && productsAsync.hasValue) {
+      final event = productsAsync.value!.savedAt == null ? 'products_fresh_frame' : 'products_saved_frame';
+      if (_timedFrames.add(event)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => StartupTiming.mark(event));
+      }
+    }
     final filteredAsync = ref.watch(filteredProductsProvider);
     final currentCategory = ref.watch(productCategoryFilterProvider);
     final selectedBranchId = ref.watch(effectiveBranchIdProvider);
@@ -66,11 +75,17 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         children: [
           _buildSearchBar(),
           _buildCategoryChipsRow(productsAsync, currentCategory),
+          if (!productsAsync.isLoading && !productsAsync.hasError && productsAsync.hasValue)
+            SavedDataStatus(savedAt: productsAsync.value!.savedAt,
+              refreshFailed: productsAsync.value!.refreshFailed,
+              onRetry: () => ref.invalidate(productsProvider)),
           SizedBox(height: Responsive.h(6)),
           Expanded(
             child: Stack(
               children: [
                 productsAsync.when(
+                  skipLoadingOnReload: false,
+                  skipError: false,
                   data: (paginatedData) {
                     final products = filteredAsync.value ?? paginatedData.products;
                     return _buildProductsList(
@@ -80,6 +95,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                       paginatedData.products,
                       canManage,
                       selectedBranchId,
+                      paginatedData.savedAt == null && paginatedData.page < paginatedData.totalPages,
                     );
                   },
                   loading: () => _buildShimmerList(),
@@ -100,7 +116,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
 
     return categoriesAsync.when(
       data: (categories) {
-        final totalCount = totalCountAsync.value ?? 0;
+        final totalCount = totalCountAsync.value;
         final categoryCounts = categoryCountsAsync.value ?? {};
 
         return SingleChildScrollView(
@@ -111,7 +127,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
               _buildCategoryChip('All', totalCount, currentCategory),
               SizedBox(width: Responsive.w(8)),
               ...categories.map((cat) {
-                final count = categoryCounts[cat.id] ?? 0;
+                final count = categoryCounts[cat.id];
                 return Padding(
                   padding: Responsive.only(right: 8),
                   child: _buildCategoryChip(cat.name, count, currentCategory),
@@ -126,7 +142,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         padding: Responsive.symmetric(horizontal: 16, vertical: 4),
         child: Row(
           children: [
-            _buildCategoryChip('All', 0, currentCategory),
+            _buildCategoryChip('All', null, currentCategory),
             SizedBox(width: Responsive.w(8)),
             const SizedBox(
               width: 16,
@@ -147,6 +163,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
     List<Product> allProducts,
     bool canManage,
     String? branchId,
+    bool hasMore,
   ) {
     if (allProducts.isEmpty && _searchQuery.isEmpty) {
       return _buildEmptyState();
@@ -192,7 +209,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         padding: Responsive.only(
             left: 16, right: 16, top: 6, bottom: 80),
         itemCount: products.length +
-            (products.length < totalProducts ? 1 : 0),
+            (hasMore ? 1 : 0),
         separatorBuilder: (context, index) =>
             SizedBox(height: Responsive.h(12)),
         itemBuilder: (context, index) {
@@ -208,7 +225,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
   // ── Filter Chip ──
   Widget _buildCategoryChip(
     String categoryName,
-    int count,
+    int? count,
     String currentCategory,
   ) {
     final isActive = categoryName == currentCategory;
@@ -254,7 +271,7 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                 borderRadius: BorderRadius.circular(Responsive.r(10)),
               ),
               child: Text(
-                '$count',
+                count?.toString() ?? '—',
                 style: TextStyle(
                   fontSize: Responsive.sp(10),
                   fontWeight: FontWeight.w700,
@@ -402,8 +419,8 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
               children: [
                 // Thumbnail
                 Container(
-                  width: Responsive.w(68),
-                  height: Responsive.w(68),
+                  width: Responsive.w(AppSizes.productThumbnail),
+                  height: Responsive.w(AppSizes.productThumbnail),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.06),
                     borderRadius:
@@ -417,9 +434,13 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
                               BorderRadius.circular(Responsive.r(10)),
                           child: CachedNetworkImage(
                             imageUrl: imageUrl,
+                            memCacheWidth: (Responsive.w(AppSizes.productThumbnail) *
+                                MediaQuery.devicePixelRatioOf(context)).ceil(),
+                            memCacheHeight: (Responsive.w(AppSizes.productThumbnail) *
+                                MediaQuery.devicePixelRatioOf(context)).ceil(),
                             fit: BoxFit.cover,
-                            width: Responsive.w(68),
-                            height: Responsive.w(68),
+                            width: Responsive.w(AppSizes.productThumbnail),
+                            height: Responsive.w(AppSizes.productThumbnail),
                             placeholder: (context, url) =>
                                 Shimmer.fromColors(
                               baseColor: const Color(0xFFE8E8E8),
@@ -688,8 +709,8 @@ class _ProductsViewState extends ConsumerState<ProductsView> {
         child: Row(
           children: [
             Container(
-              width: Responsive.w(68),
-              height: Responsive.w(68),
+              width: Responsive.w(AppSizes.productThumbnail),
+              height: Responsive.w(AppSizes.productThumbnail),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(Responsive.r(10)),

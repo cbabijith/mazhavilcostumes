@@ -138,9 +138,10 @@ export function RevenueView({
       return { key, direction: 'asc' };
     });
   };
+  const details = reportSummary?.details;
   const sortedDetails = useMemo(() => {
-    if (!reportSummary?.details || !detailSort) return reportSummary?.details || [];
-    return [...reportSummary.details].sort((a: any, b: any) => {
+    if (!details || !detailSort) return details || [];
+    return [...details].sort((a: any, b: any) => {
       const aVal = a[detailSort.key];
       const bVal = b[detailSort.key];
       if (aVal === undefined || bVal === undefined) return 0;
@@ -148,7 +149,7 @@ export function RevenueView({
       if (aVal > bVal) return detailSort.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [reportSummary?.details, detailSort]);
+  }, [details, detailSort]);
 
   const pieData = reportSummary ? [
     { name: "Cash", value: reportSummary.total_cash, color: COLORS.cash },

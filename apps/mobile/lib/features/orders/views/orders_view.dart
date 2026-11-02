@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:intl/intl.dart';
 import '../../../core/utils/responsive.dart';
+import '../../../core/utils/startup_timing.dart';
+import '../../../core/widgets/saved_data_status.dart';
 import '../../../core/constants/app_constants.dart';
 import '../models/order.dart';
 import '../viewmodels/providers/order_provider.dart';
@@ -19,6 +21,7 @@ class OrdersView extends ConsumerStatefulWidget {
 }
 
 class _OrdersViewState extends ConsumerState<OrdersView> {
+  final _timedFrames = <String>{};
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   String? _selectedChip; // null = All
@@ -48,6 +51,12 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
   Widget build(BuildContext context) {
     Responsive.init(context);
     final ordersAsync = ref.watch(ordersProvider);
+    if (StartupTiming.enabled && !ordersAsync.isLoading && !ordersAsync.hasError && ordersAsync.hasValue) {
+      final event = ordersAsync.value!.savedAt == null ? 'orders_fresh_frame' : 'orders_saved_frame';
+      if (_timedFrames.add(event)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => StartupTiming.mark(event));
+      }
+    }
     _selectedChip = ref.read(ordersProvider.notifier).currentStatus;
 
     final currentSearch = ref.read(ordersProvider.notifier).currentSearch;
@@ -64,8 +73,14 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
               _buildSearchBar(),
               _buildDateFilterRow(),
               _buildFilterChips(),
+              if (!ordersAsync.isLoading && !ordersAsync.hasError && ordersAsync.hasValue)
+                SavedDataStatus(savedAt: ordersAsync.value!.savedAt,
+                  refreshFailed: ordersAsync.value!.refreshFailed,
+                  onRetry: () => ref.invalidate(ordersProvider)),
               Expanded(
                 child: ordersAsync.when(
+                  skipLoadingOnReload: false,
+                  skipError: false,
                   data: (paginated) {
                     if (paginated.orders.isEmpty) return _buildEmptyState();
                     return Column(
@@ -94,7 +109,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                             child: ListView.separated(
                               controller: _scrollController,
                               padding: Responsive.only(left: AppSizes.screenPaddingSmall, right: AppSizes.screenPaddingSmall, top: AppSizes.spacingSmall, bottom: AppSizes.spacingMassive),
-                              itemCount: paginated.orders.length + (paginated.hasNext ? 1 : 0),
+                              itemCount: paginated.orders.length + (paginated.hasNext && paginated.savedAt == null ? 1 : 0),
                               separatorBuilder: (context, index) => SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
                               itemBuilder: (context, i) {
                                 if (i == paginated.orders.length) {
@@ -589,7 +604,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
     final statusColor = order.isLate ? AppColors.error : _getStatusColor(order.status);
     final customerName = order.customer?.name ?? 'Unknown';
     final customerPhone = order.customer?.phone ?? '';
-    final itemCount = order.items?.length ?? 0;
+    final itemCount = order.itemCount ?? order.items?.length ?? 0;
     final balanceDue = order.totalAmount - order.amountPaid;
 
     final today = DateTime.now();

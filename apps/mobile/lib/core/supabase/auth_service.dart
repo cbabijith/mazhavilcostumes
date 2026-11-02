@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
+import '../constants/app_durations.dart';
+import '../cache/startup_snapshot_cache.dart';
 
 class AuthUser {
   final String id;
@@ -55,14 +58,13 @@ class AuthService {
   /// Login using Next.js API
   Future<AuthUser?> login(String email, String password) async {
     try {
-      debugPrint('[AuthService] Attempting login with: $email');
+      debugPrint('[AuthService] Attempting login');
       
       final response = await _dio.post('/auth/login', data: {
         'email': email,
         'password': password,
       });
 
-      debugPrint('[AuthService] Response: ${response.data}');
 
       if (response.data['success'] == true) {
         final data = response.data['data'];
@@ -73,7 +75,7 @@ class AuthService {
           onTimeout: () => debugPrint('[AuthService] Storage write timed out'),
         );
 
-        debugPrint('[AuthService] Login successful, user: ${data['email']}');
+        debugPrint('[AuthService] Login successful');
 
         return AuthUser(
           id: data['id'],
@@ -89,7 +91,6 @@ class AuthService {
       }
     } on DioException catch (e) {
       debugPrint('[AuthService] Dio error: ${e.message}');
-      debugPrint('[AuthService] Response: ${e.response?.data}');
       debugPrint('[AuthService] Status code: ${e.response?.statusCode}');
       return null;
     } catch (e) {
@@ -101,7 +102,6 @@ class AuthService {
   /// Persist the session tokens and user info to secure storage.
   Future<void> _persistSession(Map<String, dynamic> data) async {
     _cachedToken = data['access_token'] as String?;
-    debugPrint('[AuthService] Caching token: ${_cachedToken?.substring(0, 20)}...');
 
     try {
       await _storage.write(key: _accessTokenKey, value: data['access_token']);
@@ -178,6 +178,8 @@ class AuthService {
   /// Logout - clear all stored tokens
   Future<void> logout() async {
     _cachedToken = null;
+    // Invalidate synchronously; queued deletions cannot block signing out.
+    unawaited(startupSnapshotCache.clearAll());
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
     await _storage.delete(key: _userIdKey);
@@ -196,24 +198,13 @@ class AuthService {
   /// Get current user
   Future<AuthUser?> getCurrentUser() async {
     try {
-      final id = await _storage
-          .read(key: _userIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final email = await _storage
-          .read(key: _userEmailKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final role = await _storage
-          .read(key: _userRoleKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final storeId = await _storage
-          .read(key: _storeIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final branchId = await _storage
-          .read(key: _branchIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
-      final staffId = await _storage
-          .read(key: _staffIdKey)
-          .timeout(const Duration(seconds: 5), onTimeout: () => null);
+      final values = await Future.wait([
+        _userIdKey, _userEmailKey, _userRoleKey,
+        _storeIdKey, _branchIdKey, _staffIdKey,
+      ].map((key) => _storage.read(key: key).timeout(
+        AppDurations.storageTimeout, onTimeout: () => null,
+      )));
+      final [id, email, role, storeId, branchId, staffId] = values;
 
       if (id == null || email == null || role == null) {
         return null;

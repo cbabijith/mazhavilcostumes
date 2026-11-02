@@ -16,6 +16,7 @@ import '../features/settings/views/invoice_settings_view.dart';
 import 'utils/responsive.dart';
 import 'constants/app_constants.dart';
 import 'providers/navigation_provider.dart';
+import 'widgets/retained_tab_view.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -34,7 +35,7 @@ class _MainLayoutState extends State<MainLayout> {
     return Consumer(
       builder: (context, ref, _) {
         final user = ref.watch(authUserProvider);
-        final branchesAsync = ref.watch(branchesProvider);
+        final branchesAsync = ref.watch(startupBranchesProvider);
         final selectedIndex = ref.watch(navigationTabProvider);
         return Scaffold(
           key: _scaffoldKey,
@@ -435,7 +436,7 @@ class _MainLayoutState extends State<MainLayout> {
       error: (error, stackTrace) => IconButton(
         tooltip: 'Reload branches',
         icon: Icon(Icons.storefront_rounded, size: Responsive.icon(20), color: Colors.white),
-        onPressed: () => ref.invalidate(branchesProvider),
+        onPressed: () => ref.invalidate(startupBranchesProvider),
       ),
       data: (branches) {
         final activeBranches = branches.where((branch) => branch.isActive).toList();
@@ -580,13 +581,8 @@ class _MainLayoutState extends State<MainLayout> {
 
   // ── Body ──
   Widget _buildBody(int selectedIndex) {
-    switch (selectedIndex) {
-      case 0: return const DashboardView();
-      case 1: return const OrdersView();
-      case 2: return const CalendarView();
-      case 3: return const ProductsView();
-      case 4: return const InvoiceSettingsView();
-      default: return const DashboardView();
-    }
+    return RetainedTabView(index: selectedIndex, children: const [
+      DashboardView(), OrdersView(), CalendarView(), ProductsView(), InvoiceSettingsView(),
+    ]);
   }
 }

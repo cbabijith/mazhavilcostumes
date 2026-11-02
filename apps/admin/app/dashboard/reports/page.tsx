@@ -40,7 +40,7 @@ function sameOriginApiUrl(path: string, query?: URLSearchParams): string {
 }
 import { exportToExcel, exportToPDF } from "@/lib/exportUtils";
 import { formatCurrency } from "@/lib/shared-utils";
-import { reportService } from "@/services/reportService";
+import { useRevenueReport } from "@/hooks";
 import { useAppStore } from "@/stores/appStore";
 
 // Shared Components
@@ -90,7 +90,9 @@ function ReportsPageContent() {
   const [gstDetails, setGstDetails] = useState<any[]>([]);
   const [gstSlabFilter, setGstSlabFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { fetchRevenuePage, fetchAllRevenueDetails } = useRevenueReport();
 
   const filteredGstDetails = useMemo(() => {
     if (gstSlabFilter === 'all') return gstDetails;
@@ -194,24 +196,13 @@ function ReportsPageContent() {
     setError(null);
     try {
       let result;
-      if (selectedReport === 'revenue') {
-        const params = new URLSearchParams();
-        params.append('fromDate', filters.from_date || '');
-        params.append('toDate', filters.to_date || '');
-        if (selectedBranchId) params.append('branchId', selectedBranchId);
-        if (storeId) params.append('storeId', storeId.toString());
-        if (filters.status?.length) params.append('statusFilter', filters.status.join(','));
-
-        console.log('[ReportPage] Fetching revenue with:', params.toString());
-
-        const requestUrl = sameOriginApiUrl('/api/reports/revenue', params);
-        const res = await fetch(requestUrl);
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Failed to fetch revenue data');
-        }
-        const json = await res.json();
-        result = json.data;
+      if (selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+        result = await fetchRevenuePage({
+          type: selectedReport,
+          filters,
+          branchId: selectedBranchId,
+          storeId,
+        });
       } else {
         const queryParams = new URLSearchParams();
         if (filters.date) queryParams.append('date', filters.date);
@@ -251,7 +242,7 @@ function ReportsPageContent() {
       setLoading(false);
       setIsInitial(false);
     }
-  }, [selectedReport, filters, selectedBranchId, storeId, isInitial, searchParams]);
+  }, [selectedReport, filters, selectedBranchId, storeId, isInitial, searchParams, fetchRevenuePage]);
 
   useEffect(() => {
     if (selectedReport) {
@@ -394,78 +385,59 @@ function ReportsPageContent() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExport = async (format: 'excel' | 'pdf') => {
     const meta = REPORT_LIST.find(r => r.id === selectedReport);
-    if (!meta) return;
-    
-    let exportData = sortedData;
-    let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
-      exportData = gstDetails;
-      exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
-      ];
-    } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
-    }
-    
-    exportToExcel(exportData, exportColumns as any, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
-  };
+    if (!meta || exporting || loading) return;
+    setExporting(true);
+    setError(null);
 
-  const handleExportPDF = () => {
-    const meta = REPORT_LIST.find(r => r.id === selectedReport);
-    if (!meta) return;
-    
-    let exportData = sortedData;
-    let exportColumns = getExportColumns();
-    
-    if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
-      exportData = filteredGstDetails;
-      exportColumns = [
-        { header: "Invoice No", key: "invoice_no" },
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Customer", key: "customer_name" },
-        { header: "Items & Qty", key: "items_summary" },
-        { header: "Total Value", key: "total_value", format: "currency" as const },
-        { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
-        { header: "GST Slabs", key: "slabs" },
-        { header: "Total GST", key: "gst_amount", format: "currency" as const },
-      ];
-    } else if ((selectedReport === 'revenue' || selectedReport === 'todays-revenue') && gstDetails.length > 0) {
-      exportData = gstDetails;
-      exportColumns = [
-        { header: "Date", key: "date", format: "date" as const },
-        { header: "Order ID", key: "order_id" },
-        { header: "Customer", key: "customer_name" },
-        { header: "Type", key: "payment_type" },
-        { header: "Payment Mode", key: "payment_mode" },
-        { header: "Amount", key: "amount", format: "currency" as const },
-        { header: "Order Status", key: "status" },
-      ];
-    } else if (selectedReport === 'enquiry-log') {
-      exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+    try {
+      let exportData = sortedData;
+      let exportColumns = getExportColumns();
+
+      if (selectedReport === 'gst-filing' && filteredGstDetails.length > 0) {
+        exportData = filteredGstDetails;
+        exportColumns = [
+          { header: "Invoice No", key: "invoice_no" },
+          { header: "Date", key: "date", format: "date" as const },
+          { header: "Customer", key: "customer_name" },
+          { header: "Items & Qty", key: "items_summary" },
+          { header: "Total Value", key: "total_value", format: "currency" as const },
+          { header: "Taxable Value", key: "taxable_value", format: "currency" as const },
+          { header: "GST Slabs", key: "slabs" },
+          { header: "Total GST", key: "gst_amount", format: "currency" as const },
+        ];
+      } else if (selectedReport === 'revenue' || selectedReport === 'todays-revenue') {
+        exportData = await fetchAllRevenueDetails({
+          type: selectedReport,
+          filters,
+          branchId: selectedBranchId,
+          storeId,
+        });
+        exportColumns = [
+          { header: "Date", key: "date", format: "date" as const },
+          { header: "Order ID", key: "order_id" },
+          { header: "Customer", key: "customer_name" },
+          { header: "Type", key: "payment_type" },
+          { header: "Payment Mode", key: "payment_mode" },
+          { header: "Amount", key: "amount", format: "currency" as const },
+          { header: "Order Status", key: "status" },
+        ];
+      } else if (selectedReport === 'enquiry-log') {
+        exportData = sortedData.map(d => ({ ...d, staff_name: d.staff?.name || "System" }));
+      }
+
+      const filename = `${meta.name}_${new Date().toISOString().split('T')[0]}`;
+      if (format === 'excel') {
+        exportToExcel(exportData, exportColumns, filename);
+      } else {
+        await exportToPDF(exportData, exportColumns, meta.name, filename);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export report');
+    } finally {
+      setExporting(false);
     }
-    
-    exportToPDF(exportData, exportColumns as any, meta.name, `${meta.name}_${new Date().toISOString().split('T')[0]}`);
   };
 
 
@@ -537,9 +509,10 @@ function ReportsPageContent() {
     <div className="space-y-6">
       <ReportHeader 
         meta={meta}
-        onExportExcel={handleExportExcel}
-        onExportPDF={handleExportPDF}
-        hasData={data.length > 0 || gstDetails.length > 0}
+        onExportExcel={() => handleExport('excel')}
+        onExportPDF={() => handleExport('pdf')}
+        hasData={!loading && !error && (data.length > 0 || gstDetails.length > 0)}
+        exporting={exporting}
       />
 
       <ReportFilters 

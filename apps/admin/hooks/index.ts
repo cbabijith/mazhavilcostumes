@@ -73,6 +73,9 @@ export {
 // Permission hooks
 export { usePermissions } from './usePermissions';
 
+// Revenue report pagination and exports
+export { useRevenueReport } from './useRevenueReport';
+
 // Banner hooks
 export {
   useBanners,

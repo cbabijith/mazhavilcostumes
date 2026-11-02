@@ -5,7 +5,6 @@
 
 import { NextRequest } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { createAdminClient } from '@/lib/supabase/server';
 import { apiSuccess, apiUnauthorized, apiInternalError } from '@/lib/apiResponse';
 
 export async function GET(request: NextRequest) {
@@ -17,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Resolve staff name for sidebar display (already fetched in getAuthUser)
-    let name = authUser.staff_id ? (authUser as any).name : '';
+    const name = authUser.staff_id ? (authUser as any).name : '';
 
     const response = apiSuccess({
       user: {

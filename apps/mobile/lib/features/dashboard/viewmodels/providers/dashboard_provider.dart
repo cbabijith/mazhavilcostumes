@@ -1,4 +1,8 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'package:dio/dio.dart';
+import '../../../../core/constants/app_durations.dart';
+import '../../../../core/providers/startup_cache_provider.dart';
+import '../../../auth/viewmodels/providers/auth_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../branches/viewmodels/providers/branch_provider.dart';
 import '../../repositories/dashboard_repository.dart';
@@ -11,24 +15,30 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
   return DashboardRepository();
 });
 
-// Dashboard metrics provider
+// Wait for branch resolution before issuing dashboard requests.
 final dashboardMetricsProvider = FutureProvider<DashboardMetrics>((ref) async {
-  final repo = ref.read(dashboardRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
-  return repo.getMetrics(branchId: branchId);
+  final repo = ref.watch(dashboardRepositoryProvider);
+  final token = CancelToken();
+  ref.onDispose(token.cancel);
+  final branchId = await ref.watch(resolvedBranchIdProvider.future);
+  if (token.isCancelled) throw token.cancelError!;
+  return repo.getMetrics(branchId: branchId, cancelToken: token);
 });
 
-// Operational metrics provider
-final operationalMetricsProvider = FutureProvider<OperationalMetrics>((ref) async {
-  final repo = ref.read(dashboardRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
-  debugPrint('[DashboardProvider] Fetching operational metrics with branchId: $branchId');
-  try {
-    return await repo.getOperationalMetrics(branchId: branchId);
-  } catch (e) {
-    debugPrint('[DashboardProvider] Error: $e');
-    rethrow;
-  }
+final operationalMetricsProvider = StreamProvider<OperationalMetrics>((
+  ref,
+) async* {
+  final scope = ref.watch(startupCacheScopeProvider);
+  if (scope == null) return;
+  final cache = ref.watch(startupCacheProvider);
+  final repo = ref.watch(dashboardRepositoryProvider);
+  final token = CancelToken();
+  ref.onDispose(token.cancel);
+  final branchId = await ref.watch(resolvedBranchIdProvider.future);
+  if (token.isCancelled) throw token.cancelError!;
+  yield* repo.watchOperationalMetrics(
+    cache: cache, scope: scope, branchId: branchId, cancelToken: token,
+  );
 });
 
 /// Date range options for the analytics section
@@ -56,9 +66,10 @@ class AnalyticsRangeNotifier extends Notifier<AnalyticsRange> {
 }
 
 /// State provider for the selected analytics date range
-final analyticsRangeProvider = NotifierProvider<AnalyticsRangeNotifier, AnalyticsRange>(
-  AnalyticsRangeNotifier.new,
-);
+final analyticsRangeProvider =
+    NotifierProvider<AnalyticsRangeNotifier, AnalyticsRange>(
+      AnalyticsRangeNotifier.new,
+    );
 
 /// Previous period label based on selected range
 final analyticsPrevLabelProvider = Provider<String>((ref) {
@@ -95,9 +106,10 @@ class CategoryPeriodNotifier extends Notifier<CategoryPeriod> {
 }
 
 /// State provider for the selected category period
-final categoryPeriodProvider = NotifierProvider<CategoryPeriodNotifier, CategoryPeriod>(
-  CategoryPeriodNotifier.new,
-);
+final categoryPeriodProvider =
+    NotifierProvider<CategoryPeriodNotifier, CategoryPeriod>(
+      CategoryPeriodNotifier.new,
+    );
 
 /// ROI limit options for the inventory ROI section
 enum RoiLimit {
@@ -125,87 +137,75 @@ final roiLimitProvider = NotifierProvider<RoiLimitNotifier, RoiLimit>(
   RoiLimitNotifier.new,
 );
 
-/// Analytics metrics provider — watches branchId and range (default parameters)
-final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) async {
-  final repo = ref.read(dashboardRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
-  final range = ref.watch(analyticsRangeProvider);
-  debugPrint('[DashboardProvider] Fetching base analytics metrics: range=${range.apiValue}, branch=$branchId, roiLimit=${RoiLimit.three.value}');
-  try {
-    final metrics = await repo.getAnalyticsMetrics(
-      branchId: branchId,
-      range: range.apiValue,
-      categoryPeriod: CategoryPeriod.month.apiValue,
-      roiLimit: RoiLimit.three.value,
-    );
-    debugPrint('[DashboardProvider] Base analytics metrics loaded. Top performers count: ${metrics.topPerformers.length}');
-    return metrics;
-  } catch (e) {
-    debugPrint('[DashboardProvider] Analytics error: $e');
-    rethrow;
-  }
+/// Value keys share both completed and in-flight analytics across sections.
+typedef AnalyticsQuery = ({
+  String? branchId,
+  AnalyticsRange range,
+  CategoryPeriod categoryPeriod,
+  RoiLimit roiLimit,
 });
 
-/// Category Revenue provider — watches branchId, range, and categoryPeriod
-final categoryRevenueProvider = FutureProvider<List<CategoryRevenue>>((ref) async {
-  final catPeriod = ref.watch(categoryPeriodProvider);
+final analyticsRequestProvider = FutureProvider.autoDispose
+    .family<AnalyticsMetrics, AnalyticsQuery>((ref, query) async {
+      ref.watch(
+        authUserProvider,
+      ); // Never reuse a previous account's cached report.
+      final repo = ref.watch(dashboardRepositoryProvider);
+      final token = CancelToken();
+      ref.onDispose(token.cancel);
+      final branchFuture = ref.read(resolvedBranchIdProvider.future);
+      await Future<void>.delayed(AppDurations.searchDebounce);
+      if (token.isCancelled) throw token.cancelError!;
+      final branchId = await branchFuture;
+      if (branchId != query.branchId) token.cancel('Branch selection changed');
+      if (token.isCancelled) throw token.cancelError!;
+      final result = await repo.getAnalyticsMetrics(
+        branchId: branchId,
+        range: query.range.apiValue,
+        categoryPeriod: query.categoryPeriod.apiValue,
+        roiLimit: query.roiLimit.value,
+        cancelToken: token,
+      );
+      if (token.isCancelled) throw token.cancelError!;
+      final cache = ref.keepAlive();
+      final timer = Timer(AppDurations.analyticsCache, cache.close);
+      ref.onDispose(timer.cancel);
+      return result;
+    });
 
-  // If using default 'month', reuse the already loaded base metrics to avoid duplicate requests
-  if (catPeriod == CategoryPeriod.month) {
-    final baseMetrics = await ref.watch(analyticsMetricsProvider.future);
-    return baseMetrics.categoryRevenue;
-  }
-
-  final repo = ref.read(dashboardRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
+Future<AnalyticsMetrics> _analytics(
+  Ref ref,
+  CategoryPeriod period,
+  RoiLimit limit,
+) {
   final range = ref.watch(analyticsRangeProvider);
-
-  debugPrint('[DashboardProvider] Fetching category revenue: range=${range.apiValue}, branch=$branchId, period=${catPeriod.apiValue}');
-  try {
-    final metrics = await repo.getAnalyticsMetrics(
+  final branchId = ref.watch(effectiveBranchIdProvider);
+  return ref.watch(
+    analyticsRequestProvider((
       branchId: branchId,
-      range: range.apiValue,
-      categoryPeriod: catPeriod.apiValue,
-      roiLimit: RoiLimit.three.value,
-    );
-    return metrics.categoryRevenue;
-  } catch (e) {
-    debugPrint('[DashboardProvider] Category revenue error: $e');
-    rethrow;
-  }
+      range: range,
+      categoryPeriod: period,
+      roiLimit: limit,
+    )).future,
+  );
+}
+
+final analyticsMetricsProvider = FutureProvider<AnalyticsMetrics>((ref) {
+  return _analytics(ref, CategoryPeriod.month, RoiLimit.three);
 });
 
-/// Inventory ROI provider — watches branchId, range, and roiLimit
+final categoryRevenueProvider = FutureProvider<List<CategoryRevenue>>((
+  ref,
+) async {
+  final period = ref.watch(categoryPeriodProvider);
+  final metrics = await _analytics(ref, period, RoiLimit.three);
+  return metrics.categoryRevenue;
+});
+
 final inventoryRoiProvider = FutureProvider<List<TopPerformer>>((ref) async {
-  final roiLimit = ref.watch(roiLimitProvider);
-  debugPrint('[DashboardProvider] inventoryRoiProvider invoked. Selected roiLimit: ${roiLimit.name} (${roiLimit.value})');
-
-  // If using default 'three', reuse the already loaded base metrics to avoid duplicate requests
-  if (roiLimit == RoiLimit.three) {
-    debugPrint('[DashboardProvider] roiLimit is Top 3. Reusing base metrics topPerformers.');
-    final baseMetrics = await ref.watch(analyticsMetricsProvider.future);
-    debugPrint('[DashboardProvider] Reused base metrics. topPerformers count: ${baseMetrics.topPerformers.length}');
-    return baseMetrics.topPerformers;
-  }
-
-  final repo = ref.read(dashboardRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
-  final range = ref.watch(analyticsRangeProvider);
-
-  debugPrint('[DashboardProvider] Fetching inventory ROI: range=${range.apiValue}, branch=$branchId, limit=${roiLimit.value}');
-  try {
-    final metrics = await repo.getAnalyticsMetrics(
-      branchId: branchId,
-      range: range.apiValue,
-      categoryPeriod: CategoryPeriod.month.apiValue,
-      roiLimit: roiLimit.value,
-    );
-    debugPrint('[DashboardProvider] inventoryRoiProvider loaded from API. topPerformers count: ${metrics.topPerformers.length}');
-    return metrics.topPerformers;
-  } catch (e) {
-    debugPrint('[DashboardProvider] Inventory ROI error: $e');
-    rethrow;
-  }
+  final limit = ref.watch(roiLimitProvider);
+  final metrics = await _analytics(ref, CategoryPeriod.month, limit);
+  return metrics.topPerformers;
 });
 
 /// Unique parameters for transaction details report provider
@@ -234,11 +234,15 @@ class TransactionReportParam {
 }
 
 /// Fetches transaction detail records from the repository
-final transactionReportProvider = FutureProvider.family<List<TransactionDetail>, TransactionReportParam>((ref, param) async {
-  final repo = ref.read(dashboardRepositoryProvider);
-  return repo.getTransactionReport(
-    fromDate: param.fromDate,
-    toDate: param.toDate,
-    branchId: param.branchId,
-  );
-});
+final transactionReportProvider =
+    FutureProvider.family<List<TransactionDetail>, TransactionReportParam>((
+      ref,
+      param,
+    ) async {
+      final repo = ref.read(dashboardRepositoryProvider);
+      return repo.getTransactionReport(
+        fromDate: param.fromDate,
+        toDate: param.toDate,
+        branchId: param.branchId,
+      );
+    });

@@ -329,6 +329,7 @@ class Order extends Equatable {
   final CustomerInfo? customer;
   final List<OrderItem>? items;
   final BranchInfo? branch;
+  final int? itemCount;
 
   // Legacy field support for UI/views compatibility
   double get securityDeposit => advanceAmount;
@@ -372,6 +373,7 @@ class Order extends Equatable {
     this.customer,
     this.items,
     this.branch,
+    this.itemCount,
   });
 
   @override
@@ -414,6 +416,7 @@ class Order extends Equatable {
         customer,
         items,
         branch,
+        itemCount,
       ];
 
   factory Order.fromJson(Map<String, dynamic> json) {
@@ -475,6 +478,7 @@ class Order extends Equatable {
           ?.map((e) => OrderItem.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       branch: json['branch'] != null ? BranchInfo.fromJson(json['branch']) : null,
+      itemCount: (json['item_count'] as num?)?.toInt(),
     );
   }
 
@@ -594,6 +598,7 @@ class Order extends Equatable {
       'customer': customer?.toJson(),
       'items': items?.map((e) => e.toJson()).toList(),
       'branch': branch?.toJson(),
+      'item_count': itemCount,
     };
   }
 }

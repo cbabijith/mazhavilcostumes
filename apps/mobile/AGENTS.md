@@ -1,5 +1,11 @@
 # Flutter MVVM Architecture Rules
 
+## Saved main-tab data (November 2, 2026)
+- Repositories expose snapshot streams through `StartupSnapshotCache`; providers never call Dio directly. Orders/Products persist only the unfiltered first page; Calendar includes branch and exact month range in its scope. Never use snapshots to authorize mutations or validate stock/payments.
+- Keep the saved-data/failure notice visible until a live response replaces the snapshot. Do not append live pagination to saved page one. Retain 401/403 as `DioException` so denied data is cleared and the error is shown.
+- Register stream-provider dependencies and cancellation synchronously before returning an async generator. Cancelled searches should end quietly rather than emit an unhandled error.
+- Verify with `test/unit/saved_screens_test.dart`, the existing loading/cache tests, and `flutter analyze --no-pub`.
+
 ## 🚨 MANDATORY: Post-Work Build Verification
 **After EVERY code change in this module, the agent MUST:**
 1. Run `flutter analyze --no-pub`.
@@ -359,3 +365,18 @@ Reports:
 - GST Reports
 
 Never bypass inventory validation.
+
+## October 21, 2026 - Loading policy
+- Restore auth identity before branch-scoped startup requests, and use `resolvedBranchIdProvider` for initial list/dashboard loads.
+- List searches debounce and cancel superseded requests; pagination must not append to a changed filter generation. Default Orders navigation reuses its cache and preserves branch scope.
+- Analytics refresh/mutation flows invalidate `analyticsRequestProvider` as well as visible analytics providers. Never cache report data across authenticated users.
+- Category totals come from count response metadata, not a second product-list request.
+- Loading regression checks: `flutter test test/unit/loading_performance_test.dart`.
+
+### November 2, 2026 - Fast repeat startup
+- `startupBranchesProvider` reads encrypted branch snapshots and uses the existing `simple=true` API. `branchesProvider` retains the full staff-count response for management screens.
+- Only branch choices and operational overview cards are persisted. Scope by API, account, store, role and assigned branch/staff; operational snapshots also require the selected branch and today's India calendar date. Never use display snapshots for stock/payment validation.
+- Always refresh snapshots from the authenticated API. Label saved operational data while refreshing or after a network error; surface authorization failures. Clear snapshots on logout and successful mutations; generation checks prevent obsolete requests from saving again.
+- `RetainedTabView` mounts a tab only when first opened and keeps visited UI state with inactive tickers disabled. Do not eagerly start every tab's network requests on login.
+- The existing upload SDK initializes at first upload, not before `runApp`.
+- Additional checks: `test/unit/startup_snapshot_cache_test.dart`, `test/widget/retained_tab_view_test.dart`, and `test/unit/pr89_mobile_contract_test.dart`.

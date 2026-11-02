@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const params = {
+      lightweight: searchParams.get('lightweight') === 'true' ||
+        searchParams.get('select') === 'id,name,phone',
       query: searchParams.get('query') || undefined,
       phone: searchParams.get('phone') || undefined,
       page: searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1,

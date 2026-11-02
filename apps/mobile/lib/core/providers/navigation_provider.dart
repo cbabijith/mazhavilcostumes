@@ -49,14 +49,6 @@ Future<void> navigateToOrdersWithUrl(WidgetRef ref, String filterUrl) async {
       params['has_stock_conflict']!.first == 'true';
 
   final ordersNotifier = ref.read(ordersProvider.notifier);
-  final ordersFuture = ref.read(ordersProvider.future);
-
-  // Await the initial provider build before switching tab to avoid unmount issues
-  try {
-    await ordersFuture;
-  } catch (_) {
-    // Ignore errors from initial build
-  }
 
   // Switch tab to Orders view (index 1) without clearing filters
   ref.read(navigationTabProvider.notifier).setTab(1, clearOrdersFilters: false);

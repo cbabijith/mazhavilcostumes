@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../core/cache/startup_snapshot_cache.dart';
 import '../../../core/supabase/api_client.dart';
 import '../models/product.dart';
 import '../models/product_analytics.dart';
@@ -10,18 +11,71 @@ class PaginatedProducts {
   final int total;
   final int page;
   final int totalPages;
+  final DateTime? savedAt;
+  final bool refreshFailed;
 
   PaginatedProducts({
     required this.products,
     required this.total,
     required this.page,
     required this.totalPages,
+    this.savedAt,
+    this.refreshFailed = false,
   });
+
+  Map<String, dynamic> toJson() => {
+    'products': products.map((product) => product.toJson()).toList(),
+    'total': total,
+    'page': page,
+    'totalPages': totalPages,
+  };
+
+  factory PaginatedProducts.fromJson(Map<String, dynamic> json) =>
+      PaginatedProducts(
+        products: (json['products'] as List)
+            .map((value) => Product.fromJson(Map<String, dynamic>.from(value)))
+            .toList(),
+        total: json['total'] as int,
+        page: json['page'] as int,
+        totalPages: json['totalPages'] as int,
+      );
+
+  PaginatedProducts withSnapshot(DateTime? date, bool failed) =>
+      PaginatedProducts(
+        products: products,
+        total: total,
+        page: page,
+        totalPages: totalPages,
+        savedAt: date,
+        refreshFailed: failed,
+      );
 }
 
 /// Repository layer for Products communicating with Next.js API via Dio.
 class ProductRepository {
   final _api = apiClient;
+
+  /// Persist only the unfiltered first page, isolated by branch and account.
+  Stream<PaginatedProducts> watchSavedProducts({
+    required StartupSnapshotCache cache,
+    required String scope,
+    required String? branchId,
+    required CancelToken cancelToken,
+  }) => cache
+      .watch<PaginatedProducts>(
+        resource: StartupResource.products,
+        scope: '$scope/${branchId ?? 'all'}',
+        fetch: () => getProducts(branchId: branchId, cancelToken: cancelToken),
+        decode: PaginatedProducts.fromJson,
+        encode: (page) => page.toJson(),
+        cancelToken: cancelToken,
+      )
+      .map(
+        (snapshot) => snapshot.data.withSnapshot(
+          snapshot.savedAt,
+          snapshot.refreshFailed,
+        ),
+      );
 
   /// Fetch all products from Next.js API with pagination.
   Future<PaginatedProducts> getProducts({
@@ -37,6 +91,7 @@ class ProductRepository {
       final queryParams = <String, dynamic>{
         'page': page,
         'limit': limit,
+        'include_total_stock': false,
       };
 
       if (search != null && search.isNotEmpty) {
@@ -59,21 +114,28 @@ class ProductRepository {
       );
 
       final data = response.data;
-      
+
       // Handle both response structures: { success: true, data: { products: [...] } } and { products: [...] }
-      final productsData = data['data']?['products'] as List<dynamic>? ?? 
-                          data['products'] as List<dynamic>? ?? [];
-      final total = data['data']?['total'] as int? ?? 
-                   data['total'] as int? ?? 
-                   productsData.length;
+      final productsData =
+          data['data']?['products'] as List<dynamic>? ??
+          data['products'] as List<dynamic>? ??
+          [];
+      final total =
+          data['data']?['total'] as int? ??
+          data['total'] as int? ??
+          productsData.length;
       final totalPages = (total / limit).ceil();
 
       return PaginatedProducts(
-        products: productsData.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList(),
+        products: productsData
+            .map((e) => Product.fromJson(e as Map<String, dynamic>))
+            .toList(),
         total: total,
         page: page,
         totalPages: totalPages > 0 ? totalPages : 1,
       );
+    } on DioException {
+      rethrow;
     } catch (e) {
       throw Exception('Failed to load products: $e');
     }
@@ -95,7 +157,10 @@ class ProductRepository {
   }
 
   /// Create a new product.
-  Future<Product> createProduct(Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Product> createProduct(
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.post(
         '/products',
@@ -111,7 +176,11 @@ class ProductRepository {
   }
 
   /// Update an existing product.
-  Future<Product> updateProduct(String id, Map<String, dynamic> body, {CancelToken? cancelToken}) async {
+  Future<Product> updateProduct(
+    String id,
+    Map<String, dynamic> body, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.patch(
         '/products/$id',
@@ -129,17 +198,17 @@ class ProductRepository {
   /// Delete a product.
   Future<void> deleteProduct(String id, {CancelToken? cancelToken}) async {
     try {
-      await _api.delete(
-        '/products/$id',
-        cancelToken: cancelToken,
-      );
+      await _api.delete('/products/$id', cancelToken: cancelToken);
     } catch (e) {
       throw Exception('Failed to delete product: $e');
     }
   }
 
   /// Fetch branch inventory for a product.
-  Future<List<BranchInventory>> getProductBranchInventory(String productId, {CancelToken? cancelToken}) async {
+  Future<List<BranchInventory>> getProductBranchInventory(
+    String productId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
         '/branch-inventory',
@@ -148,15 +217,21 @@ class ProductRepository {
       );
 
       final data = response.data;
-      final list = data['data'] as List<dynamic>? ?? data as List<dynamic>? ?? [];
-      return list.map((e) => BranchInventory.fromJson(e as Map<String, dynamic>)).toList();
+      final list =
+          data['data'] as List<dynamic>? ?? data as List<dynamic>? ?? [];
+      return list
+          .map((e) => BranchInventory.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       return [];
     }
   }
 
   /// Fetch product analytics and rental history.
-  Future<ProductAnalytics?> getProductAnalytics(String productId, {CancelToken? cancelToken}) async {
+  Future<ProductAnalytics?> getProductAnalytics(
+    String productId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
         '/products/$productId/orders',
@@ -170,7 +245,10 @@ class ProductRepository {
   }
 
   /// Fetch damage history for a product (admin-only endpoint).
-  Future<List<DamageRecord>> getDamageHistory(String productId, {CancelToken? cancelToken}) async {
+  Future<List<DamageRecord>> getDamageHistory(
+    String productId, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
         '/products/$productId/damage-history',
@@ -179,14 +257,19 @@ class ProductRepository {
 
       final data = response.data as Map<String, dynamic>;
       final assessments = data['assessments'] as List<dynamic>? ?? [];
-      return assessments.map((e) => DamageRecord.fromJson(e as Map<String, dynamic>)).toList();
+      return assessments
+          .map((e) => DamageRecord.fromJson(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       return [];
     }
   }
 
   /// Pre-delete safety check.
-  Future<Map<String, dynamic>> canDeleteProduct(String id, {CancelToken? cancelToken}) async {
+  Future<Map<String, dynamic>> canDeleteProduct(
+    String id, {
+    CancelToken? cancelToken,
+  }) async {
     try {
       final response = await _api.get(
         '/products/$id/can-delete',
@@ -210,18 +293,19 @@ class ProductRepository {
     try {
       final now = DateTime.now();
       final effectiveStart = start ?? now.toIso8601String().split('T').first;
-      final effectiveEnd = end ?? now.add(const Duration(days: 90)).toIso8601String().split('T').first;
+      final effectiveEnd =
+          end ??
+          now.add(const Duration(days: 90)).toIso8601String().split('T').first;
 
       final response = await _api.get(
         '/products/$productId/availability',
-        queryParameters: {
-          'start': effectiveStart,
-          'end': effectiveEnd,
-        },
+        queryParameters: {'start': effectiveStart, 'end': effectiveEnd},
         cancelToken: cancelToken,
       );
 
-      return ProductAvailability.fromJson(response.data as Map<String, dynamic>);
+      return ProductAvailability.fromJson(
+        response.data as Map<String, dynamic>,
+      );
     } catch (e) {
       return null;
     }

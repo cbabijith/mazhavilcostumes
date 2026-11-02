@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
+import '../../../core/providers/startup_cache_provider.dart';
+import '../models/calendar_orders.dart';
 import '../../branches/viewmodels/providers/branch_provider.dart';
 import '../../orders/models/order.dart';
 import '../models/calendar_day_summary.dart';
@@ -67,8 +70,8 @@ class CalendarSelectedDateNotifier extends Notifier<DateTime?> {
 
 final calendarSelectedDateProvider =
     NotifierProvider<CalendarSelectedDateNotifier, DateTime?>(
-  CalendarSelectedDateNotifier.new,
-);
+      CalendarSelectedDateNotifier.new,
+    );
 
 /// Helper to parse ISO date strings safely
 DateTime? _parseDateStringSafe(String dateStr) {
@@ -90,42 +93,69 @@ DateTime? _parseDateStringSafe(String dateStr) {
 }
 
 /// Provider for raw calendar orders from the backend
-final calendarOrdersProvider = FutureProvider<List<Order>>((ref) async {
+final calendarOrdersProvider = StreamProvider<CalendarOrders>((ref) {
   final repo = ref.watch(calendarRepositoryProvider);
-  final branchId = ref.watch(effectiveBranchIdProvider);
-  if (branchId == null || branchId.isEmpty) {
-    return const [];
-  }
-  
+  final scope = ref.watch(startupCacheScopeProvider);
+  final cache = ref.watch(startupCacheProvider);
   final month = ref.watch(calendarMonthProvider);
+  final token = CancelToken();
+  ref.onDispose(token.cancel);
+  final branchFuture = ref.watch(resolvedBranchIdProvider.future);
+  Stream<CalendarOrders> load() async* {
+    final branchId = await branchFuture;
+    if (token.isCancelled) return;
+    if (branchId == null || branchId.isEmpty) {
+      yield const CalendarOrders([]);
+      return;
+    }
 
-  // Buffer range: start of month - 7 days to end of month + 7 days
-  final startOfCurrentMonth = DateTime(month.year, month.month, 1);
-  final endOfCurrentMonth = DateTime(month.year, month.month + 1, 0);
+    // Buffer range: start of month - 7 days to end of month + 7 days
+    final startOfCurrentMonth = DateTime(month.year, month.month, 1);
+    final endOfCurrentMonth = DateTime(month.year, month.month + 1, 0);
 
-  final fetchStart = startOfCurrentMonth.subtract(const Duration(days: 7));
-  final fetchEnd = endOfCurrentMonth.add(const Duration(days: 7));
+    final fetchStart = startOfCurrentMonth.subtract(const Duration(days: 7));
+    final fetchEnd = endOfCurrentMonth.add(const Duration(days: 7));
 
-  final startDateStr =
-      "${fetchStart.year}-${fetchStart.month.toString().padLeft(2, '0')}-${fetchStart.day.toString().padLeft(2, '0')}";
-  final endDateStr =
-      "${fetchEnd.year}-${fetchEnd.month.toString().padLeft(2, '0')}-${fetchEnd.day.toString().padLeft(2, '0')}";
+    final startDateStr =
+        "${fetchStart.year}-${fetchStart.month.toString().padLeft(2, '0')}-${fetchStart.day.toString().padLeft(2, '0')}";
+    final endDateStr =
+        "${fetchEnd.year}-${fetchEnd.month.toString().padLeft(2, '0')}-${fetchEnd.day.toString().padLeft(2, '0')}";
 
-  return repo.getCalendarOrders(
-    branchId: branchId,
-    startDate: startDateStr,
-    endDate: endDateStr,
-  );
+    if (scope == null) {
+      yield CalendarOrders(
+        await repo.getCalendarOrders(
+          branchId: branchId,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          cancelToken: token,
+        ),
+      );
+    } else {
+      yield* repo.watchSavedCalendar(
+        cache: cache,
+        scope: scope,
+        branchId: branchId,
+        startDate: startDateStr,
+        endDate: endDateStr,
+        cancelToken: token,
+      );
+    }
+  }
+
+  return load();
 });
 
 /// Processes raw orders into day-by-day summaries for the active month view
-final calendarDaySummaryProvider =
-    Provider<Map<String, CalendarDaySummary>>((ref) {
+final calendarDaySummaryProvider = Provider<Map<String, CalendarDaySummary>>((
+  ref,
+) {
   final ordersAsync = ref.watch(calendarOrdersProvider);
   final month = ref.watch(calendarMonthProvider);
 
   final map = <String, CalendarDaySummary>{};
-  final orders = ordersAsync.value ?? const [];
+  final orders = ordersAsync.isLoading
+      ? const <Order>[]
+      : ordersAsync.value?.orders ?? const <Order>[];
 
   final endOfCurrentMonth = DateTime(month.year, month.month + 1, 0);
 
@@ -137,10 +167,10 @@ final calendarDaySummaryProvider =
 
     map[dateKey] = CalendarDaySummary(
       date: dayDate,
-      orders: const [],
-      startingOrders: const [],
-      endingOrders: const [],
-      ongoingOrders: const [],
+      orders: [],
+      startingOrders: [],
+      endingOrders: [],
+      ongoingOrders: [],
       totalRevenue: 0.0,
       hasLateReturns: false,
       hasActionNeeded: false,
@@ -172,19 +202,23 @@ final calendarDaySummaryProvider =
       if (!dayDate.isBefore(cleanStart) && !dayDate.isAfter(cleanEnd)) {
         final summary = map[dateKey]!;
 
-        final updatedOrders = List<Order>.from(summary.orders)..add(order);
-        final updatedStarting = List<Order>.from(summary.startingOrders);
-        final updatedEnding = List<Order>.from(summary.endingOrders);
-        final updatedOngoing = List<Order>.from(summary.ongoingOrders);
+        // These lists belong to this unpublished calculation. Appending avoids
+        // copying every previous booking again for each order on a busy day.
+        final updatedOrders = summary.orders..add(order);
+        final updatedStarting = summary.startingOrders;
+        final updatedEnding = summary.endingOrders;
+        final updatedOngoing = summary.ongoingOrders;
         double totalRevenue = summary.totalRevenue;
         bool hasLateReturns = summary.hasLateReturns;
         bool hasActionNeeded = summary.hasActionNeeded;
 
-        final isSameAsStart = dayDate.year == cleanStart.year &&
+        final isSameAsStart =
+            dayDate.year == cleanStart.year &&
             dayDate.month == cleanStart.month &&
             dayDate.day == cleanStart.day;
 
-        final isSameAsEnd = dayDate.year == cleanEnd.year &&
+        final isSameAsEnd =
+            dayDate.year == cleanEnd.year &&
             dayDate.month == cleanEnd.month &&
             dayDate.day == cleanEnd.day;
 
@@ -254,8 +288,10 @@ final calendarMonthStatsProvider = Provider<CalendarMonthStats>((ref) {
     }
   }
 
-  final totalRevenue = daySummaryMap.values
-      .fold<double>(0.0, (sum, day) => sum + day.totalRevenue);
+  final totalRevenue = daySummaryMap.values.fold<double>(
+    0.0,
+    (sum, day) => sum + day.totalRevenue,
+  );
 
   return CalendarMonthStats(
     ongoingToday: todaySummary?.orders.length ?? 0,

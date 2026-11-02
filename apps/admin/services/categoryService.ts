@@ -47,6 +47,31 @@ export class CategoryService {
   }
 
   /**
+   * Aggregate counts from one paginated reference scan, including empty categories.
+   * @param branchId Optional branch filter.
+   * @param storeId Authenticated store scope.
+   * @returns Category counts and the total including uncategorized products.
+   */
+  async getProductCounts(branchId?: string, storeId?: string | null):
+    Promise<RepositoryResult<{ counts: Record<string, number>; total: number }>> {
+    const [categories, references] = await Promise.all([
+      categoryRepository.findAll(),
+      categoryRepository.findProductCategoryReferences(branchId, storeId),
+    ]);
+    if (!categories.success || !references.success) {
+      return { data: null, error: categories.error ?? references.error, success: false };
+    }
+    const counts: Record<string, number> = {};
+    for (const category of categories.data ?? []) counts[category.id] = 0;
+    for (const product of references.data ?? []) {
+      if (product.category_id && Object.hasOwn(counts, product.category_id)) {
+        counts[product.category_id]++;
+      }
+    }
+    return { data: { counts, total: references.data?.length ?? 0 }, error: null, success: true };
+  }
+
+  /**
    * Get category hierarchy
    */
   async getCategoryHierarchy(): Promise<RepositoryResult<Category[]>> {

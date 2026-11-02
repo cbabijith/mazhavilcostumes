@@ -40,6 +40,10 @@ class AppStrings {
   static const String newCustomer = 'New Customer';
   static const String newProduct = 'New Product';
   static const String unableToLoadDashboard = 'Unable to load dashboard';
+  static const String refreshingSavedOverview = 'Saved overview · Updating…';
+  static const String refreshingSavedData = 'Saved data · Updating…';
+  static const String savedDataRefreshFailed = 'Saved data · Could not update. Tap to retry.';
+  static const String savedOverviewRefreshFailed = 'Saved overview · Could not update. Pull to retry.';
   static const String retry = 'Retry';
   static const String invoiceSettings = 'Invoice Settings';
   static const String gstNumber = 'GST Number (GSTIN)';
@@ -162,6 +166,7 @@ class AppStrings {
 
 /// Dynamic Size Constants - These are base values that get scaled by Responsive utility
 class AppSizes {
+  static const double productThumbnail = 68;
   // Font Sizes (base values, will be scaled by Responsive.sp)
   static const double fontTiny = 10;
   static const double fontSmall = 12;

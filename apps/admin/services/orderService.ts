@@ -226,6 +226,18 @@ export class OrderService {
   }
 
   /**
+   * Load a calendar range, optionally omitting details fetched on opening an order.
+   * @param branchId Authorized branch selected by the route.
+   * @param startDate Inclusive range start.
+   * @param endDate Inclusive range end.
+   * @param summary Whether only the calendar overview fields are required.
+   * @returns Calendar orders using the normal repository result contract.
+   */
+  async getCalendarOrders(branchId: string, startDate: string, endDate: string, summary = false): Promise<RepositoryResult<OrderWithRelations[]>> {
+    return orderRepository.getCalendarOrders(branchId, startDate, endDate, summary);
+  }
+
+  /**
    * Alias for getAllOrders — explicit list query
    */
   async getOrdersList(params?: OrderSearchParams): Promise<RepositoryResult<OrderSearchResult>> {

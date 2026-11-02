@@ -135,6 +135,7 @@ export interface ProductSearchParams {
   min_price?: number;
   max_price?: number;
   in_stock?: boolean;
+  include_total_stock?: boolean;
   sort_by?: 'name' | 'price' | 'created_at' | 'stock';
   sort_order?: 'asc' | 'desc';
   page?: number;
