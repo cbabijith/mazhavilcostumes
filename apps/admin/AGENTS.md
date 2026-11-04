@@ -17,6 +17,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 
 ## November 2, 2026 - Complete revenue exports
+- Revenue detail tables and exports use the order's stored `invoice_number`. Keep `order_id` in the API for existing clients.
 - Revenue and Today's Revenue exports fetch every matching detail page before generating PDF/Excel; never export only the visible 50 rows. Failed/incomplete pages must stop the download.
 - `/api/reports/revenue` retains its existing page/limit defaults and clamping (maximum 500) and accepts `paymentMode`. Today's Revenue uses `payment_mode`. Filter transaction status before pagination/counting and keep payment-date/ID ordering stable.
 - Revenue page/API access lives in `hooks/useRevenueReport.ts`; preserve date, branch, store, status and payment-mode filters when exporting. Date/payment filter changes reset the table to page one.

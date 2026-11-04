@@ -495,7 +495,7 @@ function ReportsPageContent() {
         });
         exportColumns = [
           { header: "Date", key: "date", format: "date" as const },
-          { header: "Order ID", key: "order_id" },
+          { header: "Invoice Number", key: "invoice_number" },
           { header: "Customer", key: "customer_name" },
           { header: "Type", key: "payment_type" },
           { header: "Payment Mode", key: "payment_mode" },

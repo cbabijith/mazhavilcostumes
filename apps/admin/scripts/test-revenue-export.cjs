@@ -43,6 +43,7 @@ function fixtures(count) {
     payment_date: '2026-09-18T05:30:00Z',
     order: {
       id: `order-${String(i).padStart(5, '0')}`,
+      invoice_number: i === 0 ? null : `MAZ-2627-${String(i).padStart(4, '0')}`,
       branch_id: 'branch-a', store_id: 'store-a',
       status: i % 2 === 0 ? 'completed' : 'ongoing',
       customer: { name: `Customer-${String(i).padStart(5, '0')}` },
@@ -149,6 +150,8 @@ test('198 matching transactions: table pages are distinct and exports start at p
   const all = await api.fetchAllRevenueDetails(request);
   assert.equal(all.length, 198);
   assert.equal(new Set(all.map(row => row.order_id)).size, 198);
+  const invoices = new Map(matching.map(p => [p.order.id, p.order.invoice_number]));
+  for (const row of all) assert.equal(row.invoice_number, invoices.get(row.order_id));
   assert.equal(api.urls.at(-1).searchParams.get('page'), '1');
   assert.ok(all.filter(row => row.payment_type === 'refund').every(row => row.amount === -100));
 });
@@ -245,7 +248,7 @@ test('actual PDF and Excel exporters contain all 198 fetched transactions', asyn
   });
   const columns = [
     { header: 'Date', key: 'date', format: 'date' },
-    { header: 'Order ID', key: 'order_id' },
+    { header: 'Invoice Number', key: 'invoice_number' },
     { header: 'Customer', key: 'customer_name' },
     { header: 'Type', key: 'payment_type' },
     { header: 'Payment Mode', key: 'payment_mode' },
@@ -269,6 +272,10 @@ test('actual PDF and Excel exporters contain all 198 fetched transactions', asyn
   assert.equal(sheet.F2.t, 'n', 'Amounts stay numeric for Excel totals');
   assert.equal(sheet.F2.z, '#,##0.00');
   for (const row of rows) {
+    const entry = excelRows.find(entry => entry.Customer === row.customer_name);
+    assert.equal(entry?.['Invoice Number'] || null, row.invoice_number);
+    if (row.invoice_number) assert.ok(pdfText.includes(row.invoice_number), `PDF missing ${row.invoice_number}`);
+    assert.ok(!pdfText.includes(row.order_id));
     assert.ok(pdfText.includes(row.customer_name), `PDF missing ${row.customer_name}`);
     assert.ok(excelRows.some(entry => entry.Customer === row.customer_name), `Excel missing ${row.customer_name}`);
   }

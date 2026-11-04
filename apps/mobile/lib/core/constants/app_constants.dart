@@ -44,6 +44,7 @@ class AppStrings {
   static const String newProduct = 'New Product';
   static const String unableToLoadDashboard = 'Unable to load dashboard';
   static const String retry = 'Retry';
+  static String transactionInvoice(String? number) => 'Invoice: ${number ?? '—'}';
   static const String invoiceSettings = 'Invoice Settings';
   static const String gstNumber = 'GST Number (GSTIN)';
   static const String gstNumberHelp =

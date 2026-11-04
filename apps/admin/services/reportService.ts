@@ -197,6 +197,7 @@ export class ReportService {
         created_at,
         order:order_id!inner (
           id,
+          invoice_number,
           status,
           branch_id,
           store_id,
@@ -227,6 +228,7 @@ export class ReportService {
 
     const formattedDetails = (rawDetails || []).map((p: any) => ({
       order_id: p.order?.id,
+      invoice_number: p.order?.invoice_number || null,
       customer_name: p.order?.customer?.name || 'Walk-in',
       date: p.payment_date,
       amount: p.payment_type === 'refund' || p.payment_type === 'cancelled_keep' ? -Number(p.amount) : Number(p.amount),

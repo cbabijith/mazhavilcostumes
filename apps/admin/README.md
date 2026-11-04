@@ -62,6 +62,8 @@ pnpm start
 
 ## Revenue report exports
 
+Each transaction in `data.details` includes the order's stored `invoice_number`, or `null` when unavailable. The transaction lists and exports use this field for the Invoice Number column.
+
 Revenue Report and Today's Revenue PDF/Excel downloads include all matching transactions, independently of the current table page. Exports load batches before creating the file and show an error if any batch fails or is incomplete.
 
 The Excel button downloads a real `.xlsx` workbook. Date columns use `dd/mm/yyyy` and saved widths that fit the complete date; CSV downloads could not preserve widths and Excel displayed `#######` in narrow date columns. Amounts remain numeric for spreadsheet totals, identifiers retain leading zeros, and blank/invalid dates are preserved without producing negative date values. Workbook generation is awaited so download failures are shown and the export button stays busy until generation finishes.

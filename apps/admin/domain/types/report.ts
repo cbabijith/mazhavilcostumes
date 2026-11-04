@@ -104,6 +104,7 @@ export interface RevenueRow {
 export interface RevenueDetailRow {
   date: string;
   order_id: string;
+  invoice_number: string | null;
   customer_name: string;
   payment_mode: string;
   payment_type: string;
