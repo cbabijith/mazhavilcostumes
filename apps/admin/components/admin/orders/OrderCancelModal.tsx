@@ -16,14 +16,14 @@ import React, { useState } from "react";
 import { XCircle, AlertTriangle, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/admin/Modal";
-import { type OrderWithRelations } from "@/domain";
+import { type OrderWithRelations, type UpdateOrderDTO } from "@/domain";
 import { formatCurrency } from "@/lib/shared-utils";
 
 interface OrderCancelModalProps {
   open: boolean;
   order: OrderWithRelations | null;
   onClose: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (data: UpdateOrderDTO) => Promise<unknown>;
   isPending?: boolean;
 }
 
@@ -35,17 +35,41 @@ function OrderCancelModalInner({
   isPending = false,
 }: OrderCancelModalProps) {
   const [reason, setReason] = useState("");
+  const [refund, setRefund] = useState("0");
+  const [mode, setMode] = useState<NonNullable<UpdateOrderDTO['refund_payment_mode']>>('cash');
+  const [stockReturned, setStockReturned] = useState(false);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const needsStockConfirmation = ['ongoing', 'in_use'].includes(order?.status || '');
+  const busy = isPending || saving;
   const hasPaidAmount = (order?.amount_paid || 0) > 0;
 
   const handleClose = () => {
+    if (busy) return;
     setReason("");
+    setRefund('0');
+    setStockReturned(false);
+    setError('');
     onClose();
   };
 
-  const handleConfirm = () => {
-    if (!reason.trim()) return;
-    onConfirm(reason.trim());
-    setReason("");
+  const handleConfirm = async () => {
+    const amount = Number(refund);
+    if (!reason.trim() || reason.trim().length > 2000) { setError('Enter a cancellation reason (maximum 2000 characters).'); return; }
+    if (!refund.trim() || !Number.isFinite(amount) || amount < 0 || amount > (order?.amount_paid || 0) || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001) {
+      setError('Refund must be between zero and the paid amount, with at most two decimal places.'); return;
+    }
+    if (needsStockConfirmation && !stockReturned) { setError('Confirm all outstanding costumes are back in usable condition.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await onConfirm({ cancellation_reason: reason.trim(), refund_amount: amount,
+        refund_payment_mode: mode, stock_returned: stockReturned });
+      setReason(''); setRefund('0'); setStockReturned(false);
+      onClose();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Cancellation failed. Please retry.');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -81,12 +105,35 @@ function OrderCancelModalInner({
                 Payment Collected: {formatCurrency(order!.amount_paid)}
               </p>
               <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                This order has payments recorded. After cancellation, you can
-                process a refund from the order detail page.
+                Record money refunded now. Any remainder stays Refund due;
+                use Keep Amount separately if the shop will retain it.
               </p>
             </div>
           </div>
         )}
+
+        {hasPaidAmount && (
+          <div className="space-y-3">
+            <label className="block text-sm font-semibold">Refund now (₹)
+              <input aria-label="Refund now" type="number" min="0" max={order!.amount_paid} step="0.01"
+                value={refund} disabled={busy} onChange={e => setRefund(e.target.value)} className="mt-1 w-full rounded border p-2" />
+            </label>
+            <Button variant="outline" disabled={busy} onClick={() => setRefund(String(order!.amount_paid))}>Full refund</Button>
+            <label className="block text-sm font-semibold">Refund mode
+              <select value={mode} disabled={busy} onChange={e => setMode(e.target.value as typeof mode)} className="mt-1 w-full rounded border p-2">
+                <option value="cash">Cash</option><option value="upi">UPI</option><option value="gpay">GPay</option>
+                <option value="bank_transfer">Bank transfer</option><option value="cheque">Cheque</option>
+              </select>
+            </label>
+          </div>
+        )}
+        {needsStockConfirmation && (
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" checked={stockReturned} disabled={busy} onChange={e => setStockReturned(e.target.checked)} />
+            All outstanding costumes are back in usable condition. Restore them to stock.
+          </label>
+        )}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
 
         {/* Mandatory Reason */}
         <div className="space-y-2">
@@ -95,6 +142,8 @@ function OrderCancelModalInner({
           </label>
           <textarea
             value={reason}
+            disabled={busy}
+            maxLength={2000}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Enter the reason for cancelling this order..."
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none resize-y min-h-[80px]"
@@ -109,15 +158,15 @@ function OrderCancelModalInner({
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <Button variant="outline" onClick={handleClose} className="border-slate-200">
+          <Button variant="outline" disabled={busy} onClick={handleClose} className="border-slate-200">
             Keep Order
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!reason.trim() || isPending}
+            disabled={!reason.trim() || busy || (needsStockConfirmation && !stockReturned)}
             className={`text-white ${!reason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'}`}
           >
-            {isPending ? "Cancelling..." : "Cancel Order"}
+            {busy ? "Cancelling..." : "Cancel Order"}
           </Button>
         </div>
       </div>

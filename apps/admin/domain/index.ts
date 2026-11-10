@@ -30,6 +30,7 @@ export {
   CustomerSearchSchema,
   CreateOrderSchema,
   UpdateOrderSchema,
+  CancelOrderSchema,
   ReturnOrderSchema,
   CreateGallerySchema,
   UpdateGallerySchema,

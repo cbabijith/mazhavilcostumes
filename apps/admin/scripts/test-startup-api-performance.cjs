@@ -15,12 +15,12 @@ function load(relative, dependencies = {}) {
   const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }, fileName: filename,
   }).outputText;
-  const module = { exports: {} };
+  const loadedModule = { exports: {} };
   new Function('require', 'module', 'exports', compiled)(id => {
     assert.ok(Object.hasOwn(dependencies, id), `Unmocked dependency: ${id}`);
     return dependencies[id];
-  }, module, module.exports);
-  return module.exports;
+  }, loadedModule, loadedModule.exports);
+  return loadedModule.exports;
 }
 
 const userId = '11111111-1111-4111-8111-111111111111';

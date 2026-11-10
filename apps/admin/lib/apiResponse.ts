@@ -159,6 +159,10 @@ export function apiRepositoryError(
 
   // Map internal error codes → HTTP status
   const statusMap: Record<string, number> = {
+    '42501': 403,
+    P0002: 404,
+    P0001: 409,
+    PGRST202: 503,
     NOT_FOUND: 404,
     PRODUCT_NOT_FOUND: 404,
     CATEGORY_NOT_FOUND: 404,

@@ -6,6 +6,20 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 10, 2026 - Atomic ongoing cancellation
+- Route `PATCH /api/orders/:id` cancellations through `OrderCancellationService` and repository RPC `cancel_order`; use a request-local `OrderService` so staff attribution cannot cross requests.
+- Require reason, validate refund amount/mode and verify active staff/store/branch inside the transaction. Ongoing/in-use stock restoration requires physical-return confirmation and only restores `quantity - returned_quantity`; preserve earlier damaged/returned units. Roll back stock, ledger and status together on failure; repeat requests are idempotent.
+- Keep unpaid refunds as Refund due. Preserve original invoice totals/GST and existing receipt rows. Exclude cancelled rentals from booking business and GST filing; calculate net collections, cancellation totals and payment-mode totals from refunds consistently.
+- Migration `046_atomic_order_cancellation.sql` is a deployment prerequisite, not permission to execute live. Offline checks: `test-order-cancellation.cjs <pglite-path>` and `test-cancellation-reports.cjs` alongside the existing return/revenue suites.
+- Verify staff-facing list/detail rendering and authenticated request isolation with `node --test scripts/test-cancellation-staff.cjs`. Production integration preserves paginated reports, IST date grouping, finalized-only GST filing and item-level tax totals.
+
+## November 2, 2026 - Pre-push React and lint verification
+- Keep order-panel queries and status-badge hooks unconditional; disable item queries while no order is selected.
+- Declare sortable header components outside their parent render. Synchronize upload queue refs in an effect before processing the queue.
+- Selector functions retain their public properties but use named hook implementations. Revenue sorting memoizes the exact details value it reads.
+- Define staff-history loading before the effect that calls it. Use explicit booking-toggle branches, immutable API locals, and a non-reserved `loadedModule` name in offline test loaders to satisfy lint without changing their behavior.
+- Before pushing, run the admin production build, ESLint with zero warnings, and the offline regression suites.
+
 ## November 2, 2026 - API and database region alignment
 - `vercel.json` pins admin functions to Singapore (`sin1`), matching the verified production Supabase project in `ap-southeast-1`. The previous default `iad1` added long-distance round trips to each authentication and data stage.
 - Verify the production project, not a developer's `.env.local` or stale CLI pooler file, before changing regions. Confirm the deployed execution region using `x-vercel-id`, then measure fresh release-app responses using `Server-Timing` and HTTP elapsed time. Keep the existing cron schedule and authoritative per-request authorization.

@@ -104,6 +104,7 @@ export type {
 export {
   CreateOrderSchema,
   UpdateOrderSchema,
+  CancelOrderSchema,
   ReturnOrderSchema,
 } from './order.schema';
 

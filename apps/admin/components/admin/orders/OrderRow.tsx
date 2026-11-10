@@ -365,7 +365,7 @@ function OrderRowInner({
             <Printer className="w-4 h-4" />
           </Button>
 
-          {order.status === "scheduled" && (
+          {['pending', 'confirmed', 'scheduled', 'delivered', 'ongoing', 'in_use'].includes(order.status) && (
             <Button
               variant="ghost"
               size="icon"

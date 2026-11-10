@@ -375,6 +375,7 @@ export class ReportService {
         .select('damage_charges_total, late_fee', { count: 'exact' })
         .gte('updated_at', range.start)
         .lte('updated_at', range.end)
+        .neq('status', 'cancelled')
         .or('damage_charges_total.gt.0,late_fee.gt.0')
         .order('id', { ascending: true })
         .range(from, to);
@@ -527,7 +528,8 @@ export class ReportService {
       // ratio is clamped to [0, 1] and attributed nothing when total ≤ 0.
       const totalOrder = Number(order.total_amount || 0);
       const gstBase = itemGstMap[order.id] ?? Number(order.gst_amount ?? 0);
-      const gstRatio = totalOrder > 0 ? Math.min(gstBase / totalOrder, 1) : 0;
+      // Match GST filing: cancelled rentals contribute no rental GST.
+      const gstRatio = status !== 'cancelled' && totalOrder > 0 ? Math.min(gstBase / totalOrder, 1) : 0;
       const gstPortion = amount * gstRatio;
       const netPortion = amount - gstPortion;
 
@@ -544,7 +546,12 @@ export class ReportService {
         totalNetRevenue -= netPortion;
         totalGstCollected -= gstPortion;
         dailyTrends[istDate].cash -= amount;
-        if (status === 'cancelled') cancelledNet -= amount;
+        if (status === 'cancelled') { cancelledNet -= amount; g.cancelled_revenue -= amount; }
+        if (mode === 'cash') { g.cash_revenue -= amount; totalCash -= amount; }
+        else if (mode === 'upi') { g.upi_revenue -= amount; totalUpi -= amount; }
+        else if (mode === 'gpay') { g.gpay_revenue -= amount; totalGpay -= amount; }
+        else if (mode === 'bank_transfer') { g.bank_transfer_revenue -= amount; totalBankTransfer -= amount; }
+        else { g.other_revenue -= amount; }
       } else if (isCancelledKeep) {
         // Money KEPT from a cancellation is real money in hand: it belongs in
         // collections, the mode split, and the net-cancellations card. The old

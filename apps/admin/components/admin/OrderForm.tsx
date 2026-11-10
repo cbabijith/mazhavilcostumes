@@ -1152,7 +1152,11 @@ export default function OrderForm({ initialData }: OrderFormProps) {
                                             type="button"
                                             onClick={() => setExpandedBookings(prev => {
                                               const next = new Set(prev);
-                                              next.has(expandKey) ? next.delete(expandKey) : next.add(expandKey);
+                                              if (next.has(expandKey)) {
+                                                next.delete(expandKey);
+                                              } else {
+                                                next.add(expandKey);
+                                              }
                                               return next;
                                             })}
                                             className="text-[9px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5 transition-colors"

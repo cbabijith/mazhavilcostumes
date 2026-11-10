@@ -204,6 +204,9 @@ export interface CreateOrderDTO {
 
 // Order Update DTO
 export interface UpdateOrderDTO {
+  refund_amount?: number;
+  refund_payment_mode?: 'cash' | 'upi' | 'gpay' | 'bank_transfer' | 'cheque';
+  stock_returned?: boolean;
   status?: OrderStatus;
   start_date?: string;
   end_date?: string;

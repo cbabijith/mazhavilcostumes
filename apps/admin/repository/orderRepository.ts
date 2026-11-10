@@ -25,6 +25,27 @@ const BUFFER_DAYS = 1;
 const BUFFER_MS = BUFFER_DAYS * 86400000;
 
 export class OrderRepository extends BaseRepository {
+  /**
+   * Persist cancellation, optional refund and stock restoration atomically.
+   * @param orderId Order to cancel.
+   * @param data Validated cancellation fields.
+   * @param staffId Authenticated staff identity, never supplied by the client.
+   * @returns The cancelled order or a database error; never throws.
+   */
+  async cancelOrder(orderId: string, data: UpdateOrderDTO, staffId: string): Promise<RepositoryResult<Order>> {
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('cancel_order', {
+        p_order_id: orderId,
+        p_staff_id: staffId,
+        p_reason: data.cancellation_reason,
+        p_refund_amount: data.refund_amount ?? 0,
+        p_refund_mode: data.refund_payment_mode ?? null,
+        p_stock_returned: data.stock_returned ?? false,
+      });
+      return this.handleResponse<Order>(response);
+    });
+  }
+
   private readonly tableName = 'orders';
   private readonly orderItemsTable = 'order_items';
   private readonly orderStatusHistoryTable = 'order_status_history';

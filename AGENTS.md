@@ -826,6 +826,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 1. ALWAYS check the build for type issues (pnpm lint or 	sc --noEmit) after every significant change.
 2. If any runtime issues (e.g. React.Children.only Slot errors) or build issues are found, solve them PROPERLY before concluding the task.
 
+## Ongoing cancellation
+- Staff may cancel pending, confirmed, scheduled, delivered, ongoing and in-use orders within their store/branch through the guarded order API.
+- Use the atomic `cancel_order` transaction, a required reason and explicit usable-stock return confirmation for active rentals. Restore only outstanding units and keep refunds in the payment ledger.
+- Any unrefunded paid amount remains Refund due until the existing explicit Keep Amount action is used. Preserve invoice totals/GST for audit and exclude cancelled rentals from business/GST reports.
+- Migration 046 requires explicit permission for live application; never cancel a real order to smoke-test a deployment.
+
 ## 27. Graphify — query the graph, don't grep (2026-09-20)
 This repo ships a code knowledge graph (`graphify-out/`, rebuilt automatically by the post-commit/post-checkout git hooks; AST-only, 0 tokens).
 1. For any "where is X / how does X connect to Y / what calls Z" question, run `graphify query "..."` FIRST (keyword-style terms work best, e.g. `graphify query "auth"`); only open files it names (plus files you must edit). Also available: `graphify explain "NodeName"`, `graphify path "A" "B"`, `graphify affected "X"`, `graphify god-nodes`.

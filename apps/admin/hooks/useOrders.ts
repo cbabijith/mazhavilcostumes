@@ -13,7 +13,7 @@ import { useQuery, useMutation, useQueryClient, useInfiniteQuery, keepPreviousDa
 import { Order, OrderWithRelations, CreateOrderDTO, UpdateOrderDTO, OrderSearchParams, ReturnOrderDTO, OrderStatusHistory } from '@/domain/types/order';
 import { useAppStore } from '@/stores';
 import type { ApiSuccessResponse, PaginationMeta } from '@/lib/apiResponse';
-import { queryKeys } from '@/lib/query-client';
+import { queryKeys, queryUtils } from '@/lib/query-client';
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -200,6 +200,9 @@ export function useUpdateOrder() {
       return { previousLists };
     },
     onSuccess: async (_res, variables) => {
+      if (variables.data.status === 'cancelled') {
+        await queryUtils.invalidateCancellation(queryClient);
+      }
       // Invalidate detail cache to trigger findById refetch with full relations
       await queryClient.invalidateQueries({ queryKey: queryKeys.orderDetail(variables.id) });
       await queryClient.invalidateQueries({ queryKey: queryKeys.orderLists() });

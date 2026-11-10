@@ -278,16 +278,16 @@ export const useAppStore = create<AppStore>()(
   )
 );
 export const useAppSelectors = {
-  user: () => useAppStore((s) => s.user),
-  isAuthenticated: () => useAppStore((s) => s.isAuthenticated),
-  isLoading: () => useAppStore((s) => s.isLoading),
-  sidebarCollapsed: () => useAppStore((s) => s.sidebarCollapsed),
-  notifications: () => useAppStore((s) => s.notifications),
-  globalLoading: () => useAppStore((s) => s.globalLoading),
-  selectedBranchId: () => useAppStore((s) => s.selectedBranchId),
-  storeId: () => useAppStore((s) => s.storeId),
-  showSuccess: () => useAppStore((s) => s.showSuccess),
-  showError: () => useAppStore((s) => s.showError),
+  user: function useUser() { return useAppStore((s) => s.user); },
+  isAuthenticated: function useIsAuthenticated() { return useAppStore((s) => s.isAuthenticated); },
+  isLoading: function useIsLoading() { return useAppStore((s) => s.isLoading); },
+  sidebarCollapsed: function useSidebarCollapsed() { return useAppStore((s) => s.sidebarCollapsed); },
+  notifications: function useNotifications() { return useAppStore((s) => s.notifications); },
+  globalLoading: function useGlobalLoading() { return useAppStore((s) => s.globalLoading); },
+  selectedBranchId: function useSelectedBranchId() { return useAppStore((s) => s.selectedBranchId); },
+  storeId: function useStoreId() { return useAppStore((s) => s.storeId); },
+  showSuccess: function useShowSuccess() { return useAppStore((s) => s.showSuccess); },
+  showError: function useShowError() { return useAppStore((s) => s.showError); },
 };
 
 // Utility functions for common operations

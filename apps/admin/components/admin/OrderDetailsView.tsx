@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Modal from "@/components/admin/Modal";
+import { OrderCancelModal } from "@/components/admin/orders";
 import {
   useOrder,
   useOrderStatusHistory,
@@ -43,7 +44,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   // We keep history for potential future use but hide it from the 2-second UX glance
   const { data: historyResponse } = useOrderStatusHistory(orderId);
   const { processOrderReturn, isPending: isReturning } = useProcessOrderReturn();
-  const { updateOrder, isLoading: isUpdating } = useUpdateOrder();
+  const { updateOrder, mutateAsync: updateOrderAsync, isLoading: isUpdating } = useUpdateOrder();
   const { createPayment, isPending: isCreatingPayment } = useCreatePayment();
   const { updatePayment, isPending: isUpdatingPayment } = useUpdatePayment();
   const { deletePayment, isLoading: isDeletingPayment } = useDeletePayment();
@@ -75,7 +76,6 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     amount: "0",
   });
   const [isCancellationRefund, setIsCancellationRefund] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
   const [isReturnConfirmOpen, setIsReturnConfirmOpen] = useState(false);
 
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
@@ -1011,6 +1011,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="bg-slate-50 px-6 py-5 border-b border-slate-200 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
               <h2 className="text-lg font-bold text-slate-900 uppercase tracking-wide">Order Items</h2>
+              {['ongoing', 'in_use', 'delivered'].includes(order.status) && (
+                <Button variant="outline" disabled={isUpdating} onClick={() => setIsCancelModalOpen(true)} className="text-red-600">
+                  <XCircle className="mr-2 h-4 w-4" /> Cancel Order
+                </Button>
+              )}
               {isReturnable && (
                 <div className="flex items-center gap-2">
                   <Button onClick={handleMarkAllExcellent} variant="outline" className="font-bold border-slate-300 text-slate-700">
@@ -2157,84 +2162,14 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
         </div>
       </Modal>
 
-      {/* Cancel Order Modal — with mandatory reason */}
-      {(() => {
-        const hasPaid = (order.amount_paid || 0) > 0;
-        return (
-          <Modal
-            open={isCancelModalOpen}
-            onClose={() => { setIsCancelModalOpen(false); setCancelReason(""); }}
-            title="Cancel Order"
-            maxWidth="max-w-lg"
-          >
-            <div className="p-6 space-y-5">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-                  <XCircle className="w-5 h-5 text-red-600" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-900 mb-1">Confirm Cancellation</h4>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    Are you sure you want to cancel order <span className="font-semibold text-slate-900">{order.invoice_number || `#${order.id.slice(0, 6).toUpperCase()}`}</span>? This action cannot be undone.
-                  </p>
-                </div>
-              </div>
-
-              {/* Refund Warning */}
-              {hasPaid && (
-                <div className="flex items-start gap-3 p-3.5 bg-amber-50 border border-amber-200 rounded-lg">
-                  <Banknote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      Payment Collected: {formatCurrency(order.amount_paid)}
-                    </p>
-                    <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-                      After cancellation, you can process a refund from the order detail page.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Mandatory Reason */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-900">
-                  Reason for Cancellation <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Enter the reason for cancelling this order..."
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none resize-y min-h-[80px]"
-                  rows={3}
-                  autoFocus
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <Button variant="outline" onClick={() => { setIsCancelModalOpen(false); setCancelReason(""); }} className="h-12 px-6 rounded-xl font-bold border-slate-200 text-slate-600 hover:bg-slate-50">Keep Order</Button>
-                <Button
-                  onClick={() => {
-                    updateOrder({
-                      id: order.id,
-                      data: {
-                        status: OrderStatus.CANCELLED,
-                        cancellation_reason: cancelReason.trim(),
-                        cancelled_at: new Date().toISOString(),
-                      } as any,
-                    });
-                    setIsCancelModalOpen(false);
-                    setCancelReason("");
-                  }}
-                  disabled={isUpdating || !cancelReason.trim()}
-                  className={`h-12 px-8 rounded-xl font-bold text-white shadow-md ${!cancelReason.trim() ? 'bg-slate-300 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'}`}
-                >
-                  {isUpdating ? "Cancelling..." : "Cancel Order"}
-                </Button>
-              </div>
-            </div>
-          </Modal>
-        );
-      })()}
+      <OrderCancelModal
+        key={`${order.id}-${isCancelModalOpen}`}
+        open={isCancelModalOpen}
+        order={order}
+        onClose={() => setIsCancelModalOpen(false)}
+        isPending={isUpdating}
+        onConfirm={data => updateOrderAsync({ id: order.id, data: { ...data, status: OrderStatus.CANCELLED } })}
+      />
 
       {/* Stock Insufficient Modal */}
       <Modal
