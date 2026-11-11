@@ -7,7 +7,9 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { test } = require('node:test');
+const { test, after } = require('node:test');
+const { returnSnapshot, closeReturnFixture } = require('./helpers/stock-test-db.cjs');
+after(closeReturnFixture);
 const ts = require('typescript');
 
 /** Load the production repository with database imports explicitly blocked. */
@@ -18,6 +20,9 @@ function loadRepository() {
     fileName: filename,
   }).outputText;
   class BaseRepository {
+    async executeOperation(operation) {
+      try { return await operation(); } catch(error) { return {data:null,error,success:false}; }
+    }
     handleResponse(response) {
       return { data: response.error ? null : response.data, error: response.error, success: !response.error };
     }
@@ -46,13 +51,19 @@ function setup(orderOverrides = {}, itemOverrides = [], failSnapshotTable = null
   }));
   const rows = {
     orders: [order], order_items: items, order_status_history: [],
-    products: [{ id: 'product-1', available_quantity: 5 }],
+    products: [{ id: 'product-1', available_quantity: 5, quantity: 5 + items.reduce((n,i)=>n+i.quantity-(i.returned_quantity||0),0) }],
     product_inventory: [{ product_id: 'product-1', branch_id: 'branch-1', available_quantity: 5 }],
   };
   const writes = [];
   const reads = new Map();
   const repository = new OrderRepository();
   repository.client = {
+    async rpc(name,args) {
+      assert.equal(name,'return_order_stock_safe');
+      if(failSnapshotTable) return {data:null,error:{message:'Atomic return failed',code:'DB_ERROR'}};
+      try { const data=await returnSnapshot(rows,args.p_data);writes.push({table:'atomic_return'});return {data,error:null}; }
+      catch(error){return {data:null,error};}
+    },
     from(table) {
       assert.ok(Object.hasOwn(rows, table), `Unexpected table: ${table}`);
       return {
@@ -206,7 +217,7 @@ test('numeric strings and paise keep rounded financial totals', async () => {
 });
 
 for (const table of ['orders', 'order_items']) {
-  test(`failed ${table} snapshot prevents financial or inventory writes`, async () => {
+  test(`failed atomic return preserves all financial and inventory writes (${table} fixture)`, async () => {
     const state = setup({}, [], table);
     const result = await state.repository.processReturn('order-1', { items: [returnItem()] });
     assert.equal(result.success, false);

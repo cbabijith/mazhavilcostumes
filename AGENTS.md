@@ -840,3 +840,11 @@ This repo ships a code knowledge graph (`graphify-out/`, rebuilt automatically b
 4. NEVER commit `graphify-out/` or `graph.json` (gitignored; rebuild locally).
 5. Never add docs/PDFs/images to the graph — code only, so builds stay at 0 tokens (fresh builds: `graphify . --code-only`, then `graphify cluster-only . --no-label`).
 6. SECURITY: graphify stays LOCAL-ONLY in this repo — `query`/`explain`/`path`/`update` are local operations. NEVER feed `.env*`, secrets, keys, or any credentials into the graph or any graphify command; never use `graphify add <url>`, `--global`, or any hosted/cloud feature; never set a graphify LLM-backend API key for this repo.
+
+
+## Stock integrity (November 11, 2026)
+- Product edits must preserve unavailable units: `new_available = old_available + new_total - old_total`. Never reset availability to total on edit, even when an older client supplies `available_quantity`. Branch allocation edits follow the same rule.
+- Rental starts, item-quantity edits, cumulative returns and order deletion use the server-only stock RPCs in migration 048. Lock the order, items and products in stable order; commit stock and corresponding order/item changes together. Do not reintroduce separate read/modify/write inventory increments or clamp insufficient stock to zero.
+- Migration 049 adds database stock bounds after the matching API is deployed. Its NOT VALID constraints preserve legacy rows but reject invalid new/updated rows. Existing discrepancies require a reviewed physical-count reconciliation; never silently cap or guess them.
+- Rollout order: explicitly authorized migration 048, matching API deployment, then explicitly authorized migration 049. Migration 047 remains the cancellation prerequisite. These migrations do not backfill orders, payments or stock.
+- Verify `test-stock-integrity.cjs`, `test-order-return-adjustments.cjs`, cancellation/report regressions and the build/lint checks. Set `PGLITE_PATH` for disposable SQL tests. `test-stock-concurrency.py` additionally checks separate PostgreSQL connections against a dedicated local `stock_test` cluster; never point tests at live services.

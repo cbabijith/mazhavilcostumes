@@ -100,14 +100,12 @@ export class BranchInventoryRepository extends BaseRepository {
    * Update branch inventory
    */
   async updateBranchInventory(id: string, inventory: UpdateBranchInventoryDTO): Promise<RepositoryResult<BranchInventory>> {
-    const { data, error } = await this.client
-      .from('product_inventory')
-      .update(inventory)
-      .eq('id', id)
-      .select()
-      .single();
-
-    return this.handleResponse({ data: data as any, error });
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('update_branch_inventory_stock_safe', {
+        p_id: id, p_patch: inventory, p_adjustment: null,
+      });
+      return this.handleResponse<BranchInventory>(response);
+    });
   }
 
   /**
@@ -136,21 +134,12 @@ export class BranchInventoryRepository extends BaseRepository {
       return { success: false, data: null, error: { message: 'Inventory not found', code: 'NOT_FOUND' } as any };
     }
 
-    const current = currentResult.data;
-    const newQuantity = Math.max(0, current.quantity + adjustment);
-    const newAvailable = Math.max(0, Math.min(current.available_quantity + adjustment, newQuantity));
-
-    const { data, error } = await this.client
-      .from('product_inventory')
-      .update({
-        quantity: newQuantity,
-        available_quantity: newAvailable,
-      })
-      .eq('id', current.id)
-      .select()
-      .single();
-
-    return this.handleResponse({ data: data as any, error });
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('update_branch_inventory_stock_safe', {
+        p_id: currentResult.data!.id, p_patch: {}, p_adjustment: adjustment,
+      });
+      return this.handleResponse<BranchInventory>(response);
+    });
   }
 
   /**

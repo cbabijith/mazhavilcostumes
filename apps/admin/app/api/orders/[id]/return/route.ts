@@ -10,7 +10,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { orderService } from "@/services/orderService";
+import { OrderService } from "@/services";
 import { apiGuard } from "@/lib/apiGuard";
 import { apiSuccess, apiRepositoryError, apiInternalError } from "@/lib/apiResponse";
 
@@ -25,6 +25,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (guard.error) return guard.error;
 
     const authUser = guard.user;
+    const orderService = new OrderService();
     orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
 
     const { id } = await params;

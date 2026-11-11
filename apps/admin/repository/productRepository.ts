@@ -296,18 +296,16 @@ export class ProductRepository extends BaseRepository {
    * Update an existing product
    */
   async update(id: string, data: UpdateProductDTO): Promise<RepositoryResult<Product>> {
-    const response = await this.client
-      .from(this.tableName)
-      .update({
-        ...data,
-        updated_at: new Date().toISOString(),
-        ...this.getUpdateAuditFields(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    return this.handleResponse<Product>(response);
+    return this.executeOperation(async () => {
+      const { branch_inventory, removed_inventory_ids, ...patch } = data;
+      const response = await this.client.rpc('update_product_stock_safe', {
+        p_id: id,
+        p_patch: { ...patch, ...this.getUpdateAuditFields() },
+        p_inventory: branch_inventory ?? null,
+        p_removed: removed_inventory_ids ?? [],
+      });
+      return this.handleResponse<Product>(response);
+    });
   }
 
   /**

@@ -803,7 +803,7 @@ export class OrderService {
     }
 
     const dbStart = performance.now();
-    const result = await orderRepository.update(id, data);
+    const result = await orderRepository.update(id, data, this.currentUserId);
     const dbDuration = performance.now() - dbStart;
     console.log(`[OrderService.updateOrder] DB update duration: ${dbDuration.toFixed(2)}ms`);
 
@@ -1050,25 +1050,10 @@ export class OrderService {
       .map((item: any) => item.product_id)
       .filter(Boolean);
 
-    // 1. Delete this order's SCHEDULED cleaning records BEFORE deleting the order.
-    //    Keep in_progress/completed records — they represent real physical work.
-    try {
-      const ownRecords = await cleaningRepository.findByOrderId(id);
-      if (ownRecords.success && ownRecords.data) {
-        for (const record of ownRecords.data) {
-          if (record.status === CleaningStatus.SCHEDULED) {
-            await cleaningRepository.delete(record.id);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to delete cleaning records for order:', err);
-    }
+    // Delete the order, scheduled cleaning and outstanding stock together.
+    const deleteResult = await orderRepository.delete(id, this.currentUserId);
 
-    // 2. Delete the order itself
-    const deleteResult = await orderRepository.delete(id);
-
-    // 3. Recalculate priority cleaning for each affected product in parallel in the background (non-blocking)
+    // Recalculate priority cleaning after the deletion commits.
     //    (runs AFTER delete so the deleted order won't appear in active orders)
     if (deleteResult.success) {
       Promise.all(affectedProductIds.map(async (productId) => {
@@ -1141,7 +1126,7 @@ export class OrderService {
     // FLAGGED is allowed: orders flagged for damage may still have unreturned
     // items out with the customer that come back days later.
     const currentStatus = existingOrder.data.status;
-    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL && currentStatus !== OrderStatus.FLAGGED) {
+    if (currentStatus !== OrderStatus.IN_USE && currentStatus !== OrderStatus.ONGOING && currentStatus !== OrderStatus.PARTIAL && currentStatus !== OrderStatus.FLAGGED && currentStatus !== OrderStatus.RETURNED && currentStatus !== OrderStatus.COMPLETED) {
       return {
         data: null,
         error: {
@@ -1275,7 +1260,9 @@ export class OrderService {
       };
     }
 
-    const result = await orderRepository.processReturn(orderId, returnData);
+    const result = await orderRepository.processReturn(orderId, returnData, this.currentUserId);
+    // A verified retry on a finalized order needs no further settlement/cleaning.
+    if (currentStatus === OrderStatus.RETURNED || currentStatus === OrderStatus.COMPLETED) return result;
 
     if (result.success && result.data) {
       // Clear dashboard cache immediately (in-memory, non-blocking)

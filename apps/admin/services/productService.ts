@@ -290,46 +290,11 @@ export class ProductService {
       }
     }
 
-    // Extract branch_inventory and removed_inventory_ids before updating product
-    const { branch_inventory, removed_inventory_ids, ...restData } = data;
-
-    // Update product
-    const updateResult = await productRepository.update(id, restData as UpdateProductDTO);
-    
-    if (!updateResult.success || !updateResult.data) {
-      return updateResult;
-    }
-
-    const adminClient = (await import('@/lib/supabase/server')).createAdminClient();
-
-    // Process branch inventory deletions if any
-    if (removed_inventory_ids && removed_inventory_ids.length > 0) {
-      await adminClient
-        .from('product_inventory')
-        .delete()
-        .in('id', removed_inventory_ids);
-    }
-
-    // Process branch inventory bulk upsert
-    if (branch_inventory && branch_inventory.length > 0) {
-      const upsertPayload = branch_inventory.map(inv => {
-        const payload: any = {
-          product_id: id,
-          branch_id: inv.branch_id,
-          quantity: inv.quantity || 0,
-          available_quantity: inv.quantity || 0,
-          low_stock_threshold: restData.low_stock_threshold ?? existingProduct.data!.low_stock_threshold ?? 5,
-        };
-        if (inv.id) {
-          payload.id = inv.id;
-        }
-        return payload;
-      });
-
-      await adminClient
-        .from('product_inventory')
-        .upsert(upsertPayload, { onConflict: 'product_id, branch_id' });
-    }
+    // The database locks the product and preserves unavailable units while
+    // changing totals and branch allocations together. Client availability is
+    // deliberately ignored, including payloads from older mobile builds.
+    const updateResult = await productRepository.update(id, data);
+    if (!updateResult.success || !updateResult.data) return updateResult;
 
     // PROACTIVE CONFLICT DETECTION
     // If quantity was updated, re-evaluate all future orders for this product

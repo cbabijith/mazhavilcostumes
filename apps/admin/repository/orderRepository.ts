@@ -1205,7 +1205,7 @@ export class OrderRepository extends BaseRepository {
   /**
    * Update an existing order
    */
-  async update(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<Order>> {
+  async update(id: string, data: UpdateOrderDTO, staffId: string | null = null): Promise<RepositoryResult<Order>> {
     // Fetch existing order to check status transitions
     const oldOrderResponse = await this.client
       .from(this.tableName)
@@ -1213,8 +1213,9 @@ export class OrderRepository extends BaseRepository {
       .eq('id', id)
       .single();
       
-    const oldStatus = oldOrderResponse.data?.status;
-    const branchId = oldOrderResponse.data?.branch_id;
+    if (oldOrderResponse.error || !oldOrderResponse.data) {
+      return this.handleResponse<Order>(oldOrderResponse as any);
+    }
 
     // Normalize date fields to 'YYYY-MM-DD' for DATE columns
     const normalizedData: Record<string, any> = { ...data };
@@ -1237,15 +1238,7 @@ export class OrderRepository extends BaseRepository {
     // Extract items to handle them separately
     const { items, ...orderData } = normalizedData;
 
-    const response = await this.client
-      .from(this.tableName)
-      .update({
-        ...orderData,
-        ...this.getUpdateAuditFields(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    let itemPayloads: Record<string, unknown>[] | null = null;
 
     // If items are provided, sync them.
     // IMPORTANT: an empty items array (`[]`) is treated as "no item change",
@@ -1254,21 +1247,14 @@ export class OrderRepository extends BaseRepository {
     // (orders left with zero items) when a PATCH arrives with items: [].
     // Only a non-empty items array triggers the differential sync.
     if (items && Array.isArray(items) && items.length > 0) {
-      // 1. Fetch existing items first to perform differential update
-      const { data: existingItems } = await this.client
-        .from(this.orderItemsTable)
-        .select('*')
-        .eq('order_id', id);
-
-      const existingItemsList = existingItems || [];
-
-      // 2. Fetch current GST rates for updated items
+      // Fetch current GST rates before constructing the atomic edit payload.
       const productIds = items.map((item: any) => item.product_id);
-      const { data: products } = await this.client
+      const { data: products, error: productError } = await this.client
         .from('products')
         .select('id, categories:category_id(gst_percentage)')
         .in('id', productIds);
       
+      if (productError) return { data: null, error: productError, success: false };
       const perItemGstRates = new Map<string, number>();
       if (products) {
         for (const p of products) {
@@ -1287,8 +1273,7 @@ export class OrderRepository extends BaseRepository {
       const rentalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
       const pricingMultiplier = Math.max(1, rentalDays - 2);
 
-      const incomingProductIds = new Set(productIds);
-      const itemsToInsert: any[] = [];
+      itemPayloads = [];
 
       for (const item of items) {
         const lineTotal = item.price_per_day * item.quantity * pricingMultiplier;
@@ -1306,8 +1291,6 @@ export class OrderRepository extends BaseRepository {
           itemBase = lineAfterDiscount - itemGst;
         }
 
-        const existingMatch = existingItemsList.find(ei => ei.product_id === item.product_id);
-
         const itemPayload = {
           order_id: id,
           product_id: item.product_id,
@@ -1322,146 +1305,29 @@ export class OrderRepository extends BaseRepository {
           gst_amount: Math.round(itemGst * 100) / 100,
         };
 
-        if (existingMatch) {
-          // Update in-place to preserve returned_quantity and other return-specific metadata
-          await this.client
-            .from(this.orderItemsTable)
-            .update(itemPayload)
-            .eq('id', existingMatch.id);
-        } else {
-          // Add to insert queue
-          itemsToInsert.push(itemPayload);
-        }
-      }
-
-      // 3. Insert new items (if any)
-      if (itemsToInsert.length > 0) {
-        await this.client.from(this.orderItemsTable).insert(itemsToInsert);
-      }
-
-      // 4. Delete removed items (if any)
-      const itemsToDelete = existingItemsList.filter(ei => !incomingProductIds.has(ei.product_id));
-      if (itemsToDelete.length > 0) {
-        const deleteIds = itemsToDelete.map(ei => ei.id);
-        await this.client.from(this.orderItemsTable).delete().in('id', deleteIds);
+        itemPayloads.push(itemPayload);
       }
     }
 
-    // If status changed to ongoing/in_use, decrement stock
-    if (data.status && oldStatus && branchId) {
-      const isStarting = ['ongoing', 'in_use'].includes(data.status) &&
-                         !['ongoing', 'in_use', 'returned', 'completed'].includes(oldStatus);
-      const isCancelling = data.status === 'cancelled' && 
-                           ['ongoing', 'in_use'].includes(oldStatus);
-                           
-      if (isStarting || isCancelling) {
-        const itemsRes = await this.client.from(this.orderItemsTable).select('product_id, quantity').eq('order_id', id);
-        if (itemsRes.data) {
-          await Promise.all(itemsRes.data.map(async (item) => {
-            const qtyChange = isStarting ? item.quantity : -item.quantity;
-            
-            const { data: inv } = await this.client.from('product_inventory').select('available_quantity').eq('product_id', item.product_id).eq('branch_id', branchId).single();
-            if (inv) {
-              await this.client.from('product_inventory').update({ available_quantity: Math.max(0, inv.available_quantity - qtyChange) }).eq('product_id', item.product_id).eq('branch_id', branchId);
-            }
-            
-            const { data: prod } = await this.client.from('products').select('available_quantity').eq('id', item.product_id).single();
-            if (prod) {
-              await this.client.from('products').update({ available_quantity: Math.max(0, prod.available_quantity - qtyChange) }).eq('id', item.product_id);
-            }
-          }));
-        }
-      }
-    }
-
-    // If status changed, add to history
-    if (data.status) {
-      await this.client
-        .from(this.orderStatusHistoryTable)
-        .insert({
-          order_id: id,
-          status: data.status,
-          changed_by: null,
-        });
-    }
-
-    const result = this.handleResponse<Order>(response);
-    
-    if (!result.success || !result.data) {
-      return result;
-    }
-
-    // Returns bare Order (no joins). Hooks invalidate the detail cache
-    // to trigger a fresh findById refetch with full relations.
-    return result;
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('update_order_stock_safe', {
+        p_id: id,
+        p_patch: { ...orderData, ...this.getUpdateAuditFields() },
+        p_items: itemPayloads,
+        p_staff: staffId,
+      });
+      return this.handleResponse<Order>(response);
+    });
   }
 
   /**
    * Delete an order
    */
-  async delete(id: string): Promise<RepositoryResult<void>> {
-    // Fetch the order to check if we need to restore stock
-    const orderResponse = await this.client
-      .from(this.tableName)
-      .select('status, branch_id')
-      .eq('id', id)
-      .single();
-
-    if (orderResponse.data) {
-      const status = orderResponse.data.status;
-      const branchId = orderResponse.data.branch_id;
-      
-      // These statuses mean the items have decremented the available_quantity
-      if (['ongoing', 'in_use', 'partial', 'flagged'].includes(status)) {
-        const itemsRes = await this.client
-          .from(this.orderItemsTable)
-          .select('product_id, quantity, returned_quantity')
-          .eq('order_id', id);
-
-        if (itemsRes.data) {
-          for (const item of itemsRes.data) {
-            const unreturnedQuantity = item.quantity - (item.returned_quantity || 0);
-            if (unreturnedQuantity > 0) {
-              // Restore inventory
-              const { data: inv } = await this.client
-                .from('product_inventory')
-                .select('available_quantity')
-                .eq('product_id', item.product_id)
-                .eq('branch_id', branchId)
-                .single();
-                
-              if (inv) {
-                await this.client
-                  .from('product_inventory')
-                  .update({ available_quantity: inv.available_quantity + unreturnedQuantity })
-                  .eq('product_id', item.product_id)
-                  .eq('branch_id', branchId);
-              }
-              
-              const { data: prod } = await this.client
-                .from('products')
-                .select('available_quantity')
-                .eq('id', item.product_id)
-                .single();
-                
-              if (prod) {
-                await this.client
-                  .from('products')
-                  .update({ available_quantity: prod.available_quantity + unreturnedQuantity })
-                  .eq('id', item.product_id);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    const response = await this.client
-      .from(this.tableName)
-      .delete()
-      .eq('id', id);
-
-    return this.handleResponse<void>(response);
+  async delete(id: string, staffId: string | null = null): Promise<RepositoryResult<void>> {
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('delete_order_stock_safe', { p_id: id, p_staff: staffId });
+      return this.handleResponse<void>(response);
+    });
   }
 
   /**
@@ -1741,209 +1607,15 @@ export class OrderRepository extends BaseRepository {
    * @param returnData Item assessments, absolute late fee, and additional discount.
    * @returns The updated order or a repository error.
    */
-  async processReturn(orderId: string, returnData: ReturnOrderDTO): Promise<RepositoryResult<Order>> {
-    // Determine final status based on return condition
-    let newStatus = 'returned';
-
-    // Snapshot finances before replacing item assessments. Saved totals already
-    // include order discounts and extra charges that are not stored on items.
-    const [currentOrderResponse, priorItemsResponse] = await Promise.all([
-      this.client
-        .from(this.tableName)
-        .select('total_amount, discount, late_fee, damage_charges_total, amount_paid, payment_status')
-        .eq('id', orderId)
-        .single(),
-      this.client
-        .from(this.orderItemsTable)
-        .select('id, quantity, returned_quantity, product_id, damage_charges, damaged_quantity, orders(branch_id)')
-        .eq('order_id', orderId),
-    ]);
-    if (currentOrderResponse.error || !currentOrderResponse.data) {
-      return { data: null, error: currentOrderResponse.error, success: false };
-    }
-    if (priorItemsResponse.error) {
-      return { data: null, error: priorItemsResponse.error, success: false };
-    }
-    const currentOrder = currentOrderResponse.data;
-    const orderItems = priorItemsResponse.data || [];
-    const priorItemDamage = orderItems.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0);
-    const orderLevelDamage = Math.max(0, Number(currentOrder.damage_charges_total || 0) - priorItemDamage);
-
-    // Create a map for quick O(1) lookup
-    const orderItemsMap = new Map<string, { id: string; quantity: number; returned_quantity: number; damage_charges: number; damaged_quantity: number; product_id: string; branch_id: string }>();
-    if (orderItems) {
-      for (const item of orderItems) {
-        const branchId = (item as any).orders?.branch_id || (item as any).orders?.[0]?.branch_id || '';
-        orderItemsMap.set(item.id, {
-          id: item.id,
-          quantity: item.quantity || 0,
-          returned_quantity: item.returned_quantity || 0,
-          damage_charges: item.damage_charges || 0,
-          damaged_quantity: item.damaged_quantity || 0,
-          product_id: item.product_id,
-          branch_id: branchId
-        });
-      }
-    }
-
-    // 2. Update order items and inventory in parallel
-    await Promise.all(
-      returnData.items.map(async (item) => {
-        const orderItem = orderItemsMap.get(item.item_id);
-        const oldReturnedQuantity = orderItem?.returned_quantity || 0;
-        const quantityToIncrement = Math.max(0, (item.returned_quantity || 0) - oldReturnedQuantity);
-
-        // Batch the database operations for this item
-        const itemOperations: Promise<any>[] = [
-          this.client
-            .from(this.orderItemsTable)
-            .update({
-              // Only flag as fully returned when every unit of the item is back;
-              // partially returned items keep is_returned=false so the UI can
-              // surface them as "pending return" until the remainder arrives.
-              is_returned: (item.returned_quantity || 0) >= (orderItem?.quantity ?? item.returned_quantity ?? 0),
-              returned_at: new Date().toISOString(),
-              returned_quantity: item.returned_quantity,
-              condition_rating: item.condition_rating,
-              damage_description: item.damage_description || null,
-              // Damage already recorded in an earlier return must survive a
-              // later submission that doesn't restate it (e.g. the remaining
-              // units come back in Good condition) — otherwise the order total
-              // recomputation would silently drop the previously charged fee.
-              damage_charges: Math.max(item.damage_charges || 0, orderItem?.damage_charges || 0),
-              damaged_quantity: Math.max(item.damaged_quantity || 0, orderItem?.damaged_quantity || 0),
-            })
-            .eq('id', item.item_id) as any
-        ];
-
-        // Increment inventory in parallel if there is an increase in returned quantity
-        if (quantityToIncrement > 0 && orderItem && orderItem.product_id) {
-          const { branch_id, product_id } = orderItem;
-
-          // Branch inventory update
-          itemOperations.push(
-            (async () => {
-              const { data: inv } = await this.client
-                .from('product_inventory')
-                .select('available_quantity')
-                .eq('product_id', product_id)
-                .eq('branch_id', branch_id)
-                .single();
-                
-              if (inv) {
-                await this.client
-                  .from('product_inventory')
-                  .update({ available_quantity: inv.available_quantity + quantityToIncrement })
-                  .eq('product_id', product_id)
-                  .eq('branch_id', branch_id);
-              }
-            })()
-          );
-
-          // Global product inventory update
-          itemOperations.push(
-            (async () => {
-              const { data: prod } = await this.client
-                .from('products')
-                .select('available_quantity')
-                .eq('id', product_id)
-                .single();
-                
-              if (prod) {
-                await this.client
-                  .from('products')
-                  .update({ available_quantity: prod.available_quantity + quantityToIncrement })
-                  .eq('id', product_id);
-              }
-            })()
-          );
-        }
-
-        await Promise.all(itemOperations);
-      })
-    );
-
-    // Re-read item assessments after the return while retaining separate order-level charges.
-    const { data: allItems, error: itemsError } = await this.client
-      .from(this.orderItemsTable)
-      .select('damage_charges, condition_rating, quantity, returned_quantity')
-      .eq('order_id', orderId);
-    if (itemsError) {
-      return { data: null, error: itemsError, success: false };
-    }
-
-    const itemDamage = allItems?.reduce((sum, item) => sum + Number(item.damage_charges || 0), 0) || 0;
-    const totalDamageCharges = Math.round((orderLevelDamage + itemDamage) * 100) / 100;
-    const hasDamage = allItems?.some(i => i.condition_rating === 'damaged') || false;
-    const hasMissing = allItems?.some(i => (i.returned_quantity || 0) < i.quantity) || false;
-
-    if (hasDamage) {
-      newStatus = 'flagged';
-    } else if (hasMissing) {
-      newStatus = 'partial';
-    }
-
-    // late_fee is the complete desired fee, not an increment; omitted fees stay saved.
-    const newLateFee = Number(returnData.late_fee ?? currentOrder.late_fee ?? 0);
-    const additionalDiscount = Number(returnData.discount || 0);
-    const originalOrderDiscount = Number(currentOrder.discount || 0);
-
-    const newDiscountTotal = Math.round((originalOrderDiscount + additionalDiscount) * 100) / 100;
-
-    // Subtract only fees being replaced. The saved base is already discounted,
-    // so rebuilding it from rental items would lose extra charges or discount it twice.
-    const savedBaseTotal = Number(currentOrder.total_amount || 0)
-      - Number(currentOrder.damage_charges_total || 0)
-      - Number(currentOrder.late_fee || 0);
-    const newTotalAmount = Math.round(Math.max(0,
-      savedBaseTotal + newLateFee + totalDamageCharges - additionalDiscount
-    ) * 100) / 100;
-    
-    // Update payment status if the new total changed and is not fully paid anymore
-    let paymentStatus = undefined;
-    const amountPaid = Number(currentOrder.amount_paid || 0);
-    if (currentOrder.payment_status === 'refund_waived') {
-       paymentStatus = 'refund_waived';
-    } else if (newTotalAmount > amountPaid) {
-       paymentStatus = amountPaid > 0 ? 'partial' : 'pending';
-    } else {
-       paymentStatus = 'paid';
-    }
-
-    // 4. Update order status and totals
-    const orderResponse = await this.client
-      .from(this.tableName)
-      .update({
-        status: newStatus,
-        total_amount: newTotalAmount,
-        late_fee: newLateFee,
-        discount: newDiscountTotal,
-        damage_charges_total: totalDamageCharges,
-        payment_status: paymentStatus,
-        has_stock_conflict: false,
-        conflict_details: []
-      })
-      .eq('id', orderId)
-      .select()
-      .single();
-
-    if (orderResponse.error) {
-      return this.handleResponse<Order>(orderResponse);
-    }
-
-    // Add to status history
-    await this.client
-      .from(this.orderStatusHistoryTable)
-      .insert({
-        order_id: orderId,
-        status: newStatus,
-        notes: returnData.notes || null,
-        changed_by: null,
+  async processReturn(orderId: string, returnData: ReturnOrderDTO, staffId: string | null = null): Promise<RepositoryResult<Order>> {
+    // Lock the order/items and commit cumulative returns, inventory and charges
+    // together. A retried or concurrent request cannot restore the same unit twice.
+    return this.executeOperation(async () => {
+      const response = await this.client.rpc('return_order_stock_safe', {
+        p_id: orderId, p_data: returnData, p_staff: staffId,
       });
-
-    // Returns bare Order (no joins). Hooks invalidate the detail cache
-    // to trigger a fresh findById refetch with full relations.
-    return this.handleResponse<Order>(orderResponse);
+      return this.handleResponse<Order>(response);
+    });
   }
 
   /**

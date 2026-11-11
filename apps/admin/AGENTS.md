@@ -294,3 +294,11 @@ Default Store ID: `00000000-0000-0000-0000-000000000001` (single-tenant)
 - Keep the mobile return contract: `returned_quantity` and `late_fee` are absolute totals. Validate quantities before writes and preserve earlier damage on later partial returns.
 - Preserve saved financial totals, explicit blank store-scoped GSTIN, awaited ledger reconciliation, configurable GST slabs and dedicated GST/damage exports together.
 - Item snapshots used by return safeguards must include quantity, prior damage charges and damaged quantity.
+
+
+## Stock integrity (November 11, 2026)
+- Product edits must preserve unavailable units: `new_available = old_available + new_total - old_total`. Never reset availability to total on edit, even when an older client supplies `available_quantity`. Branch allocation edits follow the same rule.
+- Rental starts, item-quantity edits, cumulative returns and order deletion use the server-only stock RPCs in migration 048. Lock the order, items and products in stable order; commit stock and corresponding order/item changes together. Do not reintroduce separate read/modify/write inventory increments or clamp insufficient stock to zero.
+- Migration 049 adds database stock bounds after the matching API is deployed. Its NOT VALID constraints preserve legacy rows but reject invalid new/updated rows. Existing discrepancies require a reviewed physical-count reconciliation; never silently cap or guess them.
+- Rollout order: explicitly authorized migration 048, matching API deployment, then explicitly authorized migration 049. Migration 047 remains the cancellation prerequisite. These migrations do not backfill orders, payments or stock.
+- Verify `test-stock-integrity.cjs`, `test-order-return-adjustments.cjs`, cancellation/report regressions and the build/lint checks. Set `PGLITE_PATH` for disposable SQL tests. `test-stock-concurrency.py` additionally checks separate PostgreSQL connections against a dedicated local `stock_test` cluster; never point tests at live services.

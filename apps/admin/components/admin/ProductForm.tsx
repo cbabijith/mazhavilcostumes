@@ -278,7 +278,6 @@ export default function ProductForm({
           low_stock_threshold: 0,
           price_per_day: pricePerDay,
           quantity: quantity,
-          available_quantity: quantity,
           is_active: formData.is_active,
           sku: formData.sku || undefined,
           barcode: formData.barcode || undefined,
@@ -288,7 +287,7 @@ export default function ProductForm({
         if (isEdit && product) {
           await updateProduct({ id: product.id, data: basePayload as any });
         } else {
-          await createProduct(basePayload as any);
+          await createProduct({ ...basePayload, available_quantity: quantity } as any);
         }
 
         if (continueAdding && !isEdit) {

@@ -479,3 +479,24 @@ The merged checks cover invalid cumulative quantities, flagged-order settlement,
 - Unrefunded money stays **Refund due**. Use the existing **Keep Amount** action separately. Original invoice amounts/GST remain for audit; cancelled rentals leave booking-business and GST filing totals, while refunds reduce collections on their payment date.
 - **Deployment:** review and apply `database/migrations/046_atomic_order_cancellation.sql` with explicit live-database authorization before deploying this API, then release the matching mobile build. No existing order is cancelled or backfilled by this migration.
 - **Offline verification:** `node scripts/test-order-cancellation.cjs <path-to-@electric-sql/pglite>` and `node scripts/test-cancellation-reports.cjs`. The first executes the actual SQL against disposable PostgreSQL, including retry, scope and rollback failures.
+
+
+## Stock calculation and concurrency protection
+
+Product edits preserve costumes that are unavailable. For example, 30 total with 9 out stays at 21 available when a name/price is edited. Increasing the total to 35 changes availability to 26; returning those 9 finishes at 35. An older web/mobile client sending `available_quantity=quantity` cannot reset the counter.
+
+The existing API routes now use atomic database operations for product/branch quantities, rental status and item edits, returns, and order deletion. Returns use cumulative quantities, reject decreases/over-returns/duplicate item IDs, and preserve prior damage and invoice adjustments. Repeated requests cannot count the same units twice. A failed stock or status write rolls back the whole operation; stock never clamps to zero to hide shortages. Cancellation continues to use `cancel_order`.
+
+Deployment requires explicit authorization. Apply `database/migrations/048_stock_integrity.sql`, deploy the matching admin API, then apply `049_stock_bounds.sql`. The final guard is deliberately separate so older API instances that ignore stock-write errors are replaced first. No migration corrects historical stock values or changes existing order/payment records. Legacy inconsistencies must be reconciled from confirmed physical counts.
+
+Offline verification (no live credentials):
+
+```powershell
+$env:PGLITE_PATH = '<path-to-@electric-sql/pglite>'
+node --test scripts/test-stock-integrity.cjs scripts/test-order-return-adjustments.cjs
+node scripts/test-order-cancellation.cjs $env:PGLITE_PATH
+# Optional: independent PostgreSQL connections on a dedicated local stock_test cluster
+python scripts/test-stock-concurrency.py --bin '<postgres-bin-directory>' --port <test-port>
+pnpm run build
+pnpm exec eslint . --max-warnings 0
+```

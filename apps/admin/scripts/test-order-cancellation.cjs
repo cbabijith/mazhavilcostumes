@@ -28,10 +28,10 @@ function load(file, dependencies) {
 }
 
 /** Start with actual table definitions so columns and defaults match the repository. */
-async function setup() {
+async function setup({ legacy = false } = {}) {
   const db = new PGlite();
   const schema = fs.readFileSync(path.join(root, 'database/latest_full_schema.sql'), 'utf8');
-  const names = ['orders', 'order_items', 'payments', 'staff', 'products', 'product_inventory', 'order_status_history', 'order_reservations', 'cleaning_records'];
+  const names = ['branches', 'orders', 'order_items', 'payments', 'staff', 'products', 'product_inventory', 'order_status_history', 'order_reservations', 'cleaning_records'];
   await db.exec(`CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
     CREATE FUNCTION uuid_generate_v4() RETURNS uuid LANGUAGE sql AS $$ SELECT gen_random_uuid() $$;`);
   for (const name of names) {
@@ -43,6 +43,9 @@ async function setup() {
     ALTER TABLE orders ADD PRIMARY KEY(id);
     ALTER TABLE payments ADD CONSTRAINT payment_order_fk FOREIGN KEY(order_id) REFERENCES orders(id);
     ALTER TABLE orders ADD COLUMN invoice_number text;
+    INSERT INTO branches(id,store_id,name,address,is_main)
+      VALUES ('${id(2)}','${id(1)}','Main','Test address',true),
+        ('${id(3)}','${id(1)}','Other','Test address',false);
     INSERT INTO staff(id,store_id,branch_id,name,email,role,is_active)
       VALUES ('${id(10)}','${id(1)}','${id(2)}','Staff','staff@example.test','staff',true),
         ('${id(11)}','${id(1)}','${id(3)}','Other branch','other@example.test','staff',true),
@@ -66,6 +69,11 @@ async function setup() {
   const migration = fs.readFileSync(path.join(root, 'database/migrations/046_atomic_order_cancellation.sql'), 'utf8');
   await db.exec(migration);
   await db.exec(migration); // Deployment is repeatable.
+  if (!legacy) {
+    const fix = fs.readFileSync(path.join(root, 'database/migrations/047_cancellation_global_stock.sql'), 'utf8');
+    await db.exec(fix);
+    await db.exec(fix);
+  }
   return db;
 }
 
@@ -217,4 +225,79 @@ test('PATCH schema retains refunds and cancellation service validates before rep
   assert.equal(writes,0);
   assert.equal((await service.cancelOrder(id(30),body,id(10))).success,true);
   assert.equal(writes,1);assert.equal(invalidations,1);
+});
+
+
+test('046 reproduces missing main inventory failure; 047 changes no rows and permits global-only stock', async () => {
+  const db = await setup({ legacy: true });
+  try {
+    // Match the failed live order shape without touching the live database.
+    await db.exec(`DELETE FROM product_inventory; DELETE FROM payments;
+      UPDATE orders SET amount_paid=0,total_amount=700;
+      UPDATE order_items SET quantity=1,returned_quantity=0;
+      UPDATE products SET quantity=1,available_quantity=0;`);
+    const before = await snapshot(db);
+    await assert.rejects(cancel(db), /Branch stock is missing or inconsistent/);
+    assert.deepEqual(await snapshot(db), before);
+    const fix = fs.readFileSync(path.join(root, 'database/migrations/047_cancellation_global_stock.sql'), 'utf8');
+    await db.exec(fix);
+    await db.exec(fix);
+    assert.deepEqual(await snapshot(db), before); // Applying the migration writes no business data.
+    const order = await cancel(db);
+    assert.equal(order.status, 'cancelled');
+    assert.equal(order.amount_paid, 0);
+    assert.equal(order.total_amount, 700);
+    const after = await snapshot(db);
+    assert.equal(after.products[0].available_quantity, 1);
+    assert.equal(after.order_items[0].returned_quantity, 1);
+    assert.equal(after.product_inventory.length, 0);
+    assert.deepEqual(after.payments, before.payments);
+    await cancel(db);
+    assert.deepEqual(await snapshot(db), after);
+  } finally { await db.close(); }
+});
+
+test('global-only main stock preserves earlier returns, refunds once and supports assigned main products', async () => {
+  const db = await setup();
+  try {
+    await db.exec('DELETE FROM product_inventory');
+    await db.query('UPDATE products SET branch_id=$1', [id(2)]);
+    const before = await snapshot(db);
+    await cancel(db, { amount: 125.25 });
+    const after = await snapshot(db);
+    assert.equal(after.products[0].available_quantity, 10);
+    assert.equal(after.order_items[0].returned_quantity, 5);
+    assert.deepEqual(after.payments.filter(row => row.payment_type !== 'refund'), before.payments);
+    assert.equal(Number(after.orders[0].amount_paid), 474.75);
+    assert.equal(after.payments.filter(row => row.payment_type === 'refund').length, 1);
+    await cancel(db, { amount: 125.25 });
+    assert.deepEqual(await snapshot(db), after);
+  } finally { await db.close(); }
+});
+
+test('missing main inventory never bypasses existing corrupt branch stock or another branch/store', async () => {
+  const changes = [
+    'UPDATE product_inventory SET available_quantity=quantity',
+    'UPDATE product_inventory SET available_quantity=-1',
+    `DELETE FROM product_inventory WHERE branch_id='${id(2)}'`,
+    'DELETE FROM product_inventory; UPDATE branches SET is_main=false',
+    `DELETE FROM product_inventory; UPDATE products SET branch_id='${id(3)}'`,
+    `DELETE FROM product_inventory; UPDATE products SET store_id='${id(9)}'`,
+    `DELETE FROM product_inventory; UPDATE branches SET store_id='${id(9)}'`,
+    'DELETE FROM product_inventory; UPDATE products SET available_quantity=quantity',
+    'DELETE FROM product_inventory; UPDATE products SET available_quantity=-1',
+  ];
+  const db = await setup();
+  try {
+    for (const change of changes) {
+      await db.exec('BEGIN');
+      await db.exec(change);
+      const before = await snapshot(db);
+      await db.exec('SAVEPOINT cancellation_test');
+      await assert.rejects(cancel(db, { amount: 100 }), /stock is (missing or )?inconsistent/);
+      await db.exec('ROLLBACK TO SAVEPOINT cancellation_test');
+      assert.deepEqual(await snapshot(db), before);
+      await db.exec('ROLLBACK');
+    }
+  } finally { await db.close(); }
 });
