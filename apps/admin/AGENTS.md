@@ -6,6 +6,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 14, 2026 - Restore manual return late fees
+- Keep the Extra Late Fee input visible beside Discount for ongoing, in-use, partial and flagged returns. It is an additional draft, not an automatic overdue charge or a collected payment.
+- Show the saved plus new fee in preview/receipt, submit the absolute `late_fee` through the existing return hook, and clear new fee/discount inputs only on success. Preserve drafts on failure; later partial returns must not apply them twice.
+- Reject invalid/negative fee input and prevent collecting the unsaved extra fee. Save the return first; collection continues to use the persisted server balance. Preserve the separate single-discount editor.
+- Verify `node --test scripts/test-cancellation-staff.cjs scripts/test-order-return-adjustments.cjs` and typecheck/build. Browser verification uses offline fixtures; do not modify live orders to test fees.
+
 ## November 10, 2026 - Atomic ongoing cancellation
 - Route `PATCH /api/orders/:id` cancellations through `OrderCancellationService` and repository RPC `cancel_order`; use a request-local `OrderService` so staff attribution cannot cross requests.
 - Require reason, validate refund amount/mode and verify active staff/store/branch inside the transaction. Ongoing/in-use stock restoration requires physical-return confirmation and only restores `quantity - returned_quantity`; preserve earlier damaged/returned units. Roll back stock, ledger and status together on failure; repeat requests are idempotent.

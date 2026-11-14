@@ -60,6 +60,12 @@ pnpm start
 
 ---
 
+## Manual return late fees
+
+For ongoing, in-use, partial and flagged orders, **Order Items → Extra Late Fee** accepts an optional additional amount beside Discount. Typing updates the preview and Financial Receipt only. Save the return to persist the existing late fee plus the new amount, then collect payment. The input clears only after a successful return, so partial returns cannot apply the same fee twice. An on-time notice appears for a new fee through the due date; no overdue charge is calculated automatically. The separate **Add Discount** editor retains its replacement-discount behavior.
+
+Offline checks: `node --test scripts/test-cancellation-staff.cjs scripts/test-order-return-adjustments.cjs` and `tsc --noEmit`.
+
 ## Revenue report exports
 
 Each transaction in `data.details` includes the order's stored `invoice_number`, or `null` when unavailable. The transaction lists and exports use this field for the Invoice Number column.

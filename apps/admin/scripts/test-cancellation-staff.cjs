@@ -35,9 +35,9 @@ const staff = { id: 'user', staff_id: 'staff-1', branch_id: 'branch-1', store_id
 
 /** Keep real React rendering while replacing visual primitives only. */
 function primitive(tag) {
-  return ({ children, title, disabled, asChild, href }) => asChild
+  return ({ children, title, disabled, asChild, href, id, htmlFor, type, min, step }) => asChild
     ? React.Children.only(children)
-    : React.createElement(tag, { title, disabled, href }, children);
+    : React.createElement(tag, { title, disabled, href, id, htmlFor, type, min, step }, children);
 }
 
 const visualDependencies = {
@@ -67,7 +67,7 @@ test('shared order list renders Cancel Order for active rentals and hides it for
   }
 });
 
-test('staff order details render ongoing cancellation without an admin-only condition', () => {
+test('staff order details show late fees on returnable orders, including fully paid rentals', () => {
   let currentOrder = baseOrder;
   const hooks = {
     useOrder: () => ({ data: { success: true, data: currentOrder }, isLoading: false }),
@@ -90,10 +90,17 @@ test('staff order details render ongoing cancellation without an admin-only cond
     '@/domain/types/order': orderTypes, '@/domain/types/payment': paymentTypes,
     'next/dynamic': () => () => null,
   });
-  for (const status of ['ongoing', 'in_use', 'delivered']) {
+  for (const status of ['ongoing', 'in_use', 'partial', 'flagged', 'delivered', 'returned', 'completed', 'cancelled']) {
     currentOrder = { ...baseOrder, status };
     const html = renderToStaticMarkup(React.createElement(Details, { orderId: baseOrder.id }));
-    assert.match(html, /Cancel Order/);
+    if (['ongoing', 'in_use', 'delivered'].includes(status)) assert.match(html, /Cancel Order/);
+    const returnable = ['ongoing', 'in_use', 'partial', 'flagged'].includes(status);
+    assert.equal(html.includes('Extra Late Fee'), returnable, status);
+    assert.equal(html.includes('id="return-extra-late-fee"'), returnable, status);
+    if (returnable) {
+      assert.match(html, /for="return-extra-late-fee"/);
+      assert.match(html, /min="0" step="0.01"/);
+    }
   }
 });
 

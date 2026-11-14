@@ -111,10 +111,15 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     return_count: number,
   }>>({});
 
-  // Late fee is no longer collected on the return screen (client decision
-  // 2026-09-06) — the input was removed; any previously persisted late fees
-  // still display from order.late_fee.
-  const lateFee = 0;
+  // This is an additional draft fee. The return API receives the saved fee plus
+  // this amount; typing never changes the order or records a payment.
+  const [lateFeeInput, setLateFeeInput] = useState("");
+  const parsedLateFee = lateFeeInput.trim() === "" ? 0 : Number(lateFeeInput);
+  const lateFeeError = !Number.isFinite(parsedLateFee) || parsedLateFee < 0
+    || !Number.isSafeInteger(Math.round(parsedLateFee * 100))
+    ? "Enter a valid, non-negative late fee."
+    : null;
+  const lateFee = lateFeeError ? 0 : Math.round(parsedLateFee * 100) / 100;
   const [discount, setDiscount] = useState<number>(0);
 
   const order = orderResponse?.data;
@@ -184,8 +189,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   const calculatedDamage = orderLevelDamage + calculatedItemDamage;
 
   // Calculate if the order is overdue based on current date vs end_date
-  const todayStr = typeof window !== 'undefined' ? new Date().toISOString().split('T')[0] : '';
-  const isOverdue = order ? todayStr > order.end_date : false;
+  const isOverdue = order ? format(new Date(), 'yyyy-MM-dd') > order.end_date.slice(0, 10) : false;
 
   // Base order total before any return-time adjustments (damage, late fee)
   const originalOrderTotalBeforeReturn = order
@@ -205,10 +209,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     : 0;
 
   const base_amount_due = order ? Math.max(0, order.total_amount - (order.amount_paid || 0)) : 0;
-  const totalDeductions = calculatedDamage - discount;
+  const totalDeductions = calculatedDamage + lateFee - discount;
 
   // Reactive settlement variables for the receipt sidebar
-  const displayLateFee = order ? (order.late_fee || 0) + lateFee : 0;
+  const displayLateFee = order ? (order.late_fee || 0) + (isReturnable ? lateFee : 0) : 0;
   const displayOrderDiscount = isReturnable ? (order ? order.discount + discount : 0) : (order ? order.discount : 0);
   const displayDamageCharges = isReturnable ? calculatedDamage : (order ? order.damage_charges_total : 0);
   const displayGrandTotal = projected_total;
@@ -449,6 +453,10 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const handleCollectPayment = async () => {
+    if (lateFeeError || (isReturnable && lateFee > 0)) {
+      showError("Save Return First", lateFeeError || "Save the return to apply the extra late fee, then collect payment.");
+      return;
+    }
     const amountVal = parseFloat(paymentForm.amount) || 0;
     // Cap at the PERSISTED balance (total_amount − amount_paid), the same
     // ceiling the API enforces. Damage fees typed into the return form are
@@ -464,7 +472,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
     if (maxAmount <= 0) {
       showError(
         "Nothing to Collect",
-        "This order's recorded balance is already fully paid. New damage fees become collectable after the return is processed."
+        "This order's recorded balance is already fully paid. New fees become collectable after the return is processed."
       );
       return;
     }
@@ -508,7 +516,11 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
   };
 
   const submitReturn = () => {
-    if (!order) return;
+    if (!order || isReturning) return;
+    if (lateFeeError) {
+      showError("Invalid Late Fee", lateFeeError);
+      return;
+    }
     setIsReturnConfirmOpen(false);
 
     // Items marked "Not Returned" (and items already fully returned in an
@@ -555,11 +567,21 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
       discount: discount,
     };
 
-    processOrderReturn({ orderId: order.id, returnData: returnPayload });
+    processOrderReturn({ orderId: order.id, returnData: returnPayload }, {
+      onSuccess: () => {
+        // A later partial return must not add the same draft fee/discount again.
+        setLateFeeInput("");
+        setDiscount(0);
+      },
+    });
   };
 
   const handleReturnClick = () => {
     if (!order) return;
+    if (lateFeeError) {
+      showError("Invalid Late Fee", lateFeeError);
+      return;
+    }
 
     // Only items still out with the customer need a decision — items already
     // fully returned in an earlier partial return keep their saved assessment.
@@ -1342,7 +1364,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
             {isReturnable && (
               <div className="bg-slate-50 p-6 border-t border-slate-200 space-y-4">
                 {/* Live projected total with damage fees */}
-                {(calculatedDamage > 0 || discount > 0) && (
+                {(calculatedDamage > 0 || displayLateFee > 0 || discount > 0) && (
                   <div className="p-4 bg-amber-50 border-2 border-amber-200 rounded-xl space-y-2">
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-widest">Projected Settlement</p>
                     <div className="flex justify-between text-sm text-slate-700">
@@ -1353,6 +1375,12 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                       <div className="flex justify-between text-sm text-orange-700">
                         <span>+ Damage Fees</span>
                         <span className="font-bold">{formatCurrency(calculatedDamage)}</span>
+                      </div>
+                    )}
+                    {displayLateFee > 0 && (
+                      <div className="flex justify-between text-sm text-red-700">
+                        <span>+ Late Fee</span>
+                        <span className="font-bold">{formatCurrency(displayLateFee)}</span>
                       </div>
                     )}
                     {discount > 0 && (
@@ -1376,15 +1404,21 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   </div>
                 )}
 
+                {lateFee > 0 && !isOverdue && (
+                  <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+                    This order is not overdue. An extra late fee of {formatCurrency(lateFee)} will be added when you save the return.
+                  </p>
+                )}
+
                 {/* Payment Due Warning */}
                 {amount_due > 0 && (
-                  <div className="flex items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                  <div className="flex flex-wrap items-center gap-3 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
                     <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                       <AlertTriangle className="w-5 h-5 text-red-600" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-red-800">Payment Due — {formatCurrency(amount_due)}</p>
-                      <p className="text-xs text-red-600 mt-0.5">Collect the remaining balance before or after completing the return.</p>
+                      <p className="text-xs text-red-600 mt-0.5">Save new return fees before collecting their payment.</p>
                     </div>
                     <Button
                       type="button"
@@ -1392,7 +1426,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                         setPaymentForm({ amount: base_amount_due.toString(), paymentMode: PaymentMode.CASH, paymentType: PaymentType.FINAL, notes: "" });
                         setIsPaymentModalOpen(true);
                       }}
-                      className="h-10 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-nowrap flex-shrink-0"
+                      className="min-h-10 h-auto w-full sm:w-auto py-2 px-5 bg-red-600 hover:bg-red-700 text-white font-bold text-sm rounded-xl whitespace-normal flex-shrink-0"
                     >
                       Collect Payment
                     </Button>
@@ -1412,17 +1446,37 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                   </div>
                 )}
 
-                <div className="flex flex-col sm:flex-row items-end justify-between gap-4">
-                  <div className="flex gap-4 w-full sm:w-auto">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <div className="grid grid-cols-1 min-[400px]:grid-cols-2 gap-4 w-full sm:w-auto">
+                    <div className="space-y-1 min-w-0">
+                      <Label htmlFor="return-extra-late-fee" className="text-xs font-bold text-slate-500 uppercase tracking-widest">Extra Late Fee</Label>
+                      <Input
+                        id="return-extra-late-fee"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={lateFeeInput}
+                        onChange={(event) => setLateFeeInput(event.target.value)}
+                        disabled={isReturning}
+                        aria-invalid={Boolean(lateFeeError)}
+                        aria-describedby="return-extra-late-fee-help"
+                        className="w-full sm:w-36 h-12 font-bold text-lg"
+                        placeholder="0"
+                      />
+                      <p id="return-extra-late-fee-help" className={`text-xs sm:max-w-36 ${lateFeeError ? 'text-red-700' : 'text-slate-500'}`}>
+                        {lateFeeError || "Additional amount; saved with the return."}
+                      </p>
+                    </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</label>
-                      <Input type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className="w-32 h-12 font-bold text-lg" placeholder="0" />
+                      <Label htmlFor="return-discount" className="text-xs font-bold text-slate-500 uppercase tracking-widest">Discount</Label>
+                      <Input id="return-discount" type="number" value={discount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} disabled={isReturning} className="w-full sm:w-32 h-12 font-bold text-lg" placeholder="0" />
                     </div>
                   </div>
                   <Button
                     onClick={handleReturnClick}
                     disabled={isReturning}
-                    className={`w-full sm:w-auto h-14 px-8 text-white font-bold text-lg rounded-xl shadow-md ${unitsStillOut > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
+                    className={`w-full sm:w-auto min-h-14 h-auto py-3 px-4 sm:px-8 whitespace-normal text-white font-bold text-lg rounded-xl shadow-md ${unitsStillOut > 0 ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-800'}`}
                   >
                     {isReturning ? "Processing..." : unitsStillOut > 0 ? `Save Partial Return (${unitsStillOut} Pending)` : "Complete Return Process"}
                   </Button>
@@ -1580,8 +1634,7 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
                     </div>
                   )}
 
-                  {/* 5. Extra Fees (Late/Damage) — persisted late fees only;
-                      new late fees are no longer entered on the return screen */}
+                  {/* 5. Extra Fees (Late/Damage), including the current return draft */}
                   {displayLateFee > 0 && (
                     <div className="space-y-1 pt-2 border-t border-slate-50">
                       <div className="flex justify-between text-red-600 font-bold text-sm">
@@ -2315,12 +2368,18 @@ export default function OrderDetailsView({ orderId }: { orderId: string }) {
           )}
 
           {/* Fees Summary — only show when there's still a balance due */}
-          {(calculatedDamage > 0 || discount > 0) && amount_due > 0 && (
+          {(calculatedDamage > 0 || lateFee > 0 || discount > 0) && amount_due > 0 && (
             <div className="space-y-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
               {calculatedDamage > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-orange-700 font-medium">Damage Charges</span>
                   <span className="font-bold text-orange-700">{formatCurrency(calculatedDamage)}</span>
+                </div>
+              )}
+              {lateFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-red-700 font-medium">Extra Late Fee</span>
+                  <span className="font-bold text-red-700">{formatCurrency(lateFee)}</span>
                 </div>
               )}
               {discount > 0 && (
