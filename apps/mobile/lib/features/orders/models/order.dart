@@ -334,6 +334,19 @@ class Order extends Equatable {
   // Legacy field support for UI/views compatibility
   double get securityDeposit => advanceAmount;
 
+  /// Returned rentals can still owe money until the server settles the order.
+  bool get acceptsPayments =>
+      status != OrderStatus.completed && status != OrderStatus.cancelled;
+
+  /// Keep cancellation actions aligned with the server's supported transitions.
+  bool get canCancel => const {
+    OrderStatus.pending, OrderStatus.confirmed, OrderStatus.scheduled,
+    OrderStatus.delivered, OrderStatus.ongoing, OrderStatus.inUse,
+  }.contains(status);
+
+  bool get cancellationNeedsStockConfirmation =>
+      status == OrderStatus.ongoing || status == OrderStatus.inUse;
+
   const Order({
     required this.id,
     required this.storeId,

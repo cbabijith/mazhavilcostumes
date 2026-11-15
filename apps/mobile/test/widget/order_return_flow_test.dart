@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/constants/app_constants.dart';
+import 'package:mobile/features/auth/viewmodels/providers/auth_provider.dart';
 import 'package:mobile/features/orders/models/order.dart';
 import 'package:mobile/features/orders/models/order_adjustment.dart';
 import 'package:mobile/features/orders/repositories/order_repository.dart';
@@ -30,7 +31,9 @@ class FakeReturnRepository extends OrderRepository {
   final List<Map<String, dynamic>> adjustments = [];
   final List<String> requests = [];
   int conditionSaves = 0;
-  int paymentAttempts = 0;
+  final List<double> collectedAmounts = [];
+  bool failAdjustment = false;
+  bool failPayment = false;
   double? submittedDiscount;
   double? submittedLateFee;
   String? submittedNotes;
@@ -48,6 +51,7 @@ class FakeReturnRepository extends OrderRepository {
     CancelToken? cancelToken,
   }) async {
     requests.add('PATCH');
+    if (failAdjustment) throw StateError('Adjustment failed');
     adjustments.add(Map.of(body));
     order = Order.fromJson({
       ...order.toJson(),
@@ -76,8 +80,19 @@ class FakeReturnRepository extends OrderRepository {
     String? notes,
     CancelToken? cancelToken,
   }) async {
-    paymentAttempts++;
-    throw StateError('Payment requests must remain blocked in this fixture');
+    if (failPayment) throw StateError('Payment failed');
+    if (amount > order.totalAmount - order.amountPaid) {
+      throw Exception('Payment exceeds the saved balance');
+    }
+    collectedAmounts.add(amount);
+    order = Order.fromJson({...order.toJson(),
+      'items': [for (final item in order.items ?? <OrderItem>[])
+        {...item.toJson(), 'condition_rating': item.conditionRating?.name}],
+      'amount_paid': order.amountPaid + amount,
+      'payment_status': order.amountPaid + amount >= order.totalAmount
+          ? 'paid' : 'partial',
+    });
+    return {'order_id': orderId, 'amount': amount};
   }
 
   @override
@@ -135,7 +150,18 @@ Future<void> openOrder(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [orderRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        authUserProvider.overrideWithValue(
+          const AuthUser(
+            id: 'staff-id',
+            email: 'staff@example.test',
+            name: 'Test staff',
+            role: UserRole.staff,
+            branchId: 'test-branch',
+          ),
+        ),
+        orderRepositoryProvider.overrideWithValue(repository),
+      ],
       child: MaterialApp(home: OrderDetailView(order: repository.order)),
     ),
   );
@@ -183,6 +209,65 @@ Future<void> applyLateFeeAdjustment(
 }
 
 void main() {
+  for (final (status, unitsReturned) in [
+    ('partial', 1),
+    ('returned', 2),
+    ('scheduled', 0),
+  ]) {
+    testWidgets('staff can collect the remaining balance on a $status order', (
+      tester,
+    ) async {
+      final repository = FakeReturnRepository()
+        ..order = returnOrder(
+          status: status,
+          total: 300,
+          paid: 250,
+          quantity: 2,
+          returnedQuantity: unitsReturned,
+          returned: status == 'returned',
+        );
+      await openOrder(tester, repository);
+      if (status == 'returned') {
+        expect(find.text('Process Return'), findsNothing);
+        expect(find.text('Cancel'), findsNothing);
+      }
+      if (status == 'scheduled') {
+        expect(find.text('Rental Period Expired'), findsOneWidget);
+      }
+      await tapVisible(
+        tester,
+        find.widgetWithText(OutlinedButton, AppStrings.collectPayment),
+      );
+      final amount = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.byType(TextField),
+      );
+      expect(tester.widget<TextField>(amount).controller!.text, '50.00');
+      await tapVisible(tester, find.text('Record Payment'));
+      expect(repository.collectedAmounts, [50.0]);
+      expect(repository.order.amountPaid, 300);
+      expect(find.text(AppStrings.collectPayment), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final status in ['returned', 'completed', 'cancelled']) {
+    testWidgets('staff cannot collect on a settled or closed $status order', (
+      tester,
+    ) async {
+      final repository = FakeReturnRepository()
+        ..order = returnOrder(
+          status: status,
+          total: 300,
+          paid: status == 'returned' ? 300 : 250,
+          late: 10,
+        );
+      await openOrder(tester, repository);
+      expect(find.text(AppStrings.collectPayment), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
     'return count can split a line across visits without double counting',
     (tester) async {
@@ -277,7 +362,7 @@ void main() {
   );
 
   testWidgets(
-    'footer payment due opens collection with the live discounted balance',
+    'cancelling adjustment confirmation preserves discount without writing',
     (tester) async {
       final repository = FakeReturnRepository();
       await openOrder(tester, repository);
@@ -296,11 +381,15 @@ void main() {
           matching: find.text(AppStrings.collectPayment),
         ),
       );
-      final amount = find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.byType(TextField),
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        find.text(AppStrings.confirmPaymentAdjustments),
+        findsOneWidget,
       );
-      expect(tester.widget<TextField>(amount).controller!.text, '100.00');
+      await tapVisible(tester, find.widgetWithText(TextButton, 'Cancel'));
+      expect(tester.widget<TextField>(discount).controller!.text, '20');
+      expect(repository.collectedAmounts, isEmpty);
+      expect(repository.adjustments, isEmpty);
       expect(repository.submissions, isEmpty);
       expect(tester.takeException(), isNull);
     },
@@ -457,7 +546,51 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('collection amount and upper limit include the draft late fee', (
+  testWidgets('header collection saves fee without returning the fully paid rental', (
+    tester,
+  ) async {
+    final repository = FakeReturnRepository()
+      ..order = returnOrder(total: 80, paid: 80, discount: 0);
+    await openOrder(tester, repository);
+    final lateFee = find.byKey(const ValueKey('return-late-fee'));
+    await tester.ensureVisible(lateFee);
+    await tester.enterText(lateFee, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.collectPayment),
+    );
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(
+      find.text(AppStrings.confirmPaymentAdjustments),
+      findsOneWidget,
+    );
+    expect(repository.collectedAmounts, isEmpty);
+    expect(repository.adjustments, isEmpty);
+    expect(repository.submissions, isEmpty);
+    expect(repository.order.totalAmount, 80);
+    expect(tester.widget<TextField>(lateFee).controller!.text, '10');
+    await tapVisible(tester, find.text(AppStrings.saveFeesAndContinue));
+    expect(repository.order.totalAmount, 90);
+    expect(repository.order.lateFee, 10);
+    expect(repository.order.status, OrderStatus.ongoing);
+    expect(repository.submissions, isEmpty);
+    expect(repository.adjustments.single.containsKey('amount_paid'), isFalse);
+    expect(repository.adjustments.single.containsKey('status'), isFalse);
+    expect(repository.adjustments.single.containsKey('items'), isFalse);
+    expect(tester.widget<TextField>(lateFee).controller!.text, isEmpty);
+    final amount = find.descendant(of: find.byType(BottomSheet),
+      matching: find.byType(TextField));
+    expect(tester.widget<TextField>(amount).controller!.text, '10.00');
+    await tapVisible(tester, find.text('Record Payment'));
+    expect(repository.collectedAmounts, [10]);
+    expect(repository.order.status, OrderStatus.ongoing);
+    expect(repository.adjustments, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('confirmed fee and discount persist once even when payment fails', (
     tester,
   ) async {
     final repository = FakeReturnRepository(savedLateFee: 50);
@@ -478,6 +611,39 @@ void main() {
         matching: find.text(AppStrings.collectPayment),
       ),
     );
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(
+      find.text(AppStrings.confirmPaymentAdjustments),
+      findsOneWidget,
+    );
+    expect(repository.collectedAmounts, isEmpty);
+    expect(repository.adjustments, isEmpty);
+    expect(repository.submissions, isEmpty);
+    expect(repository.order.totalAmount, 270);
+    expect(tester.widget<TextField>(lateFee).controller!.text, '25.50');
+    expect(tester.widget<TextField>(discount).controller!.text, '10');
+
+    await tapVisible(tester, find.text(AppStrings.saveFeesAndContinue));
+    expect(repository.order.totalAmount, 285.5);
+    expect(repository.order.lateFee, 75.5);
+    expect(repository.order.discount, 10);
+    expect(repository.submissions, isEmpty);
+    expect(repository.order.status, OrderStatus.ongoing);
+    expect(tester.widget<TextField>(lateFee).controller!.text, isEmpty);
+    expect(tester.widget<TextField>(discount).controller!.text, isEmpty);
+    repository.failPayment = true;
+    await tapVisible(tester, find.text('Record Payment'));
+    expect(repository.collectedAmounts, isEmpty);
+    expect(repository.adjustments, hasLength(1));
+    repository.failPayment = false;
+    tester
+        .state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger))
+        .clearSnackBars();
+    await tester.pumpAndSettle();
+    await tapVisible(
+      tester,
+      find.widgetWithText(OutlinedButton, AppStrings.collectPayment),
+    );
     final amount = find.descendant(
       of: find.byType(BottomSheet),
       matching: find.byType(TextField),
@@ -491,9 +657,65 @@ void main() {
       find.text('Warning: Amount exceeds balance due of ₹186'),
       findsOneWidget,
     );
-    expect(repository.paymentAttempts, 0);
-    expect(repository.order.totalAmount, 270);
+    expect(repository.collectedAmounts, isEmpty);
+    await tester.enterText(amount, '185.50');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester, find.text('Record Payment'));
+    expect(repository.collectedAmounts, [185.5]);
     expect(repository.submissions, isEmpty);
+    expect(repository.adjustments, hasLength(1));
+    expect(repository.order.lateFee, 75.5);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('failed fee save retains drafts and opens no payment sheet', (tester) async {
+    final repository = FakeReturnRepository()..failAdjustment = true;
+    await openOrder(tester, repository);
+    final fee = find.byKey(const ValueKey('return-late-fee'));
+    await tester.ensureVisible(fee);
+    await tester.enterText(fee, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester,
+      find.widgetWithText(OutlinedButton, AppStrings.collectPayment));
+    await tapVisible(tester, find.text(AppStrings.saveFeesAndContinue));
+    expect(find.byType(BottomSheet), findsNothing);
+    expect(repository.collectedAmounts, isEmpty);
+    expect(repository.submissions, isEmpty);
+    expect(tester.widget<TextField>(fee).controller!.text, '10');
+    repository.failAdjustment = false;
+    await tapVisible(tester,
+      find.widgetWithText(OutlinedButton, AppStrings.collectPayment));
+    await tapVisible(tester, find.text(AppStrings.saveFeesAndContinue));
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(repository.order.lateFee, 10);
+    expect(repository.adjustments, hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('fee confirmation fits small screens and large text', (tester) async {
+    final repository = FakeReturnRepository();
+    await openOrder(tester, repository);
+    final fee = find.byKey(const ValueKey('return-late-fee'));
+    await tester.ensureVisible(fee);
+    await tester.enterText(fee, '10');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tapVisible(tester,
+      find.widgetWithText(OutlinedButton, AppStrings.collectPayment));
+    // Exercise the real confirmation independently of the older receipt/header
+    // layouts, which are outside this dialog's responsive contract.
+    final dialog = tester.widget<AlertDialog>(find.byType(AlertDialog));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    tester.view.physicalSize = const Size(320, 640);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: dialog)));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.paymentAdjustmentExplanation), findsOneWidget);
+    final buttonRect = tester.getRect(find.text(AppStrings.saveFeesAndContinue));
+    expect(buttonRect.right, lessThanOrEqualTo(320));
+    expect(buttonRect.bottom, lessThanOrEqualTo(640));
+    expect(repository.adjustments, isEmpty);
     expect(tester.takeException(), isNull);
   });
 
@@ -609,7 +831,7 @@ void main() {
         ),
       );
       expect(find.byType(BottomSheet), findsNothing);
-      expect(repository.paymentAttempts, 0);
+      expect(repository.collectedAmounts, isEmpty);
       expect(repository.order.lateFee, 0);
       expect(tester.widget<TextField>(lateFee).controller!.text, invalid);
       expect(tester.takeException(), isNull);
@@ -632,7 +854,7 @@ void main() {
         'Late Fee: ₹25.00 — Returned late',
       );
       expect(repository.adjustments.single.containsKey('amount_paid'), isFalse);
-      expect(repository.paymentAttempts, 0);
+      expect(repository.collectedAmounts, isEmpty);
       expect(repository.order.amountPaid, 100);
       expect(repository.order.customer?.id, 'test-customer');
       expect(repository.order.items?.single.id, 'test-item');
@@ -715,7 +937,7 @@ void main() {
     expect(repository.submittedLateFee, 95);
     expect(repository.submittedDiscount, 10);
     expect(repository.order.totalAmount, 305);
-    expect(repository.paymentAttempts, 0);
+    expect(repository.collectedAmounts, isEmpty);
     expect(tester.takeException(), isNull);
   });
 

@@ -301,6 +301,16 @@ class OrderReturnViewModel {
     };
   }
 
+  /// Item damage belongs to the return assessment. Monetary fee/discount drafts
+  /// can instead be confirmed through the standalone adjustment API.
+  String? paymentCollectionError(Order order, ReturnSettlement preview) {
+    if (!canReturn(order.status)) return null;
+    if (preview.damageFees != order.damageChargesTotal) {
+      return AppStrings.saveReturnAdjustmentsBeforePayment;
+    }
+    return null;
+  }
+
   /// Reject malformed and negative discounts before confirmation/payment.
   String? adjustmentError(String discount, {String lateFee = ''}) {
     if (!_validAdjustment(discount)) {

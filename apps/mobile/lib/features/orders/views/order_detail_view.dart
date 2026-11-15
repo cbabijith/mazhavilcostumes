@@ -1,3 +1,4 @@
+import '../widgets/order_cancellation_sheet.dart';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -15,6 +16,7 @@ import '../../../core/supabase/api_client.dart';
 import '../../../core/utils/responsive.dart';
 import '../models/order.dart';
 import '../viewmodels/order_return_viewmodel.dart';
+import '../viewmodels/order_payment_preparation.dart';
 import '../widgets/order_return_footer.dart';
 import '../widgets/order_adjustment_sheet.dart';
 import '../widgets/return_condition_selector.dart';
@@ -43,6 +45,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   late Order _currentOrder;
   bool _isLoading = false;
   bool _isLoadingDetails = false;
+  bool _paymentDialogOpen = false;
+  final _paymentPreparation = OrderPaymentPreparation();
 
   final Map<String, Map<String, dynamic>> _localReturnItems = {};
   final Map<String, TextEditingController> _notesControllers = {};
@@ -741,6 +745,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                           _currentOrder.lateFee > 0)) ...[
                     SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
                     _buildProjectedSettlementCard(
+                      showPaymentAction: _currentOrder.acceptsPayments,
                       onCollectPayment: _openPaymentDialog,
                     ),
                   ],
@@ -920,6 +925,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
   }
 
   Widget _buildHeroActions() {
+    if (!_currentOrder.acceptsPayments) return const SizedBox.shrink();
+    final showCollectPayment = _returnSettlement.balanceDue > 0;
     final today = DateTime.now();
     final todayMidnight = DateTime(today.year, today.month, today.day);
 
@@ -1072,24 +1079,23 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                 ),
               ],
             ),
+            if (showCollectPayment) ...[
+              SizedBox(height: Responsive.h(AppSizes.spacingSmall)),
+              SizedBox(
+                width: double.infinity,
+                child: _buildCollectPaymentButton(),
+              ),
+            ],
           ],
         ),
       );
     }
 
     final status = _currentOrder.status;
-    final isFinalized =
-        status == OrderStatus.completed ||
-        status == OrderStatus.cancelled ||
-        status == OrderStatus.returned;
-    if (isFinalized) return const SizedBox.shrink();
-
     final bool showStartRental =
         status == OrderStatus.confirmed || status == OrderStatus.scheduled;
     final bool showProcessReturn = _returnViewModel.canReturn(status);
-    final bool showCollectPayment = _returnSettlement.balanceDue > 0;
-    final bool showCancel =
-        status != OrderStatus.cancelled && status != OrderStatus.completed;
+    final bool showCancel = _currentOrder.canCancel;
 
     Widget buildStartRentalButton({required bool isExpanded}) {
       final hasConflict = _currentOrder.hasStockConflict;
@@ -1153,34 +1159,6 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
         ),
         label: Text(
           'Process Return',
-          style: TextStyle(
-            fontSize: Responsive.sp(AppSizes.fontSmall),
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      );
-      return isExpanded ? Expanded(child: btn) : btn;
-    }
-
-    Widget buildCollectPaymentButton({required bool isExpanded}) {
-      final btn = OutlinedButton.icon(
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.white, width: 1.5),
-          foregroundColor: Colors.white,
-          padding: Responsive.symmetric(vertical: AppSizes.spacingMedium - 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(
-              Responsive.r(AppSizes.radiusSmall),
-            ),
-          ),
-        ),
-        onPressed: _openPaymentDialog,
-        icon: Icon(
-          Icons.payment_rounded,
-          size: Responsive.icon(AppSizes.iconSmall),
-        ),
-        label: Text(
-          'Collect Payment',
           style: TextStyle(
             fontSize: Responsive.sp(AppSizes.fontSmall),
             fontWeight: FontWeight.bold,
@@ -1303,7 +1281,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         children: [
                           buildCancelButton(isExpanded: true),
                           SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
-                          buildCollectPaymentButton(isExpanded: true),
+                          Expanded(child: _buildCollectPaymentButton()),
                         ],
                       ),
                     ],
@@ -1320,7 +1298,9 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                       );
                     }
-                    rowChildren.add(buildCollectPaymentButton(isExpanded: true));
+                    rowChildren.add(
+                      Expanded(child: _buildCollectPaymentButton()),
+                    );
                   }
                   if (showStartRental) {
                     if (rowChildren.isNotEmpty) {
@@ -1348,7 +1328,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                         : showProcessReturn
                         ? buildProcessReturnButton(isExpanded: false)
                         : showCollectPayment
-                        ? buildCollectPaymentButton(isExpanded: false)
+                        ? _buildCollectPaymentButton()
                         : buildCancelButton(isExpanded: false),
                   );
                 }
@@ -5418,166 +5398,148 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
     );
   }
 
-  void _openCancelDialog() {
-    final reasonController = TextEditingController();
-    final refundController = TextEditingController(text: '0');
-    final paidAmount = _currentOrder.amountPaid;
-
-    showDialog(
+  Future<void> _openCancelDialog() async {
+    if (!_currentOrder.canCancel) return;
+    final saved = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Cancel Order'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Are you sure you want to cancel this order?'),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: reasonController,
-                      decoration: const InputDecoration(
-                        labelText: 'Cancellation Reason',
-                        hintText: 'e.g. Customer cancelled / Event postponed',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    if (paidAmount > 0) ...[
-                      const SizedBox(height: 14),
-                      Text(
-                        'Total Paid so far: ₹${paidAmount.toStringAsFixed(2)}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          ChoiceChip(
-                            label: Text('Full Refund (₹${paidAmount.toStringAsFixed(0)})'),
-                            selected: refundController.text == paidAmount.toStringAsFixed(0) ||
-                                refundController.text == paidAmount.toString(),
-                            onSelected: (selected) {
-                              if (selected) {
-                                setDialogState(() {
-                                  refundController.text = paidAmount.toStringAsFixed(0);
-                                });
-                              }
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('Waive / Keep Advance (₹0)'),
-                            selected: refundController.text == '0' || refundController.text == '0.0',
-                            onSelected: (selected) {
-                              if (selected) {
-                                setDialogState(() {
-                                  refundController.text = '0';
-                                  if (reasonController.text.trim().isEmpty) {
-                                    reasonController.text = 'Advance retained as cancellation fee';
-                                  }
-                                });
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: refundController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Refund Amount (₹)',
-                          helperText: 'Enter 0 to retain the advance with shop',
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (_) => setDialogState(() {}),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () async {
-                    final reason = reasonController.text.trim();
-                    if (reason.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please enter a cancellation reason'),
-                        ),
-                      );
-                      return;
-                    }
-                    final refund = double.tryParse(refundController.text) ?? 0.0;
-                    Navigator.pop(dialogContext);
-                    setState(() => _isLoading = true);
-                    try {
-                      await ref
-                          .read(orderOperationsProvider)
-                          .updateOrder(_currentOrder.id, {
-                            'status': 'cancelled',
-                            'cancellation_reason': reason,
-                            if (paidAmount > 0) 'refund_amount': refund,
-                          });
-                      await _refreshOrder();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Order cancelled successfully'),
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      setState(() => _isLoading = false);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Cancellation failed: $e')),
-                        );
-                      }
-                    }
-                  },
-                  child: const Text('Confirm Cancel'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: AppColors.background,
+      builder: (_) => OrderCancellationSheet(order: _currentOrder),
     );
+    if (saved == true && mounted) {
+      await _refreshOrder();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.cancellationSaved)),
+        );
+      }
+    }
   }
 
-  void _openPaymentDialog() {
-    final adjustmentError = _returnViewModel.canReturn(_currentOrder.status)
+  Widget _buildCollectPaymentButton() => OutlinedButton.icon(
+    style: OutlinedButton.styleFrom(
+      side: BorderSide(
+        color: AppColors.background,
+        width: Responsive.w(AppSizes.spacingTiny / 4),
+      ),
+      foregroundColor: AppColors.background,
+      padding: Responsive.symmetric(
+        vertical: AppSizes.spacingMedium - AppSizes.spacingTiny / 2,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Responsive.r(AppSizes.radiusSmall)),
+      ),
+    ),
+    onPressed: _openPaymentDialog,
+    icon: Icon(Icons.payment_rounded, size: Responsive.icon(AppSizes.iconSmall)),
+    label: Text(
+      AppStrings.collectPayment,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: Responsive.sp(AppSizes.fontSmall),
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+
+  Future<void> _openPaymentDialog() async {
+    if (_isLoading || _paymentDialogOpen || !_currentOrder.acceptsPayments) return;
+    _paymentDialogOpen = true;
+    try {
+      await _prepareAndShowPayment();
+    } finally {
+      _paymentDialogOpen = false;
+    }
+  }
+
+  Future<void> _prepareAndShowPayment() async {
+    final settlement = _returnSettlement;
+    final adjustmentError = (_returnViewModel.canReturn(_currentOrder.status)
         ? _returnViewModel.adjustmentError(
             _extraDiscountController.text,
             lateFee: _extraLateFeeController.text,
           )
-        : null;
+        : null) ??
+        _returnViewModel.paymentCollectionError(_currentOrder, settlement);
     if (adjustmentError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(adjustmentError)),
       );
       return;
     }
-    final maxCollect = _returnSettlement.balanceDue;
+    final returnable = _returnViewModel.canReturn(_currentOrder.status);
+    final lateFee = returnable
+        ? _returnViewModel.previewAmount(_extraLateFeeController.text) : 0.0;
+    final discount = returnable
+        ? _returnViewModel.previewAmount(_extraDiscountController.text) : 0.0;
+    if (lateFee > 0 || discount > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text(AppStrings.confirmPaymentAdjustments),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: [
+                const Text(AppStrings.paymentAdjustmentExplanation),
+                SizedBox(height: Responsive.h(AppSizes.spacingMedium)),
+                if (lateFee > 0)
+                  Text('${AppStrings.extraLateFee}: ₹${lateFee.toStringAsFixed(2)}'),
+                if (discount > 0)
+                  Text('${AppStrings.returnDiscount}: ₹${discount.toStringAsFixed(2)}'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(MaterialLocalizations.of(dialogContext).cancelButtonLabel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text(AppStrings.saveFeesAndContinue),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      setState(() => _isLoading = true);
+      try {
+        final saved = await _paymentPreparation.save(
+          operations: ref.read(orderOperationsProvider),
+          orderId: _currentOrder.id, lateFee: lateFee, discount: discount,
+        );
+        if (!mounted) return;
+        setState(() {
+          final previous = _currentOrder;
+          _currentOrder = saved;
+          _extraLateFeeController.clear();
+          _extraDiscountController.clear();
+          _initializeReturnItems(previousOrder: previous);
+        });
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${AppStrings.adjustmentFailed}: $error')),
+          );
+        }
+        return;
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+    if (!mounted || !_currentOrder.acceptsPayments) return;
+    // Only persisted charges are collectable. Never post the draft projection.
+    final maxCollect = _returnViewModel.settlement(_currentOrder).balanceDue;
     if (maxCollect <= 0) return;
     final amountController = TextEditingController(
       text: maxCollect.toStringAsFixed(2),
     );
     String paymentMode = 'upi';
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -5664,7 +5626,7 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                       onPressed: () async {
                         final amt =
                             double.tryParse(amountController.text) ?? 0.0;
-                        if (amt <= 0) {
+                        if (!amt.isFinite || amt <= 0) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Please enter a valid amount'),
@@ -5694,17 +5656,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                                 amount: amt,
                                 paymentMode: paymentMode,
                               );
-                          final newAmountPaid = _currentOrder.amountPaid + amt;
-                          final newPaymentStatus =
-                              newAmountPaid >= _currentOrder.totalAmount
-                              ? 'paid'
-                              : 'partial';
-                          await ref
-                              .read(orderOperationsProvider)
-                              .updateOrder(_currentOrder.id, {
-                                'amount_paid': newAmountPaid,
-                                'payment_status': newPaymentStatus,
-                              });
+                          // The payment API reconciles totals and status. A
+                          // client PATCH here can overwrite a concurrent payment.
                           await _refreshOrder();
                           ref.invalidate(
                             orderPaymentsProvider(_currentOrder.id),
@@ -5717,8 +5670,8 @@ class _OrderDetailViewState extends ConsumerState<OrderDetailView>
                             );
                           }
                         } catch (e) {
-                          setState(() => _isLoading = false);
                           if (mounted) {
+                            setState(() => _isLoading = false);
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text('Failed to record payment: $e'),

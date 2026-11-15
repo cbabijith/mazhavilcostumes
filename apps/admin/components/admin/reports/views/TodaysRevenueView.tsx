@@ -56,7 +56,7 @@ export function TodaysRevenueView({
 }: TodaysRevenueViewProps) {
   
   const detailColumns = [
-    { header: "Order ID", key: "order_id" },
+    { header: "Invoice Number", key: "invoice_number" },
     { header: "Customer", key: "customer_name" },
     { 
       header: "Type", 

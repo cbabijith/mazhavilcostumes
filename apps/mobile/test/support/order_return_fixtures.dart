@@ -25,6 +25,7 @@ Order returnOrder({
   'created_at': '2026-09-10T12:00:00Z',
   'total_amount': total,
   'amount_paid': paid,
+  'payment_status': paid >= total ? 'paid' : (paid > 0 ? 'partial' : 'pending'),
   'advance_amount': paid,
   'discount': discount,
   'damage_charges_total': damage,

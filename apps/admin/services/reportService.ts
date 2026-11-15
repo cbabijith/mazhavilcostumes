@@ -155,6 +155,7 @@ export class ReportService {
         created_at,
         order:order_id!inner (
           id,
+          invoice_number,
           status,
           branch_id,
           store_id,
@@ -184,6 +185,7 @@ export class ReportService {
 
     const formattedDetails = (rawDetails || []).map((p: any) => ({
       order_id: p.order?.id,
+      invoice_number: p.order?.invoice_number || null,
       customer_name: p.order?.customer?.name || 'Walk-in',
       date: p.payment_date,
       amount: p.payment_type === 'refund' || p.payment_type === 'cancelled_keep' ? -Number(p.amount) : Number(p.amount),
@@ -276,6 +278,7 @@ export class ReportService {
       .neq('payment_status', 'refund_waived');
     
     if (branchId) cancelledDueQuery = cancelledDueQuery.eq('branch_id', branchId);
+    if (storeId) cancelledDueQuery = cancelledDueQuery.eq('store_id', storeId);
 
     // 5. Fetch all orders in range to calculate Revenue Due (outstanding balance)
     let revenueDueQuery = supabase()
@@ -295,6 +298,7 @@ export class ReportService {
       .select('damage_charges_total, late_fee')
       .gte('updated_at', range.start)
       .lte('updated_at', range.end)
+      .neq('status', 'cancelled')
       .or('damage_charges_total.gt.0,late_fee.gt.0');
 
     if (branchId) dueChargesQuery.eq('branch_id', branchId);
@@ -307,6 +311,9 @@ export class ReportService {
 
     if (aggResult.error) throw new Error(aggResult.error.message);
     if (bookingResult.error) throw new Error(bookingResult.error.message);
+    for (const result of [cancelledResult, revenueDueResult, dueChargesResult]) {
+      if (result.error) throw new Error(result.error.message);
+    }
 
     // Filter payments client-side if status filter is active
     const rawPayments = (aggResult.data || []) as any[];
@@ -328,7 +335,7 @@ export class ReportService {
     let totalRefunded = 0;
     let totalCancelledKeep = 0;
     let totalNetRevenue = 0;
-    const totalGstCollected = 0;
+    let totalGstCollected = 0;
     let totalCash = 0;
     let totalUpi = 0;
     let totalGpay = 0;
@@ -392,7 +399,9 @@ export class ReportService {
 
       // GST Calculation Ratio
       const totalOrder = Number(order.total_amount || 0) || 1;
-      const gstRatio = Number(order.gst_amount ?? 0) / totalOrder;
+      // Match the GST filing report: a cancelled rental invoice contributes no
+      // rental GST. Keep original invoice tax values intact for the audit trail.
+      const gstRatio = status === 'cancelled' ? 0 : Number(order.gst_amount ?? 0) / totalOrder;
       const gstPortion = amount * gstRatio;
       const netPortion = amount - gstPortion;
 
@@ -406,10 +415,16 @@ export class ReportService {
         g.total_revenue -= amount;
         g.cash_collection -= amount;
         g.gst_collected -= gstPortion;
+        totalGstCollected -= gstPortion;
         g.net_revenue -= netPortion;
         totalNetRevenue -= netPortion;
         dailyTrends[dateKey].cash -= amount;
-        if (status === 'cancelled') cancelledNet -= amount;
+        if (status === 'cancelled') { cancelledNet -= amount; g.cancelled_revenue -= amount; }
+        if (mode === 'cash') { g.cash_revenue -= amount; totalCash -= amount; }
+        else if (mode === 'upi') { g.upi_revenue -= amount; totalUpi -= amount; }
+        else if (mode === 'gpay') { g.gpay_revenue -= amount; totalGpay -= amount; }
+        else if (mode === 'bank_transfer') { g.bank_transfer_revenue -= amount; totalBankTransfer -= amount; }
+        else { g.other_revenue -= amount; }
       } else if (isCancelledKeep) {
         totalCancelledKeep += amount;
         g.total_revenue += amount;
@@ -422,6 +437,7 @@ export class ReportService {
         g.total_revenue += amount;
         g.cash_collection += amount;
         g.gst_collected += gstPortion;
+        totalGstCollected += gstPortion;
         g.net_revenue += netPortion;
         totalNetRevenue += netPortion;
 
@@ -434,6 +450,7 @@ export class ReportService {
         // Status breakdown
         if (status === 'cancelled') {
            g.cancelled_revenue += amount;
+           cancelledNet += amount;
         } else if (['completed', 'returned'].includes(status)) {
            g.completed_revenue += amount;
         } else if (['ongoing', 'in_use', 'delivered'].includes(status)) {

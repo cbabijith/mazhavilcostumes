@@ -1,3 +1,4 @@
+import '../../../products/viewmodels/providers/product_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../../core/constants/app_durations.dart';
@@ -437,6 +438,7 @@ final orderOperationsProvider = Provider<OrderOperations>((ref) {
     repository,
     onChanged: () {
       if (!ref.mounted) return;
+      ref.invalidate(productsProvider);
       // A settled return/payment must not leave old Revenue Due or pending cards.
       ref.invalidate(ordersProvider);
       ref.invalidate(calendarOrdersProvider);

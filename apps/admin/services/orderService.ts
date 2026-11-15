@@ -533,6 +533,28 @@ export class OrderService {
    * Update an existing order
    */
   async updateOrder(id: string, data: UpdateOrderDTO): Promise<RepositoryResult<Order>> {
+    if (data.status === OrderStatus.CANCELLED) {
+      const staffId = this.currentUserId;
+      const { orderCancellationService } = await import('./orderCancellationService');
+      const result = await orderCancellationService.cancelOrder(id, data, staffId);
+      if (result.success) {
+        // Financial/stock writes have committed. Refresh dependent availability
+        // flags without reporting an already committed cancellation as failed.
+        try {
+          const snapshot = await orderRepository.findById(id);
+          if (snapshot.success && snapshot.data) {
+            const order = snapshot.data;
+            for (const productId of new Set((order.items || []).map(item => item.product_id))) {
+              await this.recalculateProductPriorityCleaning(productId, order.branch_id);
+              await orderRepository.syncProductConflictsForRange(productId, order.start_date, order.end_date);
+            }
+          }
+        } catch (error) {
+          console.error('[OrderService] Cancellation availability refresh failed:', error);
+        }
+      }
+      return result;
+    }
     const totalStart = performance.now();
     console.log(`[OrderService.updateOrder] Starting order update flow for ID: ${id}...`);
 

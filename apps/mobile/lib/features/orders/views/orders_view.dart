@@ -932,7 +932,7 @@ class _OrdersViewState extends ConsumerState<OrdersView> {
                       ),
                       SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
                     ],
-                    if (balanceDue > 0 && order.status != OrderStatus.completed && order.status != OrderStatus.cancelled) ...[
+                    if (balanceDue > 0 && order.acceptsPayments) ...[
                       OutlinedButton.icon(
                         onPressed: () {
                           ref.read(orderProvider(order.id));

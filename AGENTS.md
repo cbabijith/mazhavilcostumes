@@ -823,5 +823,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 - Keep `AGENTS.md` updated with new rules as they emerge
 
 ## 26. Mandatory Post-Work Verification
+### Ongoing cancellation (November 10, 2026)
+- Admin, manager and staff may cancel pending/confirmed/scheduled/delivered/ongoing/in-use orders within their authorized store/branch. Require a reason and confirmation that outstanding active-rental items are back in usable condition.
+- Cancellation uses the guarded `cancel_order` transaction (migration 046): restore only outstanding dispatched quantities, release reservations, record an optional refund and staff audit together. Retries must never duplicate refunds or stock. Do not replace this with separate client-side payment/stock writes.
+- Partial/no refunds leave the remainder Refund due; only the separate explicit Keep Amount action waives it. Preserve original invoice amounts/GST for audit. Cancelled rental invoices are excluded from booking business and GST filing; refunds reduce cash collections on the refund date.
+- Migration 046 must be reviewed/applied before deploying the matching API; do not execute it on a live database without explicit permission.
+- Migration 047 permits global-only stock restoration for main-branch products with no `product_inventory` rows anywhere. Existing branch allocations must pass the normal stock checks; missing non-main allocations still block cancellation. Applying the migration changes only the function, never existing business rows, and requires explicit live-database permission.
+
 1. ALWAYS check the build for type issues (pnpm lint or 	sc --noEmit) after every significant change.
 2. If any runtime issues (e.g. React.Children.only Slot errors) or build issues are found, solve them PROPERLY before concluding the task.

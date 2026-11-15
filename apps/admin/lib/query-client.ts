@@ -128,6 +128,8 @@ export const queryKeys = {
  * Utility functions for cache management
  */
 export const queryUtils = {
+  /** Refresh dependent stock, payments, dashboards and reports after cancellation. */
+  invalidateCancellation: (client: QueryClient = queryClient) => client.invalidateQueries(),
   /**
    * Invalidate all product-related queries
    */

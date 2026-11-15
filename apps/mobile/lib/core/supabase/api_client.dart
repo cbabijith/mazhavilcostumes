@@ -269,11 +269,15 @@ class ApiClient {
         final statusCode = error.response?.statusCode;
         final responseData = error.response?.data;
 
-        if (responseData != null && responseData is Map) {
+        if (responseData is Map) {
+          final apiError = responseData['error'];
+          // Current APIs return {error: {message, code}}; older routes return
+          // {error: "message"}. Never assign an unvalidated JSON value to String.
           message =
-              responseData['error'] ??
-              responseData['message'] ??
-              'Server error occurred';
+              _nonEmptyMessage(apiError is Map ? apiError['message'] : null) ??
+              _nonEmptyMessage(apiError) ??
+              _nonEmptyMessage(responseData['message']) ??
+              _getStatusMessage(statusCode);
         } else {
           message = _getStatusMessage(statusCode);
         }
@@ -290,6 +294,9 @@ class ApiClient {
 
     return Exception(message);
   }
+
+  String? _nonEmptyMessage(Object? value) =>
+      value is String && value.trim().isNotEmpty ? value : null;
 
   String _getStatusMessage(int? statusCode) {
     switch (statusCode) {

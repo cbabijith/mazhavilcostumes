@@ -400,12 +400,13 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
     termsAndConditions, authorizedSignature,
   } = props;
 
-  const hasGst = items.some((item) => (item.gstRate || 0) > 0) || (gstAmount || 0) > 0;
+  // Presentation only: retain GST data and amounts, but hide the item-table column.
+  const showGstColumn = false;
 
   const colSnoStyle = s.colSno;
-  const colDescStyle = hasGst ? s.colDesc : { ...s.colDesc, width: '52%' };
+  const colDescStyle = showGstColumn ? s.colDesc : { ...s.colDesc, width: '52%' };
   const colQtyStyle = s.colQty;
-  const colRateStyle = hasGst ? s.colRate : { ...s.colRate, width: '15%' };
+  const colRateStyle = showGstColumn ? s.colRate : { ...s.colRate, width: '15%' };
   const colGstStyle = s.colGst;
   const colAmtStyle = s.colAmt;
 
@@ -471,7 +472,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
             <Text style={{ ...colDescStyle, ...s.thText }}>Description of Goods</Text>
             <Text style={{ ...colQtyStyle, ...s.thText }}>Qty</Text>
             <Text style={{ ...colRateStyle, ...s.thText }}>Rate</Text>
-            {hasGst ? <Text style={{ ...colGstStyle, ...s.thText }}>GST</Text> : null}
+            {showGstColumn ? <Text style={{ ...colGstStyle, ...s.thText }}>GST</Text> : null}
             <Text style={{ ...colAmtStyle, ...s.thText }}>Amount</Text>
           </View>
 
@@ -495,7 +496,7 @@ export function TallyInvoicePDF(props: TallyInvoiceProps) {
               </View>
               <Text style={colQtyStyle}>{item.quantity}</Text>
               <Text style={colRateStyle}>{rs(item.rate)}</Text>
-              {hasGst ? (
+              {showGstColumn ? (
                 <View style={colGstStyle}>
                   {item.gstRate && item.gstRate > 0 ? (
                     <>

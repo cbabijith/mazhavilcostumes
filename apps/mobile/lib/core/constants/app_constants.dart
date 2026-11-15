@@ -17,6 +17,20 @@ class AppColors {
 }
 
 class AppStrings {
+  static const String cancelOrder = 'Cancel Order';
+  static const String cancellationReason = 'Cancellation reason';
+  static const String cancellationReasonRequired = 'Enter a cancellation reason (maximum 2000 characters).';
+  static const String refundNow = 'Refund now (₹)';
+  static const String refundMode = 'Refund mode';
+  static const String refundRemainderDue = 'Any money not refunded now remains Refund due. Use Keep Amount separately if the shop will retain it.';
+  static const String cancellationStockConfirmation = 'All outstanding costumes are back in usable condition. Restore them to stock.';
+  static const String cancellationStockRequired = 'Confirm the outstanding costumes are back before cancelling.';
+  static const String invalidCancellationRefund = 'Enter a refund between zero and the latest paid amount, with at most two decimal places.';
+  static const String cancellationUnavailable = 'This order cannot be cancelled. Complete the return instead.';
+  static const String cancellationSaved = 'Order cancelled successfully';
+  static const String cancellationFailed = 'Cancellation failed';
+  static const String cancellationFullRefund = 'Full refund';
+  static const String keepOrder = 'Keep Order';
   static const String appName = 'Mazhavil costumes';
   static const String adminDashboard = 'Admin Dashboard';
   static const String signIn = 'Sign In';
@@ -45,6 +59,7 @@ class AppStrings {
   static const String savedDataRefreshFailed = 'Saved data · Could not update. Tap to retry.';
   static const String savedOverviewRefreshFailed = 'Saved overview · Could not update. Pull to retry.';
   static const String retry = 'Retry';
+  static String transactionInvoice(String? number) => 'Invoice: ${number ?? '—'}';
   static const String invoiceSettings = 'Invoice Settings';
   static const String gstNumber = 'GST Number (GSTIN)';
   static const String gstNumberHelp =
@@ -141,7 +156,22 @@ class AppStrings {
   static const String earlierReturn = 'Returned · Saved in an earlier return';
   static const String collectPayment = 'Collect Payment';
   static const String returnPaymentHint =
-      'Collect the remaining balance before or after completing the return.';
+      'Collect Payment can save late fees and discounts without returning items.';
+  static const String saveReturnAdjustmentsBeforePayment =
+      'Save the return first to apply item damage changes, then collect payment.';
+  static const String saveFeesAndContinue = 'Save fees & continue';
+  static const String confirmPaymentAdjustments = 'Save adjustments first?';
+  static const String paymentAdjustmentExplanation =
+      'These amounts will be saved before payment collection. Items stay with '
+      'the customer; this does not process a return. Cancelling the payment '
+      'afterwards will keep these saved adjustments.';
+  static const String paymentUnavailable =
+      'This order can no longer accept payments. Refresh the order.';
+  static const String paymentPreparationBusy = 'Saving adjustments. Please wait.';
+  static const String finishPendingAdjustment =
+      'Retry with the original fee and discount to check the previous save first.';
+  static const String adjustmentChangedOnServer =
+      'The order changed while saving. Reopen it and check its saved fees before retrying.';
   static const String invalidReturnCount =
       'The returning count must be between 1 and the units still out. '
       'Choose Not Returned for items staying with the customer.';

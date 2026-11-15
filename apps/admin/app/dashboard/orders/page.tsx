@@ -148,7 +148,7 @@ function OrdersContent() {
     sort_order: sortOrder,
   });
 
-  const { updateOrder } = useUpdateOrder();
+  const { mutateAsync: updateOrder, isPending: isCancelling } = useUpdateOrder();
 
   // ── Derived data (memoized) ────────────────────────────────────────────
   const visibleOrders = useMemo(() => {
@@ -193,22 +193,10 @@ function OrdersContent() {
 
 
 
-  const handleConfirmCancel = useCallback((reason: string) => {
+  const handleConfirmCancel = useCallback(async (data: import('@/domain').UpdateOrderDTO) => {
     if (!cancelTarget) return;
-    try {
-      updateOrder({
-        id: cancelTarget.id,
-        data: {
-          status: OrderStatus.CANCELLED,
-          cancellation_reason: reason,
-          cancelled_at: new Date().toISOString(),
-        } as any,
-      });
-      closeCancelModal();
-    } catch {
-      // Handled in hook
-    }
-  }, [cancelTarget, updateOrder, closeCancelModal]);
+    await updateOrder({ id: cancelTarget.id, data: { ...data, status: OrderStatus.CANCELLED } });
+  }, [cancelTarget, updateOrder]);
 
   // ── Filter callbacks (stable references) ───────────────────────────────
   const handleStatusChange = useCallback(
@@ -355,11 +343,12 @@ function OrdersContent() {
 
 
       <OrderCancelModal
+        key={cancelTarget?.id || "closed"}
         open={cancelTarget !== null}
         order={cancelTarget}
         onClose={closeCancelModal}
         onConfirm={handleConfirmCancel}
-        isPending={false}
+        isPending={isCancelling}
       />
     </div>
   );

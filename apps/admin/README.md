@@ -58,6 +58,8 @@ pnpm start
 
 ## Revenue report exports
 
+Each transaction in `data.details` includes the order's stored `invoice_number`, or `null` when unavailable. The transaction lists and exports use this field for the Invoice Number column.
+
 Revenue Report and Today's Revenue PDF/Excel downloads include all matching transactions, independently of the current table page. Exports load batches before creating the file and show an error if any batch fails or is incomplete.
 
 `GET /api/reports/revenue` accepts `fromDate`, `toDate`, optional `branchId`, `storeId`, comma-separated `statusFilter`, `payment_mode`, `page` (default 1), and `limit` (default 50, maximum 500). Its `data.details` contains the requested page and `data.total_details_count` counts all transactions matching the detail filters. Invalid pagination returns HTTP 400.
@@ -445,3 +447,14 @@ This project is proprietary to Mazhavil Dance Costumes. All rights reserved.
 - `GET /api/calendar?...&summary=true` returns overview fields, customer identity/contact and item counts without full items, product images or detail-only financial fields. Omitting the flag preserves the existing full response. The route uses the service layer and rejects a non-admin request for another branch.
 - Orders, Calendar and operational-dashboard responses include safe `Server-Timing` durations for authentication, data retrieval and total route time. These headers contain no account data.
 - Run `node scripts/test-startup-api-performance.cjs`, `node scripts/test-loading-performance.cjs`, `tsc --noEmit` and the production build. These changes require a normal GitHub-triggered Vercel deployment before the production mobile API benefits; no database migration is needed.
+
+## Ongoing order cancellation
+
+`PATCH /api/orders/:id` accepts `{ "status": "cancelled", "cancellation_reason": "Customer request", "refund_amount": 100, "refund_payment_mode": "cash", "stock_returned": true }`.
+
+- Admins, managers and staff can cancel active bookings/rentals within their store and authorized branch. Returned, partially returned, flagged and completed statuses still use the return/settlement workflow.
+- A reason is required. Refunds may be zero, partial or full, but cannot exceed the net paid ledger amount. Ongoing/in-use cancellations require confirmation that outstanding costumes are physically back in usable condition.
+- Cancellation, staff audit, remaining-stock restoration, reservation release and the optional refund are a single transaction. Previously returned units and existing payment entries are preserved; retries do not repeat stock or refunds. Ledger discrepancies or missing/inconsistent tracked inventory block the transaction. Migration 047 supports main-branch products stored only in the global product counter: when no branch allocations exist anywhere and the product is unassigned or assigned to that main branch, restore only the global counter that dispatch decremented.
+- Unrefunded money stays **Refund due**. Use the existing **Keep Amount** action separately. Original invoice amounts/GST remain for audit; cancelled rentals leave booking-business and GST filing totals, while refunds reduce collections on their payment date.
+- **Deployment:** review and apply `database/migrations/046_atomic_order_cancellation.sql`, then `047_cancellation_global_stock.sql`, with explicit live-database authorization. Migration 047 replaces the cancellation function and needs no frontend deployment. Neither migration cancels orders, refunds payments or backfills inventory during application. Release the matching mobile build separately.
+- **Offline verification:** `node scripts/test-order-cancellation.cjs <path-to-@electric-sql/pglite>` and `node scripts/test-cancellation-reports.cjs`. The first executes the actual SQL against disposable PostgreSQL, including retry, scope and rollback failures.

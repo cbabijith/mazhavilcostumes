@@ -42,7 +42,8 @@ flutter test --no-pub test/widget/invoice_settings_test.dart test/unit/pr89_mobi
 ### Order return settlement
 
 - The Order Items section provides **Mark All Good**, **Good / Damaged / Not Returned**, **Returning Now**, **Discount**, an optional **Extra Late Fee**, and one return action. Multi-unit outstanding lines have minus/plus buttons and editable quantities, initially set to all outstanding units. Single-unit lines use the condition choices alone. Damage quantity is limited to units returning now. Previously returned lines show a saved label and cannot be edited or returned twice.
-- The settlement preview appears when a discount or fee is present. A separate **Payment Due / Collect Payment** panel appears whenever a balance remains, including orders without adjustments. It uses the same live balance as the collection dialog. Extra Late Fee adds only the newly entered amount to any saved fee; the app does not automatically calculate daily late charges. Return-notes inputs and the separate Good-condition save button are omitted.
+- The settlement preview appears when a discount or fee is present. A separate **Payment Due / Collect Payment** panel appears whenever a balance remains. For an extra late fee or discount, **Collect Payment → Save fees & continue** confirms and saves those adjustments without returning items, then opens collection with the persisted server balance. Cancelling that confirmation writes nothing. Cancelling or failing the subsequent payment keeps the saved adjustments; retrying collection does not add them again. Failed adjustment saves retain drafts and reconcile the same absolute update on retry within the screen session. If the screen is reopened after an uncertain save, check its saved fees before entering another amount. Unsaved item-damage assessments still require saving the return first. The payments endpoint records money and reconciles paid totals; Flutter never overwrites amount_paid after collection. Extra Late Fee adds only the newly entered amount to any saved fee; the app does not calculate daily late charges automatically.
+- API failures display the server's nested `error.message` or legacy error text, with a status-based fallback for malformed bodies. A 409 response no longer becomes a Dart Map-to-String type error that hides the actual conflict.
 - The financial receipt uses the same draft total and balance as the preview. During a new return discount it shows the combined Order Discount, the discount saved at the start of this return (Initial Discount), and Return Settlement Disc. Clearing the input restores saved amounts. Typing does not save the order or change payments.
 - **Not Returned** or a reduced count on an inspected line shows **Save Partial Return (N Pending)**. Unmarked lines do not cause a false partial-return warning, but must be inspected before submission. A zero-count Good/Damaged line is blocked; a submission must return at least one unit. Confirmation shows unit counts. Only lines returning units are sent to the API, with cumulative `returned_quantity` (previously received + returning now). Other lines retain their saved assessment and rent.
 - Discount, extra late-fee, inspection and quantity drafts survive refreshes. A successful return clears newly entered discount and fee values so a later partial-return visit does not apply them twice. A changed received quantity resets the line for the next visit. Physical returns use `returned_quantity`; the legacy `is_returned` flag alone cannot prove every unit is back.
@@ -57,7 +58,7 @@ Offline regression checks (no live order writes):
 
 ```sh
 flutter analyze --no-pub
-flutter test --no-pub test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
+flutter test --no-pub test/unit/api_client_error_test.dart test/unit/order_payment_preparation_test.dart test/unit/order_return_viewmodel_test.dart test/unit/order_return_repository_test.dart test/widget/order_return_flow_test.dart
 ```
 
 ### Financial adjustments
@@ -185,3 +186,11 @@ Two cold launches rendered the saved overview at 607 ms and 233 ms from Dart ent
 Returning through Home, Orders, Calendar and Products issued zero additional API requests. Each populated tab was visible in its first screenshot, completed 326–394 ms after issuing the tap (includes ADB/screenshot overhead, so these are upper bounds rather than frame-time measurements). A separate Products return check retained the scrolled list. No crashes or layout exceptions were found in the captured test logs.
 
 Fresh production requests remain a bottleneck: in the first pass Products took 3,616 ms, Orders 4,616 ms, Calendar 3,441 ms, Analytics 4,474 ms, and category counts 4,431 ms. A subsequent Orders request took 2,552 ms. Cached startup and tab reuse avoid these waits for already loaded data; the measurements do not establish instant first-time data loading. Diagnostic logs/screenshots are under the ignored `.dart_tool/performance_audit/nov02-*` paths. The phone's original screen timeout was restored after testing.
+
+## Cancelling ongoing orders
+
+Staff can cancel ongoing/in-use orders from Order Details using the same action as scheduled bookings. Enter a reason, choose zero/partial/full refund with its payment mode, and confirm outstanding costumes are back in usable condition. Failed submissions retain the draft. Money not refunded stays **Refund due** until refunded or explicitly waived through **Keep Amount**.
+
+`OrderCancellationViewModel` loads the latest order and submits one PATCH through the existing repository. The server restores only outstanding stock and records the refund atomically; Flutter does not adjust inventory, amount-paid or ledger rows itself. Products, payments, orders and report providers refresh after success.
+
+Deploy admin migration 046 and its API before releasing this mobile change. Offline checks: `flutter test --no-pub test/unit/order_cancellation_viewmodel_test.dart test/widget/order_cancellation_sheet_test.dart`, the return/adjustment regression suites, and `flutter analyze --no-pub`.

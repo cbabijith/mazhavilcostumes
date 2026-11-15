@@ -14,6 +14,7 @@ export { branchService } from './branchService';
 export { BannerService, bannerService } from './bannerService';
 export { CustomerService, customerService } from './customerService';
 export { OrderService, orderService } from './orderService';
+export { OrderCancellationService, orderCancellationService } from './orderCancellationService';
 export { SettingsService, settingsService } from './settingsService';
 export { PaymentService, paymentService } from './paymentService';
 export { InvoiceService, invoiceService } from './invoiceService';

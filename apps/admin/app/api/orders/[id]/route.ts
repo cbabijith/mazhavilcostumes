@@ -10,7 +10,7 @@
  */
 
 import { NextRequest } from "next/server";
-import { orderService } from "@/services/orderService";
+import { OrderService, orderService } from "@/services";
 import { apiGuard } from "@/lib/apiGuard";
 import { UpdateOrderSchema } from "@/domain";
 import { apiSuccess, apiRepositoryError, apiNotFound, apiBadRequest, apiInternalError } from "@/lib/apiResponse";
@@ -44,7 +44,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (guard.error) return guard.error;
 
     const authUser = guard.user;
-    orderService.setUserContext(authUser?.staff_id || null, authUser?.branch_id || null);
+    const requestService = new OrderService();
+    requestService.setUserContext(authUser.staff_id || null, authUser.branch_id || null);
 
     const { id } = await params;
     const body = await request.json();
@@ -55,7 +56,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       return apiBadRequest('Validation failed', validatedData.error.format());
     }
 
-    const result = await orderService.updateOrder(id, validatedData.data);
+    const result = await requestService.updateOrder(id, validatedData.data);
     if (!result.success) {
       return apiRepositoryError(result.error, 'Failed to update order');
     }

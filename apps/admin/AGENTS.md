@@ -6,6 +6,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Recent Updates
 
+## November 11, 2026 - Main-branch cancellation stock compatibility
+- Migration `047_cancellation_global_stock.sql` corrects migration 046's assumption that every product has a branch inventory row. Existing creation/dispatch supports main-branch stock held only in `products`.
+- Restore only the global counter when the product belongs to the order's store, is unassigned or assigned to the main branch, and has no branch allocations anywhere. Keep quantity limits and fail closed for corrupt existing allocations, other branches or stores. Preserve atomic refund/status writes and retry protection.
+- Regression coverage reproduces the 046 failure, verifies applying 047 changes no business rows, and checks restoration, refunds, retries and rollback. Do not apply live without explicit permission.
+
+## November 10, 2026 - Atomic ongoing cancellation
+- Route `PATCH /api/orders/:id` cancellations through `OrderCancellationService` and repository RPC `cancel_order`; use a request-local `OrderService` so staff attribution cannot cross requests.
+- Require reason, validate refund amount/mode and verify active staff/store/branch inside the transaction. Ongoing/in-use stock restoration requires physical-return confirmation and only restores `quantity - returned_quantity`; preserve earlier damaged/returned units. Roll back stock, ledger and status together on failure; repeat requests are idempotent.
+- Keep unpaid refunds as Refund due. Preserve original invoice totals/GST and existing receipt rows. Exclude cancelled rentals from booking business and GST filing; calculate net collections, cancellation totals and payment-mode totals from refunds consistently.
+- Migration `046_atomic_order_cancellation.sql` is a deployment prerequisite, not permission to execute live. Offline checks: `test-order-cancellation.cjs <pglite-path>` and `test-cancellation-reports.cjs` alongside the existing return/revenue suites.
+
 ## November 2, 2026 - Pre-push React and lint verification
 - Keep order-panel queries and status-badge hooks unconditional; disable item queries while no order is selected.
 - Declare sortable header components outside their parent render. Synchronize upload queue refs in an effect before processing the queue.
@@ -19,6 +30,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `ApiTiming` headers contain stage durations only. Offline verification: `node scripts/test-startup-api-performance.cjs`.
 
 ## November 2, 2026 - Complete revenue exports
+- Revenue detail tables and exports use the order's stored `invoice_number`. Keep `order_id` in the API for existing clients.
 - Revenue and Today's Revenue exports fetch every matching detail page before generating PDF/Excel; never export only the visible 50 rows. Failed/incomplete pages must stop the download.
 - `/api/reports/revenue` accepts validated `page`/`limit` (maximum 500) and `payment_mode`. Filter transaction status before pagination/counting and keep payment-date/ID ordering stable.
 - Revenue page/API access lives in `hooks/useRevenueReport.ts`; preserve date, branch, store, status and payment-mode filters when exporting. Date/payment filter changes reset the table to page one.

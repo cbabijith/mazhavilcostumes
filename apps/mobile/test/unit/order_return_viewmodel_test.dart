@@ -11,6 +11,33 @@ import '../support/order_return_fixtures.dart';
 void main() {
   const viewModel = OrderReturnViewModel();
 
+  test('collection routes monetary drafts to adjustment and guards item damage', () {
+    final order = returnOrder(total: 220, late: 50, damage: 20);
+    for (final preview in [
+      viewModel.settlement(order, additionalLateFee: 10),
+      viewModel.settlement(order, additionalDiscount: 10),
+      viewModel.settlement(
+        order,
+        additionalLateFee: 10,
+        additionalDiscount: 10,
+      ),
+    ]) {
+      expect(
+        viewModel.paymentCollectionError(order, preview),
+        isNull,
+      );
+    }
+    for (final damage in [30.0, 0.0]) {
+      expect(viewModel.paymentCollectionError(
+        order, viewModel.settlement(order, damageFees: damage)),
+        AppStrings.saveReturnAdjustmentsBeforePayment);
+    }
+    expect(
+      viewModel.paymentCollectionError(order, viewModel.settlement(order)),
+      isNull,
+    );
+  });
+
   test('saved order discount is not deducted from the preview again', () {
     expect(viewModel.settlement(returnOrder()).total, 150);
   });

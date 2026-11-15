@@ -41,7 +41,19 @@ export const CreateOrderSchema = z.object({
   path: ["rental_end_date"],
 });
 
+export const CancelOrderSchema = z.object({
+  cancellation_reason: z.string().trim().min(1, 'Cancellation reason is required').max(2000),
+  refund_amount: z.number().finite().nonnegative().multipleOf(0.01).default(0),
+  refund_payment_mode: z.enum(['cash', 'upi', 'gpay', 'bank_transfer', 'cheque']).optional(),
+  stock_returned: z.boolean().default(false),
+}).refine(data => data.refund_amount === 0 || !!data.refund_payment_mode, {
+  message: 'Select a refund payment mode', path: ['refund_payment_mode'],
+});
+
 export const UpdateOrderSchema = z.object({
+  refund_amount: z.number().finite().nonnegative().multipleOf(0.01).optional(),
+  refund_payment_mode: z.enum(['cash', 'upi', 'gpay', 'bank_transfer', 'cheque']).optional(),
+  stock_returned: z.boolean().optional(),
   status: z.nativeEnum(OrderStatus).optional(),
   start_date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
   end_date: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),
@@ -77,6 +89,10 @@ export const UpdateOrderSchema = z.object({
 }, {
   message: "Rental end date cannot be before start date",
   path: ["end_date"],
+}).refine(data => data.status === OrderStatus.CANCELLED ||
+  (data.refund_amount === undefined && data.refund_payment_mode === undefined && data.stock_returned === undefined), {
+  message: 'Refund and stock confirmation fields are only valid when cancelling an order',
+  path: ['status'],
 });
 
 const returnItemSchema = z.object({

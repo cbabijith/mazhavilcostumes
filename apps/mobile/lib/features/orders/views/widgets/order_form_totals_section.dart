@@ -301,51 +301,10 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey.shade200)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Grand Total',
-                        style: TextStyle(
-                          fontSize: Responsive.sp(AppSizes.fontLarge),
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[900],
-                        ),
-                      ),
-                      SizedBox(height: Responsive.h(AppSizes.spacingTiny / 2)),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today_outlined,
-                            size: Responsive.icon(AppSizes.iconTiny - 4),
-                            color: Colors.grey[400],
-                          ),
-                          SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
-                          Text(
-                            '$_rentalDays ${_rentalDays == 1 ? 'day' : 'days'}$dateRangeText · Rate: ×$pricingMultiplier${_isGstEnabled && _gstAmount > 0 ? ' · Incl. GST' : ''}',
-                            style: TextStyle(
-                              fontSize: Responsive.sp(AppSizes.fontTiny),
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '₹${_totalAmount.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      fontSize: Responsive.sp(AppSizes.fontXXXLarge),
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[900],
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ],
+              child: OrderFormGrandTotal(
+                totalAmount: _totalAmount,
+                rentalDetails:
+                    '$_rentalDays ${_rentalDays == 1 ? 'day' : 'days'}$dateRangeText · Rate: ×$pricingMultiplier${_isGstEnabled && _gstAmount > 0 ? ' · Incl. GST' : ''}',
               ),
             ),
           ),
@@ -882,6 +841,86 @@ extension _OrderFormTotalsSection on _OrderFormViewState {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Keeps the complete price visible without letting rental dates widen its row.
+class OrderFormGrandTotal extends StatelessWidget {
+  const OrderFormGrandTotal({
+    super.key,
+    required this.totalAmount,
+    required this.rentalDetails,
+  });
+
+  final double totalAmount;
+  final String rentalDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    Responsive.init(context);
+    return ListBody(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                AppStrings.grandTotal,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontLarge),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
+            ),
+            SizedBox(width: Responsive.w(AppSizes.spacingSmall)),
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '₹${totalAmount.toStringAsFixed(2)}',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: Responsive.sp(AppSizes.fontXXXLarge),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: Responsive.h(AppSizes.spacingTiny)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: Responsive.icon(AppSizes.iconTiny),
+              color: AppColors.secondaryText,
+            ),
+            SizedBox(width: Responsive.w(AppSizes.spacingTiny)),
+            Expanded(
+              child: Text(
+                rentalDetails,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: Responsive.sp(AppSizes.fontTiny),
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
